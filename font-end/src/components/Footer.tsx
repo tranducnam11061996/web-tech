@@ -1,0 +1,257 @@
+export default function Footer() {
+  return (
+    <>
+      {/*  START footer  */}
+  <footer className="bg-dark py-16 border-t border-dark-border mt-10">
+    <div className="max-w-[1800px] mx-auto px-6 lg:px-8">
+
+      {/*  ROW 1: Logo/Subscribe + 4 Link Columns  */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-x-6 gap-y-10 mb-16">
+
+        {/*  Col 1 (Span 2)  */}
+          <div className="col-span-2 lg:col-span-2 pr-0 lg:pr-10">
+          {/*  Logo  */}
+          <div className="mb-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div
+                className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-red-500/20">
+                e</div>
+              <span className="text-white font-bold text-2xl tracking-tight">evetech</span>
+            </div>
+            <p className="text-[10px] tracking-[0.2em] uppercase text-gray-500 font-semibold">You dream it, we build it</p>
+          </div>
+
+          <p className="text-sm text-gray-400 leading-relaxed mb-8 pr-4">
+            Elevating your gaming experience with premium hardware and cutting-edge technology since 2007.
+          </p>
+
+          {/*  Subscribe Box  */}
+          <div className="bg-dark-card border border-dark-border rounded-2xl p-6 shadow-sm">
+            <h4 className="text-white font-bold text-base mb-1">Stay updated</h4>
+            <p className="text-xs text-gray-500 mb-5">Get the latest deals and tech news</p>
+            <div className="flex gap-3">
+              <input type="email" placeholder="Your Email Address"
+                className="bg-transparent border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white w-full focus:outline-none focus:border-cyan-500 transition-colors placeholder-gray-600" />
+              <button
+                className="bg-transparent border border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-white rounded-lg px-5 py-2.5 text-sm font-semibold transition-all whitespace-nowrap shadow-sm shadow-cyan-500/10">Subscribe</button>
+            </div>
+          </div>
+        </div>
+
+        {/*  Col 2: SHOP  */}
+        <div className="lg:col-span-1">
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Shop</h4>
+          <ul className="space-y-4 text-[13px] font-medium">
+            <li><a href="#" className="text-white flex items-center gap-2 hover:text-cyan-400 transition-colors"><span
+                  className="text-orange-500">🔥</span> Best Sellers</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">PCs</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Laptops</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Graphics Cards</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Monitors</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Chairs</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Upgrade Kits</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Gaming Accessories</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Components</a></li>
+          </ul>
+        </div>
+
+        {/*  Col 3: SUPPORT  */}
+        <div className="lg:col-span-1">
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Support</h4>
+          <ul className="space-y-4 text-[13px] font-medium">
+            <li><a href="#" className="hover:text-white transition-colors">Terms & Conditions</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Credit Card Security</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">My Orders</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">FAQs</a></li>
+          </ul>
+        </div>
+
+        {/*  Col 4: INFO  */}
+        <div className="lg:col-span-1">
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Info</h4>
+          <ul className="space-y-4 text-[13px] font-medium">
+            <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Why Buy From Us?</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Shipping</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Payment Options</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Ordering Info</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Careers (Jobs)</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">EveZone</a></li>
+          </ul>
+        </div>
+
+        {/*  Col 5: BUILD  */}
+        <div className="lg:col-span-1">
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Build</h4>
+          <ul className="space-y-4 text-[13px] font-medium">
+            <li><a href="#" className="hover:text-white transition-colors">AI PC Builder</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">AI Laptop Finder</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Specials</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Laptops Deals</a></li>
+            <li><a href="#" className="hover:text-white transition-colors">Brands we Supply</a></li>
+          </ul>
+        </div>
+
+      </div>
+
+      {/*  Separator  */}
+      <div className="border-t border-dark-border mb-12"></div>
+
+      {/*  ROW 2: Contact Info + Social/App  */}
+      <div className="flex flex-col xl:flex-row justify-between items-start gap-12 xl:gap-8 mb-12">
+
+        {/*  Contact Cards (4 cols)  */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 flex-1 w-full">
+          {/*  Phone  */}
+          <div className="bg-dark-card border border-dark-border rounded-xl p-5">
+            <h5 className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase flex items-center gap-2 mb-3">
+              <span className="text-gray-400">📞</span> PHONE
+            </h5>
+            <p className="text-[13px] text-white font-medium leading-relaxed">(010) 786 0044<br />(012) 653 0033</p>
+          </div>
+          {/*  Email  */}
+          <div className="bg-dark-card border border-dark-border rounded-xl p-5">
+            <h5 className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase flex items-center gap-2 mb-3">
+              <span className="text-gray-400">✉️</span> EMAIL
+            </h5>
+            <p className="text-[13px] text-white font-medium leading-relaxed">sales@evetech.co.za<br />support@evetech.co.za
+            </p>
+          </div>
+          {/*  Location  */}
+          <div className="bg-dark-card border border-dark-border rounded-xl p-5">
+            <h5 className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase flex items-center gap-2 mb-3">
+              <span className="text-gray-400">📍</span> LOCATION
+            </h5>
+            <p className="text-[13px] text-white font-medium leading-relaxed">Limeroc Business Park, Holland Road
+              (R114)<br />Knoppieslaagte, Centurion 0157</p>
+          </div>
+          {/*  Hours  */}
+          <div className="bg-dark-card border border-dark-border rounded-xl p-5">
+            <h5 className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase flex items-center gap-2 mb-3">
+              <span className="text-gray-400">🕒</span> HOURS
+            </h5>
+            <p className="text-[13px] text-white font-medium leading-relaxed">Mon-Fri: 9am - 4pm<br />Sat: 9am - 12pm</p>
+          </div>
+        </div>
+
+        {/*  Socials & Apps  */}
+        <div className="flex flex-col sm:flex-row gap-10 xl:gap-12 shrink-0">
+
+          {/*  Follow Us  */}
+          <div>
+            <h5 className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase mb-4">Follow Us</h5>
+            <div className="flex gap-2">
+              <a href="#" className="social-icon icon-ig" aria-label="Instagram">IG</a>
+              <a href="#" className="social-icon icon-x" aria-label="X (Twitter)"><span
+                  className="font-bold text-[15px]">X</span></a>
+              <a href="#" className="social-icon icon-fb" aria-label="Facebook"><span className="font-bold">f</span></a>
+              <a href="#" className="social-icon icon-yt" aria-label="YouTube"><span className="text-[10px]">▶</span></a>
+              <a href="#" className="social-icon icon-tk" aria-label="TikTok"></a>
+            </div>
+          </div>
+
+          {/*  Get the App  */}
+          <div>
+            <h5 className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase mb-4">Get the App</h5>
+            <div className="flex flex-wrap gap-3">
+              <a href="#" className="app-btn">
+                <span className="text-xl leading-none">🍎</span>
+                <div className="flex flex-col justify-center">
+                  <span className="text-[9px] text-gray-400 uppercase tracking-wide mb-[2px]">Download on the</span>
+                  <span className="text-[13px] font-bold leading-none">App Store</span>
+                </div>
+              </a>
+              <a href="#" className="app-btn">
+                <span className="text-xl leading-none text-green-500">▶</span>
+                <div className="flex flex-col justify-center">
+                  <span className="text-[9px] text-gray-400 uppercase tracking-wide mb-[2px]">GET IT ON</span>
+                  <span className="text-[13px] font-bold leading-none">Google Play</span>
+                </div>
+              </a>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/*  Separator  */}
+      <div className="border-t border-dark-border mb-10"></div>
+
+      {/*  ROW 3: Trusted Partners  */}
+      <div className="mb-10 text-center">
+        <h4 className="text-[11px] text-cyan-400 font-semibold tracking-[0.2em] uppercase mb-6">Trusted Partners</h4>
+        <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-[11px] font-bold uppercase tracking-wider">
+          <a href="#" className="partner-link">Adata</a>
+          <a href="#" className="partner-link">Alienware</a>
+          <a href="#" className="partner-link">AMD</a>
+          <a href="#" className="partner-link">Antec</a>
+          <a href="#" className="partner-link">AOC</a>
+          <a href="#" className="partner-link">Apple</a>
+          <a href="#" className="partner-link">Arozzi</a>
+          <a href="#" className="partner-link">ASRock</a>
+          <a href="#" className="partner-link">Asus</a>
+          <a href="#" className="partner-link">AutoFull</a>
+          <a href="#" className="partner-link">Cololight</a>
+          <a href="#" className="partner-link">Cooler Master</a>
+          <a href="#" className="partner-link">Corsair</a>
+          <a href="#" className="partner-link">Cougar</a>
+          <a href="#" className="partner-link">Cudy</a>
+          <a href="#" className="partner-link">Dahua</a>
+          <a href="#" className="partner-link">Deepcool</a>
+          <a href="#" className="partner-link">Dell</a>
+          <a href="#" className="partner-link">Einarex</a>
+        </div>
+      </div>
+
+      {/*  Separator  */}
+      <div className="border-t border-dark-border mb-10"></div>
+
+      {/*  ROW 4: Copyright & Payment  */}
+      <div className="flex flex-col lg:flex-row justify-between items-center lg:items-start gap-8 mb-10">
+
+        <div className="max-w-3xl text-[11px] text-gray-500 leading-[1.8] text-center lg:text-left">
+          <p className="mb-3 font-medium">Copyright © 2007 - 2026 - All rights reserved by EVETECH (Pty) Ltd</p>
+          <p>All images appearing on this website are copyright Evetech.co.za. Any unauthorized use of its logos and
+            other graphics is forbidden. Prices and specifications are subject to change without notice. EVETECH IS NOT
+            RESPONSIBLE FOR ANY TYPO, PHOTOGRAPH, OR PROGRAM ERRORS, AND RESERVES THE RIGHT TO CANCEL ANY INCORRECT
+            ORDERS. Please Note: Product images are for illustrative purposes only and may differ from the actual
+            product.</p>
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-6 items-center">
+          {/*  Simulated Payment & Security Logos  */}
+          <div className="payment-logo">
+            <div className="flex items-center gap-1 text-white font-bold text-sm">
+              <span className="text-xl">🔒</span> SSL Secure
+            </div>
+          </div>
+          <div className="payment-logo text-white font-bold italic">
+            Verified by <span className="text-lg uppercase">VISA</span>
+          </div>
+          <div className="payment-logo text-white font-bold italic">
+            <span className="text-red-500">MasterCard.</span> SecureCode
+          </div>
+          {/*  Card Icons  */}
+          <div className="payment-logo w-10 h-6 bg-white rounded flex items-center justify-center">
+            <div className="w-4 h-4 rounded-full bg-red-500 mix-blend-multiply -mr-1"></div>
+            <div className="w-4 h-4 rounded-full bg-yellow-400 mix-blend-multiply -ml-1"></div>
+          </div>
+          <div className="payment-logo w-10 h-6 bg-white rounded flex items-center justify-center">
+            <span className="text-[#1a1f71] font-bold text-[10px] italic">VISA</span>
+          </div>
+        </div>
+
+      </div>
+
+      {/*  ROW 5: Made with  */}
+      <div className="text-center text-[12px] text-gray-500 font-medium pb-4">
+        Made with <span className="text-red-500 mx-1">❤️</span> in 🇿🇦 South Africa
+      </div>
+
+    </div>
+  </footer>
+  {/*  END footer  */}
+    </>
+  );
+}

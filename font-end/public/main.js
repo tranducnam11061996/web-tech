@@ -1162,54 +1162,8 @@ function toggleFilter(header) {
 }
 
 function updateActiveFilters() {
-  const checkedBoxes = document.querySelectorAll('#sidebar-category .filter-checkbox input[type="checkbox"]:checked');
-  const activeCountEl = document.getElementById('active-filters-count');
-  const activeListEl = document.getElementById('active-filters-list');
-  const clearAllEl = document.getElementById('clear-all-filters');
-
-  let html = '';
-  let count = checkedBoxes.length;
-
-  // Add Price Filter logic
-  const minSlider = document.getElementById('price-min');
-  const maxSlider = document.getElementById('price-max');
-  
-  if(minSlider && maxSlider) {
-    const minValue = parseInt(minSlider.value);
-    const maxValue = parseInt(maxSlider.value);
-    const minConfig = parseInt(minSlider.min);
-    const maxConfig = parseInt(maxSlider.max);
-    
-    // Only show active filter if it's not the default full range
-    if (minValue > minConfig || maxValue < maxConfig) {
-       count++;
-       html += `<span class="bg-[#1a1a1e] text-xs text-gray-400 px-3 py-1 rounded-full flex items-center gap-1.5" id="active-filter-price">Price: R ${minValue.toLocaleString()} - R ${maxValue.toLocaleString()} <span class="text-gray-600 cursor-pointer hover:text-white" onclick="resetPriceFilter()">✕</span></span>`;
-    }
-  }
-
-  checkedBoxes.forEach(box => {
-    let labelText = box.value;
-    if(!labelText) {
-       // fallback if value isn't set properly
-       let clone = box.parentElement.cloneNode(true);
-       let span = clone.querySelector('.filter-count');
-       if(span) span.remove();
-       labelText = clone.textContent.trim();
-    }
-    
-    html += `<span class="bg-[#1a1a1e] text-xs text-gray-400 px-3 py-1 rounded-full flex items-center gap-1.5">${labelText} <span class="text-gray-600 cursor-pointer hover:text-white" onclick="uncheckFilter('${box.id}')">✕</span></span>`;
-  });
-
-  if (activeCountEl) activeCountEl.textContent = count;
-  if (activeListEl) activeListEl.innerHTML = html;
-  
-  if (count > 0) {
-    if(clearAllEl) clearAllEl.classList.remove('hidden');
-  } else {
-    if(clearAllEl) clearAllEl.classList.add('hidden');
-  }
-  
-  updateUrlParams();
+  // Disabled in Next.js environment to prevent conflicts with React state
+  // This is now handled entirely by CategoryPage.tsx
 }
 
 function updatePriceSlider() {

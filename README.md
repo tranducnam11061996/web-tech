@@ -31,6 +31,12 @@ Dự án nằm trong thư mục gốc `D:\web-tech\` và được chia thành 3 
 - **Dynamic Routing Gateway**: File `[slug]/page.tsx` hoạt động hoàn hảo, tự động nhận biết là trang Sản Phẩm hay Danh Mục.
 - **Tối ưu hóa UI/UX**: Tích hợp xong cơ chế Smart Pagination thông minh và `<ProgressiveImage />` hỗ trợ Shimmer Loading chuyên nghiệp.
 
+### Giai đoạn 3: Tối ưu Lọc Động (Advanced Filtering System) - **[HOÀN THÀNH]**
+- Xây dựng hoàn thiện hệ thống Filter Động (Dynamic Filters) đa chiều trên giao diện Category Page, giao tiếp chặt chẽ thông qua URL Search Parameters.
+- Thuật toán Back-end linh hoạt bằng `HAVING COUNT(DISTINCT...)` giúp tính toán phần giao của đa thuộc tính và đếm số lượng hiển thị (`productCount`) realtime.
+- Price Range UI thông minh tự nhận biết khoảng giá `min` và `max` từ Database, chống giật lag với debouncing, và hỗ trợ giao diện tiếng Việt ("Giá từ: ... đ").
+- Giải quyết triệt để xung đột giữa Vanilla JS cũ và React State.
+
 ## 📜 Tài liệu bắt buộc đọc cho A.I Assistants
 Để các AI có thể ngay lập tức hiểu hệ thống và code tiếp mà không làm phá vỡ kiến trúc, **BẮT BUỘC ĐỌC** các tài liệu sau:
 1. `D:\web-tech\ARCHITECTURE.md` (Định nghĩa toàn cục về luồng dữ liệu 3 thư mục, cách gọi API và cơ chế URL slug).

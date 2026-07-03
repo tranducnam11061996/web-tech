@@ -1,0 +1,10 @@
+const fs = require('fs');
+let content = fs.readFileSync('D:/web-tech/font-end/src/app/gio-hang/page.tsx', 'utf-8');
+content = content.replace(/ checked /g, ' defaultChecked ');
+content = content.replace(/ checked\n/g, ' defaultChecked\n');
+content = content.replace(/checked className/g, 'defaultChecked className');
+content = content.replace(/ value=\"1\" /g, ' defaultValue=\"1\" ');
+content = content.replace(/ value=\"1\"\/>/g, ' defaultValue=\"1\"\/>');
+content = content.replace(/ value=\"1\" \/>/g, ' defaultValue=\"1\" \/>');
+content = content.replace(/ value=\"1\" className/g, ' defaultValue=\"1\" className');
+fs.writeFileSync('D:/web-tech/font-end/src/app/gio-hang/page.tsx', content, 'utf-8');

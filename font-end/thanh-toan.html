@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thanh toán - Tech PC</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{dark:'#0f0f11','dark-lighter':'#16161a','dark-border':'#27272a'}}}}
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:#0a0a0c;color:#fff;overflow-x:hidden}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:#0a0a0c}::-webkit-scrollbar-thumb{background:#27272a;border-radius:10px}
+
+.card-box {
+  background: #111115;
+  border: 1px solid #1a1a1e;
+  border-radius: 12px;
+}
+
+input[type="text"], input[type="email"], select, textarea {
+  background: #0d0d10;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s;
+}
+input[type="text"]:focus, input[type="email"]:focus, select:focus, textarea:focus {
+  border-color: #3b82f6;
+}
+input[type="text"]::placeholder, input[type="email"]::placeholder, textarea::placeholder {
+  color: #555;
+}
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23888' viewBox='0 0 16 16'%3E%3Cpath d='M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+input[type="radio"] {
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+input[type="checkbox"] {
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+/* Toggle switch */
+.toggle-switch { position:relative; width:48px; height:26px; }
+.toggle-switch input { opacity:0; width:0; height:0; }
+.toggle-slider { position:absolute; cursor:pointer; inset:0; background:#27272a; border-radius:999px; transition:0.3s; }
+.toggle-slider::before { content:''; position:absolute; height:20px; width:20px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:0.3s; }
+.toggle-switch input:checked + .toggle-slider { background:#3b82f6; }
+.toggle-switch input:checked + .toggle-slider::before { transform:translateX(22px); }
+</style>
+</head>
+<body>
+
+<section class="max-w-[1400px] mx-auto px-4 md:px-6 py-8">
+
+  <!-- Back link -->
+  <a href="#" class="inline-flex items-center gap-1 text-blue-500 hover:text-blue-400 text-sm font-medium mb-6 transition">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+    Quay lại giỏ hàng
+  </a>
+
+  <div class="flex flex-col lg:flex-row gap-6 items-start">
+
+    <!-- LEFT PANEL (2/3) -->
+    <div class="lg:w-2/3 space-y-6">
+
+      <!-- Product List -->
+      <div class="card-box">
+        <div class="p-5 border-b border-[#1a1a1e]">
+          <h3 class="font-bold text-[15px] text-white">Sản phẩm trong đơn (6)</h3>
+        </div>
+
+        <!-- Item 1 -->
+        <div class="flex items-center gap-4 p-4 border-b border-[#1a1a1e]">
+          <div class="w-14 h-14 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center">
+            <span class="text-2xl opacity-30">🔊</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">Loa Kiểm Âm Bluetooth Thonet & Vander Vertrag 2.0 (màu trắng)</p>
+            <p class="text-[11px] text-gray-500">[SPTV0008]</p>
+          </div>
+          <div class="text-center shrink-0 w-8">
+            <p class="text-sm text-gray-400">x1</p>
+          </div>
+          <div class="text-right shrink-0 w-28">
+            <p class="text-red-500 font-bold text-sm">2.289.000₫</p>
+            <p class="text-gray-500 line-through text-[11px]">3.699.000₫</p>
+          </div>
+        </div>
+
+        <!-- Item 2 -->
+        <div class="flex items-center gap-4 p-4 border-b border-[#1a1a1e]">
+          <div class="w-14 h-14 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center">
+            <span class="text-2xl opacity-30">❄️</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">Fan CPU Noctua NH-U12A</p>
+            <p class="text-[11px] text-gray-500">[FANC0667]</p>
+          </div>
+          <div class="text-center shrink-0 w-8">
+            <p class="text-sm text-gray-400">x1</p>
+          </div>
+          <div class="text-right shrink-0 w-28">
+            <p class="text-red-500 font-bold text-sm">3.299.000₫</p>
+            <p class="text-gray-500 line-through text-[11px]">3.939.000₫</p>
+          </div>
+        </div>
+
+        <!-- Item 3 -->
+        <div class="flex items-center gap-4 p-4 border-b border-[#1a1a1e]">
+          <div class="w-14 h-14 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center">
+            <span class="text-2xl opacity-30">🖱️</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">Chuột gaming không dây ZOWIE EC3-DW</p>
+            <p class="text-[11px] text-gray-500">[MEZO0043]</p>
+          </div>
+          <div class="text-center shrink-0 w-8">
+            <p class="text-sm text-gray-400">x1</p>
+          </div>
+          <div class="text-right shrink-0 w-28">
+            <p class="text-red-500 font-bold text-sm">3.999.000₫</p>
+            <p class="text-gray-500 line-through text-[11px]">4.499.000₫</p>
+          </div>
+        </div>
+
+        <!-- Item 4: GPU with warning -->
+        <div class="p-4 border-b border-[#1a1a1e]">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center">
+              <span class="text-2xl opacity-30">🖥️</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-white">Card màn hình Asus TUF GAMING RTX 5080 16G GDDR7 OC</p>
+              <p class="text-[11px] text-gray-500">[VGAS0807]</p>
+              <div class="mt-2 border border-red-500/30 bg-red-500/5 rounded-md p-2.5">
+                <p class="text-[11px] font-bold text-red-500 mb-0.5">Quý khách lưu ý</p>
+                <p class="text-[11px] text-gray-400 leading-relaxed">HACOM đang khuyến mãi giảm giá sốc Linh kiện này, nếu mua kèm đủ: Mainboard, CPU, RAM, SSD/HDD, Case, Nguồn.</p>
+              </div>
+            </div>
+            <div class="text-center shrink-0 w-8 mt-2">
+              <p class="text-sm text-gray-400">x1</p>
+            </div>
+            <div class="text-right shrink-0 w-28 mt-2">
+              <p class="text-red-500 font-bold text-sm">46.999.000₫</p>
+              <p class="text-gray-500 line-through text-[11px]">49.499.000₫</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Item 5 -->
+        <div class="flex items-center gap-4 p-4 border-b border-[#1a1a1e]">
+          <div class="w-14 h-14 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center">
+            <span class="text-2xl opacity-30">🎮</span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-white truncate">Tay cầm chơi game Flydigi Direwolf 4 màu xám</p>
+            <p class="text-[11px] text-gray-500">[GPFD0026]</p>
+          </div>
+          <div class="text-center shrink-0 w-8">
+            <p class="text-sm text-gray-400">x1</p>
+          </div>
+          <div class="text-right shrink-0 w-28">
+            <p class="text-red-500 font-bold text-sm">789.000₫</p>
+            <p class="text-gray-500 line-through text-[11px]">999.000₫</p>
+          </div>
+        </div>
+
+        <!-- Item 6: Laptop with Flash Sale badge -->
+        <div class="p-4">
+          <div class="flex items-start gap-4">
+            <div class="w-14 h-14 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center">
+              <span class="text-2xl opacity-30">💻</span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-white">Laptop Acer Aspire Go AG15-72P-54GY (NX.JRRSV.002) Core 5-120U/16GB RAM DDR4/512GSSD/15.6 inch FHD/Win 11 SL/Bạc)</p>
+              <p class="text-[11px] text-gray-500">[LTAC1001]</p>
+              <span class="inline-flex items-center gap-1 mt-2 px-2.5 py-1 bg-yellow-500/10 border border-yellow-500/30 rounded text-[11px] font-bold text-yellow-500">⚡ Flash Sale</span>
+            </div>
+            <div class="text-center shrink-0 w-8 mt-2">
+              <p class="text-sm text-gray-400">x1</p>
+            </div>
+            <div class="text-right shrink-0 w-28 mt-2">
+              <p class="text-red-500 font-bold text-sm">18.499.000₫</p>
+              <p class="text-gray-500 line-through text-[11px]">20.999.000₫</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thông tin người đặt hàng -->
+      <div class="card-box p-5 space-y-5">
+        <h3 class="font-bold text-[15px] text-white">Thông tin người đặt hàng</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input type="text" placeholder="Họ và tên">
+          <input type="text" placeholder="Số điện thoại">
+          <input type="email" placeholder="Email (Không bắt buộc)">
+        </div>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked class="w-4 h-4">
+          <span class="text-sm text-gray-300">Nhờ người khác nhận hàng</span>
+        </label>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="text" placeholder="Họ và tên người nhận">
+          <input type="text" placeholder="Số điện thoại người nhận">
+        </div>
+      </div>
+
+      <!-- Địa chỉ nhận hàng -->
+      <div class="card-box p-5 space-y-5">
+        <h3 class="font-bold text-[15px] text-white">Địa chỉ nhận hàng</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all border-blue-500/50 bg-blue-500/5">
+            <input type="radio" name="delivery" checked class="w-4 h-4">
+            <span class="text-sm font-medium text-white flex items-center gap-2">🚚 Giao hàng tận nơi</span>
+          </label>
+          <label class="flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all border-[#27272a] hover:border-blue-500/30">
+            <input type="radio" name="delivery" class="w-4 h-4">
+            <span class="text-sm font-medium text-gray-400 flex items-center gap-2">🏪 Nhận tại cửa hàng</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Địa chỉ giao hàng -->
+      <div class="card-box p-5 space-y-5">
+        <h3 class="font-bold text-[15px] text-white">Địa chỉ giao hàng</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <select>
+            <option>Chọn Tỉnh/Thành phố</option>
+          </select>
+          <select>
+            <option>Chọn Phường/Xã</option>
+          </select>
+        </div>
+        <input type="text" placeholder="Số nhà, tên đường">
+        <textarea rows="4" placeholder="Ghi chú (Ví dụ: Hãy gọi tôi khi chuẩn bị hàng xong)" class="resize-y"></textarea>
+        <p class="text-right text-[11px] text-gray-600 -mt-3">0/128</p>
+      </div>
+
+      <!-- Xuất hóa đơn công ty -->
+      <div class="card-box p-5 space-y-5">
+        <div class="flex items-center justify-between">
+          <h3 class="font-bold text-[15px] text-white">Xuất hóa đơn công ty</h3>
+          <label class="toggle-switch">
+            <input type="checkbox" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="text" placeholder="Tên công ty">
+          <input type="text" placeholder="Mã số thuế">
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="text" placeholder="Địa chỉ xuất hóa đơn">
+          <input type="email" placeholder="Email nhận hóa đơn">
+        </div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL (1/3 + STICKY) -->
+    <div class="lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-4">
+
+      <!-- Order Summary -->
+      <div class="card-box p-5 space-y-4">
+        <div class="flex justify-between text-[13px]">
+          <span class="text-gray-400">Tổng tiền sản phẩm</span>
+          <span class="font-bold text-white">76.374.000₫</span>
+        </div>
+        <div class="flex justify-between text-[13px]">
+          <span class="text-gray-400">Giảm giá Flash Sale</span>
+          <span class="font-bold text-red-500">-500.000₫</span>
+        </div>
+        <div class="border-t border-[#1a1a1e] pt-4 flex justify-between items-start">
+          <span class="font-bold text-white text-sm">Cần thanh toán</span>
+          <div class="text-right">
+            <span class="font-black text-xl text-red-500 block leading-none">75.874.000₫</span>
+            <span class="text-[10px] text-gray-500">(Đã bao gồm VAT)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment Methods -->
+      <div class="card-box p-5 space-y-4">
+        <h3 class="font-bold text-[15px] text-white">Chọn phương thức thanh toán</h3>
+
+        <label class="flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all border-[#27272a] hover:border-blue-500/30">
+          <input type="radio" name="payment" class="w-4 h-4">
+          <div class="w-8 h-8 rounded bg-red-500/20 flex items-center justify-center text-red-500 text-sm font-bold shrink-0">đ</div>
+          <span class="text-sm text-gray-300">Thanh toán khi nhận hàng</span>
+        </label>
+
+        <label class="flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all border-blue-500/50 bg-blue-500/5">
+          <input type="radio" name="payment" checked class="w-4 h-4">
+          <div class="w-8 h-8 rounded bg-blue-500/20 flex items-center justify-center text-blue-500 text-sm shrink-0">🏦</div>
+          <span class="text-sm text-white font-medium">Thanh toán bằng chuyển khoản</span>
+        </label>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="space-y-3">
+        <button class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-lg transition flex items-center justify-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          Đặt hàng
+        </button>
+        <button class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-lg transition flex items-center justify-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+          Chọn thêm sản phẩm
+        </button>
+        <button class="w-full bg-[#1a1a1e] hover:bg-[#27272a] text-white font-bold py-3 rounded-lg transition flex items-center justify-center gap-2 border border-[#27272a]">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          Tải ảnh báo giá
+        </button>
+        <div class="grid grid-cols-2 gap-3">
+          <button class="w-full bg-[#1a1a1e] hover:bg-[#27272a] text-white font-medium py-3 rounded-lg transition flex items-center justify-center gap-2 border border-[#27272a] text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            Tải file Excel
+          </button>
+          <button class="w-full bg-[#1a1a1e] hover:bg-[#27272a] text-white font-medium py-3 rounded-lg transition flex items-center justify-center gap-2 border border-[#27272a] text-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+            In báo giá
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+</section>
+
+</body>
+</html>

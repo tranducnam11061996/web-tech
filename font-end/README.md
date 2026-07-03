@@ -21,6 +21,11 @@ The category listing page implements a robust, E-commerce standard **Smart Pagin
 - **Ellipsis Logic:** It dynamically calculates a condensed range with ellipsis (`...`). E.g., `< | 1 | 2 | 3 | 4 | 5 | ... | 16 | >`.
 - **UI:** The pagination buttons match the dark aesthetic, with the active page highlighted in vibrant Blue (`#0b63e5`) and smooth CSS transitions. When switching pages, the window automatically smooth-scrolls to the top.
 
+### C. Dynamic Filter State Management (`app/category/page.tsx`)
+- **Single Source of Truth:** All filter selections (attributes, categories, price range) must use the `useSearchParams` hook as the single source of truth. Do NOT store filter state exclusively in React `useState` without pushing it to the URL (`router.push(..., {scroll: false})`).
+- **Active Filters UI:** The "Bộ lọc đã chọn" (Active Filters) array is dynamically derived by parsing the URL params against the API payload structure.
+- **Vanilla JS Conflict Resolution:** When migrating legacy vanilla JS (e.g. `public/main.js`), any legacy functions that perform direct DOM manipulation on React-controlled elements (like `#active-filters-list`) MUST be disabled or commented out to prevent React Hydration / `removeChild` errors.
+
 ### C. Image Optimization (`src/components/ProgressiveImage.tsx`)
 To ensure top-tier performance (Core Web Vitals) and premium UX, raw `<img />` tags are strictly forbidden for dynamic content.
 - Use `<ProgressiveImage src="..." alt="..." />` instead.

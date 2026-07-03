@@ -35,6 +35,13 @@ Mọi API trả về từ `web-admin` cho `font-end` nên tuân theo một forma
 ```
 *Lưu ý: API luôn phải cấu hình CORS Header để `font-end` (Port 3001) có thể truy cập được từ Client-side.*
 
+### Cấu trúc API Lõi Mới (Advanced Filtering APIs)
+Để phục vụ bộ lọc động, các API sau đã được xây dựng và **phải được tham khảo/bảo trì**:
+1. **`/api/categories`**: Trả về danh sách danh mục con kèm `productCount` được tính toán động (chỉ đếm sản phẩm có `isOn=1` và `price > 0`).
+2. **`/api/categories/attributes`**: Lấy cấu trúc bộ lọc thuộc tính. Trả về mảng `values` kèm `productCount` tính bằng Subquery JOIN với `idv_sell_product_price` và `idv_product_category`.
+3. **`/api/categories/price-bounds`**: Truy xuất `MIN(price)` và `MAX(price)` của danh mục để setup giới hạn của thanh kéo thả (Dual-range Slider).
+4. **`/api/products`**: Hỗ trợ nhận n tham số động (Dynamic Filter Params) trên URL (`?kich-thuoc-man-hinh=...&min-price=...`) và áp dụng truy vấn `HAVING COUNT(DISTINCT ...)` để lọc giao các thuộc tính.
+
 ## 3. Workflow phát triển tính năng mới cho AI Assistants
 
 Nếu nhận được yêu cầu phát triển tính năng từ User:

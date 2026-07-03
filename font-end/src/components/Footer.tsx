@@ -245,7 +245,7 @@ export default function Footer() {
       </div>
 
       {/*  ROW 5: Made with  */}
-      <div className="text-center text-[12px] text-gray-500 font-medium pb-4">
+      <div className="text-center text-xs text-gray-500 font-medium pb-4">
         Made with <span className="text-red-500 mx-1">❤️</span> in 🇿🇦 South Africa
       </div>
 

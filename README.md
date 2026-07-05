@@ -37,6 +37,11 @@ Dự án nằm trong thư mục gốc `D:\web-tech\` và được chia thành 3 
 - Price Range UI thông minh tự nhận biết khoảng giá `min` và `max` từ Database, chống giật lag với debouncing, và hỗ trợ giao diện tiếng Việt ("Giá từ: ... đ").
 - Giải quyết triệt để xung đột giữa Vanilla JS cũ và React State.
 
+### Giai đoạn 4: Tối ưu UI/UX nâng cao (Advanced Micro-Interactions) - **[HOÀN THÀNH]**
+- **Smart Sticky Header:** Phân tách kiến trúc Header thành Top Search Bar (luôn cố định z-100) và Bottom Navigation. Menu Navigation tự động ẩn mượt mà (`-translate-y-full`) khi người dùng cuộn xuống và trượt xuống lại khi cuộn lên. Tối ưu cực độ hiệu năng React bằng cách sử dụng `useRef` (tránh re-render liên tục khi cuộn) và bắt sự kiện `resize` tự động tính toán.
+- **Tối ưu Product Carousel:** Tinh chỉnh Swiper.js để tạo ra hiệu ứng vòng lặp vô tận (infinite loop) mượt mà, loại bỏ các the bọc cản trở layout, và ẩn scrollbar hoàn toàn.
+- **Chuẩn hóa Navigation Routing:** Triển khai cơ chế sanitize bằng Regex (`replace(/^\/+/, '')`) ở các link điều hướng cấp 2/cấp 3 nhằm ngăn chặn triệt để lỗi Protocol-Relative URL (`//slug-danh-muc`) làm gián đoạn Next.js Router.
+
 ## 📜 Tài liệu bắt buộc đọc cho A.I Assistants
 Để các AI có thể ngay lập tức hiểu hệ thống và code tiếp mà không làm phá vỡ kiến trúc, **BẮT BUỘC ĐỌC** các tài liệu sau:
 1. `D:\web-tech\ARCHITECTURE.md` (Định nghĩa toàn cục về luồng dữ liệu 3 thư mục, cách gọi API và cơ chế URL slug).

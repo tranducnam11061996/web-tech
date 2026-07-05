@@ -717,7 +717,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                       .map((subCat) => (
                         <Link
                           key={subCat.id}
-                          href={`/${subCat.slug}`}
+                          href={`/${subCat.slug.replace(/^\/+/, '')}`}
                           className="flex items-center p-[10px] rounded-[10px] border border-[#27272a] bg-[#161618] hover:border-[#3f3f46] cursor-pointer transition-all"
                         >
                           <div className="w-[18px] h-[18px] rounded-[6px] border-2 border-[#4b4b4b] bg-transparent flex items-center justify-center shrink-0 shadow-sm transition-colors">

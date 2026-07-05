@@ -26,12 +26,18 @@ The category listing page implements a robust, E-commerce standard **Smart Pagin
 - **Active Filters UI:** The "Bộ lọc đã chọn" (Active Filters) array is dynamically derived by parsing the URL params against the API payload structure.
 - **Vanilla JS Conflict Resolution:** When migrating legacy vanilla JS (e.g. `public/main.js`), any legacy functions that perform direct DOM manipulation on React-controlled elements (like `#active-filters-list`) MUST be disabled or commented out to prevent React Hydration / `removeChild` errors.
 
-### C. Image Optimization (`src/components/ProgressiveImage.tsx`)
+### D. Image Optimization (`src/components/ProgressiveImage.tsx`)
 To ensure top-tier performance (Core Web Vitals) and premium UX, raw `<img />` tags are strictly forbidden for dynamic content.
 - Use `<ProgressiveImage src="..." alt="..." />` instead.
 - **Lazy Loading:** It uses `IntersectionObserver` to only fetch the real image when it is 50px away from the viewport.
 - **Shimmer Placeholder:** While loading (or waiting to enter viewport), it displays an ultra-light Base64 SVG placeholder.
 - **Graceful Degradation:** If the real image 404s, it catches the `onerror` event, aborts retrying (preventing infinite loops), and keeps the professional placeholder.
+
+### E. Advanced Micro-Interactions & Performance
+To maintain the "Premium" feel, the application uses highly optimized custom interactions:
+- **Smart Sticky Header (`src/components/Header.tsx`):** Detects scroll direction. The top search bar is permanently sticky (`z-[100]`). The bottom navigation menu (`z-[90]`) smoothly hides (`-translate-y-full`) beneath the search bar on scroll down, and reveals on scroll up. **Performance rule:** Scroll tracking uses `useRef` to track `window.scrollY` (preventing massive React re-renders) and a `resize` listener to compute sticky offset dynamically.
+- **Fluid Carousels (`src/components/ProductCarousel.tsx`):** Implements `Swiper` for infinite looping (`loop={true}`). Avoid wrapping Swiper instances in restrictive CSS size containers that cause jitter during loop transitions.
+- **Strict Route Sanitization:** Sub-category links automatically strip leading slashes (e.g. using `replace(/^\/+/, '')`) to prevent Next.js from mistaking them for Protocol-Relative URLs.
 
 ## 3. Development Workflow for AIs
 If instructed to build a new UI section or page:

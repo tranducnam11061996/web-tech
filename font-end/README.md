@@ -39,8 +39,16 @@ To maintain the "Premium" feel, the application uses highly optimized custom int
 - **Fluid Carousels (`src/components/ProductCarousel.tsx`):** Implements `Swiper` for infinite looping (`loop={true}`). Avoid wrapping Swiper instances in restrictive CSS size containers that cause jitter during loop transitions.
 - **Strict Route Sanitization:** Sub-category links automatically strip leading slashes (e.g. using `replace(/^\/+/, '')`) to prevent Next.js from mistaking them for Protocol-Relative URLs.
 
+### F. News System & Server Components (`app/tin-tuc/[slug]/page.tsx`)
+- **Server-Side Rendering (RSC):** For content-heavy pages like News Articles and Categories, we **strictly** use React Server Components (no `"use client"`). This enables 0 JavaScript payload for fetching, lightning-fast LCP, and seamless SEO.
+- **Dynamic Metadata (`generateMetadata`):** Metadata (title, descriptions, keywords, OpenGraph images) is dynamically generated server-side using the `generateMetadata` Next.js API, fetching data before the page renders.
+- **ISR Caching:** Fetch calls to the backend include `{ next: { revalidate: 60 } }` to leverage Next.js Incremental Static Regeneration, drastically reducing the load on the backend MySQL database.
+- **Fallback Gateway:** The `/tin-tuc/[slug]` route acts as a dual gateway. It first attempts to fetch an article (`/api/news/[slug]`). If that returns a 404, it intelligently falls back to fetching a category (`/api/news-category/[slug]`), and renders the appropriate layout.
+- **Raw CMS HTML Formatting:** When rendering database-stored HTML (like CKEditor content), we do NOT use Tailwind's `@tailwindcss/typography` (`prose`) plugin as it overwrites inline styles. Instead, we use **Tailwind Arbitrary Variants** (e.g. `className="[&_h1]:text-white [&_p]:mb-4"`) combined with `dangerouslySetInnerHTML`. We also use regex to dynamically rewrite relative image paths (`../media/news/`) to absolute server URLs (`https://hacom.vn/media/`).
+
 ## 3. Development Workflow for AIs
 If instructed to build a new UI section or page:
 1. **Analyze Design Context:** Always assume a Dark Mode, premium E-commerce vibe unless told otherwise. Use deep grays/blacks (`#111115`, `#18181b`) and cyan/blue accents.
-2. **Check API:** Verify if `web-admin` has the required endpoint. If not, build the API in `web-admin` first.
-3. **Use Existing Components:** Utilize `ProgressiveImage` for media and follow the established Tailwind patterns found in `layout.tsx` and `page.tsx`.
+2. **Determine Architecture (Client vs Server):** Default to Server Components (`async function Page()`) for SEO/Performance. Only use `"use client"` when you absolutely need React hooks (`useState`, `useEffect`, `useRouter`, or interactive DOM events).
+3. **Check API:** Verify if `web-admin` has the required endpoint. If not, build the API in `web-admin` first.
+4. **Use Existing Components:** Utilize `ProgressiveImage` for media and follow the established Tailwind patterns found in `layout.tsx` and `page.tsx`.

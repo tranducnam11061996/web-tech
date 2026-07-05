@@ -35,17 +35,25 @@ Mọi API trả về từ `web-admin` cho `font-end` nên tuân theo một forma
 ```
 *Lưu ý: API luôn phải cấu hình CORS Header để `font-end` (Port 3001) có thể truy cập được từ Client-side.*
 
-### Cấu trúc API Lõi Mới (Advanced Filtering APIs)
-Để phục vụ bộ lọc động, các API sau đã được xây dựng và **phải được tham khảo/bảo trì**:
+### Cấu trúc API Lõi Mới (Advanced APIs)
+Để phục vụ bộ lọc động và nội dung, các API sau đã được xây dựng và **phải được tham khảo/bảo trì**:
 1. **`/api/categories`**: Trả về danh sách danh mục con kèm `productCount` được tính toán động (chỉ đếm sản phẩm có `isOn=1` và `price > 0`).
-2. **`/api/categories/attributes`**: Lấy cấu trúc bộ lọc thuộc tính. Trả về mảng `values` kèm `productCount` tính bằng Subquery JOIN với `idv_sell_product_price` và `idv_product_category`.
+2. **`/api/categories/attributes`**: Lấy cấu trúc bộ lọc thuộc tính. Trả về mảng `values` kèm `productCount` tính bằng Subquery JOIN.
 3. **`/api/categories/price-bounds`**: Truy xuất `MIN(price)` và `MAX(price)` của danh mục để setup giới hạn của thanh kéo thả (Dual-range Slider).
-4. **`/api/products`**: Hỗ trợ nhận n tham số động (Dynamic Filter Params) trên URL (`?kich-thuoc-man-hinh=...&min-price=...`) và áp dụng truy vấn `HAVING COUNT(DISTINCT ...)` để lọc giao các thuộc tính.
+4. **`/api/products`**: Hỗ trợ nhận n tham số động (Dynamic Filter Params) trên URL (`?kich-thuoc-man-hinh=...`) và áp dụng truy vấn `HAVING COUNT(DISTINCT ...)`.
+5. **`/api/news` & `/api/news-category`**: Trả về dữ liệu bài viết (dùng LEFT JOIN `idv_seller_news_content`) và danh mục bài viết. Khi dùng Next.js 15, bắt buộc `await params` khi lấy slug.
 
 ## 3. Workflow phát triển tính năng mới cho AI Assistants
 
 Nếu nhận được yêu cầu phát triển tính năng từ User:
-1. **Phân tích Database & Backend**: Viết API endpoint ở `web-admin/src/app/api/...`. Thực hiện truy vấn MySQL. Nhớ xử lý `limit`, `page`, và `COUNT(*)` nếu cần phân trang.
-2. **Cập nhật Logic Routing (Nếu là trang mới)**: Nếu tính năng gắn với một URL Slug (như bài viết tin tức), hãy vào `web-admin/src/app/api/products/[slug]/route.ts` bổ sung quy tắc regex bóc tách ID từ bảng `idv_url`.
-3. **Phát triển UI tại Frontend**: Vào thư mục `font-end`. Fetch API. Sử dụng `Tailwind CSS` thiết kế giao diện chuẩn phong cách *Premium Dark Mode* (Gradients, Glassmorphism, Neon glow).
-4. **Luôn tái sử dụng Component**: Tận dụng `<ProgressiveImage />` cho ảnh và cấu trúc phân trang đã có sẵn.
+1. **Phân tích Database & Backend**: Viết API endpoint ở `web-admin/src/app/api/...`. Thực hiện truy vấn MySQL. Luôn cấp CORS Header `Access-Control-Allow-Origin: *` ở mọi method GET/POST/OPTIONS.
+2. **Cập nhật Logic Routing (Nếu là trang mới)**: Nếu tính năng gắn với một URL Slug, tạo Dynamic Route `[slug]` hoặc bổ sung quy tắc bóc tách dữ liệu linh hoạt (ví dụ: fallback từ bài viết sang danh mục nếu chung cấp route). 
+3. **Phát triển UI tại Frontend (Luôn ưu tiên Server Component)**:
+   - Các trang nội dung (Sản phẩm, Bài viết) **BẮT BUỘC** làm dạng `Server Component` (không dùng `"use client"` trừ khi có hook). 
+   - Sử dụng hàm `generateMetadata()` để sinh thẻ `<title>`, `<meta>` cho SEO dựa trên API.
+   - Thêm cờ `{ next: { revalidate: 60 } }` khi fetch API từ web-admin để tận dụng ISR Cache của Next.js chống quá tải DB.
+4. **Xử lý Mã HTML thô (Raw CMS HTML)**: Khi render mã HTML lấy từ CSDL:
+   - Không sử dụng Tailwind Typography (`prose`) vì có thể xung đột với style tĩnh (Inline Style) cũ.
+   - Luôn sử dụng kỹ thuật **Tailwind Arbitrary Variants** bọc ngoài: `className="[&_h1]:text-white [&_p]:mb-4 ..."` kết hợp với `dangerouslySetInnerHTML`.
+   - Phải replace các đường dẫn ảnh tĩnh tương đối (ví dụ `../media/news/...`) sang đường dẫn tuyệt đối (server URL) trước khi gắn vào DOM.
+5. **Luôn tái sử dụng Component**: Tận dụng `<ProgressiveImage />` cho mọi hình ảnh và cấu trúc UI hiện đại có sẵn.

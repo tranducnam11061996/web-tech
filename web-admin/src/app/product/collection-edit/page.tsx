@@ -11,7 +11,7 @@ export default function CollectionEditPage() {
           Chỉnh sửa Bộ sưu tập
         </h1>
         <div className="flex gap-3">
-          <Link href="/products/collection">
+          <Link href="/product/collection">
             <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-700 hover:border-gray-500 text-gray-300 rounded-md transition-all">
               <X className="w-4 h-4" /> Đóng
             </button>

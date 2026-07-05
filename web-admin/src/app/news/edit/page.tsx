@@ -32,7 +32,7 @@ export default function ArticleEditPage() {
             <button className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:shadow-[0_0_20px_rgba(37,99,235,0.6)] font-bold">
               <Save className="w-4 h-4" /> Lưu
             </button>
-            <Link href="/article/article-list">
+            <Link href="/news/news-list">
               <button className="flex items-center gap-2 px-6 py-2 bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500/20 rounded-md transition-all font-medium">
                 <X className="w-4 h-4" /> Đóng
               </button>

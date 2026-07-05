@@ -1,20 +1,20 @@
-import { 
-  ShoppingCart, 
-  Package, 
-  FileText, 
-  ShieldCheck, 
-  Link as LinkIcon, 
-  Layers, 
-  Users, 
-  Megaphone, 
-  FileImage, 
-  Cpu, 
-  CreditCard, 
-  Settings, 
-  FormInput, 
-  MessageSquare, 
-  File, 
-  UserCog, 
+import {
+  ShoppingCart,
+  Package,
+  FileText,
+  ShieldCheck,
+  Link as LinkIcon,
+  Layers,
+  Users,
+  Megaphone,
+  FileImage,
+  Cpu,
+  CreditCard,
+  Settings,
+  FormInput,
+  MessageSquare,
+  File,
+  UserCog,
   Upload
 } from 'lucide-react';
 
@@ -30,11 +30,11 @@ export const menuGroups = [
     title: 'Quản lý sản phẩm',
     icon: Package,
     items: [
-      { name: 'Danh sách sản phẩm', path: '/products/product-list' },
-      { name: 'Danh mục sản phẩm', path: '/products/categories' },
+      { name: 'Danh sách sản phẩm', path: '/product/product-list' },
+      { name: 'Danh mục sản phẩm', path: '/product/categories' },
       { name: 'Danh mục cho SEO', path: '#' },
-      { name: 'Bộ sưu tập', path: '/products/collection' },
-      { name: 'Quản lý khung sản phẩm', path: '/collection/product-frame' },
+      { name: 'Bộ sưu tập', path: '/product/collection' },
+      { name: 'Quản lý khung sản phẩm', path: '/product/collection/product-frame' },
       { name: 'Biến thể sản phẩm', path: '/product/product-group' },
       { name: 'Quản lý thuộc tính', path: '/product/attribute-list' },
       { name: 'Danh sách thương hiệu', path: '/product/brand' }
@@ -44,8 +44,8 @@ export const menuGroups = [
     title: 'Quản lý bài viết',
     icon: FileText,
     items: [
-      { name: 'Bài viết', path: '/article/article-list' },
-      { name: 'Danh mục bài viết', path: '#' }
+      { name: 'Bài viết', path: '/news/news-list' },
+      { name: 'Danh mục bài viết', path: '/news/news-category' }
     ]
   },
   {
@@ -66,14 +66,14 @@ export const menuGroups = [
     title: 'Combo Set',
     icon: Layers,
     items: [
-      { name: 'Danh sách combo set', path: '/products/combo-set/list' }
+      { name: 'Danh sách combo set', path: '/product/combo-set/list' }
     ]
   },
   {
     title: 'Quản lý khách hàng',
     icon: Users,
     items: [
-      { name: 'Tổng hợp trao đổi của người dùng', path: '#' }, 
+      { name: 'Tổng hợp trao đổi của người dùng', path: '#' },
       { name: 'Tổng hợp đánh giá của người dùng', path: '#' }
     ]
   },
@@ -116,9 +116,9 @@ export const menuGroups = [
     title: 'Quản lý Hệ thống',
     icon: Settings,
     items: [
-      { name: 'Danh sách tag', path: '#' }, 
-      { name: 'Đồng bộ dữ liệu', path: '#' }, 
-      { name: 'Thời gian làm việc', path: '#' }, 
+      { name: 'Danh sách tag', path: '#' },
+      { name: 'Đồng bộ dữ liệu', path: '#' },
+      { name: 'Thời gian làm việc', path: '#' },
       { name: 'FAQs', path: '#' }
     ]
   },
@@ -126,9 +126,9 @@ export const menuGroups = [
     title: 'Quản lý Form đăng ký',
     icon: FormInput,
     items: [
-      { name: 'Chờ mua sản phẩm', path: '#' }, 
-      { name: 'Tuyển dụng', path: '#' }, 
-      { name: 'Bài viết tuyển dụng', path: '#' }, 
+      { name: 'Chờ mua sản phẩm', path: '#' },
+      { name: 'Tuyển dụng', path: '#' },
+      { name: 'Bài viết tuyển dụng', path: '#' },
       { name: 'Yêu cầu bảo hành', path: '#' }
     ]
   },
@@ -136,7 +136,7 @@ export const menuGroups = [
     title: 'Quản lý phản hồi',
     icon: MessageSquare,
     items: [
-      { name: 'Danh sách khách hàng nhập tin', path: '#' }, 
+      { name: 'Danh sách khách hàng nhập tin', path: '#' },
       { name: 'Khách hàng gửi liên hệ', path: '#' }
     ]
   },
@@ -144,7 +144,7 @@ export const menuGroups = [
     title: 'Quản lý văn bản',
     icon: File,
     items: [
-      { name: 'Danh sách công văn', path: '#' }, 
+      { name: 'Danh sách công văn', path: '#' },
       { name: 'Hệ thống tài liệu', path: '#' }
     ]
   },
@@ -152,8 +152,8 @@ export const menuGroups = [
     title: 'Phân quyền',
     icon: UserCog,
     items: [
-      { name: 'Nhóm menu', path: '#' }, 
-      { name: 'Nhóm chức năng', path: '#' }, 
+      { name: 'Nhóm menu', path: '#' },
+      { name: 'Nhóm chức năng', path: '#' },
       { name: 'Log Web', path: '#' }
     ]
   },

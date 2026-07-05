@@ -18,7 +18,7 @@ export function CollectionProductFilter() {
         </h1>
         
         <div className="flex items-center gap-3">
-          <Link href="/products/collection">
+          <Link href="/product/collection">
             <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-700 hover:border-gray-500 text-teal-400 rounded-md transition-all">
               <ArrowLeft className="w-4 h-4" /> Quay Lại
             </button>

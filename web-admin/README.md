@@ -37,6 +37,10 @@ Hệ thống quản lý Admin Dashboard chuyên nghiệp dành cho hệ thống 
    - **Kéo/Thả (Drag & Drop)**: Hỗ trợ kéo thả bằng HTML5 Native để sắp xếp vị trí Nhóm và Sản phẩm trong nhóm cực kỳ mượt mà.
    - **Danh sách liên kết**: Phân tích quan hệ `combo_set_product` (field `set_id`) để hiển thị toàn bộ list sản phẩm đang áp dụng Combo.
 
+6. **Module Quản lý Tin tức (Headless News CMS)**:
+   - Quản lý danh mục bài viết (`/news/news-category`) và danh sách bài viết (`/news/news-list`).
+   - Khởi tạo API Server (`/api/news` và `/api/news-category`) để xuất bản dữ liệu (JSON) cho Front-end tiêu thụ, cấu hình sẵn CORS (`Access-Control-Allow-Origin: *`) hoàn chỉnh thông qua phương thức `OPTIONS`.
+
 ## 🤖 Quy Tắc Tái Sử Dụng Code (Dành cho AI & Lập trình viên)
 
 Để đồng bộ mã nguồn và tránh "reinvent the wheel" (viết lại những thứ đã có), khi phát triển tính năng mới bắt buộc phải tuân thủ các quy tắc tận dụng component/module sau:
@@ -70,15 +74,17 @@ Hệ thống quản lý Admin Dashboard chuyên nghiệp dành cho hệ thống 
 
 ## 📂 Cấu trúc thư mục
 
-```
+```text
 admin-dashboard/
 ├── src/
 │   ├── actions/
 │   │   └── product.ts           # Server Actions query DB (Tìm kiếm SP)
 │   ├── app/
+│   │   ├── api/                 # Cung cấp Data endpoints REST API ra ngoài cho font-end
 │   │   ├── globals.css          # CSS hệ thống (scrollbar, glow effects)
 │   │   ├── layout.tsx           # Layout cha (Sidebar + Header)
 │   │   ├── page.tsx             # Trang danh sách sản phẩm (Mặc định)
+│   │   ├── news/                # Router quản lý danh mục / Bài viết tin tức
 │   │   └── products/            # Router quản lý danh mục / Sản phẩm / Combo
 │   ├── components/
 │   │   ├── layout/              # Chứa Header, Sidebar

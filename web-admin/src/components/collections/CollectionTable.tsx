@@ -67,14 +67,14 @@ export function CollectionTable() {
                 </td>
                 <td className="p-3 text-center">
                   <span className="font-mono text-gray-300">{row.productCount} sp </span>
-                  <Link href="/collection/product">
+                  <Link href="/product/collection/product">
                     <span className="text-blue-500 hover:text-blue-400 hover:underline cursor-pointer">(Xem sản phẩm)</span>
                   </Link>
                 </td>
                 <td className="p-3 text-center font-mono text-gray-400">{row.createdAt}</td>
                 <td className="p-3 text-center">
                   <div className="flex items-center justify-center gap-2">
-                    <Link href="/products/collection-edit">
+                    <Link href="/product/collection-edit">
                       <button className="p-1 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-3.5 h-3.5" /></button>
                     </Link>
                     <button className="p-1 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-3.5 h-3.5" /></button>

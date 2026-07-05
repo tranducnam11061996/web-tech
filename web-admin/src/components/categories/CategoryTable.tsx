@@ -82,7 +82,7 @@ function CategoryRow({ node, level = 0 }: { node: CategoryNode, level?: number }
         <td className="p-3 border-b border-gray-800/50 text-center">
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center justify-center gap-2">
-              <Link href="/products/categories-edit">
+              <Link href="/product/categories-edit">
                 <button className="p-1 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-3.5 h-3.5" /></button>
               </Link>
               <button className="p-1 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-3.5 h-3.5" /></button>

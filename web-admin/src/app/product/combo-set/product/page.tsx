@@ -73,7 +73,7 @@ export default async function ComboSetProductPage(props: {
     return (
       <div className="flex-1 p-6 bg-[#0a0a0f] flex flex-col items-center justify-center text-gray-500 font-mono">
         <h1>ID Combo Set không hợp lệ.</h1>
-        <Link href="/products/combo-set/list" className="mt-4 text-blue-500 hover:underline">Quay lại danh sách</Link>
+        <Link href="/product/combo-set/list" className="mt-4 text-blue-500 hover:underline">Quay lại danh sách</Link>
       </div>
     );
   }
@@ -92,7 +92,7 @@ export default async function ComboSetProductPage(props: {
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-900/50 p-5 rounded-lg border border-gray-800 backdrop-blur-sm shadow-xl">
           <div className="flex items-center gap-4">
-            <Link href="/products/combo-set/list">
+            <Link href="/product/combo-set/list">
               <button className="p-2 bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-all shadow-sm">
                 <ChevronLeft className="w-5 h-5" />
               </button>

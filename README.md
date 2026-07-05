@@ -42,8 +42,14 @@ Dự án nằm trong thư mục gốc `D:\web-tech\` và được chia thành 3 
 - **Tối ưu Product Carousel:** Tinh chỉnh Swiper.js để tạo ra hiệu ứng vòng lặp vô tận (infinite loop) mượt mà, loại bỏ các the bọc cản trở layout, và ẩn scrollbar hoàn toàn.
 - **Chuẩn hóa Navigation Routing:** Triển khai cơ chế sanitize bằng Regex (`replace(/^\/+/, '')`) ở các link điều hướng cấp 2/cấp 3 nhằm ngăn chặn triệt để lỗi Protocol-Relative URL (`//slug-danh-muc`) làm gián đoạn Next.js Router.
 
+### Giai đoạn 5: Xây dựng hệ thống Tin tức (News & Blog System) - **[HOÀN THÀNH]**
+- Tích hợp thành công API cho Danh mục Bài viết (`/api/news-category`) và Bài viết chi tiết (`/api/news`) ở Backend (`/web-admin`).
+- Xử lý mượt mà luồng Dynamic Routing tại `/tin-tuc/[slug]` ở Frontend: tự động fallback từ tìm kiếm bài viết sang danh mục nếu có trùng lặp slug, giao tiếp với `hanoi23_db`.
+- **Tối ưu SEO Server-side:** Chuyển đổi trang Bài viết thành React Server Component (RSC), sử dụng `generateMetadata()` tạo meta-tags động và Next.js Fetch Memoization (`revalidate: 60`) siêu tiết kiệm hiệu năng Server.
+- Giữ nguyên 100% định dạng mã HTML thô từ Database (CKEditor) bằng kỹ thuật Tailwind Arbitrary Variants (ví dụ: `[&_h1]:text-white...`) mà không làm hỏng giao diện Dark Mode. Tối ưu ảnh với `<ProgressiveImage />`.
+
 ## 📜 Tài liệu bắt buộc đọc cho A.I Assistants
 Để các AI có thể ngay lập tức hiểu hệ thống và code tiếp mà không làm phá vỡ kiến trúc, **BẮT BUỘC ĐỌC** các tài liệu sau:
 1. `D:\web-tech\ARCHITECTURE.md` (Định nghĩa toàn cục về luồng dữ liệu 3 thư mục, cách gọi API và cơ chế URL slug).
-2. `D:\web-tech\font-end\README.md` (Quy định khắt khe về UI/UX trên Frontend, không lưu ảnh local, luôn dùng ProgressiveImage).
+2. `D:\web-tech\font-end\README.md` (Quy định khắt khe về UI/UX trên Frontend, không lưu ảnh local, luôn dùng ProgressiveImage, luôn dùng Server Component cho SEO).
 3. `D:\web-tech\web-admin\README.md` & `AGENTS.md` (Nếu cần viết/sửa API Backend).

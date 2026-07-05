@@ -10,7 +10,7 @@ export default function ProductFrameEditPage() {
           Chỉnh sửa khung sản phẩm
         </h1>
         <div className="flex gap-3">
-          <Link href="/collection/product-frame">
+          <Link href="/product/collection/product-frame">
             <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-700 hover:border-gray-500 text-gray-300 rounded-md transition-all">
               <X className="w-4 h-4" /> Đóng
             </button>

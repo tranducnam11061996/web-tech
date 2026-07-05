@@ -79,7 +79,7 @@ export function ComboSetTable({ combos, pagination }: { combos: ComboSetNode[], 
                     )}
                   </td>
                   <td className="p-4 text-center">
-                    <Link href={`/products/combo-set/product?id=${combo.id}`}>
+                    <Link href={`/product/combo-set/product?id=${combo.id}`}>
                       <button className="px-3 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 border border-blue-500/30 hover:bg-blue-600 hover:text-white rounded transition-colors whitespace-nowrap">
                         Xem list sản phẩm
                       </button>
@@ -87,7 +87,7 @@ export function ComboSetTable({ combos, pagination }: { combos: ComboSetNode[], 
                   </td>
                   <td className="p-4">
                     <div className="flex items-center justify-center gap-2">
-                      <Link href={`/products/combo-set/edit?id=${combo.id}`}>
+                      <Link href={`/product/combo-set/edit?id=${combo.id}`}>
                         <button className="p-1.5 text-blue-400 hover:text-white hover:bg-blue-600 rounded transition-colors shadow-sm" title="Chỉnh sửa">
                           <Edit className="w-4 h-4" />
                         </button>

@@ -17,7 +17,7 @@ export function ArticleListFilter() {
           <button className="flex items-center gap-2 px-3 py-1.5 bg-cyan-950/30 text-cyan-400 border border-cyan-900/50 hover:bg-cyan-900/50 rounded transition-all text-sm font-medium">
             <RefreshCcw className="w-4 h-4" /> Đồng bộ tìm kiếm bài viết
           </button>
-          <Link href="/article/edit">
+          <Link href="/news/edit">
             <button className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-all shadow-[0_0_10px_rgba(37,99,235,0.3)] text-sm font-medium">
               <Plus className="w-4 h-4" /> Thêm mới
             </button>

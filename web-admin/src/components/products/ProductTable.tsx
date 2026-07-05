@@ -108,7 +108,7 @@ export function ProductTable({ products, pagination }: ProductTableProps) {
                 <td className="p-4 align-top text-center space-y-3">
                   <div className="flex items-center justify-center gap-2 mb-1">
                     <button className="p-1.5 text-blue-400 hover:text-white hover:bg-blue-600 bg-blue-950/30 border border-blue-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(59,130,246,0.5)]"><RefreshCw className="w-4 h-4" /></button>
-                    <Link href={`/products/edit?id=${product.id}`}>
+                    <Link href={`/product/edit?id=${product.id}`}>
                       <button className="p-1.5 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-4 h-4" /></button>
                     </Link>
                     <a href={product.frontEndUrl || '#'} target="_blank" rel="noopener noreferrer" className="p-1.5 text-purple-400 hover:text-white hover:bg-purple-600 bg-purple-950/30 border border-purple-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(168,85,247,0.5)]"><ExternalLink className="w-4 h-4" /></a>

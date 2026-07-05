@@ -5,7 +5,7 @@ import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 
 import { useParams } from 'next/navigation';
-import CategoryPage from '../category/page';
+import CategoryClient from '../category/CategoryClient';
 
 export default function ProductPage() {
   const params = useParams();
@@ -135,7 +135,7 @@ export default function ProductPage() {
   if (!productData) return null;
 
   if (productData.type === 'category') {
-    return <CategoryPage categoryId={productData.id} />;
+    return <CategoryClient categoryId={productData.id} params={params} categoryInfo={productData} />;
   }
 
   const formatNum = (num: number) => new Intl.NumberFormat('vi-VN').format(num);

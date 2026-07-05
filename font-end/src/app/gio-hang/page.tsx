@@ -95,7 +95,7 @@ export default function CartPage() {
                       </button>
                       <input
                         type="text"
-                        value="1"
+                        defaultValue="1"
                         className="w-full text-center bg-transparent text-xs text-white font-medium border-x border-[#27272a] outline-none"
                       />
                       <button className="w-6 md:w-8 flex items-center justify-center bg-[#0d0d10] hover:bg-[#1a1a1e] text-gray-400">
@@ -166,7 +166,7 @@ export default function CartPage() {
                       </button>
                       <input
                         type="text"
-                        value="1"
+                        defaultValue="1"
                         className="w-full text-center bg-transparent text-xs text-white font-medium border-x border-[#27272a] outline-none"
                       />
                       <button className="w-6 md:w-8 flex items-center justify-center bg-[#0d0d10] hover:bg-[#1a1a1e] text-gray-400">
@@ -237,7 +237,7 @@ export default function CartPage() {
                       </button>
                       <input
                         type="text"
-                        value="1"
+                        defaultValue="1"
                         className="w-full text-center bg-transparent text-xs text-white font-medium border-x border-[#27272a] outline-none"
                       />
                       <button className="w-6 md:w-8 flex items-center justify-center bg-[#0d0d10] hover:bg-[#1a1a1e] text-gray-400">
@@ -319,7 +319,7 @@ export default function CartPage() {
                       </button>
                       <input
                         type="text"
-                        value="1"
+                        defaultValue="1"
                         className="w-full text-center bg-transparent text-xs text-white font-medium border-x border-[#27272a] outline-none"
                       />
                       <button className="w-6 md:w-8 flex items-center justify-center bg-[#0d0d10] hover:bg-[#1a1a1e] text-gray-400">
@@ -395,7 +395,7 @@ export default function CartPage() {
                       </button>
                       <input
                         type="text"
-                        value="1"
+                        defaultValue="1"
                         className="w-full text-center bg-transparent text-xs text-white font-medium border-x border-[#27272a] outline-none"
                       />
                       <button className="w-6 md:w-8 flex items-center justify-center bg-[#0d0d10] hover:bg-[#1a1a1e] text-gray-400">
@@ -479,7 +479,7 @@ export default function CartPage() {
                         </button>
                         <input
                           type="text"
-                          value="1"
+                          defaultValue="1"
                           className="w-full text-center bg-transparent text-xs text-white font-medium border-x border-[#27272a] outline-none"
                         />
                         <button className="w-6 md:w-8 flex items-center justify-center bg-[#0d0d10] hover:bg-[#1a1a1e] text-gray-400">

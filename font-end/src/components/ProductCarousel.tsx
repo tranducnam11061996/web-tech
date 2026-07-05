@@ -98,8 +98,8 @@ export default function ProductCarousel({ productData }: { productData: any }) {
   const clonedImages = [images[images.length - 1], ...images, images[0]];
 
   return (
-    <div className="w-full lg:w-[60%] lg:sticky lg:top-6 lg:self-start">
-      <div className="flex flex-col-reverse lg:flex-row gap-3 lg:items-stretch">
+    <div className="w-full lg:w-[60%] lg:sticky lg:top-6 lg:self-start min-w-0">
+      <div className="flex flex-col-reverse lg:flex-row gap-3 lg:items-stretch min-w-0">
         {/* Thumbnails */}
         <div className="w-full lg:w-[15%] shrink-0" style={{ containerType: "inline-size" }}>
           <div
@@ -128,9 +128,9 @@ export default function ProductCarousel({ productData }: { productData: any }) {
           </div>
         </div>
         {/* Main carousel */}
-        <div className="w-full lg:flex-1 relative lg:h-auto">
+        <div className="w-full lg:flex-1 relative lg:h-auto min-w-0">
           <div
-            className="carousel-main aspect-[4/3] lg:aspect-auto lg:h-full lg:w-full"
+            className="carousel-main aspect-[4/3] lg:aspect-auto lg:h-full lg:w-full overflow-hidden rounded-xl bg-black"
             id="carouselMain"
             ref={mainRef}
             onMouseEnter={stopAuto}

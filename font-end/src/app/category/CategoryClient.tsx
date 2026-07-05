@@ -3,6 +3,8 @@ import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
+import SimilarProducts from "../../components/SimilarProducts";
+import WhyBuyFaq from "../../components/WhyBuyFaq";
 import ProgressiveImage from "../../components/ProgressiveImage";
 import Link from "next/link";
 
@@ -17,6 +19,11 @@ const slugify = (str: string) => {
     .replace(/[^a-z0-9\- ]/g, "")
     .trim()
     .replace(/\s+/g, "-");
+};
+
+const isValidHtmlContent = (htmlString: string | null | undefined) => {
+  if (!htmlString) return false;
+  return htmlString.replace(/<[^>]*>?/gm, "").trim().length > 5;
 };
 
 function AttributeFilterBlock({
@@ -171,6 +178,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
 
   const hasInitialData = !!(initialData && Object.keys(initialData).length > 0);
   const [showAllSubcategories, setShowAllSubcategories] = useState(false);
+  const [isStaticHtmlExpanded, setIsStaticHtmlExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(!hasInitialData); // Loading if no SSR data
   const [currentPrice, setCurrentPrice] = useState({
     min: searchParamsHook?.get("min-price")
@@ -392,7 +400,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
         <div className="flex flex-col lg:flex-row gap-8 mb-8">
           {/* Banner Image / Graphic */}
           <div className="lg:w-1/2 rounded-[20px] overflow-hidden relative aspect-[85/33] border border-[#1a1a1e] bg-gradient-to-r from-[#121810] via-[#0d1112] to-[#120a13]">
-             {categoryInfo?.imgBig ? (
+             {isValidHtmlContent(categoryInfo?.imgBig) ? (
                <ProgressiveImage
                  src={`https://hacom.vn/media/category/${categoryInfo.imgBig}`}
                  alt={categoryInfo?.name || "Category Image"}
@@ -405,13 +413,13 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                  <div className="absolute top-0 right-0 w-1/3 h-full bg-purple-500/10 blur-[80px] rounded-full"></div>
                  
                  {/* Content */}
-                 <div className="absolute inset-0 flex flex-col justify-center items-end p-8 text-right bg-gradient-to-l from-black/80 via-black/40 to-transparent">
+                 <div className="absolute inset-0 flex flex-col justify-center items-center p-8 text-left bg-gradient-to-l from-black/80 via-black/40 to-transparent">
                     <div className="max-w-[80%]">
                        <p className="text-[11px] md:text-[15px] font-bold text-gray-300 tracking-[0.2em] mb-2 drop-shadow-lg">
-                         AMD RADEON • INTEL ARC • NVIDIA GEFORCE
+                         PCM
                        </p>
                        <h2 className="text-3xl md:text-5xl font-black text-white italic tracking-tight drop-shadow-xl" style={{ textShadow: "0 4px 20px rgba(0,0,0,0.8)" }}>
-                         GRAPHICS CARDS
+                         {categoryInfo?.name || "Danh Mục Sản Phẩm"}
                        </h2>
                     </div>
                  </div>
@@ -424,12 +432,21 @@ export default function CategoryContent({ categoryId, params, searchParams, init
             <h1 className="text-2xl md:text-[28px] font-extrabold text-white mb-4 tracking-tight">
               {categoryInfo?.name || "Danh mục sản phẩm"}
             </h1>
-            {categoryInfo?.summary && categoryInfo.summary.replace(/<[^>]*>?/gm, '').trim().length > 5 ? (
+            {isValidHtmlContent(categoryInfo?.summary) ? (
               <div 
                 className="text-[15px] text-gray-400 leading-relaxed space-y-3"
                 dangerouslySetInnerHTML={{ __html: categoryInfo.summary }}
               />
-            ) : null}
+            ) : isValidHtmlContent(categoryInfo?.meta_description) ? (
+              <div 
+                className="text-[15px] text-gray-400 leading-relaxed space-y-3"
+                dangerouslySetInnerHTML={{ __html: categoryInfo.meta_description }}
+              />
+            ) : (
+              <div className="text-[15px] text-gray-400 leading-relaxed space-y-3">
+                Sẵn kho - Đa dạng - Giá tốt - Bảo hành chính hãng
+              </div>
+            )}
           </div>
         </div>
 
@@ -947,8 +964,14 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                     {/* Footer: Price & Stock */}
                     <div className="flex items-center justify-between mt-auto">
                       <span className="bg-gradient-to-r from-white via-cyan-400 to-purple-500 bg-clip-text text-transparent font-extrabold text-[17px] tracking-wide">
-                        {new Intl.NumberFormat("vi-VN").format(product.price)}
-                        <span className="text-[12px] font-bold ml-0.5 align-top underline decoration-1 underline-offset-[2px]">đ</span>
+                        {!product.price || product.price == 0 ? (
+                          "Liên hệ"
+                        ) : (
+                          <>
+                            {new Intl.NumberFormat("vi-VN").format(product.price)}
+                            <span className="text-[12px] font-bold ml-0.5 align-top underline decoration-1 underline-offset-[2px]">đ</span>
+                          </>
+                        )}
                       </span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-[#10b981] text-[11px] font-bold flex items-center gap-1">
@@ -1088,585 +1111,51 @@ export default function CategoryContent({ categoryId, params, searchParams, init
         </main>
       </div>
 
-      {/*  ==================== ss21.html ====================  */}
-      <section className="max-w-[1800px] mx-auto px-6 py-16">
-        <div className="bg-[#111115] border border-[#1a1a1e] rounded-2xl p-8 md:p-12">
-          {/*  Tabs  */}
-          <div className="flex justify-center gap-2 mb-10">
-            <button
-              className="tab-btn active"
-              onClick={(e) =>
-                typeof window !== "undefined" &&
-                window.switchTab("whybuy", e.currentTarget)
-              }
-            >
-              Why Buy
-            </button>
-            <button
-              className="tab-btn"
-              onClick={(e) =>
-                typeof window !== "undefined" &&
-                window.switchTab("faq", e.currentTarget)
-              }
-            >
-              FAQ
-            </button>
-          </div>
-
-          {/*  WHY BUY TAB  */}
-          <div id="tab-whybuy">
-            <h2 className="text-2xl md:text-3xl font-extrabold mb-4 leading-tight">
-              Top 5 Reasons to Invest in a High-Performance Graphics Card (GPU)
-            </h2>
-            <p className="text-sm text-gray-500 leading-relaxed mb-8 max-w-[1200px]">
-              Investing in a top-quality graphics card (GPU) significantly
-              boosts your gaming performance, delivering higher frame rates and
-              stunning visuals. It also accelerates demanding tasks such as
-              video editing and 3D rendering, making your workflow more
-              efficient. With the ability to support multiple monitors, a GPU
-              creates an expansive workspace perfect for multitasking.
-              Additionally, GPUs enhance overall system performance, ensuring
-              your setup is ready for future software and gaming innovations.
-            </p>
-
-            <div className="space-y-2" id="whybuy-accordion">
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">01</span>
-                  <span className="accordion-title">
-                    Enhanced Gaming Performance:
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    A high-performance GPU delivers higher frame rates and
-                    smoother gameplay, allowing you to enjoy the latest AAA
-                    titles at maximum settings. Whether you're into competitive
-                    esports or immersive open-world adventures, a powerful
-                    graphics card ensures a lag-free, visually stunning
-                    experience that keeps you ahead of the competition.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">02</span>
-                  <span className="accordion-title">
-                    Efficient Video Editing and Rendering:
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    Content creators and professionals benefit immensely from
-                    GPU acceleration. Tasks like 4K video editing, 3D modeling,
-                    and real-time rendering that would take hours on a CPU can
-                    be completed in minutes with a dedicated GPU, dramatically
-                    improving your productivity and creative workflow.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">03</span>
-                  <span className="accordion-title">
-                    Machine Learning and AI Capabilities:
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    Modern GPUs are essential for machine learning, deep
-                    learning, and AI workloads. With thousands of CUDA cores and
-                    dedicated Tensor cores, GPUs can process massive datasets
-                    and train neural networks exponentially faster than CPUs,
-                    making them indispensable for data scientists and AI
-                    researchers.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">04</span>
-                  <span className="accordion-title">
-                    Cryptocurrency Mining:
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    While the mining landscape has evolved, GPUs remain relevant
-                    for mining certain cryptocurrencies. Their parallel
-                    processing capabilities make them efficient at solving
-                    complex mathematical problems required for blockchain
-                    verification and proof-of-work algorithms.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">05</span>
-                  <span className="accordion-title">
-                    Multi-Monitor and VR Support:
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    High-end GPUs support multiple display outputs, enabling
-                    expansive multi-monitor setups for productivity or gaming.
-                    They also power VR headsets with the high refresh rates and
-                    low latency needed for comfortable, immersive virtual
-                    reality experiences without motion sickness.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs text-gray-600 leading-relaxed mt-8 max-w-[1200px]">
-              Summary: Graphics cards deliver superior gaming performance,
-              expedite video editing and rendering tasks, unlock machine
-              learning and AI potential, facilitate cryptocurrency mining, and
-              provide support for multi-monitor and VR setups. These vital
-              features make them essential for gamers, content creators,
-              industry professionals, and tech enthusiasts seeking optimal
-              performance and cutting-edge functionality. 🚀
-            </p>
-          </div>
-
-          {/*  FAQ TAB  */}
-          <div id="tab-faq" className="hidden">
-            <h2 className="text-2xl md:text-3xl font-extrabold mb-4 leading-tight">
-              Frequently Asked Questions
-            </h2>
-            <p className="text-sm text-gray-500 leading-relaxed mb-8 max-w-[1200px]">
-              Find answers to the most common questions about graphics cards,
-              compatibility, warranty, and more. Can't find what you're looking
-              for? Contact our support team for personalized assistance.
-            </p>
-
-            <div className="space-y-2" id="faq-accordion">
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">01</span>
-                  <span className="accordion-title">
-                    What graphics card is compatible with my PC?
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    Compatibility depends on your motherboard's PCIe slot (most
-                    modern GPUs use PCIe x16), your power supply wattage, and
-                    your case dimensions. Check your PSU's wattage rating and
-                    available PCIe power connectors, and measure your case's GPU
-                    clearance before purchasing. Our AI PC Builder tool can help
-                    you find the perfect match.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">02</span>
-                  <span className="accordion-title">
-                    How much VRAM do I need for gaming?
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    For 1080p gaming, 6-8GB VRAM is sufficient for most titles.
-                    For 1440p, aim for 8-12GB. For 4K gaming, 12GB+ is
-                    recommended. Keep in mind that newer games are becoming more
-                    VRAM-hungry, so investing in more VRAM now can future-proof
-                    your setup for upcoming titles.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">03</span>
-                  <span className="accordion-title">
-                    What is the warranty on your graphics cards?
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    All our graphics cards come with a minimum 3-year
-                    manufacturer warranty. Some premium models from brands like
-                    ASUS ROG and MSI Gaming offer extended warranties. We also
-                    provide our own Evetech support for the first 12 months for
-                    hassle-free returns and replacements.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">04</span>
-                  <span className="accordion-title">
-                    NVIDIA vs AMD: Which should I choose?
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    Both offer excellent performance. NVIDIA excels in ray
-                    tracing (RTX), DLSS upscaling, and AI workloads with CUDA
-                    cores. AMD Radeon cards often provide better raw
-                    rasterization performance per dollar. For content creation
-                    and AI, NVIDIA is generally preferred. For pure gaming
-                    value, AMD can be a strong choice.
-                  </div>
-                </div>
-              </div>
-              <div className="accordion-item">
-                <div
-                  className="accordion-header"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleAccordion(e.currentTarget)
-                  }
-                >
-                  <span className="accordion-num">05</span>
-                  <span className="accordion-title">
-                    Do you offer delivery and installation services?
-                  </span>
-                  <span className="accordion-icon">
-                    <svg
-                      width="16"
-                      height="16"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M19 9l-7 7-7-7"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="accordion-body">
-                  <div className="accordion-body-inner">
-                    Yes! We offer nationwide delivery across South Africa with
-                    various shipping options including express next-day
-                    delivery. For customers in Gauteng, we also offer
-                    professional installation services where our technicians
-                    will install your new GPU and ensure everything is running
-                    optimally.
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <p className="text-xs text-gray-600 leading-relaxed mt-8 max-w-[1200px]">
-              Still have questions? Our dedicated support team is available via
-              live chat, email, or phone to help you make the right choice.
-              We're here to ensure you get the best graphics card for your needs
-              and budget. 💬
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/*  ==================== ss22.html ====================  */}
-      <section className="max-w-[1800px] mx-auto px-6 py-12">
-        <div className="bg-[#111115] border border-[#1a1a1e] rounded-2xl p-6 md:p-8">
-          {/*  Tabs  */}
-          <div className="flex items-center gap-3 mb-8">
-            <button
-              className="rtab active"
-              onClick={(e) =>
-                typeof window !== "undefined" &&
-                window.switchRTab("products", e.currentTarget)
-              }
-            >
-              Similar Products <span className="badge">30</span>
-            </button>
-            <button
-              className="rtab"
-              onClick={(e) =>
-                typeof window !== "undefined" &&
-                window.switchRTab("pages", e.currentTarget)
-              }
-            >
-              Related Pages <span className="badge">14</span>
-            </button>
-            <button
-              className="rtab"
-              onClick={(e) =>
-                typeof window !== "undefined" &&
-                window.switchRTab("posts", e.currentTarget)
-              }
-            >
-              Related Posts <span className="badge">15</span>
-            </button>
-          </div>
-
-          {/*  SIMILAR PRODUCTS  */}
-          <div id="rtab-products">
-            <div
-              className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4"
-              id="products-grid"
-            ></div>
-            <div className="flex justify-center mt-8">
+      {/* ==================== STATIC HTML ==================== */}
+      {categoryInfo?.staticHtml && (
+        <section className="max-w-[1800px] mx-auto px-6 py-4">
+          <div className="rounded-2xl p-6 md:p-8 relative shadow-sm">
+            <div 
+              className={`static-html-content transition-all duration-500 ease-in-out text-gray-300 text-[15px] leading-relaxed 
+                [&>h1]:text-white [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h1]:mt-6
+                [&>h2]:text-white [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h2]:mt-5
+                [&>h3]:text-white [&>h3]:text-lg [&>h3]:font-bold [&>h3]:mb-3 [&>h3]:mt-4
+                [&>p]:mb-4 [&>img]:max-w-full [&>img]:rounded-lg [&>img]:my-4
+                [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-4
+                [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:mb-4
+                ${isStaticHtmlExpanded ? '' : 'max-h-[300px] overflow-hidden'}`}
+              dangerouslySetInnerHTML={{ __html: categoryInfo.staticHtml }}
+            />
+            
+            {!isStaticHtmlExpanded && (
+              <div className="absolute bottom-0 left-0 right-0 h-[200px] bg-gradient-to-t from-[#111115] via-[#111115]/90 to-transparent pointer-events-none rounded-b-2xl" />
+            )}
+            
+            <div className={`flex justify-center mt-4 relative z-10 ${!isStaticHtmlExpanded ? '-mt-8' : 'mt-6'}`}>
               <button
-                className="show-btn"
-                id="products-btn"
-                onClick={() =>
-                  typeof window !== "undefined" && window.toggleShow("products")
-                }
+                onClick={() => setIsStaticHtmlExpanded(!isStaticHtmlExpanded)}
+                className="bg-[#18181b] border border-[#27272a] hover:border-[#0b63e5] hover:text-[#0b63e5] text-white font-medium px-6 py-2.5 rounded-full transition-all flex items-center gap-2 shadow-md shadow-black/10"
               >
-                Show All (15)
+                {isStaticHtmlExpanded ? "Thu gọn" : "Xem thêm"}
+                <svg
+                  className={`w-4 h-4 transition-transform duration-300 ${isStaticHtmlExpanded ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
               </button>
             </div>
           </div>
-          {(() => {
-            const range = [];
-            const rangeWithDots = [];
-            let l;
+        </section>
+      )}
 
-            for (let i = 1; i <= totalPages; i++) {
-              if (i === 1 || i === totalPages) {
-                range.push(i);
-              } else if (currentPage <= 3 && i <= 5) {
-                range.push(i);
-              } else if (currentPage >= totalPages - 2 && i >= totalPages - 4) {
-                range.push(i);
-              } else if (i >= currentPage - 1 && i <= currentPage + 1) {
-                range.push(i);
-              }
-            }
+      {/*  ==================== ss21.html ====================  */}
+      <WhyBuyFaq />
 
-            for (let i of range) {
-              if (l) {
-                if (i - l === 2) {
-                  rangeWithDots.push(l + 1);
-                } else if (i - l !== 1) {
-                  rangeWithDots.push("...");
-                }
-              }
-              rangeWithDots.push(i);
-              l = i;
-            }
-
-            return rangeWithDots.map((page, index) =>
-              page === "..." ? (
-                <span
-                  key={`dots-${index}`}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#18181b] text-gray-500 font-medium"
-                >
-                  ...
-                </span>
-              ) : (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page as number)}
-                  className={`w-10 h-10 flex items-center justify-center rounded-xl text-[15px] font-semibold transition-all ${currentPage === page
-                      ? "bg-[#0b63e5] text-white shadow-[0_4px_12px_rgba(11,99,229,0.3)]"
-                      : "bg-[#18181b] text-gray-400 hover:text-white hover:bg-[#27272a]"
-                    }`}
-                >
-                  {page}
-                </button>
-              ),
-            );
-          })()}
-        </div>
-      </section>
+      {/*  ==================== ss22.html ====================  */}
+      <SimilarProducts />
 
       <Footer />
     </div>

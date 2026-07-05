@@ -3329,7 +3329,9 @@ body.mobile-menu-open {
   font-weight: 600;
   color: #e4e4e7
 }
-
+.accordion-body {
+    padding: 0px 15px 15px;
+}
 .accordion-icon {
   width: 24px;
   height: 24px;
@@ -3932,4 +3934,30 @@ body.mobile-menu-open {
   color: #fff;
   font-weight: 600;
   background-color: #1a1a1e !important;
+}
+
+/* Format raw HTML from Database (Dark Mode) */
+.html-content-formatter {
+    @apply text-gray-300 text-[15px] leading-relaxed;
+}
+.html-content-formatter h1 {
+    @apply text-white text-2xl font-bold mb-4 mt-6;
+}
+.html-content-formatter h2 {
+    @apply text-white text-xl font-bold mb-3 mt-5;
+}
+.html-content-formatter h3 {
+    @apply text-white text-lg font-bold mb-3 mt-4;
+}
+.html-content-formatter p {
+    @apply mb-4;
+}
+.html-content-formatter img {
+    @apply max-w-full rounded-lg my-4;
+}
+.html-content-formatter ul {
+    @apply list-disc pl-5 mb-4;
+}
+.html-content-formatter ol {
+    @apply list-decimal pl-5 mb-4;
 }

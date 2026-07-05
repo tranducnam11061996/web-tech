@@ -24,20 +24,22 @@ export async function GET(
       const match = urlData[0].id_path.match(/view_id:(\d+)/);
       const categoryId = match ? match[1] : null;
       if (categoryId) {
-        const [catRows] = await pool.query('SELECT name, summary, img_big, meta_title FROM idv_seller_category WHERE id = ? LIMIT 1', [Number(categoryId)]);
+        const [catRows] = await pool.query('SELECT name, summary, img_big, meta_title, static_html FROM idv_seller_category WHERE id = ? LIMIT 1', [Number(categoryId)]);
         const catData = catRows as any[];
         let name = 'Danh mục';
         let summary = '';
         let imgBig = '';
         let metaTitle = '';
+        let staticHtml = '';
         if (catData.length > 0) {
           name = catData[0].name;
           summary = catData[0].summary;
           imgBig = catData[0].img_big;
           metaTitle = catData[0].meta_title;
+          staticHtml = catData[0].static_html;
         }
 
-        return NextResponse.json({ success: true, type: 'category', data: { id: categoryId, type: 'category', name, summary, imgBig, metaTitle } });
+        return NextResponse.json({ success: true, type: 'category', data: { id: categoryId, type: 'category', name, summary, imgBig, metaTitle, staticHtml } });
       }
     }
 

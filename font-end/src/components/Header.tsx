@@ -37,7 +37,7 @@ export default function Header() {
       </div>
 
       {/*  DESKTOP TOP ROW (>= 768px)  */}
-      <div className="hidden md:flex items-center justify-between py-4">
+      <div className="hidden md:flex items-center justify-between py-4" id="top-header-search">
         {/*  Logo  */}
         <div className="flex items-center gap-3 shrink-0">
           <div
@@ -78,7 +78,7 @@ export default function Header() {
       </div>
 
       {/*  DESKTOP BOTTOM ROW (NAV)  */}
-      <div className="hidden md:flex items-center py-2 border-t border-dark-border relative">
+      <div className="hidden md:flex items-center py-2 border-t border-dark-border relative" id="bottom-header-menu">
         {/*  Menu Button  */}
         <div id="menuBorderDesktop"
           className="p-[1px] rounded-full bg-gradient-to-r from-green-400 via-purple-500 to-orange-500 cursor-pointer transition-all shrink-0"

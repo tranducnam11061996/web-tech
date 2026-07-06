@@ -1,54 +1,119 @@
-# HACOM Frontend Architecture (font-end)
+# HACOM Storefront (`font-end`)
 
-This directory (`D:\web-tech\font-end`) contains the customer-facing Storefront built with Next.js 15 (App Router). 
+Storefront khách hàng chạy bằng Next.js 15 App Router tại cổng `3001`.
 
-## 1. Core Principles (DO NOT VIOLATE)
-1. **Headless & Decoupled:** This frontend **NEVER** connects to the MySQL database directly. There are no DB configurations or ORMs here. All data is fetched via REST API calls to the `web-admin` backend (running on `http://localhost:3000`).
-2. **Aesthetics (Premium UI/UX):** The storefront strictly follows a highly premium, dark-themed aesthetic (gradients, glassmorphism, glowing cyan/blue borders) using Tailwind CSS. 
-3. **No Local Images:** Product images must not be stored in `public/`. They are either fetched from the `web-admin` (which serves from `/media`) or external URLs.
+## Nguyên tắc bắt buộc
 
-## 2. Key Mechanisms
+- Không kết nối trực tiếp MySQL.
+- Mọi dữ liệu động đi qua API `web-admin` tại cổng `3000`.
+- Không thay đổi UI/class/layout khi task chỉ yêu cầu tối ưu logic hoặc hiệu suất.
+- Trang nội dung ưu tiên Server Component; chỉ tách Client Component cho tương tác.
+- Không gọi các hàm global từ `public/main.js`; menu/filter dùng React state.
+- Dùng `ProgressiveImage` cho ảnh động cần placeholder/lazy loading.
 
-### A. Dynamic URL Routing (`app/[slug]/page.tsx`)
-Instead of using IDs in the URL like `?id=123`, the app uses highly SEO-friendly slugs (e.g. `/laptop-msi-gaming-pro`).
-- When a user visits a slug, the frontend fetches `GET http://localhost:3000/api/products/[slug]`.
-- The backend resolves the slug from the `idv_url` database table and returns an object containing `type: 'product'` or `type: 'category'`.
-- The `[slug]/page.tsx` file acts as a **Router/Gateway Component**. Based on the `type`, it either conditionally renders the `ProductPage` (Detail) or the `CategoryPage` (Listing), seamlessly maintaining the beautiful URL without redirects.
+## Routes chính
 
-### B. Smart Pagination (`app/category/page.tsx`)
-The category listing page implements a robust, E-commerce standard **Smart Pagination**:
-- **API Fetching:** It sends `?page=X&limit=24` to the backend and receives `pagination: { total, page, limit, totalPages }`.
-- **Ellipsis Logic:** It dynamically calculates a condensed range with ellipsis (`...`). E.g., `< | 1 | 2 | 3 | 4 | 5 | ... | 16 | >`.
-- **UI:** The pagination buttons match the dark aesthetic, with the active page highlighted in vibrant Blue (`#0b63e5`) and smooth CSS transitions. When switching pages, the window automatically smooth-scrolls to the top.
+| Route | Component | Ghi chú |
+|---|---|---|
+| `/` | `app/page.tsx` | Static home shell |
+| `/[slug]` | `app/[slug]/page.tsx` | Server gateway cho product/category |
+| `/category` | `app/category/page.tsx` | Category theo query id |
+| `/gio-hang` | `CartClient` | Guest cart từ localStorage |
+| `/thanh-toan` | `CheckoutClient` | Quote selected items và tạo order |
+| `/tin-tuc` | `app/tin-tuc/page.tsx` | News landing |
+| `/tin-tuc/[slug]` | Server route | Article/category news |
 
-### C. Dynamic Filter State Management (`app/category/page.tsx`)
-- **Single Source of Truth:** All filter selections (attributes, categories, price range) must use the `useSearchParams` hook as the single source of truth. Do NOT store filter state exclusively in React `useState` without pushing it to the URL (`router.push(..., {scroll: false})`).
-- **Active Filters UI:** The "Bộ lọc đã chọn" (Active Filters) array is dynamically derived by parsing the URL params against the API payload structure.
-- **Vanilla JS Conflict Resolution:** When migrating legacy vanilla JS (e.g. `public/main.js`), any legacy functions that perform direct DOM manipulation on React-controlled elements (like `#active-filters-list`) MUST be disabled or commented out to prevent React Hydration / `removeChild` errors.
+## Dynamic slug gateway
 
-### D. Image Optimization (`src/components/ProgressiveImage.tsx`)
-To ensure top-tier performance (Core Web Vitals) and premium UX, raw `<img />` tags are strictly forbidden for dynamic content.
-- Use `<ProgressiveImage src="..." alt="..." />` instead.
-- **Lazy Loading:** It uses `IntersectionObserver` to only fetch the real image when it is 50px away from the viewport.
-- **Shimmer Placeholder:** While loading (or waiting to enter viewport), it displays an ultra-light Base64 SVG placeholder.
-- **Graceful Degradation:** If the real image 404s, it catches the `onerror` event, aborts retrying (preventing infinite loops), and keeps the professional placeholder.
+`app/[slug]/page.tsx` gọi:
 
-### E. Advanced Micro-Interactions & Performance
-To maintain the "Premium" feel, the application uses highly optimized custom interactions:
-- **Smart Sticky Header (`src/components/Header.tsx`):** Detects scroll direction. The top search bar is permanently sticky (`z-[100]`). The bottom navigation menu (`z-[90]`) smoothly hides (`-translate-y-full`) beneath the search bar on scroll down, and reveals on scroll up. **Performance rule:** Scroll tracking uses `useRef` to track `window.scrollY` (preventing massive React re-renders) and a `resize` listener to compute sticky offset dynamically.
-- **Fluid Carousels (`src/components/ProductCarousel.tsx`):** Implements `Swiper` for infinite looping (`loop={true}`). Avoid wrapping Swiper instances in restrictive CSS size containers that cause jitter during loop transitions.
-- **Strict Route Sanitization:** Sub-category links automatically strip leading slashes (e.g. using `replace(/^\/+/, '')`) to prevent Next.js from mistaking them for Protocol-Relative URLs.
+```text
+GET http://localhost:3000/api/products/{slug}
+```
 
-### F. News System & Server Components (`app/tin-tuc/[slug]/page.tsx`)
-- **Server-Side Rendering (RSC):** For content-heavy pages like News Articles and Categories, we **strictly** use React Server Components (no `"use client"`). This enables 0 JavaScript payload for fetching, lightning-fast LCP, and seamless SEO.
-- **Dynamic Metadata (`generateMetadata`):** Metadata (title, descriptions, keywords, OpenGraph images) is dynamically generated server-side using the `generateMetadata` Next.js API, fetching data before the page renders.
-- **ISR Caching:** Fetch calls to the backend include `{ next: { revalidate: 60 } }` to leverage Next.js Incremental Static Regeneration, drastically reducing the load on the backend MySQL database.
-- **Fallback Gateway:** The `/tin-tuc/[slug]` route acts as a dual gateway. It first attempts to fetch an article (`/api/news/[slug]`). If that returns a 404, it intelligently falls back to fetching a category (`/api/news-category/[slug]`), and renders the appropriate layout.
-- **Raw CMS HTML Formatting:** When rendering database-stored HTML (like CKEditor content), we do NOT use Tailwind's `@tailwindcss/typography` (`prose`) plugin as it overwrites inline styles. Instead, we use **Tailwind Arbitrary Variants** (e.g. `className="[&_h1]:text-white [&_p]:mb-4"`) combined with `dangerouslySetInnerHTML`. We also use regex to dynamically rewrite relative image paths (`../media/news/`) to absolute server URLs (`https://hacom.vn/media/`).
+Nếu response là category, server fetch song song:
 
-## 3. Development Workflow for AIs
-If instructed to build a new UI section or page:
-1. **Analyze Design Context:** Always assume a Dark Mode, premium E-commerce vibe unless told otherwise. Use deep grays/blacks (`#111115`, `#18181b`) and cyan/blue accents.
-2. **Determine Architecture (Client vs Server):** Default to Server Components (`async function Page()`) for SEO/Performance. Only use `"use client"` when you absolutely need React hooks (`useState`, `useEffect`, `useRouter`, or interactive DOM events).
-3. **Check API:** Verify if `web-admin` has the required endpoint. If not, build the API in `web-admin` first.
-4. **Use Existing Components:** Utilize `ProgressiveImage` for media and follow the established Tailwind patterns found in `layout.tsx` and `page.tsx`.
+- `/api/products?category_id=...`
+- `/api/categories?parentId=...`
+- `/api/categories/price-bounds?categoryId=...`
+- `/api/categories/attributes?categoryId=...`
+
+Sau hydration, `CategoryClient` chỉ fetch lại product list khi page/filter/sort thay đổi. Metadata category chỉ fetch lại khi category id đổi.
+
+## Category filter
+
+- URL search params là source of truth cho attribute, brand, price và sort.
+- Active filters được derive bằng `Map`, không setState trong render.
+- Request cũ được hủy bằng `AbortController`.
+- Attribute value chứa URL/script legacy bị ẩn phòng thủ ở frontend; backend cũng làm sạch response.
+- Pagination hiện được giữ trong React state, mỗi trang `24` sản phẩm.
+
+## Cart
+
+Storage key:
+
+```text
+hacom.cart.v1
+```
+
+Cart hỗ trợ:
+
+- Merge item trùng `productId`.
+- Quantity `1..99` ở client.
+- Selected item, select all, remove selected.
+- Saved for later.
+- Header badge theo tổng quantity active.
+- Reload vẫn giữ dữ liệu.
+
+Giá localStorage không phải nguồn tin cậy. Cart và checkout gọi `POST /api/cart/quote`; order API re-quote thêm lần nữa.
+
+## Components hiệu suất
+
+### `ProgressiveImage`
+
+- Cache SVG placeholder theo fallback text.
+- `IntersectionObserver` với root margin `50px`.
+- Native `loading="lazy"`.
+- Giữ placeholder nếu ảnh lỗi.
+
+### `ProductCarousel`
+
+- Custom React carousel, không dùng Swiper.
+- Memoize `images` và cloned images.
+- Drag delta lưu trong ref để tránh render từng pixel.
+- Auto timer dừng khi tab ẩn và cleanup khi unmount.
+
+### `Header`
+
+- Menu data ở `src/components/menuData.ts`.
+- Mega menu desktop/mobile render bằng React.
+- Click-outside và body class được cleanup.
+- Không phụ thuộc global script.
+
+## Biến môi trường
+
+```env
+NEXT_PUBLIC_API_URL="http://localhost:3000"
+```
+
+Next config hiện vẫn có rewrite `/api/:path*` sang backend local để client gọi cùng origin.
+
+## Commands
+
+```powershell
+npm.cmd install
+npm.cmd run dev
+npm.cmd run build
+```
+
+## Kiểm thử tối thiểu
+
+- `/laptop`: load, filter, sort, pagination, quick filter search.
+- Product detail: quantity, add cart, buy online.
+- Cart: select, quantity, saved for later, delete, quote.
+- Checkout: selected items, invalid item, submit validation.
+- Header: badge, desktop menu, mobile menu.
+- Build production trước khi bàn giao.
+
+Xem trạng thái và test gap tại `../PROJECT_PROGRESS.md`.
+

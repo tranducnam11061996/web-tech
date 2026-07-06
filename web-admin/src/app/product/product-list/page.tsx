@@ -3,6 +3,8 @@ import { ProductFilter, ProductTopActions } from '@/components/products/ProductF
 import { ProductTable, ProductSkeleton } from '@/components/products/ProductTable';
 import pool from '@/lib/db';
 
+const storefrontUrl = process.env.STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || 'http://localhost:3001';
+
 async function getProducts(page: number, limit: number, search?: string) {
   try {
     const offset = (page - 1) * limit;
@@ -17,29 +19,31 @@ async function getProducts(page: number, limit: number, search?: string) {
       queryParams.push(keyword, keyword, keyword);
     }
 
-    // Get total count
-    const [countResult] = await pool.query(
-      `SELECT COUNT(*) as total FROM idv_sell_product_store p ${whereClause}`,
-      queryParams
-    );
-    const totalItems = (countResult as any[])[0].total;
-    const totalPages = Math.ceil(totalItems / limit);
+    const [countQueryResult, listQueryResult] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*) as total FROM idv_sell_product_store p ${whereClause}`,
+        queryParams
+      ),
+      pool.query(`
+        SELECT 
+          p.id, p.storeSKU, p.proName, p.warranty, p.postDate, p.lastUpdate, p.proThum, p.cond,
+          b.name as brandName,
+          pr.price, pr.market_price, pr.isOn,
+          u.request_path as frontEndUrl
+        FROM idv_sell_product_store p
+        LEFT JOIN idv_brand b ON p.brandId = b.id
+        LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
+        LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
+        ${whereClause}
+        ORDER BY p.id DESC
+        LIMIT ? OFFSET ?
+      `, [...queryParams, Number(limit), Number(offset)]),
+    ]);
 
-    // Get products
-    const [rows] = await pool.query(`
-      SELECT 
-        p.id, p.storeSKU, p.proName, p.warranty, p.postDate, p.lastUpdate, p.proThum, p.cond,
-        b.name as brandName,
-        pr.price, pr.market_price, pr.isOn,
-        u.request_path as frontEndUrl
-      FROM idv_sell_product_store p
-      LEFT JOIN idv_brand b ON p.brandId = b.id
-      LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
-      LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
-      ${whereClause}
-      ORDER BY p.id DESC
-      LIMIT ? OFFSET ?
-    `, [...queryParams, Number(limit), Number(offset)]);
+    const countResult = countQueryResult[0] as any[];
+    const rows = listQueryResult[0] as any[];
+    const totalItems = Number(countResult[0]?.total || 0);
+    const totalPages = Math.max(1, Math.ceil(totalItems / limit));
 
     const products = (rows as any[]).map((row: any) => ({
       id: row.id,
@@ -56,7 +60,7 @@ async function getProducts(page: number, limit: number, search?: string) {
       status: (row.isOn === 1 || row.isOn === true ? 'HIỂN THỊ' : 'ẨN') as 'HIỂN THỊ' | 'ẨN',
       sequence: 0,
       imageUrl: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://via.placeholder.com/60',
-      frontEndUrl: row.frontEndUrl ? `http://localhost:3001${row.frontEndUrl}` : '#',
+      frontEndUrl: row.frontEndUrl ? `${storefrontUrl}${row.frontEndUrl}` : '#',
     }));
 
     return {
@@ -85,8 +89,8 @@ export default async function ProductListPage(props: {
   const limitStr = searchParams?.limit;
   const searchStr = searchParams?.search;
   
-  const page = typeof pageStr === 'string' ? parseInt(pageStr, 10) || 1 : 1;
-  const limit = typeof limitStr === 'string' ? parseInt(limitStr, 10) || 20 : 20;
+  const page = Math.max(1, typeof pageStr === 'string' ? parseInt(pageStr, 10) || 1 : 1);
+  const limit = Math.min(100, Math.max(1, typeof limitStr === 'string' ? parseInt(limitStr, 10) || 20 : 20));
   const search = typeof searchStr === 'string' ? searchStr : undefined;
 
   const { products, pagination } = await getProducts(page, limit, search);

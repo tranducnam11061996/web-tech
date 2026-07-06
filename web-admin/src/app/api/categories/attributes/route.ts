@@ -7,6 +7,19 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
+
+function normalizeAttributeIcon(value: unknown) {
+  const icon = String(value || '').trim();
+  if (!icon || unsafeFilterValuePattern.test(icon) || icon.length > 16) return null;
+  return icon;
+}
+
+function isDisplayableFilterValue(value: unknown) {
+  const label = String(value || '').trim();
+  return label.length > 0 && !unsafeFilterValuePattern.test(label);
+}
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -14,40 +27,60 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const categoryId = searchParams.get('categoryId');
+    const categoryId = Number(searchParams.get('categoryId'));
 
-    if (!categoryId) {
+    if (!Number.isInteger(categoryId) || categoryId <= 0) {
       return NextResponse.json({ success: false, message: 'Missing categoryId parameter' }, { status: 400, headers: corsHeaders });
     }
 
-    // Query both attributes and their values in one go
-    const [rows] = await pool.query(`
-      SELECT 
-        a.id as attribute_id, a.name as attribute_name, a.icon as attribute_icon, a.filter_code, a.attribute_code, 
-        v.id as value_id, v.value as value_name,
-        (
-          SELECT COUNT(DISTINCT pa.pro_id) 
-          FROM idv_product_attribute pa
-          JOIN idv_product_category pc ON pa.pro_id = pc.pro_id
-          JOIN idv_sell_product_price pr ON pa.pro_id = pr.id
-          WHERE pa.attr_value_id = v.id AND pc.category_id = ? AND pr.isOn = 1
-        ) as product_count
+    const attributesPromise = pool.query(`
+      SELECT
+        a.id as attribute_id,
+        a.name as attribute_name,
+        a.icon as attribute_icon,
+        a.filter_code,
+        a.attribute_code,
+        v.id as value_id,
+        v.value as value_name,
+        COALESCE(product_counts.product_count, 0) as product_count
       FROM idv_attribute_category ac
       JOIN idv_attribute a ON ac.attr_id = a.id
       JOIN idv_attribute_value v ON a.id = v.attributeId
+      LEFT JOIN (
+        SELECT pa.attr_value_id, COUNT(DISTINCT pa.pro_id) as product_count
+          FROM idv_product_attribute pa
+          JOIN idv_product_category pc ON pa.pro_id = pc.pro_id AND pc.category_id = ?
+          JOIN idv_sell_product_price pr ON pa.pro_id = pr.id AND pr.isOn = 1
+          GROUP BY pa.attr_value_id
+      ) product_counts ON product_counts.attr_value_id = v.id
       WHERE ac.category_id = ?
       ORDER BY ac.ordering DESC, v.ordering ASC
-    `, [parseInt(categoryId, 10), parseInt(categoryId, 10)]);
+    `, [categoryId, categoryId]);
+
+    const brandsPromise = pool.query(`
+      SELECT b.id as value_id, b.name as value_name, COUNT(DISTINCT p.id) as product_count
+      FROM idv_brand b
+      JOIN idv_sell_product_store p ON b.id = p.brandId
+      JOIN idv_product_category pc ON p.id = pc.pro_id
+      JOIN idv_sell_product_price pr ON p.id = pr.id
+      WHERE pc.category_id = ? AND pr.isOn = 1
+      GROUP BY b.id, b.name
+      ORDER BY product_count DESC
+    `, [categoryId]);
+
+    const [[rows], [brandRows]] = await Promise.all([attributesPromise, brandsPromise]);
 
     // Group the flat results into a nested structure
     const attributesMap = new Map();
     
     (rows as any[]).forEach(row => {
+      if (!isDisplayableFilterValue(row.value_name)) return;
+
       if (!attributesMap.has(row.attribute_id)) {
         attributesMap.set(row.attribute_id, {
           id: row.attribute_id,
           name: row.attribute_name,
-          icon: row.attribute_icon,
+          icon: normalizeAttributeIcon(row.attribute_icon),
           filter_code: row.filter_code,
           attribute_code: row.attribute_code,
           values: []
@@ -60,19 +93,7 @@ export async function GET(request: Request) {
       });
     });
 
-    const attributes = Array.from(attributesMap.values());
-
-    // Fetch brands for this category
-    const [brandRows] = await pool.query(`
-      SELECT b.id as value_id, b.name as value_name, COUNT(DISTINCT p.id) as product_count
-      FROM idv_brand b
-      JOIN idv_sell_product_store p ON b.id = p.brandId
-      JOIN idv_product_category pc ON p.id = pc.pro_id
-      JOIN idv_sell_product_price pr ON p.id = pr.id
-      WHERE pc.category_id = ? AND pr.isOn = 1
-      GROUP BY b.id, b.name
-      ORDER BY product_count DESC
-    `, [parseInt(categoryId, 10)]);
+    const attributes = Array.from(attributesMap.values()).filter(attribute => attribute.values.length > 0);
 
     if ((brandRows as any[]).length > 0) {
       attributes.unshift({

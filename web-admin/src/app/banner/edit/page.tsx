@@ -7,7 +7,7 @@ import Image from 'next/image';
 export default function BannerEditPage() {
   return (
     <div className="w-full h-full p-2 animate-in fade-in duration-300 overflow-y-auto custom-scrollbar relative">
-      <div className="max-w-[1200px] mx-auto pb-24 space-y-6">
+      <div className="w-full h-full pb-24 space-y-6">
 
         {/* Header Sticky */}
         <div className="flex justify-between items-center sticky top-0 bg-[#0a0a0f]/95 backdrop-blur-md z-30 py-4 border-b border-gray-800/80 mb-6">

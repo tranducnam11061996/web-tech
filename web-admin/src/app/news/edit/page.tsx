@@ -13,7 +13,7 @@ const RichTextEditor = dynamic(() => import('@/components/products/edit/RichText
 export default function ArticleEditPage() {
   return (
     <div className="w-full h-full p-2 animate-in fade-in duration-300 overflow-y-auto custom-scrollbar relative">
-      <div className="max-w-[1600px] mx-auto pb-24 space-y-6">
+      <div className="w-full h-full pb-24 space-y-6">
         
         {/* Header & Sticky Actions */}
         <div className="flex justify-between items-center sticky top-0 bg-[#0a0a0f]/95 backdrop-blur-md z-30 py-4 border-b border-gray-800/80 mb-6">

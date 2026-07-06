@@ -33,7 +33,7 @@ export default function ProductGroupEditPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 max-w-[1200px] mx-auto pb-20">
+      <div className="grid grid-cols-1 gap-6 w-full h-full pb-20">
         
         {/* Section 1: Thông tin nhóm */}
         <div className="glass-panel p-6 rounded-xl border border-gray-800/80 space-y-5 relative overflow-hidden group">

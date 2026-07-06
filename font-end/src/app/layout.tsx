@@ -1,4 +1,3 @@
-import Script from 'next/script';
 import '../styles/style.css';
 
 export const metadata = {
@@ -11,7 +10,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi">
       <body className="bg-dark text-white">
         {children}
-        <Script src="/main.js?v=7" strategy="afterInteractive" />
       </body>
     </html>
   );

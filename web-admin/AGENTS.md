@@ -4,6 +4,29 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Runtime Architecture
+
+- This app uses Next.js `16.2.9` and is both the admin UI and the REST backend.
+- It is the only app allowed to connect to `hanoi23_db`.
+- Prefer `DATABASE_URL`; never add DB access to `font-end`.
+- Storefront APIs live under `src/app/api` and must preserve their public response contracts.
+- Product price/status must be re-read from DB before order creation.
+- New order logic must use a transaction and share quote logic from `src/lib/cart-quote.ts`.
+
+## API Safety
+
+- Validate request types and ranges; do not silently coerce invalid commerce input.
+- Do not return raw SQL/DB error messages in production responses.
+- Keep CORS headers consistent, but use an origin allowlist in production.
+- Public write endpoints need rate limiting, idempotency and abuse protection.
+- Use `Promise.all` for independent queries and keep count queries minimal.
+
+## TinyMCE Loading
+
+- Do not add TinyMCE back to `src/app/layout.tsx`.
+- Load `/tinymce.min.js` only from `RichTextEditor` via `next/script`.
+- Keep all TinyMCE assets local under `public/`; no CDN/cloud dependency.
+
 ## Design & UI/UX Guidelines (For All Screens)
 
 When generating or modifying functional screens (pages) in this project, **strictly adhere to the following layout rules**:

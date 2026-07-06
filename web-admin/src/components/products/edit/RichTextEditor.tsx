@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useId } from 'react';
+import Script from 'next/script';
+import { useEffect, useRef, useId, useState } from 'react';
 
 declare global {
   interface Window {
@@ -23,9 +24,12 @@ export function RichTextEditor({
   const reactId = useId();
   const editorId = id || `tinymce-${reactId.replace(/:/g, '')}`;
   const initialized = useRef(false);
+  const [scriptReady, setScriptReady] = useState(
+    () => typeof window !== 'undefined' && Boolean(window.tinymce)
+  );
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.tinymce && editorRef.current && !initialized.current) {
+    if (scriptReady && typeof window !== 'undefined' && window.tinymce && editorRef.current && !initialized.current) {
       initialized.current = true;
       
       window.tinymce.init({
@@ -79,22 +83,28 @@ export function RichTextEditor({
         initialized.current = false;
       }
     };
-  }, [minHeight, defaultValue]);
+  }, [minHeight, defaultValue, scriptReady]);
 
   return (
-    <div className="space-y-2 w-full">
-      {title && (
-        <h3 className="text-sm font-bold text-gray-200 uppercase tracking-widest flex items-center gap-2 mb-2">
-          <span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-          {title}
-        </h3>
-      )}
-      <div className="w-full text-black tinymce-gaming-wrapper">
-        <textarea id={editorId} ref={editorRef} className="hidden" />
-      </div>
+    <>
+      <Script
+        src="/tinymce.min.js"
+        strategy="afterInteractive"
+        onReady={() => setScriptReady(true)}
+      />
+      <div className="space-y-2 w-full">
+        {title && (
+          <h3 className="text-sm font-bold text-gray-200 uppercase tracking-widest flex items-center gap-2 mb-2">
+            <span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+            {title}
+          </h3>
+        )}
+        <div className="w-full text-black tinymce-gaming-wrapper">
+          <textarea id={editorId} ref={editorRef} className="hidden" />
+        </div>
 
-      {/* Override Default TinyMCE Dark Theme to match Gaming UI */}
-      <style dangerouslySetInnerHTML={{ __html: `
+        {/* Override Default TinyMCE Dark Theme to match Gaming UI */}
+        <style dangerouslySetInnerHTML={{ __html: `
         .tinymce-gaming-wrapper .tox-tinymce {
           border: 1px solid #1f2937 !important;
           border-radius: 0.125rem !important;
@@ -139,7 +149,8 @@ export function RichTextEditor({
         .tinymce-gaming-wrapper .tox .tox-statusbar__path-item {
           color: #3b82f6 !important;
         }
-      `}} />
-    </div>
+        `}} />
+      </div>
+    </>
   );
 }

@@ -23,7 +23,7 @@ export default function CategoryEditPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 max-w-[1200px] mx-auto pb-20">
+      <div className="grid grid-cols-1 gap-6 w-full h-full pb-20">
         
         {/* Section 1: Thông tin cơ bản */}
         <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-5">

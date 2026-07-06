@@ -21,7 +21,7 @@ export default function ProductFrameEditPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 max-w-[1000px] mx-auto pb-20 mt-6">
+      <div className="grid grid-cols-1 gap-6 w-full h-full pb-20 mt-6">
         
         <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-6">
           <h2 className="text-lg font-bold text-gray-200 mb-6 flex items-center gap-2">

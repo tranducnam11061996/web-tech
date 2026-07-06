@@ -8,6 +8,11 @@ export async function GET(
   try {
     const { slug } = await params;
     
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const offset = (page - 1) * limit;
+
     // 1. Fetch category info
     const [catRows] = await pool.query(
       `SELECT * FROM idv_seller_news_category WHERE url = ?`,
@@ -22,19 +27,29 @@ export async function GET(
 
     const category = (catRows as any[])[0];
 
-    // 2. Fetch articles for this category
+    // 2. Fetch total count
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) as total 
+       FROM idv_seller_news 
+       WHERE catId = ? OR article_category LIKE ?`,
+      [category.id, `%${category.id}%`]
+    );
+    const totalNews = (countRows as any[])[0].total;
+
+    // 3. Fetch articles for this category
     const [newsRows] = await pool.query(
       `SELECT id, title, url, thumnail, summary, createDate, visit, createBy 
        FROM idv_seller_news 
        WHERE catId = ? OR article_category LIKE ? 
        ORDER BY createDate DESC 
-       LIMIT 20`,
-      [category.id, `%${category.id}%`]
+       LIMIT ? OFFSET ?`,
+      [category.id, `%${category.id}%`, limit, offset]
     );
 
     const response = NextResponse.json({ 
       data: category,
-      news: newsRows
+      news: newsRows,
+      totalNews: totalNews
     });
     
     response.headers.set('Access-Control-Allow-Origin', '*');

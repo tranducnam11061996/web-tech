@@ -14,10 +14,15 @@ export async function OPTIONS() {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-        const categoryId = searchParams.get('category_id');
-    const limit = parseInt(searchParams.get('limit') || '24', 10);
-    const page = parseInt(searchParams.get('page') || '1', 10);
+    const categoryIdParam = searchParams.get('category_id');
+    const categoryId = categoryIdParam ? Number(categoryIdParam) : null;
+    const limit = Math.min(96, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24));
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
     const offset = (page - 1) * limit;
+
+    if (categoryIdParam && (!Number.isInteger(categoryId) || Number(categoryId) <= 0)) {
+      return NextResponse.json({ success: false, message: 'Invalid category_id parameter' }, { status: 400, headers: corsHeaders });
+    }
 
     const slugify = (str: string) => {
       if (!str) return '';
@@ -30,78 +35,103 @@ export async function GET(request: Request) {
         .replace(/\s+/g, '-');
     };
 
-    let baseQuery = `
-      FROM idv_sell_product_store p
-      LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
-      LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
-      LEFT JOIN idv_brand b ON p.brandId = b.id
-      WHERE pr.isOn = 1
-    `;
-    
+    const joins = [
+      'FROM idv_sell_product_store p',
+      'JOIN idv_sell_product_price pr ON p.id = pr.id',
+    ];
+    const whereParts = ['pr.isOn = 1'];
     const queryParams: any[] = [];
 
     if (categoryId) {
-      baseQuery += ` AND p.id IN (SELECT pro_id FROM idv_product_category WHERE category_id = ?)`;
+      joins.push('JOIN idv_product_category pc ON pc.pro_id = p.id AND pc.category_id = ?');
       queryParams.push(categoryId);
     }
 
     // Handle attribute filters
     const minPrice = searchParams.get('min-price');
     const maxPrice = searchParams.get('max-price');
-    if (minPrice) {
-      baseQuery += " AND pr.price >= ?";
-      queryParams.push(parseInt(minPrice, 10));
+    const minPriceValue = minPrice ? Number(minPrice) : null;
+    const maxPriceValue = maxPrice ? Number(maxPrice) : null;
+
+    if (minPrice && (!Number.isFinite(minPriceValue) || Number(minPriceValue) < 0)) {
+      return NextResponse.json({ success: false, message: 'Invalid min-price parameter' }, { status: 400, headers: corsHeaders });
     }
-    if (maxPrice) {
-      baseQuery += " AND pr.price <= ?";
-      queryParams.push(parseInt(maxPrice, 10));
+    if (maxPrice && (!Number.isFinite(maxPriceValue) || Number(maxPriceValue) < 0)) {
+      return NextResponse.json({ success: false, message: 'Invalid max-price parameter' }, { status: 400, headers: corsHeaders });
+    }
+    if (minPriceValue !== null) {
+      whereParts.push('pr.price >= ?');
+      queryParams.push(minPriceValue);
+    }
+    if (maxPriceValue !== null) {
+      whereParts.push('pr.price <= ?');
+      queryParams.push(maxPriceValue);
     }
 
     const filterKeys = Array.from(searchParams.keys()).filter(k => !['category_id', 'limit', 'page', 'id', 'min-price', 'max-price', 'brand', 'sort'].includes(k));
     
     const brandParam = searchParams.get('brand');
     if (brandParam) {
-      const brandSlugs = brandParam.split(',');
-      baseQuery += ` AND LOWER(b.name) IN (?)`;
-      // We pass the raw lowercase slugs to match against lowercase brand name
-      queryParams.push(brandSlugs.map(s => s.toLowerCase().replace(/-/g, ' ')));
+      const brandSlugs = brandParam
+        .split(',')
+        .map(s => s.trim().toLowerCase().replace(/-/g, ' '))
+        .filter(Boolean);
+
+      if (brandSlugs.length > 0) {
+        joins.push('JOIN idv_brand brand_filter ON brand_filter.id = p.brandId');
+        whereParts.push('LOWER(brand_filter.name) IN (?)');
+        queryParams.push(brandSlugs);
+      }
     }
+
     if (filterKeys.length > 0) {
+      const attrParams: any[] = [];
+      const attrCategoryJoin = categoryId ? 'JOIN idv_attribute_category ac ON ac.attr_id = a.id AND ac.category_id = ?' : '';
+      if (categoryId) attrParams.push(categoryId);
+
       const [attrRows] = await pool.query(`
         SELECT a.id as attr_id, a.name as attr_name, a.filter_code, v.id as val_id, v.value as val_name
-        FROM idv_attribute a 
+        FROM idv_attribute a
+        ${attrCategoryJoin}
         JOIN idv_attribute_value v ON a.id = v.attributeId
-      `);
+      `, attrParams);
+
+      const attributesByKey = new Map<string, { attrId: number; valuesBySlug: Map<string, number[]> }>();
+
+      for (const row of attrRows as any[]) {
+        const rowKey = row.filter_code || slugify(row.attr_name);
+        if (!rowKey) continue;
+
+        let entry = attributesByKey.get(rowKey);
+        if (!entry) {
+          entry = { attrId: Number(row.attr_id), valuesBySlug: new Map() };
+          attributesByKey.set(rowKey, entry);
+        }
+
+        const valueSlug = slugify(row.val_name);
+        const valueIds = entry.valuesBySlug.get(valueSlug) || [];
+        valueIds.push(Number(row.val_id));
+        entry.valuesBySlug.set(valueSlug, valueIds);
+      }
 
       for (const key of filterKeys) {
         const urlValues = searchParams.get(key)?.split(',') || [];
         if (urlValues.length === 0) continue;
 
-        // Find attr_id
-        let targetAttrId = null;
-        let matchedVals: any[] = [];
+        const attribute = attributesByKey.get(key);
+        if (!attribute) continue;
 
-        for (const row of (attrRows as any[])) {
-          const rowKey = row.filter_code || slugify(row.attr_name);
-          if (rowKey === key) {
-            targetAttrId = row.attr_id;
-            if (urlValues.includes(slugify(row.val_name))) {
-              matchedVals.push(row.val_id);
-            }
-          }
+        const matchedVals: number[] = [];
+        for (const valueSlug of urlValues) {
+          matchedVals.push(...(attribute.valuesBySlug.get(valueSlug) || []));
         }
 
-        if (targetAttrId && matchedVals.length > 0) {
-          baseQuery += ` AND p.id IN (SELECT pro_id FROM idv_product_attribute WHERE attr_id = ? AND attr_value_id IN (?))`;
-          queryParams.push(targetAttrId, matchedVals);
+        if (matchedVals.length > 0) {
+          whereParts.push('p.id IN (SELECT pro_id FROM idv_product_attribute WHERE attr_id = ? AND attr_value_id IN (?))');
+          queryParams.push(attribute.attrId, matchedVals);
         }
       }
     }
-
-    // Get total count
-    const [countRows] = await pool.query(`SELECT COUNT(p.id) as total ${baseQuery}`, queryParams);
-    const total = (countRows as any)[0].total;
-    const totalPages = Math.ceil(total / limit);
 
     const sortParam = searchParams.get('sort');
     let orderBy = 'ORDER BY p.id DESC';
@@ -114,18 +144,34 @@ export async function GET(request: Request) {
       orderBy = 'ORDER BY p.id DESC';
     }
 
-    // Get paginated data
-    const [rows] = await pool.query(`
-      SELECT 
+    const countFrom = `${joins.join('\n')} WHERE ${whereParts.join(' AND ')}`;
+    const listFrom = `${[
+      ...joins,
+      "LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)",
+      'LEFT JOIN idv_brand b ON p.brandId = b.id',
+    ].join('\n')} WHERE ${whereParts.join(' AND ')}`;
+    const countQuery = `SELECT COUNT(DISTINCT p.id) as total ${countFrom}`;
+    const listQuery = `
+      SELECT DISTINCT
         p.id, p.storeSKU, p.proName, p.warranty, p.proThum,
         pr.price, pr.market_price,
         u.request_path as slug,
         b.name as brandName
-      ${baseQuery}
+      ${listFrom}
       ${orderBy} LIMIT ? OFFSET ?
-    `, [...queryParams, limit, offset]);
+    `;
 
-    const products = (rows as any[]).map(row => ({
+    const [countResult, listResult] = await Promise.all([
+      pool.query(countQuery, queryParams),
+      pool.query(listQuery, [...queryParams, limit, offset]),
+    ]);
+
+    const countRows = countResult[0] as any[];
+    const rows = listResult[0] as any[];
+    const total = Number(countRows[0]?.total || 0);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    const products = rows.map(row => ({
       id: row.id,
       name: row.proName,
       sku: row.storeSKU,

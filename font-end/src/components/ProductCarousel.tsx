@@ -1,23 +1,34 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import ProgressiveImage from "./ProgressiveImage";
 
 export default function ProductCarousel({ productData }: { productData: any }) {
   const totalSlides = productData?.images?.length || 5;
   const [curSlide, setCurSlide] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [curTranslate, setCurTranslate] = useState(0);
 
   const mainRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const startXRef = useRef(0);
+  const dragTranslateRef = useRef(0);
   const autoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const realIndex = curSlide === 0 ? totalSlides - 1 : curSlide === totalSlides + 1 ? 0 : curSlide - 1;
 
   useEffect(() => {
     startAuto();
-    return stopAuto;
-  }, []);
+    const handleVisibilityChange = () => {
+      if (document.hidden) stopAuto();
+      else startAuto();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      stopAuto();
+    };
+  }, [totalSlides]);
 
   useEffect(() => {
     if (curSlide === totalSlides + 1) {
@@ -69,33 +80,43 @@ export default function ProductCarousel({ productData }: { productData: any }) {
 
   const dStart = (e: React.MouseEvent | React.TouchEvent) => {
     setIsDragging(true);
-    setStartX("touches" in e ? e.touches[0].clientX : e.pageX);
+    startXRef.current = "touches" in e ? e.touches[0].clientX : e.pageX;
+    dragTranslateRef.current = 0;
     stopAuto();
   };
 
   const dMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isDragging) return;
     const x = "touches" in e ? e.touches[0].clientX : e.pageX;
-    setCurTranslate(x - startX);
+    dragTranslateRef.current = x - startXRef.current;
+    if (trackRef.current) {
+      trackRef.current.style.transform = `translateX(calc(-${curSlide * 100}% + ${dragTranslateRef.current}px))`;
+    }
   };
 
   const dEnd = () => {
     if (!isDragging) return;
     setIsDragging(false);
     const w = mainRef.current?.offsetWidth || 1;
-    if (curTranslate < -w * 0.15) {
+    if (dragTranslateRef.current < -w * 0.15) {
       setIsTransitioning(true);
       setCurSlide((prev) => prev + 1);
-    } else if (curTranslate > w * 0.15) {
+    } else if (dragTranslateRef.current > w * 0.15) {
       setIsTransitioning(true);
       setCurSlide((prev) => prev - 1);
     }
-    setCurTranslate(0);
+    dragTranslateRef.current = 0;
     startAuto();
   };
 
-  const images = Array.from({ length: totalSlides }).map((_, i) => productData?.images?.[i] || productData?.images?.[0] || '');
-  const clonedImages = [images[images.length - 1], ...images, images[0]];
+  const images = useMemo(
+    () => Array.from({ length: totalSlides }).map((_, i) => productData?.images?.[i] || productData?.images?.[0] || ""),
+    [productData?.images, totalSlides],
+  );
+  const clonedImages = useMemo(
+    () => [images[images.length - 1], ...images, images[0]],
+    [images],
+  );
 
   return (
     <div className="w-full lg:w-[60%] lg:sticky lg:top-6 lg:self-start min-w-0">
@@ -118,7 +139,7 @@ export default function ProductCarousel({ productData }: { productData: any }) {
                   resetAuto();
                 }}
               >
-                <img
+                <ProgressiveImage
                   src={imgSrc}
                   alt={`${productData.name} thumb ${i + 1}`}
                   className="w-full h-full object-cover text-transparent text-[0px]"
@@ -145,17 +166,18 @@ export default function ProductCarousel({ productData }: { productData: any }) {
             onTouchEnd={dEnd}
           >
             <div
+              ref={trackRef}
               className="carousel-track"
               id="carTrack"
               style={{
-                transform: `translateX(calc(-${curSlide * 100}% + ${curTranslate}px))`,
+                transform: `translateX(-${curSlide * 100}%)`,
                 transition: isDragging || !isTransitioning ? "none" : "transform .4s cubic-bezier(.25,1,.5,1)",
               }}
             >
               {clonedImages.map((imgSrc, i) => (
                 <div className="carousel-slide" key={i}>
                   <div className="w-full h-full p-2 lg:p-6 flex items-center justify-center">
-                    <img
+                    <ProgressiveImage
                       src={imgSrc}
                       alt={`${productData.name} image ${i}`}
                       className="w-full h-full object-contain text-transparent text-[0px] drop-shadow-xl"

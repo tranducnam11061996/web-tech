@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
@@ -26,6 +26,19 @@ const isValidHtmlContent = (htmlString: string | null | undefined) => {
   return htmlString.replace(/<[^>]*>?/gm, "").trim().length > 5;
 };
 
+const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
+
+const getAttributeIcon = (value: unknown) => {
+  const icon = String(value || "").trim();
+  if (!icon || unsafeFilterValuePattern.test(icon) || icon.length > 16) return "📌";
+  return icon;
+};
+
+const isDisplayableFilterValue = (value: unknown) => {
+  const label = String(value || "").trim();
+  return label.length > 0 && !unsafeFilterValuePattern.test(label);
+};
+
 function AttributeFilterBlock({
   attr,
   isLast,
@@ -36,11 +49,16 @@ function AttributeFilterBlock({
   isOpen: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(isOpen);
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const filterKey = attr.filter_code || slugify(attr.name);
   const currentValues = searchParams.get(filterKey)?.split(",") || [];
+  const displayValues = useMemo(
+    () => (attr.values || []).filter((value: any) => isDisplayableFilterValue(value.name)),
+    [attr.values],
+  );
 
   const handleToggle = (valName: string) => {
     const valSlug = slugify(valName);
@@ -67,18 +85,16 @@ function AttributeFilterBlock({
 
   return (
     <div
-      className={`filter-section ${isOpen ? "open" : ""}`}
+      className={`filter-section ${isExpanded ? "open" : ""}`}
       style={isLast ? { borderBottom: "none" } : {}}
       data-group={`attr-${attr.id}`}
     >
       <div
         className="filter-title"
-        onClick={(e) =>
-          typeof window !== "undefined" && window.toggleFilter(e.currentTarget)
-        }
+        onClick={() => setIsExpanded((open) => !open)}
       >
         <span className="flex items-center gap-2">
-          <span className="text-sm">{attr.icon || "📌"}</span> {attr.name}
+          <span className="text-sm">{getAttributeIcon(attr.icon)}</span> {attr.name}
         </span>
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -91,10 +107,10 @@ function AttributeFilterBlock({
       </div>
       <div
         className="filter-content mt-3"
-        style={!isOpen ? { display: "none" } : {}}
+        style={!isExpanded ? { display: "none" } : {}}
       >
         <div className="space-y-2">
-          {attr.values.slice(0, showAll ? undefined : 4).map((val: any) => {
+          {displayValues.slice(0, showAll ? undefined : 4).map((val: any) => {
             const valSlug = slugify(val.name);
             const isChecked = currentValues.includes(valSlug);
             return (
@@ -134,7 +150,7 @@ function AttributeFilterBlock({
             );
           })}
         </div>
-        {attr.values.length > 4 && (
+        {displayValues.length > 4 && (
           <button
             className="flex items-center gap-3 mt-4 mb-2 ml-1 text-[15px] text-gray-400 hover:text-white transition-colors font-medium"
             onClick={() => setShowAll(!showAll)}
@@ -150,15 +166,13 @@ function AttributeFilterBlock({
                 </svg>
               )}
             </div>
-            {showAll ? "Thu gọn" : `+ ${attr.values.length - 4} mục`}
+            {showAll ? "Thu gọn" : `+ ${displayValues.length - 4} mục`}
           </button>
         )}
       </div>
     </div>
   );
 }
-
-import { Suspense } from "react";
 
 export default function CategoryContent({ categoryId, params, searchParams, initialData, categoryInfo }: any) {
   const [products, setProducts] = useState<any[]>(initialData?.products?.data || []);
@@ -169,17 +183,20 @@ export default function CategoryContent({ categoryId, params, searchParams, init
   const [attributes, setAttributes] = useState<any[]>(initialData?.attributes?.data || []);
   const [priceBounds, setPriceBounds] = useState(initialData?.priceBounds?.data || { min: 0, max: 200000000 });
   const searchParamsHook = useSearchParams();
-  const [prevSearch, setPrevSearch] = useState(searchParamsHook?.toString());
-
-  if (searchParamsHook?.toString() !== prevSearch) {
-    setPrevSearch(searchParamsHook?.toString());
-    setCurrentPage(1);
-  }
+  const searchKey = searchParamsHook?.toString() || "";
+  const activeCategoryId = categoryId || searchParamsHook?.get("id") || undefined;
+  const activeCategoryKey = activeCategoryId ? String(activeCategoryId) : "";
+  const lastSearchKeyRef = useRef(searchKey);
 
   const hasInitialData = !!(initialData && Object.keys(initialData).length > 0);
   const [showAllSubcategories, setShowAllSubcategories] = useState(false);
   const [isStaticHtmlExpanded, setIsStaticHtmlExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(!hasInitialData); // Loading if no SSR data
+  const [isSidebarSearchOpen, setIsSidebarSearchOpen] = useState(false);
+  const [sidebarSearchKeyword, setSidebarSearchKeyword] = useState("");
+  const [isPriceFilterOpen, setIsPriceFilterOpen] = useState(true);
+  const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(true);
+  const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
   const [currentPrice, setCurrentPrice] = useState({
     min: searchParamsHook?.get("min-price")
       ? parseInt(searchParamsHook.get("min-price") as string, 10)
@@ -190,33 +207,79 @@ export default function CategoryContent({ categoryId, params, searchParams, init
   });
   const router = useRouter();
 
+  useEffect(() => {
+    if (isSidebarSearchOpen) {
+      sidebarSearchInputRef.current?.focus();
+    }
+  }, [isSidebarSearchOpen]);
+
   const activeFilters: any[] = [];
-  if (searchParamsHook && attributes.length > 0) {
-    searchParamsHook.forEach((value, key) => {
-      if (!["id", "page", "limit", "category_id"].includes(key)) {
-        const attr = attributes.find(
-          (a) => (a.filter_code || slugify(a.name)) === key,
-        );
-        if (attr) {
-          const vals = value.split(",");
-          vals.forEach((valSlug) => {
-            const valObj = attr.values.find(
-              (v: any) => slugify(v.name) === valSlug,
-            );
-            if (valObj) {
-              activeFilters.push({
-                key,
-                attrName: attr.name,
-                valSlug,
-                valName: valObj.name,
-              });
-            }
+  useEffect(() => {
+    if (searchKey !== lastSearchKeyRef.current && currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, searchKey]);
+
+  const attributeActiveFilters = useMemo(() => {
+    const filters: any[] = [];
+    const paramsFromUrl = new URLSearchParams(searchKey);
+    const attributeLookup = new Map<string, { attrName: string; values: Map<string, string> }>();
+
+    for (const attr of attributes) {
+      const key = attr.filter_code || slugify(attr.name);
+      const values = new Map<string, string>();
+
+      for (const val of attr.values || []) {
+        values.set(slugify(val.name), val.name);
+      }
+
+      attributeLookup.set(key, { attrName: attr.name, values });
+    }
+
+    paramsFromUrl.forEach((value, key) => {
+      if (["id", "page", "limit", "category_id", "sort", "min-price", "max-price"].includes(key)) return;
+      const attr = attributeLookup.get(key);
+      if (!attr) return;
+
+      value.split(",").forEach((valSlug) => {
+        const valName = attr.values.get(valSlug);
+        if (valName) {
+          filters.push({
+            key,
+            attrName: attr.attrName,
+            valSlug,
+            valName,
           });
         }
-      }
+      });
     });
-  }
 
+    return filters;
+  }, [attributes, searchKey]);
+
+  activeFilters.push(...attributeActiveFilters);
+
+  const normalizedSidebarKeyword = sidebarSearchKeyword.trim().toLowerCase();
+  const isFilterSearchActive = normalizedSidebarKeyword.length > 0;
+  const matchesSidebarSearch = (value: string) =>
+    !isFilterSearchActive || value.toLowerCase().includes(normalizedSidebarKeyword);
+
+  const visibleSubcategories = useMemo(() => {
+    if (!isFilterSearchActive || matchesSidebarSearch("Danh má»¥c con")) return subcategories;
+    return subcategories.filter((subCat) => matchesSidebarSearch(subCat.name || ""));
+  }, [isFilterSearchActive, normalizedSidebarKeyword, subcategories]);
+
+  const visibleAttributes = useMemo(() => {
+    if (!isFilterSearchActive) return attributes;
+
+    return attributes
+      .map((attr) => {
+        if (matchesSidebarSearch(attr.name || "")) return attr;
+        const values = (attr.values || []).filter((val: any) => matchesSidebarSearch(val.name || ""));
+        return values.length > 0 ? { ...attr, values } : null;
+      })
+      .filter(Boolean);
+  }, [attributes, isFilterSearchActive, normalizedSidebarKeyword]);
   const urlMin = searchParamsHook?.get("min-price");
   const urlMax = searchParamsHook?.get("max-price");
   if (urlMin || urlMax) {
@@ -233,7 +296,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
       min: minParam ? parseInt(minParam, 10) : priceBounds.min,
       max: maxParam ? parseInt(maxParam, 10) : priceBounds.max,
     });
-  }, [searchParamsHook, priceBounds]);
+  }, [searchKey, priceBounds]);
 
   const handlePriceChange = (e: any, type: "min" | "max") => {
     const val = parseInt(e.target.value, 10);
@@ -262,7 +325,9 @@ export default function CategoryContent({ categoryId, params, searchParams, init
   // Clear all filters handler
   const handleClearAll = () => {
     const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
-    activeFilters.forEach((f) => newParams.delete(f.key));
+    activeFilters.forEach((f) => {
+      if (f.key) newParams.delete(f.key);
+    });
     newParams.delete("min-price");
     newParams.delete("max-price");
     const currentPath =
@@ -291,33 +356,39 @@ export default function CategoryContent({ categoryId, params, searchParams, init
     router.push(currentPath + "?" + newParams.toString(), { scroll: false });
   };
 
-  const isFirstRender = React.useRef(hasInitialData);
+  const isFirstProductRender = useRef(hasInitialData);
+  const isFirstMetadataRender = useRef(hasInitialData);
+
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
+    if (isFirstProductRender.current) {
+      isFirstProductRender.current = false;
       return; // Skip fetching on mount only if SSR provided initial data
     }
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-    let url = `${API_URL}/api/products?limit=24&page=${currentPage}`;
-    let activeCatId = categoryId;
-    if (!activeCatId && typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search);
-      activeCatId = searchParams.get("id") || undefined;
+    if (searchKey !== lastSearchKeyRef.current && currentPage !== 1) {
+      return;
+    }
+    if (searchKey !== lastSearchKeyRef.current) {
+      lastSearchKeyRef.current = searchKey;
     }
 
-    if (activeCatId) {
-      url += "&category_id=" + activeCatId;
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    const controller = new AbortController();
+    const url = new URL(`${API_URL}/api/products`);
+    url.searchParams.set("limit", "24");
+    url.searchParams.set("page", String(currentPage));
+
+    if (activeCategoryKey) {
+      url.searchParams.set("category_id", activeCategoryKey);
     }
 
     // Append extra filter attributes
-    if (searchParamsHook) {
-      searchParamsHook.forEach((value, key) => {
-        if (!["id", "page", "limit", "category_id"].includes(key)) {
-          url += `&${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-        }
-      });
-    }
+    const paramsFromUrl = new URLSearchParams(searchKey);
+    paramsFromUrl.forEach((value, key) => {
+      if (!["id", "page", "limit", "category_id"].includes(key)) {
+        url.searchParams.set(key, value);
+      }
+    });
 
     // Scroll to top when changing page
     if (typeof window !== "undefined") {
@@ -325,7 +396,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
     }
 
     setIsLoading(true);
-    fetch(url)
+    fetch(url.toString(), { signal: controller.signal })
       .then((res) => res.json())
       .then((res) => {
         if (res.success) {
@@ -336,43 +407,43 @@ export default function CategoryContent({ categoryId, params, searchParams, init
           }
         }
       })
-      .catch((err) => console.error("Error fetching products:", err))
-      .finally(() => setIsLoading(false));
+      .catch((err) => {
+        if (err.name !== "AbortError") console.error("Error fetching products:", err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
 
-    if (activeCatId) {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-      fetch(`${API_URL}/api/categories?parentId=${activeCatId}`)
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.success) {
-            setSubcategories(res.data);
-          }
-        })
-        .catch((err) => console.error("Error fetching subcategories:", err));
+    return () => controller.abort();
+  }, [activeCategoryKey, currentPage, searchKey]);
 
-      fetch(
-        `${API_URL}/api/categories/price-bounds?categoryId=${activeCatId}`,
-      )
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.success) {
-            setPriceBounds(res.data);
-          }
-        })
-        .catch((err) => console.error("Error fetching price bounds:", err));
+  useEffect(() => {
+    if (!activeCategoryKey) return;
 
-      fetch(
-        `${API_URL}/api/categories/attributes?categoryId=${activeCatId}`,
-      )
-        .then((res) => res.json())
-        .then((res) => {
-          if (res.success) {
-            setAttributes(res.data);
-          }
-        })
-        .catch((err) => console.error("Error fetching attributes:", err));
+    if (isFirstMetadataRender.current) {
+      isFirstMetadataRender.current = false;
+      return;
     }
-  }, [categoryId, currentPage, searchParamsHook]);
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    const controller = new AbortController();
+
+    Promise.all([
+      fetch(`${API_URL}/api/categories?parentId=${activeCategoryKey}`, { signal: controller.signal }).then((res) => res.json()),
+      fetch(`${API_URL}/api/categories/price-bounds?categoryId=${activeCategoryKey}`, { signal: controller.signal }).then((res) => res.json()),
+      fetch(`${API_URL}/api/categories/attributes?categoryId=${activeCategoryKey}`, { signal: controller.signal }).then((res) => res.json()),
+    ])
+      .then(([categoriesRes, priceBoundsRes, attributesRes]) => {
+        if (categoriesRes.success) setSubcategories(categoriesRes.data);
+        if (priceBoundsRes.success) setPriceBounds(priceBoundsRes.data);
+        if (attributesRes.success) setAttributes(attributesRes.data);
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") console.error("Error fetching category metadata:", err);
+      });
+
+    return () => controller.abort();
+  }, [activeCategoryKey]);
 
   return (
     <div className="bg-[#0a0a0c] min-h-screen text-white font-sans">
@@ -538,10 +609,12 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                 <button
                   className="hover:text-white transition"
                   id="seach-filters-sidebar"
-                  onClick={() =>
-                    typeof window !== "undefined" &&
-                    window.toggleSidebarSearch()
-                  }
+                  onClick={() => {
+                    setIsSidebarSearchOpen((open) => {
+                      if (open) setSidebarSearchKeyword("");
+                      return !open;
+                    });
+                  }}
                 >
                   🔍 Tìm Nhanh
                 </button>
@@ -551,26 +624,27 @@ export default function CategoryContent({ categoryId, params, searchParams, init
             {/*  Search Input (Hidden by default)  */}
             <div
               id="sidebar-search-container"
-              className="hidden mb-4 transition-all"
+              className={`${isSidebarSearchOpen ? "" : "hidden"} mb-4 transition-all`}
             >
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">
                   🔍
                 </span>
                 <input
+                  ref={sidebarSearchInputRef}
                   type="text"
                   id="sidebar-search-input"
                   placeholder="Nhập từ khóa tìm kiếm bộ lọc ..."
                   className="w-full bg-[#18181b] border border-[#27272a] rounded-lg py-2 pl-8 pr-8 text-sm text-gray-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
-                  onInput={() =>
-                    typeof window !== "undefined" && window.filterSidebar()
-                  }
+                  value={sidebarSearchKeyword}
+                  onChange={(event) => setSidebarSearchKeyword(event.target.value)}
                 />
                 <button
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs transition"
-                  onClick={() =>
-                    typeof window !== "undefined" && window.closeSidebarSearch()
-                  }
+                  onClick={() => {
+                    setIsSidebarSearchOpen(false);
+                    setSidebarSearchKeyword("");
+                  }}
                 >
                   ✕
                 </button>
@@ -620,13 +694,14 @@ export default function CategoryContent({ categoryId, params, searchParams, init
             </div>
 
             {/*  Price Range  */}
-            <div className="filter-section open" id="price-range-sidebar">
+            <div
+              className={`filter-section ${isPriceFilterOpen ? "open" : ""}`}
+              id="price-range-sidebar"
+              style={isFilterSearchActive && !matchesSidebarSearch("Khoáº£ng GiÃ¡") ? { display: "none" } : {}}
+            >
               <div
                 className="filter-title"
-                onClick={(e) =>
-                  typeof window !== "undefined" &&
-                  window.toggleFilter(e.currentTarget)
-                }
+                onClick={() => setIsPriceFilterOpen((open) => !open)}
               >
                 <span className="flex items-center gap-2">
                   <span className="text-sm">💰</span> Khoảng Giá
@@ -640,7 +715,10 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                   />
                 </svg>
               </div>
-              <div className="filter-content px-1 mt-2">
+              <div
+                className="filter-content px-1 mt-2"
+                style={!isPriceFilterOpen ? { display: "none" } : {}}
+              >
                 <div className="dual-range-container">
                   <div
                     className="dual-range-track"
@@ -689,14 +767,11 @@ export default function CategoryContent({ categoryId, params, searchParams, init
             </div>
 
             {/*  Category  */}
-            {subcategories.length > 0 && (
-              <div className="filter-section open" data-group="category">
+            {subcategories.length > 0 && visibleSubcategories.length > 0 && (
+              <div className={`filter-section ${isCategoryFilterOpen ? "open" : ""}`} data-group="category">
                 <div
                   className="filter-title"
-                  onClick={(e) =>
-                    typeof window !== "undefined" &&
-                    window.toggleFilter(e.currentTarget)
-                  }
+                  onClick={() => setIsCategoryFilterOpen((open) => !open)}
                 >
                   <span className="flex items-center gap-2">
                     <span className="text-sm">📁</span> Danh mục con
@@ -710,9 +785,12 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                     />
                   </svg>
                 </div>
-                <div className="filter-content mt-3">
+                <div
+                  className="filter-content mt-3"
+                  style={!isCategoryFilterOpen ? { display: "none" } : {}}
+                >
                   <div className="space-y-2">
-                    {subcategories
+                    {visibleSubcategories
                       .slice(0, showAllSubcategories ? undefined : 4)
                       .map((subCat) => (
                         <Link
@@ -733,7 +811,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                         </Link>
                       ))}
                   </div>
-                  {subcategories.length > 4 && (
+                  {visibleSubcategories.length > 4 && (
                     <button
                       className="flex items-center gap-3 mt-4 mb-2 ml-1 text-[15px] text-gray-400 hover:text-white transition-colors font-medium"
                       onClick={() =>
@@ -753,18 +831,18 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                       </div>
                       {showAllSubcategories
                         ? "Thu gọn danh mục"
-                        : `+ ${subcategories.length - 4} danh mục`}
+                        : `+ ${visibleSubcategories.length - 4} danh mục`}
                     </button>
                   )}
                 </div>
               </div>
             )}
 
-            {attributes.map((attr, index) => (
+            {visibleAttributes.map((attr: any, index) => (
               <AttributeFilterBlock
                 key={attr.id}
                 attr={attr}
-                isLast={index === attributes.length - 1}
+                isLast={index === visibleAttributes.length - 1}
                 isOpen={index < 4}
               />
             ))}

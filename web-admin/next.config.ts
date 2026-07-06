@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
   images: {
     remotePatterns: [
       {
@@ -12,6 +16,9 @@ const nextConfig: NextConfig = {
         hostname: 'hacom.vn',
       },
     ],
+  },
+  turbopack: {
+    root: path.resolve(process.cwd(), '..'),
   },
 };
 

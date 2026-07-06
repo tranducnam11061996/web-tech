@@ -22,7 +22,7 @@ export default function ArticleCategoryEditPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 max-w-[1200px] mx-auto pb-20 mt-6">
+      <div className="grid grid-cols-1 gap-6 w-full h-full pb-20 mt-6">
         <div className="glass-panel p-8 rounded-lg border border-gray-800/50 space-y-6">
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

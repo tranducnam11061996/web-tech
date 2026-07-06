@@ -1,11 +1,29 @@
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import Link from 'next/link';
+import { useCartSummary } from '@/lib/cart';
+import { menuCategories } from './menuData';
 
 export default function Header() {
   const [showSubMenu, setShowSubMenu] = useState(true);
   const lastScrollY = useRef(0);
   const topHeaderRef = useRef<HTMLElement>(null);
+  const megaMenuRef = useRef<HTMLDivElement>(null);
+  const desktopMenuButtonRef = useRef<HTMLDivElement>(null);
+  const mobileMenuButtonRef = useRef<HTMLDivElement>(null);
   const [headerHeight, setHeaderHeight] = useState(73); // Default desktop height
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeDesktopMenuId, setActiveDesktopMenuId] = useState(menuCategories[0]?.id || '');
+  const [activeMobileMenuId, setActiveMobileMenuId] = useState<string | null>(null);
+  const { totalQuantity } = useCartSummary();
+  const activeDesktopMenu = useMemo(
+    () => menuCategories.find((category) => category.id === activeDesktopMenuId) || menuCategories[0],
+    [activeDesktopMenuId],
+  );
+  const activeMobileMenu = useMemo(
+    () => menuCategories.find((category) => category.id === activeMobileMenuId) || null,
+    [activeMobileMenuId],
+  );
 
   useEffect(() => {
     const updateHeaderHeight = () => {
@@ -41,6 +59,35 @@ export default function Header() {
     };
   }, []);
 
+  useEffect(() => {
+    document.body.classList.toggle('mobile-menu-open', isMenuOpen);
+    return () => document.body.classList.remove('mobile-menu-open');
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (megaMenuRef.current?.contains(target)) return;
+      if (desktopMenuButtonRef.current?.contains(target)) return;
+      if (mobileMenuButtonRef.current?.contains(target)) return;
+
+      setIsMenuOpen(false);
+      setActiveMobileMenuId(null);
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    return () => document.removeEventListener('click', handleDocumentClick);
+  }, [isMenuOpen]);
+
+  const toggleMenu = () => {
+    setIsMenuOpen((open) => {
+      if (open) setActiveMobileMenuId(null);
+      return !open;
+    });
+  };
+
   return (
     <>
       {/*  START Header  */}
@@ -69,11 +116,12 @@ export default function Header() {
             </div>
             {/*  Menu Btn  */}
             <div id="menuBorderMobile"
-              className="w-10 h-10 rounded-full p-[1px] bg-gradient-to-r from-green-400 via-purple-500 to-orange-500 cursor-pointer shrink-0 flex items-center justify-center transition-all"
-              onClick={() => typeof window !== "undefined" && window.toggleMenu()}>
+              ref={mobileMenuButtonRef}
+              className={`w-10 h-10 rounded-full p-[1px] cursor-pointer shrink-0 flex items-center justify-center transition-all ${isMenuOpen ? 'bg-gradient-to-r from-teal-400 to-green-500' : 'bg-gradient-to-r from-green-400 via-purple-500 to-orange-500'}`}
+              onClick={toggleMenu}>
               <div
                 className="w-full h-full bg-[#111113] rounded-full flex items-center justify-center text-white text-lg font-bold">
-                <span id="menuIconMobile" className="mt-[-2px]">≡</span>
+                <span id="menuIconMobile" className="mt-[-2px]">{isMenuOpen ? '✕' : '≡'}</span>
               </div>
             </div>
           </div>
@@ -107,10 +155,10 @@ export default function Header() {
             {/*  Icons  */}
             <div className="flex items-center gap-6 text-gray-400 shrink-0">
               <button className="hover:text-white transition-colors">👤</button>
-              <button className="hover:text-white transition-colors relative">
+              <Link href="/gio-hang" className="hover:text-white transition-colors relative">
                 🛒<span
-                  className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">0</span>
-              </button>
+                  className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
+              </Link>
               <button className="hover:text-white transition-colors">♡</button>
               <button className="hover:text-white transition-colors">🤖</button>
               <div className="w-px h-5 bg-dark-border mx-2"></div>
@@ -132,10 +180,11 @@ export default function Header() {
           <div className="hidden md:flex items-center py-2 border-t md:border-t-0 border-dark-border relative" id="bottom-header-menu">
             {/*  Menu Button  */}
             <div id="menuBorderDesktop"
-              className="p-[1px] rounded-full bg-gradient-to-r from-green-400 via-purple-500 to-orange-500 cursor-pointer transition-all shrink-0"
-              onClick={() => typeof window !== "undefined" && window.toggleMenu()}>
+              ref={desktopMenuButtonRef}
+              className={`p-[1px] rounded-full cursor-pointer transition-all shrink-0 ${isMenuOpen ? 'bg-gradient-to-r from-teal-400 to-green-500' : 'bg-gradient-to-r from-green-400 via-purple-500 to-orange-500'}`}
+              onClick={toggleMenu}>
               <div className="bg-dark rounded-full px-5 py-2 flex items-center gap-2 text-white text-sm font-semibold">
-                <span id="menuIconDesktop" className="text-lg leading-none mt-[-2px]">≡</span>
+                <span id="menuIconDesktop" className={`${isMenuOpen ? 'text-[14px]' : 'text-lg mt-[-2px]'} leading-none`}>{isMenuOpen ? '✕' : '≡'}</span>
                 <span>Menu</span>
               </div>
             </div>
@@ -170,12 +219,13 @@ export default function Header() {
 
           {/*  MEGA MENU DROPDOWN  */}
           <div id="megaMenu"
-            className="hidden-menu fixed top-[64px] bottom-[60px] md:absolute md:top-[100%] md:bottom-auto left-0 w-full bg-[#0a0a0c] md:border-t border-dark-border shadow-2xl flex-col md:flex-row z-40 overflow-y-auto md:overflow-visible min-h-600">
+            ref={megaMenuRef}
+            className={`${isMenuOpen ? 'show-menu' : 'hidden-menu'} fixed top-[64px] bottom-[60px] md:absolute md:top-[100%] md:bottom-auto left-0 w-full bg-[#0a0a0c] md:border-t border-dark-border shadow-2xl flex-col md:flex-row z-40 overflow-y-auto md:overflow-visible min-h-600`}>
 
             {/*  MOBILE NAV LINKS  */}
 
             {/*  MOBILE GRID VIEW  */}
-            <div id="mobileGrid" className="flex-1 md:hidden p-4">
+            <div id="mobileGrid" className={`${activeMobileMenu ? 'hidden' : 'flex-1'} md:hidden p-4`}>
               {/*  Tabs  */}
               <div className="bg-[#131317] rounded-full flex p-1 mb-6">
                 <button
@@ -187,29 +237,54 @@ export default function Header() {
 
               {/*  3-Col Grid Container  */}
               <div id="mobileGridContainer" className="grid grid-cols-3 gap-3">
-                {/*  Rendered by JS  */}
+                {menuCategories.map((category) => (
+                  <div
+                    key={category.id}
+                    className="bg-[#111115] rounded-xl p-3 flex flex-col items-center justify-center gap-3 text-center border border-transparent hover:border-gray-700 transition"
+                    onClick={() => setActiveMobileMenuId(category.id)}
+                  >
+                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d={category.icon}></path>
+                    </svg>
+                    <span className="text-[11px] text-gray-300 font-semibold leading-tight">
+                      {category.name}
+                      {category.suffix ? <span className="text-orange-500 ml-1">{category.suffix}</span> : null}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/*  MOBILE SUB-CATEGORY VIEW (Drill-down)  */}
-            <div id="mobileSubView" className="hidden md:hidden p-4 flex-1">
+            <div id="mobileSubView" className={`${activeMobileMenu ? '' : 'hidden'} md:hidden p-4 flex-1`}>
               {/*  Header  */}
               <div className="flex items-center gap-4 mb-8">
                 <button
                   className="w-9 h-9 rounded-full bg-[#131317] flex items-center justify-center text-gray-400 hover:text-white transition"
-                  onClick={() => typeof window !== "undefined" && window.closeMobileSub()}>
+                  onClick={() => setActiveMobileMenuId(null)}>
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
                   </svg>
                 </button>
                 <div className="flex items-center gap-3">
-                  <h2 id="mobileSubTitle" className="text-xl font-bold title-gradient tracking-tight">Title</h2>
+                  <h2 id="mobileSubTitle" className="text-xl font-bold title-gradient tracking-tight">{activeMobileMenu?.name}</h2>
                 </div>
               </div>
 
               {/*  List Content  */}
               <div id="mobileSubContentList" className="space-y-8">
-                {/*  Rendered by JS  */}
+                {activeMobileMenu?.cols.map((column) => (
+                  <div key={column.title}>
+                    <h3 className="title-gradient font-bold text-[16px] mb-4">{column.title}</h3>
+                    <ul className="space-y-4">
+                      {column.items.map((item) => (
+                        <li key={item} className="flex items-center gap-3 text-[14px] text-gray-400">
+                          <span className="text-gray-600 text-lg leading-none">☆</span> {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -238,13 +313,40 @@ export default function Header() {
 
                 {/*  Categories List  */}
                 <div id="desktopSidebarList" className="flex-1 overflow-y-auto py-4">
-                  {/*  Rendered by JS  */}
+                  {menuCategories.map((category) => {
+                    const isActive = category.id === activeDesktopMenuId;
+                    return (
+                      <div
+                        key={category.id}
+                        className={`sidebar-item ${isActive ? 'active' : ''}`}
+                        onMouseEnter={() => setActiveDesktopMenuId(category.id)}
+                      >
+                        <div className={`faux-icon ${isActive ? 'bg-gradient-active' : ''}`}></div>
+                        <span className={`flex-1 ${isActive ? 'font-bold' : ''}`}>
+                          {category.name}
+                          {category.suffix ? <span className="text-orange-500 ml-1">{category.suffix}</span> : null}
+                        </span>
+                        {isActive ? <span className="text-gray-500">›</span> : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               {/*  Content Area  */}
               <div id="desktopContentContainer" className="flex-1 p-10 overflow-y-auto bg-[#0a0a0c]">
-                {/*  Rendered by JS  */}
+                <div className="grid grid-cols-4 gap-12">
+                  {activeDesktopMenu?.cols.map((column) => (
+                    <div key={column.title}>
+                      <h3 className="title-gradient font-bold text-base mb-6">{column.title}</h3>
+                      <ul className="space-y-3.5">
+                        {column.items.map((item) => (
+                          <li key={item}><a href="#" className="sub-link">{item}</a></li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -259,14 +361,14 @@ export default function Header() {
               d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
           </svg>
         </button>
-        <button className="text-gray-400 hover:text-white transition-colors relative">
+        <Link href="/gio-hang" className="text-gray-400 hover:text-white transition-colors relative">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"
               d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z">
             </path>
           </svg>
-          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">0</span>
-        </button>
+          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
+        </Link>
         <button className="text-gray-400 hover:text-white transition-colors">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5"

@@ -1,113 +1,133 @@
-"use client";
-
-import React, { useState, useEffect, useRef } from 'react';
+import { Suspense } from "react";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
+import CategoryClient from "../category/CategoryClient";
+import ProductCarousel from "../../components/ProductCarousel";
+import RelatedArticles from "../../components/RelatedArticles";
+import ProductReviews from "../../components/ProductReviews";
+import ProductComments from "../../components/ProductComments";
+import ProductDescription from "../../components/ProductDescription";
+import ProductSpecifications from "../../components/ProductSpecifications";
+import ProductSidebar from "../../components/ProductSidebar";
+import ProductBreadcrumbHeader from "../../components/ProductBreadcrumbHeader";
 
-import { useParams } from 'next/navigation';
-import CategoryClient from '../category/CategoryClient';
-import ProductCarousel from '../../components/ProductCarousel';
-import RelatedArticles from '../../components/RelatedArticles';
-import ProductReviews from '../../components/ProductReviews';
-import ProductComments from '../../components/ProductComments';
-import ProductDescription from '../../components/ProductDescription';
-import ProductSpecifications from '../../components/ProductSpecifications';
-import ProductSidebar from '../../components/ProductSidebar';
-import ProductBreadcrumbHeader from '../../components/ProductBreadcrumbHeader';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
-export default function ProductPage() {
-  const params = useParams();
+async function fetchSlugData(slug: string) {
+  try {
+    const res = await fetch(`${API_URL}/api/products/${encodeURIComponent(slug)}`, {
+      cache: "no-store",
+    });
+    const json = await res.json();
+    return json.success ? { data: json.data, error: null } : { data: null, error: json.message || "Product not found" };
+  } catch {
+    return { data: null, error: "Error fetching product" };
+  }
+}
+
+function appendSearchParams(url: URL, searchParams: Record<string, any> | undefined) {
+  if (!searchParams) return;
+
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (["id", "page", "limit", "category_id"].includes(key) || value == null) return;
+    const normalizedValue = Array.isArray(value) ? value[0] : value;
+    if (normalizedValue) url.searchParams.set(key, String(normalizedValue));
+  });
+}
+
+async function fetchCategoryInitialData(categoryId: number | string, searchParams: Record<string, any> | undefined) {
+  const productUrl = new URL(`${API_URL}/api/products`);
+  productUrl.searchParams.set("limit", "24");
+  productUrl.searchParams.set("page", "1");
+  productUrl.searchParams.set("category_id", String(categoryId));
+  appendSearchParams(productUrl, searchParams);
+
+  let products = { data: [], pagination: { totalPages: 1, total: 0 } };
+  let categories = { data: [] };
+  let priceBounds = { data: { min: 0, max: 200000000 } };
+  let attributes = { data: [] };
+
+  try {
+    const [productsRes, categoriesRes, priceBoundsRes, attributesRes] = await Promise.all([
+      fetch(productUrl.toString(), { cache: "no-store" }),
+      fetch(`${API_URL}/api/categories?parentId=${categoryId}`, { cache: "no-store" }),
+      fetch(`${API_URL}/api/categories/price-bounds?categoryId=${categoryId}`, { cache: "no-store" }),
+      fetch(`${API_URL}/api/categories/attributes?categoryId=${categoryId}`, { cache: "no-store" }),
+    ]);
+
+    if (productsRes.ok) products = await productsRes.json();
+    if (categoriesRes.ok) categories = await categoriesRes.json();
+    if (priceBoundsRes.ok) priceBounds = await priceBoundsRes.json();
+    if (attributesRes.ok) attributes = await attributesRes.json();
+  } catch (err) {
+    console.error("Error fetching SSR data for slug category page:", err);
+  }
+
+  return {
+    products,
+    categories,
+    priceBounds,
+    attributes,
+  };
+}
+
+export default async function ProductPage(props: any) {
+  const params = await props.params;
+  const searchParams = await props.searchParams;
   const slug = params?.slug as string;
-  const [productData, setProductData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data: productData, error } = await fetchSlugData(slug);
 
-  useEffect(() => {
-    if (!slug) return;
-    const fetchProduct = async () => {
-      try {
-        const res = await fetch(`/api/products/${slug}`);
-        const json = await res.json();
-        if (json.success) {
-          setProductData(json.data);
-        } else {
-          setError(json.message || "Product not found");
-        }
-      } catch (err) {
-        setError("Error fetching product");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProduct();
-  }, [slug]);
-  if (loading) return <div className="flex h-screen items-center justify-center bg-[#0f0f11] text-white text-xl">Đang tải sản phẩm...</div>;
-  if (error) return <div className="flex h-screen items-center justify-center bg-[#0f0f11] text-red-500 text-xl">{error}</div>;
+  if (error) {
+    return <div className="flex h-screen items-center justify-center bg-[#0f0f11] text-red-500 text-xl">{error}</div>;
+  }
+
   if (!productData) return null;
 
-  if (productData.type === 'category') {
-    return <CategoryClient categoryId={productData.id} params={params} categoryInfo={productData} />;
+  if (productData.type === "category") {
+    const initialData = await fetchCategoryInitialData(productData.id, searchParams);
+
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center text-white">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mb-4"></div>
+          </div>
+        }
+      >
+        <CategoryClient
+          categoryId={productData.id}
+          params={params}
+          searchParams={searchParams}
+          initialData={initialData}
+          categoryInfo={productData}
+        />
+      </Suspense>
+    );
   }
 
   return (
     <>
-
-
-      {/* ==================== Content from ss1.html ==================== */}
-
-
       <Header />
 
-
-
-
-      {/* ==================== Content from ss23.html ==================== */}
-
-
       <div className="max-w-[1800px] mx-auto px-4 md:px-6 py-6">
-
         <ProductBreadcrumbHeader productData={productData} />
 
         <div className="flex flex-col lg:flex-row gap-8 items-start">
-
-          {/* ===== LEFT: CAROUSEL ===== */}
           <ProductCarousel productData={productData} />
-
-          {/* ===== RIGHT: PRODUCT INFO ===== */}
           <ProductSidebar productData={productData} />
         </div>
       </div>
 
-
-
-      {/* ==================== Content from ss28.html ==================== */}
-
-
       <section className="max-w-[1800px] mx-auto px-4 md:px-6 py-8" id="content-sanpham">
         <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-
-          {/* LEFT COLUMN: Bài viết mô tả (3/5) */}
           <ProductDescription productName={productData.name} description={productData.description} />
-
-          {/* RIGHT COLUMN: Thông số kỹ thuật (2/5) */}
           <ProductSpecifications productName={productData.name} specs={productData.specs} />
-
         </div>
       </section>
 
-
-
-
-      {/* ==================== Content from ss24.html ==================== */}
-
-
       <section className="max-w-[1800px] mx-auto px-4 md:px-6 py-12">
         <div className="flex flex-col lg:flex-row gap-8 items-start">
-
-          {/* LEFT PANEL: 3/5 (60%) */}
           <div className="lg:w-[60%] lg:sticky lg:top-6 lg:self-start flex flex-col gap-6">
-
-            {/* Featured Categories */}
             <div className="card-box">
               <h3 className="font-bold text-lg text-white mb-4">Chuyên mục nổi bật:</h3>
               <ul className="list-disc pl-5 space-y-2 text-sm text-cyan-500">
@@ -123,26 +143,15 @@ export default function ProductPage() {
 
             <ProductReviews />
             <ProductComments />
-
           </div>
 
-          {/* RIGHT PANEL: 2/5 (40%) */}
           <div className="lg:w-[40%]">
             <RelatedArticles />
           </div>
-
         </div>
       </section>
 
-
-      {/* ==================== Content from ss18.html ==================== */}
-
-
       <Footer />
-
-
-
-
     </>
   );
 }

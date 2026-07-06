@@ -6,20 +6,24 @@ type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 export default async function BrandPage(props: { searchParams: SearchParams }) {
   const searchParams = await props.searchParams;
-  const page = Number(searchParams.page) || 1;
-  const limit = Number(searchParams.limit) || 20;
+  const page = Math.max(1, Number(searchParams.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(searchParams.limit) || 20));
   const offset = (page - 1) * limit;
 
-  // Fetch data
-  const [rows] = await pool.query(
-    'SELECT * FROM idv_brand ORDER BY ordering ASC, id DESC LIMIT ? OFFSET ?',
-    [limit, offset]
-  ) as any;
-
-  // Fetch count
-  const [countRows] = await pool.query('SELECT COUNT(*) as total FROM idv_brand') as any;
-  const totalItems = countRows[0].total;
-  const totalPages = Math.ceil(totalItems / limit);
+  const [listQueryResult, countQueryResult] = await Promise.all([
+    pool.query(
+      `SELECT id, name, image, summary, product, ordering, status, is_featured
+       FROM idv_brand
+       ORDER BY ordering ASC, id DESC
+       LIMIT ? OFFSET ?`,
+      [limit, offset]
+    ),
+    pool.query('SELECT COUNT(*) as total FROM idv_brand'),
+  ]);
+  const rows = listQueryResult[0] as any[];
+  const countRows = countQueryResult[0] as any[];
+  const totalItems = Number(countRows[0]?.total || 0);
+  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
 
   // Map to BrandNode format
   const brands = rows.map((row: any) => ({
@@ -30,7 +34,7 @@ export default async function BrandPage(props: { searchParams: SearchParams }) {
     productCount: row.product || 0,
     description: row.summary,
     displayOrder: row.ordering,
-    status: row.status === 1 ? 'Hoạt động' : 'Tạm khóa',
+    status: (row.status === 1 ? 'Hoạt động' : 'Tạm khóa') as 'Hoạt động' | 'Tạm khóa',
     featured: row.is_featured === 1
   }));
 

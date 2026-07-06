@@ -1,59 +1,148 @@
-# Kiến trúc Hệ thống (System Architecture Rules)
+# Kiến trúc hệ thống HACOM
 
-Tài liệu này định nghĩa bắt buộc về cách thức hoạt động và giao tiếp giữa các thư mục lõi của hệ thống HACOM E-commerce. Bất kỳ AI (Claude, ChatGPT, Gemini, v.v) hay lập trình viên nào khi code đều **BẮT BUỘC** phải đọc kỹ và tuân thủ nghiêm ngặt để duy trì cấu trúc Headless.
+Tài liệu này mô tả ranh giới giữa storefront, backend/admin và database tại thời điểm `2026-07-06`.
 
-## 1. Nguyên tắc Phân tách Trách nhiệm (Separation of Concerns)
+## 1. Ranh giới trách nhiệm
 
-### A. Folder `D:\web-tech\web-admin` (Core Backend + Admin UI)
-- **Database Access**: Là NƠI DUY NHẤT được phép cấu hình kết nối và truy vấn trực tiếp vào Database `hanoi23_db` (thông qua MySQL `pool`). 
-- **Admin UI**: Cung cấp giao diện quản trị nội bộ cho HACOM.
-- **API Provider**: Chịu trách nhiệm xây dựng RESTful APIs (dùng Next.js Route Handlers tại `src/app/api/...`) trả dữ liệu JSON cho Front-end. Cần hỗ trợ phân trang (Pagination) và tính năng liên quan đến DB.
-- *Quy tắc tuyệt đối*: Không bao giờ render giao diện của khách hàng (Storefront) tại thư mục này.
+### `font-end`
 
-### B. Folder `D:\web-tech\font-end` (Customer Storefront)
-- **No Direct DB Connection**: **TUYỆT ĐỐI KHÔNG** được cấu hình bất kỳ kết nối Database nào.
-- **API Consumer**: Fetch dữ liệu từ API của `web-admin` (Port 3000).
-- **Dynamic Gateway Routing (`app/[slug]/page.tsx`)**: Front-end không có các thư mục cứng như `/product` hay `/category`. Thay vào đó, nó dùng Dynamic Route `[slug]`. Nó sẽ ném slug lên API `web-admin` để phân giải qua bảng `idv_url`. Tuỳ thuộc API trả về `type: 'product'` hay `type: 'category'`, file này sẽ quyết định render `ProductPage` hay `CategoryPage` tương ứng.
-- **Image Optimization**: BẮT BUỘC dùng `<ProgressiveImage />` (đặt tại `src/components/ProgressiveImage.tsx`) thay cho thẻ `<img />` thông thường để hỗ trợ Lazy Load và Shimmer Effect.
-- **Smart Pagination**: Các trang danh sách (như Category) phải sử dụng tính năng phân trang thông minh (có dấu `...`) và gọi API kèm `?limit=24&page=X`. Giao diện phân trang tuân theo thiết kế bo góc `rounded-xl`, nút active màu xanh `#0b63e5`.
+- Hiển thị storefront tại cổng `3001`.
+- Không import `mysql2`, không đọc `DATABASE_URL`, không truy vấn DB.
+- Server Component được phép gọi REST API của `web-admin` để SSR.
+- Client Component dùng cho cart, filter, carousel và các tương tác trình duyệt.
 
-### C. Folder `D:\web-tech\media` (Static Media Storage)
-- Nơi lưu trữ tập trung file ảnh vật lý.
+### `web-admin`
 
-## 2. Tiêu chuẩn Giao tiếp API (API Communication Standard)
+- Chạy Admin Dashboard và REST API tại cổng `3000`.
+- Là nơi duy nhất kết nối `hanoi23_db` qua `src/lib/db.ts`.
+- Giá, trạng thái bán và dữ liệu tạo đơn phải được xác thực tại đây.
+- TinyMCE được phục vụ offline từ `public/` và chỉ tải khi editor mount.
 
-Mọi API trả về từ `web-admin` cho `font-end` nên tuân theo một format JSON đồng nhất:
+### `hanoi23_db`
+
+- Database legacy gồm `241` bảng tại lần kiểm tra gần nhất.
+- Không có hệ thống foreign key vật lý đầy đủ; phần lớn quan hệ được đảm bảo ở tầng ứng dụng.
+- Toàn bộ bảng hiện dùng collation `latin1_swedish_ci`; cần thận trọng với encoding tiếng Việt.
+
+## 2. Luồng slug và danh mục
+
+```mermaid
+flowchart LR
+  U["Browser /slug"] --> S["font-end app/[slug]"]
+  S --> R["GET web-admin /api/products/[slug]"]
+  R --> URL["idv_url"]
+  R --> P["Product response"]
+  R --> C["Category response"]
+  P --> PV["Product components"]
+  C --> CF["Parallel category initial fetch"]
+  CF --> CC["CategoryClient interactions"]
+```
+
+`app/[slug]/page.tsx` fetch dữ liệu ban đầu ở server. Nếu slug là category, server gọi song song products, subcategories, price bounds và attributes trước khi render `CategoryClient`.
+
+Khi đổi trang hoặc filter:
+
+- Chỉ product list được fetch lại.
+- Metadata category không fetch lại nếu category không đổi.
+- Request client có `AbortController` để tránh stale response.
+- Attribute/value legacy bắt đầu bằng `javascript:`, `http://`, `https://`, `data:` hoặc `//` bị loại khỏi filter response.
+
+## 3. Luồng giỏ hàng và checkout
+
+```mermaid
+flowchart LR
+  PD["Product detail"] --> LS["localStorage hacom.cart.v1"]
+  LS --> CART["/gio-hang"]
+  CART --> QUOTE["POST /api/cart/quote"]
+  QUOTE --> PRICE["idv_sell_product_price"]
+  CART --> CHECKOUT["/thanh-toan"]
+  CHECKOUT --> ORDER["POST /api/orders"]
+  ORDER --> REQUOTE["Re-quote on backend"]
+  REQUOTE --> TX["MySQL transaction"]
+  TX --> BB["build_buy"]
+  TX --> BBI["build_buy_item"]
+```
+
+Cart item client có các trường:
+
+```ts
+type CartItem = {
+  productId: number;
+  slug: string;
+  name: string;
+  sku: string;
+  thumbnail: string;
+  price: number;
+  marketPrice: number;
+  quantity: number;
+  selected: boolean;
+  savedForLater: boolean;
+  addedAt: string;
+};
+```
+
+Giá trong localStorage chỉ là cache hiển thị. `POST /api/orders` không tin giá client và gọi lại chung logic quote trước khi insert.
+
+## 4. API chính
+
+| Method | Endpoint | Chức năng |
+|---|---|---|
+| `GET` | `/api/products/[slug]` | Resolve product/category từ `idv_url` |
+| `GET` | `/api/products` | Product list, pagination, category, brand, price và attribute filters |
+| `GET` | `/api/categories` | Danh mục con và product count |
+| `GET` | `/api/categories/price-bounds` | Min/max giá category |
+| `GET` | `/api/categories/attributes` | Brand/attribute filters và count đã aggregate |
+| `POST` | `/api/cart/quote` | Chuẩn hóa cart và xác thực giá/trạng thái |
+| `POST` | `/api/orders` | Re-quote và tạo order transaction |
+| `GET` | `/api/news/[slug]` | Chi tiết bài viết |
+| `GET` | `/api/news-category/[slug]` | Danh mục bài viết |
+
+Response list chuẩn:
 
 ```json
 {
   "success": true,
-  "data": { ... },
-  "pagination": { "total": 100, "page": 1, "limit": 24, "totalPages": 5 }, // NẾU LÀ DẠNG LIST
-  "message": "Lấy dữ liệu thành công",
-  "error": null
+  "data": [],
+  "pagination": {
+    "total": 0,
+    "page": 1,
+    "limit": 24,
+    "totalPages": 1
+  }
 }
 ```
-*Lưu ý: API luôn phải cấu hình CORS Header để `font-end` (Port 3001) có thể truy cập được từ Client-side.*
 
-### Cấu trúc API Lõi Mới (Advanced APIs)
-Để phục vụ bộ lọc động và nội dung, các API sau đã được xây dựng và **phải được tham khảo/bảo trì**:
-1. **`/api/categories`**: Trả về danh sách danh mục con kèm `productCount` được tính toán động (chỉ đếm sản phẩm có `isOn=1` và `price > 0`).
-2. **`/api/categories/attributes`**: Lấy cấu trúc bộ lọc thuộc tính. Trả về mảng `values` kèm `productCount` tính bằng Subquery JOIN.
-3. **`/api/categories/price-bounds`**: Truy xuất `MIN(price)` và `MAX(price)` của danh mục để setup giới hạn của thanh kéo thả (Dual-range Slider).
-4. **`/api/products`**: Hỗ trợ nhận n tham số động (Dynamic Filter Params) trên URL (`?kich-thuoc-man-hinh=...`) và áp dụng truy vấn `HAVING COUNT(DISTINCT ...)`.
-5. **`/api/news` & `/api/news-category`**: Trả về dữ liệu bài viết (dùng LEFT JOIN `idv_seller_news_content`) và danh mục bài viết. Khi dùng Next.js 15, bắt buộc `await params` khi lấy slug.
+## 5. Bảng DB quan trọng
 
-## 3. Workflow phát triển tính năng mới cho AI Assistants
+| Bảng | Vai trò |
+|---|---|
+| `idv_sell_product_store` | Catalog và thông tin cơ bản |
+| `idv_sell_product_price` | `price`, `market_price`, `isOn` |
+| `idv_product_category` | Junction `category_id` - `pro_id` |
+| `idv_seller_category` | Metadata và hierarchy category |
+| `idv_attribute` | Định nghĩa attribute |
+| `idv_attribute_value` | Giá trị attribute |
+| `idv_attribute_category` | Attribute áp dụng cho category |
+| `idv_product_attribute` | Product - attribute value |
+| `idv_url` | Slug resolution qua `id_path` và `request_path` |
+| `build_buy` | Order header |
+| `build_buy_item` | Order lines qua `order_id` |
 
-Nếu nhận được yêu cầu phát triển tính năng từ User:
-1. **Phân tích Database & Backend**: Viết API endpoint ở `web-admin/src/app/api/...`. Thực hiện truy vấn MySQL. Luôn cấp CORS Header `Access-Control-Allow-Origin: *` ở mọi method GET/POST/OPTIONS.
-2. **Cập nhật Logic Routing (Nếu là trang mới)**: Nếu tính năng gắn với một URL Slug, tạo Dynamic Route `[slug]` hoặc bổ sung quy tắc bóc tách dữ liệu linh hoạt (ví dụ: fallback từ bài viết sang danh mục nếu chung cấp route). 
-3. **Phát triển UI tại Frontend (Luôn ưu tiên Server Component)**:
-   - Các trang nội dung (Sản phẩm, Bài viết) **BẮT BUỘC** làm dạng `Server Component` (không dùng `"use client"` trừ khi có hook). 
-   - Sử dụng hàm `generateMetadata()` để sinh thẻ `<title>`, `<meta>` cho SEO dựa trên API.
-   - Thêm cờ `{ next: { revalidate: 60 } }` khi fetch API từ web-admin để tận dụng ISR Cache của Next.js chống quá tải DB.
-4. **Xử lý Mã HTML thô (Raw CMS HTML)**: Khi render mã HTML lấy từ CSDL:
-   - Không sử dụng Tailwind Typography (`prose`) vì có thể xung đột với style tĩnh (Inline Style) cũ.
-   - Luôn sử dụng kỹ thuật **Tailwind Arbitrary Variants** bọc ngoài: `className="[&_h1]:text-white [&_p]:mb-4 ..."` kết hợp với `dangerouslySetInnerHTML`.
-   - Phải replace các đường dẫn ảnh tĩnh tương đối (ví dụ `../media/news/...`) sang đường dẫn tuyệt đối (server URL) trước khi gắn vào DOM.
-5. **Luôn tái sử dụng Component**: Tận dụng `<ProgressiveImage />` cho mọi hình ảnh và cấu trúc UI hiện đại có sẵn.
+## 6. Quy tắc hiệu suất
+
+- Query độc lập phải chạy bằng `Promise.all` khi phù hợp.
+- Count query không join bảng không cần thiết.
+- Category product list join trực tiếp `idv_product_category`.
+- Không dùng correlated count cho từng attribute value; dùng derived aggregate `GROUP BY attr_value_id`.
+- Không tải script lớn ở root layout nếu chỉ một nhóm trang sử dụng.
+- Không setState trong render; dùng effect hoặc derived state.
+- Dùng `Map`/`Set` cho lookup lặp lại.
+
+## 7. Bảo mật và production readiness
+
+- Không commit `.env`/`.env.local`.
+- Không trả raw DB error ra public API trong production.
+- Order endpoint cần rate-limit/anti-spam trước khi public production.
+- CORS `*` đang phục vụ development; production cần allowlist origin.
+- Xem backlog và mức độ ưu tiên tại `PROJECT_PROGRESS.md`.
+

@@ -1,10 +1,5 @@
-"use client";
-import React, { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
-import ProgressiveImage from "../../components/ProgressiveImage";
-import Link from "next/link";
 
 export default function TinTucPage() {
   return (

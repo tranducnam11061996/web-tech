@@ -3,6 +3,7 @@ import { ArticleListTable } from '@/components/article-list/ArticleListTable';
 import pool from '@/lib/db';
 
 export const revalidate = 0;
+const storefrontUrl = process.env.STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || 'http://localhost:3001';
 
 export default async function ArticleListPage({
   searchParams,
@@ -16,24 +17,24 @@ export default async function ArticleListPage({
   // Assuming standard Next.js 14 behavior, searchParams is an object.
   // Wait, Next.js 15 requires awaiting searchParams! Let's handle both.
   const resolvedParams = await searchParams;
-  const page = Number(resolvedParams?.page) || 1;
-  const limit = Number(resolvedParams?.limit) || 20;
+  const page = Math.max(1, Number(resolvedParams?.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(resolvedParams?.limit) || 20));
   const offset = (page - 1) * limit;
 
   try {
-    // Get total count
-    const [countResult] = await pool.query('SELECT COUNT(*) as total FROM idv_seller_news');
-    totalArticles = (countResult as any[])[0].total;
-
-    // Get paginated data
-    const [rows] = await pool.query(`
-      SELECT 
-        id, title, request_path, url, createDate, createBy, 
-        visit, lastUpdate, lastUpdateByUser, status, thumnail
-      FROM idv_seller_news 
-      ORDER BY createDate DESC 
-      LIMIT ? OFFSET ?
-    `, [limit, offset]);
+    const [countQueryResult, listQueryResult] = await Promise.all([
+      pool.query('SELECT COUNT(*) as total FROM idv_seller_news'),
+      pool.query(`
+        SELECT 
+          id, title, request_path, url, createDate, createBy, 
+          visit, lastUpdate, lastUpdateByUser, status, thumnail
+        FROM idv_seller_news 
+        ORDER BY createDate DESC 
+        LIMIT ? OFFSET ?
+      `, [limit, offset]),
+    ]);
+    totalArticles = Number((countQueryResult[0] as any[])[0]?.total || 0);
+    const rows = listQueryResult[0] as any[];
 
     const formatDate = (dateStr: string) => {
       if (!dateStr) return '';
@@ -45,7 +46,7 @@ export default async function ArticleListPage({
       id: row.id.toString(),
       thumbnail: row.thumnail ? `https://hacom.vn/media/news/${row.thumnail}` : '',
       title: row.title,
-      url: `http://localhost:3001/tin-tuc/${row.url}`,
+      url: `${storefrontUrl}/tin-tuc/${row.url}`,
       publishDate: formatDate(row.createDate),
       author: `ID: ${row.createBy}`,
       views: row.visit || 0,
@@ -57,7 +58,7 @@ export default async function ArticleListPage({
     console.error("Failed to fetch articles:", err);
   }
 
-  const totalPages = Math.ceil(totalArticles / limit);
+  const totalPages = Math.max(1, Math.ceil(totalArticles / limit));
 
   return (
     <div className="flex flex-col h-full w-full p-2 animate-in fade-in duration-300">

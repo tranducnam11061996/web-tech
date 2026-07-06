@@ -1,8 +1,13 @@
-node_modules/ 
-.next/ 
-dist/ 
-build/ 
-node_modules/ 
-.next/ 
-dist/ 
-build/ 
+node_modules/
+.next/
+dist/
+build/
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Editor and generated output
+.vscode/
+font-end/out.html

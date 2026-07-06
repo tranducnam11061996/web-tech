@@ -1,14 +1,18 @@
 "use client";
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { addCartItem } from '@/lib/cart';
 
 interface ProductSidebarProps {
   productData: any;
 }
 
 export default function ProductSidebar({ productData }: ProductSidebarProps) {
+  const router = useRouter();
   const [qty, setQty] = useState(1);
   const [openPromos, setOpenPromos] = useState<string[]>(['promo1', 'promo2']);
   const [summaryExpanded, setSummaryExpanded] = useState(false);
+  const [cartMessage, setCartMessage] = useState('');
 
   const togglePromo = (id: string) => {
     setOpenPromos(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
@@ -18,6 +22,34 @@ export default function ProductSidebar({ productData }: ProductSidebarProps) {
   const priceStr = formatNum(productData.price || 0);
   const marketPriceStr = formatNum(productData.marketPrice || 0);
   const savingsStr = formatNum(productData.savings || 0);
+
+  const getCartInput = () => {
+    const currentSlug =
+      typeof window !== 'undefined'
+        ? window.location.pathname.replace(/^\/+/, '')
+        : productData.slug || `product-${productData.id}`;
+
+    return {
+      productId: Number(productData.id),
+      slug: currentSlug,
+      name: productData.name || 'Sản phẩm',
+      sku: productData.sku || '',
+      thumbnail: productData.images?.[0] || 'https://placehold.co/300x300/1f2937/a1a1aa?text=HACOM',
+      price: Number(productData.price || 0),
+      marketPrice: Number(productData.marketPrice || 0),
+    };
+  };
+
+  const handleAddToCart = () => {
+    addCartItem(getCartInput(), qty);
+    setCartMessage('Đã thêm vào giỏ hàng');
+    window.setTimeout(() => setCartMessage(''), 1800);
+  };
+
+  const handleBuyNow = () => {
+    addCartItem(getCartInput(), qty, { selectOnly: true });
+    router.push('/thanh-toan');
+  };
 
   return (
     <div className="w-full lg:w-[40%] space-y-5">
@@ -113,13 +145,21 @@ export default function ProductSidebar({ productData }: ProductSidebarProps) {
 
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto flex-1">
-          <button className="flex-1 px-6 py-2.5 rounded-xl bg-[#111115] border border-[#27272a] text-gray-300 text-sm font-semibold hover:border-emerald-500 hover:text-emerald-400 transition whitespace-nowrap">Thêm vào giỏ hàng</button>
+          <button
+            onClick={handleAddToCart}
+            className="flex-1 px-6 py-2.5 rounded-xl bg-[#111115] border border-[#27272a] text-gray-300 text-sm font-semibold hover:border-emerald-500 hover:text-emerald-400 transition whitespace-nowrap"
+          >
+            {cartMessage || "Thêm vào giỏ hàng"}
+          </button>
           <button className="w-10 h-10 shrink-0 rounded-xl bg-[#111115] border border-[#27272a] text-red-400 hover:bg-red-500/10 hover:border-red-500 transition flex items-center justify-center text-lg">♥</button>
         </div>
       </div>
 
       {/* Buy Online */}
-      <button className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-base tracking-wide transition-all shadow-lg shadow-red-500/20">
+      <button
+        onClick={handleBuyNow}
+        className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-black text-base tracking-wide transition-all shadow-lg shadow-red-500/20"
+      >
         MUA ONLINE<br /><span className="text-[14px] font-medium opacity-80">Giao nhanh tận nơi, miễn phí toàn quốc</span>
       </button>
 

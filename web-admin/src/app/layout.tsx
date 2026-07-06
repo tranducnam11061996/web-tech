@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -19,9 +18,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="vi" className="dark">
-      <head>
-        <Script src="/tinymce.min.js" strategy="beforeInteractive" />
-      </head>
       <body className={`${inter.className} bg-[#0a0a0f] text-gray-300 overflow-hidden selection:bg-red-500/30 selection:text-red-200`}>
         <div className="flex flex-col h-screen relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/10 via-[#0a0a0f] to-[#0a0a0f]">
           {/* Subtle background glow effect */}

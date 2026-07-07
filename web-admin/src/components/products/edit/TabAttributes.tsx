@@ -1,21 +1,46 @@
 'use client';
 
 import { CheckSquare, Square, SlidersHorizontal } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-export function TabAttributes({ attributesData = [] }: { attributesData?: any[] }) {
-  // Use local state so the user can toggle checkboxes before saving
+export function TabAttributes({
+  attributesData = [],
+  form,
+  onChange,
+}: {
+  attributesData?: any[];
+  form?: Record<string, any>;
+  onChange?: (field: string, value: any) => void;
+}) {
   const [attributes, setAttributes] = useState<any[]>(attributesData);
 
   useEffect(() => {
     setAttributes(attributesData);
   }, [attributesData]);
 
+  const syncSelectedValueIds = (nextAttributes: any[]) => {
+    const selectedIds = nextAttributes.flatMap((attr) =>
+      (attr.options || [])
+        .filter((opt: any) => opt.checked)
+        .map((opt: any) => Number(opt.id))
+        .filter((id: number) => id > 0),
+    );
+    onChange?.('attributeValueIds', Array.from(new Set(selectedIds)));
+  };
+
   const toggleOption = (attrIndex: number, optionIndex: number) => {
-    const newAttributes = [...attributes];
-    const option = newAttributes[attrIndex].options[optionIndex];
-    option.checked = !option.checked;
+    const newAttributes = attributes.map((attr, index) => ({
+      ...attr,
+      options: Array.isArray(attr.options)
+        ? attr.options.map((opt: any, optIdx: number) =>
+            index === attrIndex && optIdx === optionIndex
+              ? { ...opt, checked: !opt.checked }
+              : opt,
+          )
+        : [],
+    }));
     setAttributes(newAttributes);
+    syncSelectedValueIds(newAttributes);
   };
 
   return (
@@ -40,7 +65,7 @@ export function TabAttributes({ attributesData = [] }: { attributesData?: any[] 
                 {attr.isSearch ? (
                   <div className="text-[10px] text-green-500 mt-2 uppercase tracking-wider">Có dùng làm bộ lọc</div>
                 ) : (
-                  <div className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider cursor-pointer hover:text-red-400">Dùng là bộ lọc</div>
+                  <div className="text-[10px] text-gray-500 mt-2 uppercase tracking-wider cursor-pointer hover:text-red-400">Dùng làm bộ lọc</div>
                 )}
                 {attr.inSummary ? (
                   <div className="text-[10px] text-green-500 mt-1 uppercase tracking-wider">Đang hiển thị ở tóm tắt</div>
@@ -48,10 +73,17 @@ export function TabAttributes({ attributesData = [] }: { attributesData?: any[] 
                   <div className="text-[10px] text-gray-500 mt-1 uppercase tracking-wider cursor-pointer hover:text-red-400">Hiển thị ở tóm tắt</div>
                 )}
               </div>
-              
+
               <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pl-0 md:pl-6">
                 {attr.options.map((opt: any, optIdx: number) => (
-                  <label key={opt.id || optIdx} className="flex items-center gap-2 cursor-pointer group" onClick={(e) => { e.preventDefault(); toggleOption(idx, optIdx); }}>
+                  <label
+                    key={opt.id || optIdx}
+                    className="flex items-center gap-2 cursor-pointer group"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleOption(idx, optIdx);
+                    }}
+                  >
                     <div className="text-gray-500 group-hover:text-blue-400 transition-colors relative">
                       {opt.checked ? (
                         <CheckSquare className="w-4 h-4 text-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] relative z-10 bg-[#0a0a0f]" />

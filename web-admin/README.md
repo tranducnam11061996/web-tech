@@ -1,126 +1,193 @@
-# HACOM Backend API và Admin Dashboard (`web-admin`)
+# HACOM Backend API and Admin Dashboard
 
-Ứng dụng chạy bằng Next.js `16.2.9`, React `19.2`, Tailwind CSS 4 và MySQL2 tại cổng `3000`.
+Last audited: 2026-07-07
 
-## Trách nhiệm
+`web-admin` is the only app that connects directly to MySQL. It serves internal admin screens and public API routes consumed by the storefront.
 
-- Kết nối duy nhất tới MySQL `hanoi23_db`.
-- Cung cấp Admin Dashboard nội bộ.
-- Cung cấp REST API cho storefront.
-- Xác thực product, price và trạng thái bán trước khi tạo order.
-- Quản lý TinyMCE offline cho các trang edit.
+## Responsibilities
 
-## Database config
+- Connect to MySQL through `src/lib/db.ts`.
+- Serve admin dashboard pages.
+- Serve storefront APIs.
+- Own product/category/news/order read and write logic.
+- Own search cache infrastructure through `product_data_search`.
+- Own uploaded product media through `MEDIA_ROOT` and `/api/media`.
+- Keep legacy product fields working while new admin features are added.
 
-`src/lib/db.ts` ưu tiên:
+## Environment
 
-1. `process.env.DATABASE_URL`.
-2. `DATABASE_URL` trong `.env` của app hoặc workspace parent.
-3. `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+`src/lib/db.ts` resolves database config in this order:
+
+1. `DATABASE_URL`
+2. `DATABASE_URL` from app/workspace env files
+3. `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+
+Example:
 
 ```env
-DATABASE_URL="mysql://user:password@127.0.0.1:3306/hanoi23_db"
+DATABASE_URL="mysql://user:password@127.0.0.1:3306/web_tech"
 ```
 
-Không commit file credential. Production phải dùng DB user riêng, mật khẩu mạnh và network restriction.
+Admin writes are disabled unless explicitly enabled:
 
-## API storefront
+```env
+ADMIN_WRITE_ENABLED=true
+ADMIN_DRY_RUN=false
+```
 
-| Endpoint | Method | Chức năng |
-|---|---|---|
-| `/api/products/[slug]` | `GET` | Resolve product/category slug |
-| `/api/products` | `GET` | List, pagination và dynamic filters |
-| `/api/categories` | `GET` | Subcategories |
-| `/api/categories/price-bounds` | `GET` | Min/max price |
-| `/api/categories/attributes` | `GET` | Attribute/brand filters |
-| `/api/cart/quote` | `GET`, `POST`, `OPTIONS` | Quote cart từ DB |
-| `/api/orders` | `GET`, `POST`, `OPTIONS` | Tạo order transaction |
-| `/api/news/[slug]` | `GET` | Article detail |
-| `/api/news-category/[slug]` | `GET` | News category |
+Product image upload/media config:
 
-## Quote và order
+```env
+MEDIA_ROOT=D:\web-tech\media
+MEDIA_BASE_URL=/api/media
+```
 
-`src/lib/cart-quote.ts` là logic dùng chung:
+Storefront URL config:
 
-- Deduplicate item theo `productId`.
-- Query `idv_sell_product_store`, `idv_sell_product_price`, `idv_url`.
-- Available khi `isOn = 1` và `price > 0`.
-- Tính line total và totals từ DB.
-
-`POST /api/orders`:
-
-1. Re-quote toàn bộ item.
-2. Reject cart rỗng hoặc có item unavailable.
-3. Validate tối thiểu customer name/phone.
-4. Begin transaction.
-5. Insert một row `build_buy`.
-6. Insert nhiều row `build_buy_item`.
-7. Commit hoặc rollback.
-
-Các validation/rate-limit còn thiếu được theo dõi tại `../PROJECT_PROGRESS.md`.
-
-## Category/product query rules
-
-- Count query chỉ join bảng cần thiết.
-- Category filter join trực tiếp `idv_product_category`.
-- Query độc lập chạy bằng `Promise.all`.
-- Attribute count dùng derived aggregate `GROUP BY attr_value_id`.
-- Attribute metadata/value chứa URL/script legacy phải được sanitize trước khi response.
-- Clamp `page` và `limit`; reject numeric filter sai.
-
-## TinyMCE offline
-
-- Runtime asset nằm trong `public/tinymce.min.js` cùng themes/plugins/skins.
-- Không load TinyMCE trong root layout.
-- `RichTextEditor` dùng `next/script` và chỉ init khi script ready.
-- Trang list không được tải TinyMCE.
-- Chỉ dùng editor cho nội dung chính; field SEO dùng input/textarea thường.
-
-## Admin performance
-
-- Product, brand và news list chạy count/list song song.
-- Chỉ select cột cần dùng.
-- Pagination clamp `1..100` ở các list đã tối ưu.
-- Storefront URL lấy từ `STOREFRONT_URL` hoặc `NEXT_PUBLIC_STOREFRONT_URL`.
-- `optimizePackageImports` được bật cho `lucide-react`.
+```env
+STOREFRONT_URL=http://localhost:3001
+NEXT_PUBLIC_STOREFRONT_URL=http://localhost:3001
+```
 
 ## Commands
 
 ```powershell
 npm.cmd install
 npm.cmd run dev
+npx.cmd tsc --noEmit
+$env:NODE_OPTIONS='--max-old-space-size=4096'
 npm.cmd run build
-npm.cmd run lint
 ```
 
-## Tài liệu DB
+Known checks:
 
-- `database-docs/DATABASE_SCHEMA.md`: schema runtime quan trọng.
-- `database-docs/QUICK_REFERENCE.md`: quan hệ và query mẫu.
-- `database-docs/STATISTICS.md`: số liệu database tại lần audit gần nhất.
+- Typecheck passed on 2026-07-07.
+- Build passed on 2026-07-07 with increased Node memory.
+- Lint is not clean because of legacy issues.
 
+## Storefront APIs
 
-## Admin CRUD API
+| Endpoint | Methods | Purpose |
+| --- | --- | --- |
+| `/api/products/[slug]` | `GET` | Resolve product or category slug |
+| `/api/products` | `GET` | Product list, pagination, filters, sorting |
+| `/api/categories` | `GET` | Category tree/subcategories |
+| `/api/categories/price-bounds` | `GET` | Category min/max price |
+| `/api/categories/attributes` | `GET` | Attribute and brand filters |
+| `/api/search` | `GET` | Search products using `product_data_search` |
+| `/api/cart/quote` | `GET`, `POST`, `OPTIONS` | Validate cart items against DB |
+| `/api/orders` | `GET`, `POST`, `OPTIONS` | Create order transaction |
+| `/api/news/[slug]` | `GET` | Article detail |
+| `/api/news-category/[slug]` | `GET` | News category |
+| `/api/media/[...path]` | `GET` | Serve uploaded media from `MEDIA_ROOT` |
+
+## Admin APIs
 
 Admin write endpoints are same-origin and require `ADMIN_WRITE_ENABLED=true`.
 
-| Endpoint | Methods | Function |
-|---|---|---|
-| `/api/admin/products` | `GET`, `POST` | List/create products, bulk action |
-| `/api/admin/products/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete product |
-| `/api/admin/product-categories` | `GET`, `POST` | List/create product categories, bulk action |
-| `/api/admin/product-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete product category |
-| `/api/admin/articles` | `GET`, `POST` | List/create articles, bulk action |
-| `/api/admin/articles/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete article |
-| `/api/admin/article-categories` | `GET`, `POST` | List/create article categories, bulk action |
-| `/api/admin/article-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete article category |
+| Endpoint | Methods | Purpose |
+| --- | --- | --- |
+| `/api/admin/products` | `GET`, `POST` | List/create products, bulk actions |
+| `/api/admin/products/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete product |
+| `/api/admin/products/[id]/images` | `GET`, `PATCH` | List grouped images, save metadata batch |
+| `/api/admin/products/[id]/images/upload` | `POST` | Upload product image files |
+| `/api/admin/products/[id]/images/[imageId]` | `DELETE` | Delete image metadata and owned file |
+| `/api/admin/product-categories` | `GET`, `POST` | List/create product categories |
+| `/api/admin/product-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete category |
+| `/api/admin/articles` | `GET`, `POST` | List/create articles |
+| `/api/admin/articles/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete article |
+| `/api/admin/article-categories` | `GET`, `POST` | List/create article categories |
+| `/api/admin/article-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete article category |
 | `/api/admin/migrate` | `POST` | Create admin helper tables when writes are enabled |
 
-Run helper-table migration with:
+## Search
+
+Current production-facing search uses the `product_data_search` table.
+
+Key files:
+
+- `src/lib/searchInfrastructure.ts`
+- `src/lib/searchCache.ts`
+- `src/lib/productSearch.ts`
+- `src/app/api/search/route.ts`
+- `src/app/api/webhook/update-search/route.ts`
+- `scripts/run-search-migration.ts`
+- `scripts/rebuild-search-data.ts`
+
+Audited state on 2026-07-07:
+
+- `product_data_search`: 28,763 rows.
+- Missing product search rows: 0.
+- Normalize function, insert trigger, update trigger, and FK are present.
+
+Useful commands:
 
 ```powershell
-$env:ADMIN_WRITE_ENABLED="true"
+npm.cmd run search:migrate
+npm.cmd run search:rebuild
+```
+
+Run `search:migrate` only when you intentionally want to recreate the search infrastructure.
+
+## Product Image Albums
+
+Admin product edit now supports album/type metadata in code:
+
+| Type | Meaning | Storefront group |
+| --- | --- | --- |
+| `product` | Product image | `imageGroups.product` |
+| `self` | Hacom/self-shot image | `imageGroups.product` |
+| `customer` | Customer image | `imageGroups.customer` |
+
+The intended table is `web_admin_product_images`. It was not present in the live DB at the 2026-07-07 audit, so run admin migration before relying on upload in a shared environment.
+
+Admin migration:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+$env:ADMIN_DRY_RUN='false'
 npm.cmd run admin:migrate
 ```
 
-See `database-docs/ADMIN_MIGRATION_GUIDE.md`.
+Uploaded files are stored under:
+
+```text
+MEDIA_ROOT\ddMMyyyy\filename
+```
+
+After image changes, code syncs back to legacy product fields:
+
+- `proThum`
+- `image_collection`
+- `image_count`
+
+## Quote and Order
+
+Shared quote logic lives in `src/lib/cart-quote.ts`.
+
+Current behavior:
+
+- Deduplicates cart items by `productId`.
+- Queries product, price, and URL data from DB.
+- Treats a product as available when `isOn = 1` and price is greater than 0.
+- Calculates line totals and cart totals from DB data.
+- `POST /api/orders` re-quotes before inserting `build_buy` and `build_buy_item`.
+
+Production hardening still needed:
+
+- Rate limit and anti-spam.
+- Strict CORS allowlist.
+- Stronger backend validation.
+- Idempotency key.
+- Safer public error responses.
+
+## Documentation
+
+Read these before modifying database-facing behavior:
+
+- `..\AI_HANDOFF.md`
+- `..\ARCHITECTURE.md`
+- `database-docs\DATABASE_SCHEMA.md`
+- `database-docs\QUICK_REFERENCE.md`
+- `database-docs\STATISTICS.md`
+- `database-docs\ADMIN_MIGRATION_GUIDE.md`

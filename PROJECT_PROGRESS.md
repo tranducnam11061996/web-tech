@@ -1,92 +1,98 @@
-# Tiến độ dự án HACOM
+# Project Progress
 
-**Cập nhật:** 2026-07-06  
-**Database:** `hanoi23_db`  
-**Trạng thái tổng thể:** Feature-complete cho guest cart bản đầu; chưa production-ready cho checkout public.
+Last updated: 2026-07-07
 
-## 1. Hoàn thành
+This file tracks implementation status for the HACOM workspace. For the shortest handoff path, read `AI_HANDOFF.md` first, then this file, then the database docs.
 
-| Hạng mục | Trạng thái | Xác minh |
-|---|---|---|
-| Audit schema runtime và quan hệ bảng | Hoàn thành | Kết nối trực tiếp DB, xác nhận 241 bảng |
-| Dynamic product/category slug | Hoàn thành | `/laptop` và product detail smoke pass |
-| Category SSR initial data | Hoàn thành | Build và browser pass |
-| Dynamic filter, price, sort, pagination | Hoàn thành | Browser smoke pass |
-| Attribute aggregate query | Hoàn thành | 53-61ms warm với category 159 |
-| Products API query optimization | Hoàn thành | 44-45ms warm với category 159 |
-| Guest cart localStorage | Hoàn thành | Reload giữ cart, badge đồng bộ |
-| Cart quote API | Hoàn thành | Giá và trạng thái lấy từ DB |
-| Checkout UI/data flow | Hoàn thành bản đầu | Selected item flow pass |
-| Order transaction API | Hoàn thành code | Empty input trả 400; chưa tạo order test E2E |
-| Header/filter React state | Hoàn thành | Không còn caller `window.toggle*` |
-| Bỏ global `main.js` | Hoàn thành | Build và menu smoke pass |
-| Lazy-load TinyMCE | Hoàn thành | List không tải; edit mới tải |
-| Legacy attribute sanitization | Hoàn thành | Không còn URL/script trong `/laptop` filter |
-| Build hai ứng dụng | Hoàn thành | Cả hai pass ngày 2026-07-06 |
+## Current Status
 
-## 2. Review Findings Còn Mở
+| Area | Status | Notes |
+| --- | --- | --- |
+| Storefront product/category pages | Working | Dynamic slug routing, category filters, cart entry points, and product detail remain the main customer flow |
+| Guest cart and checkout draft | Implemented, not production-ready | Cart quote and order transaction exist; production hardening is still open |
+| Admin CRUD | Implemented first pass | Writes are gated by `ADMIN_WRITE_ENABLED=true`; auth/authorization is still missing |
+| Search infrastructure | Implemented and present in live DB | `product_data_search` has 28,763 rows and 0 missing products at audit time |
+| Product image albums | Implemented in code, DB migration pending | `web_admin_product_images` code exists; table was not present in live DB at audit time |
+| Documentation audit | Updated | Core handoff docs refreshed on 2026-07-07 |
 
-### P1 - Trước khi đưa checkout ra production
+## Completed Work
 
-- Thêm rate-limit/anti-spam cho `POST /api/orders`.
-- Giới hạn CORS theo storefront origin ở production.
-- Không trả `error.message` nội bộ ra response public.
-- Thêm `.env`, `.env.local`, `.env.*.local` vào `.gitignore`; giữ `.env.example`.
+| Item | Evidence |
+| --- | --- |
+| Runtime database audit | 244 tables: 116 InnoDB, 128 MyISAM, 243 legacy latin1 tables |
+| Search table audit | `product_data_search` exists with 28,763 rows |
+| Search sync infrastructure | Normalize function, insert trigger, update trigger, and FK are present |
+| Admin helper tables | `web_admin_sequence` and `web_admin_entity_registry` exist |
+| Storefront image grouping | Product detail code can consume `imageGroups.product` and `imageGroups.customer` |
+| Admin image album UI/API | Upload, batch metadata update, delete, media serving, and legacy sync code paths exist |
+| Build verification | `web-admin` and `font-end` builds passed with increased Node memory |
 
-### P2 - Logic và độ tin cậy
+## Important Pending Work
 
-- Reject quantity không phải integer `1..99`; không tự clamp dữ liệu request sai.
-- Bắt buộc địa chỉ khi `delivery.method = shipping`.
-- Bắt buộc receiver name/phone khi receiver được bật.
-- Validate format số điện thoại, email và tax code ở backend.
-- Cart summary chỉ hiển thị tổng tiền verified hoặc giữ trạng thái loading cho đến khi quote hoàn tất.
-- Thêm idempotency key cho tạo đơn để tránh double submit/retry tạo hai order.
+1. Run the admin migration with writes enabled on the intended database to create `web_admin_product_images`.
+2. Verify image upload end to end: upload each type, reload admin edit page, check storefront tabs, check legacy `proThum/image_collection/image_count`.
+3. Add authentication and authorization before enabling admin write routes outside a trusted environment.
+4. Harden checkout before production: rate limit, CORS allowlist, request validation, backend quantity rules, idempotency, and safer error responses.
+5. Add integration tests around order transaction rollback and search/image migration behavior.
+6. Decide whether to keep or remove legacy scratch/debug files at workspace root.
 
-### P2 - Test coverage
+## Verification Matrix
 
-- Integration test quote: not found, inactive, zero price, duplicate product, quantity boundary.
-- Integration test order transaction: một header, nhiều lines, rollback khi line insert lỗi.
-- Browser test: saved-for-later, select all, remove selected, empty cart, direct checkout không item.
-- Test TinyMCE khi có nhiều editor trên cùng page.
+| Check | Result | Notes |
+| --- | --- | --- |
+| `web-admin` typecheck | Pass | `npx.cmd tsc --noEmit` |
+| `font-end` typecheck | Pass | `npx.cmd tsc --noEmit` |
+| `web-admin` build | Pass | Use `NODE_OPTIONS=--max-old-space-size=4096` |
+| `font-end` build | Pass | Use `NODE_OPTIONS=--max-old-space-size=4096` |
+| `web-admin` admin migration without write flag | Expected failure | Safety gate rejects when `ADMIN_WRITE_ENABLED` is not `true` |
+| Search DB health | Pass | Product rows = search rows = 28,763; missing = 0 |
+| `web-admin` lint | Not clean | Legacy lint errors remain |
+| `font-end` lint | Not configured | Next.js prompts for ESLint setup |
 
-### P3 - Cleanup và tài liệu
+## Commands Used For Verification
 
-- Rà và xóa có kiểm soát các file debug/patch lịch sử ở root: `fix_api.js`, `patch_is_loading.js`, `update_page.js`, `original.tsx`, `temp.tsx`, `debug.json`, `test_api.json`.
-- Rà `font-end/out.html` và `web-admin/product.html` trước khi quyết định giữ/xóa.
-- Chuẩn hóa line ending để giảm cảnh báo LF/CRLF.
-- Cân nhắc migration collation từ `latin1_swedish_ci` sang `utf8mb4`; cần kế hoạch riêng và backup.
+```powershell
+cd D:\web-tech\web-admin
+npx.cmd tsc --noEmit
+$env:NODE_OPTIONS='--max-old-space-size=4096'
+npm.cmd run build
+```
 
-## 3. Verification Matrix
+```powershell
+cd D:\web-tech\font-end
+npx.cmd tsc --noEmit
+$env:NODE_OPTIONS='--max-old-space-size=4096'
+npm.cmd run build
+```
 
-| Flow | Kết quả | Ghi chú |
-|---|---|---|
-| `/` | Pass build | Static route |
-| `/laptop` | Pass browser | 366 sản phẩm tại lần test |
-| Product detail | Pass browser | Add cart và badge pass |
-| `/gio-hang` | Pass browser | Tăng quantity và quote pass |
-| `/thanh-toan` | Pass browser | Form render, chưa submit order test |
-| `/tin-tuc/[slug]` | Pass build | Dynamic server route |
-| Admin product list | Pass browser | TinyMCE không tải |
-| Admin `/news/edit` | Pass browser | TinyMCE tải và khởi tạo |
-| Invalid category id | Pass API | HTTP 400 |
-| Empty order | Pass API | HTTP 400 |
+## Product Image Album State
 
-## 4. Definition of Done Cho Checkout Production
+Code supports three image types:
 
-- [ ] Hoàn thành toàn bộ P1.
-- [ ] Quantity/address/receiver validation chạy ở backend.
-- [ ] Có test transaction commit và rollback.
-- [ ] Có idempotency hoặc cơ chế chống double submit.
-- [ ] Có logging order không chứa dữ liệu nhạy cảm.
-- [ ] CORS và DB credential được cấu hình theo môi trường.
-- [ ] Thực hiện một order E2E trên database test/staging.
+| Type | Admin label | Storefront grouping |
+| --- | --- | --- |
+| `product` | Anh san pham | `imageGroups.product` |
+| `self` | Anh tu chup / Hacom tu chup | `imageGroups.product` |
+| `customer` | Anh khach hang | `imageGroups.customer` |
 
+The new admin metadata table is expected to be `web_admin_product_images`. The migration was not applied to the audited database because admin writes were not enabled.
 
-## 5. Admin CRUD Update - 2026-07-06
+## Search State
 
-- Added first-pass Admin CRUD API/UI for products, product categories, articles, and article categories.
-- Added `web_admin_sequence` and `web_admin_entity_registry` helper-table migration via `web-admin` script `npm.cmd run admin:migrate`.
-- Admin mutation routes require `ADMIN_WRITE_ENABLED=true`; production should leave writes disabled until authentication/authorization exists.
-- Permanent delete remains limited to entities created by the new Admin API and recorded in `web_admin_entity_registry`.
-- Verification in this workspace: `web-admin` `npm.cmd run lint` pass with legacy warnings; `npm.cmd run build` pass.
-- DB write integration tests were not run because the workspace does not contain a real `.env`/`DATABASE_URL`.
+`product_data_search` is the current production-facing search cache for `/api/search`.
+
+Owners:
+
+- Migration: `web-admin/scripts/run-search-migration.ts`
+- Rebuild: `web-admin/scripts/rebuild-search-data.ts`
+- Runtime helpers: `web-admin/src/lib/searchInfrastructure.ts`
+- API: `web-admin/src/app/api/search/route.ts`
+- Webhook sync: `web-admin/src/app/api/webhook/update-search/route.ts`
+
+## Known Risks
+
+- Most database tables still use legacy `latin1_swedish_ci`.
+- The database mixes InnoDB and MyISAM.
+- Admin write routes are powerful and should stay disabled until auth is complete.
+- Uploaded media serving depends on correct `MEDIA_ROOT` and `MEDIA_BASE_URL`.
+- Legacy image fields must continue to be synced until every consumer reads the new image metadata table.

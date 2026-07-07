@@ -1,80 +1,101 @@
 # Changelog
 
-Các thay đổi đáng chú ý của workspace HACOM được ghi theo ngày triển khai.
+Notable workspace changes are grouped by implementation/audit date.
+
+## 2026-07-07
+
+### Added
+
+- Added `AI_HANDOFF.md` as the primary entry point for another AI or developer.
+- Added live database documentation for the new `product_data_search` infrastructure.
+- Added product image album upload implementation in `web-admin`:
+  - Three image types: `product`, `self`, `customer`.
+  - Admin API routes for list, upload, batch metadata update, and delete.
+  - Media serving route backed by `MEDIA_ROOT`.
+  - Legacy sync back to `proThum`, `image_collection`, and `image_count`.
+- Added storefront product detail image grouping:
+  - `imageGroups.product` contains `product + self`.
+  - `imageGroups.customer` contains `customer`.
+- Added admin migration definition for `web_admin_product_images`.
+
+### Changed
+
+- Refreshed root, architecture, progress, and database docs to reflect the audited 2026-07-07 state.
+- Documented that `web_admin_product_images` exists in code but was not present in the live database at audit time.
+- Documented that builds require increased Node memory in this workspace.
+- Updated database counts from the old 241-table snapshot to the current 244-table snapshot.
+
+### Verified
+
+- Live DB audit:
+  - 244 total tables.
+  - 116 InnoDB tables.
+  - 128 MyISAM tables.
+  - `product_data_search` has 28,763 rows.
+  - Search table has 0 missing products.
+- `web-admin`: typecheck passed.
+- `font-end`: typecheck passed.
+- `web-admin`: build passed with `NODE_OPTIONS=--max-old-space-size=4096`.
+- `font-end`: build passed with `NODE_OPTIONS=--max-old-space-size=4096`.
+
+### Known Gaps
+
+- `web_admin_product_images` still needs to be created on the target DB by running the admin migration with `ADMIN_WRITE_ENABLED=true`.
+- Admin write APIs still need authentication/authorization before production use.
+- `web-admin` lint still has legacy issues.
+- `font-end` lint is not configured; Next.js prompts for setup.
 
 ## 2026-07-06
 
 ### Added
 
-- Guest cart tại storefront, lưu bằng `localStorage` key `hacom.cart.v1`.
-- Chọn từng sản phẩm/chọn tất cả, cập nhật số lượng, xóa, mua sau và đưa lại vào giỏ.
-- Header cart badge đồng bộ bằng `useSyncExternalStore`.
-- `POST /api/cart/quote` để xác thực product, giá và trạng thái bán từ DB.
-- `POST /api/orders` để re-quote và insert transaction vào `build_buy`, `build_buy_item`.
-- Checkout chỉ sử dụng item selected và không thuộc nhóm saved-for-later.
-- React menu data trong `font-end/src/components/menuData.ts`.
+- Guest cart in storefront with `localStorage` key `hacom.cart.v1`.
+- Select item/select all, quantity update, remove, save for later, and restore flows.
+- Header cart badge synced with `useSyncExternalStore`.
+- `POST /api/cart/quote` to validate products, prices, and sale state from DB.
+- `POST /api/orders` to re-quote and insert into `build_buy` and `build_buy_item`.
+- Checkout flow that uses selected cart items only.
+- React menu data in `font-end/src/components/menuData.ts`.
+- First-pass Admin CRUD API/UI for products, product categories, articles, and article categories.
+- Admin helper tables `web_admin_sequence` and `web_admin_entity_registry`.
+- Admin migration script `npm.cmd run admin:migrate`, gated by `ADMIN_WRITE_ENABLED=true`.
 
 ### Changed
 
-- `/[slug]` fetch dữ liệu ban đầu ở server thay vì client-only loading.
-- `CategoryClient` tách product fetch khỏi category metadata fetch.
-- Category fetch sử dụng `AbortController`, `Promise.all`, `Map` và derived state.
-- `/api/categories/attributes` thay correlated count bằng derived aggregate query.
-- `/api/products` clamp pagination, tối giản count query và join trực tiếp category junction.
-- `ProgressiveImage` cache placeholder và dùng native lazy loading.
-- `ProductCarousel` dùng ref cho drag delta và dừng timer khi tab ẩn.
-- Admin product/brand/news list chạy count và list song song.
-- `db.ts` ưu tiên `DATABASE_URL` và fallback cấu hình DB cũ.
-- TinyMCE chỉ tải khi `RichTextEditor` mount.
-- Bổ sung `optimizePackageImports` cho `lucide-react` ở hai app.
+- Storefront dynamic slug pages fetch initial data on the server.
+- Category product fetching was split from category metadata fetching.
+- Category fetch flow now uses request cancellation, parallel data loading, maps, and derived state.
+- `/api/categories/attributes` uses a derived aggregate query instead of repeated correlated counts.
+- `/api/products` clamps pagination, simplifies count queries, and joins category membership directly.
+- `ProgressiveImage` caches placeholders and uses native lazy loading.
+- `ProductCarousel` improved drag/timer behavior.
+- Admin list pages fetch counts and data in parallel.
+- `db.ts` prefers `DATABASE_URL` and falls back to legacy DB env variables.
+- TinyMCE loads only when the rich text editor mounts.
+- `lucide-react` package import optimization was added to both apps.
 
 ### Fixed
 
-- Lỗi module runtime trên route category sau khi dọn/rebuild `.next`.
-- Loại bỏ phụ thuộc `window.toggleMenu`, `window.toggleFilter`, `window.toggleSidebarSearch`.
-- Không còn nạp `public/main.js` toàn cục.
-- Fix hydration warning của cart server snapshot bằng singleton empty cart.
-- Lọc filter value legacy chứa `javascript:void(0)` hoặc URL.
-- Không còn render URL placeholder từ `idv_attribute.icon` như text.
-- Xóa bản TinyMCE trùng tại `web-admin/tinymce.min.js`; giữ bản runtime trong `public/`.
+- Removed dependency on global `window.toggleMenu`, `window.toggleFilter`, and `window.toggleSidebarSearch`.
+- Removed global storefront `public/main.js` usage.
+- Fixed cart hydration warning with a singleton empty cart snapshot.
+- Sanitized legacy filter values that contain `javascript:void(0)` or URL-like junk.
+- Avoided rendering `idv_attribute.icon` URL placeholders as visible text.
+- Removed duplicated TinyMCE runtime file from the wrong location.
 
 ### Verification
 
-- Build `font-end`: pass.
-- Build `web-admin`: pass.
-- Smoke test product detail -> cart -> checkout: pass, không submit order test.
-- Smoke test category menu/filter/pagination: pass.
-- Smoke test admin product list và TinyMCE tại `/news/edit`: pass.
-- Attribute API category `159`: khoảng `53-61ms` warm.
-- Products API category `159`: khoảng `44-45ms` warm.
+- Storefront build passed.
+- Admin build passed.
+- Product detail to cart to checkout smoke flow passed, without submitting a real order.
+- Category menu/filter/pagination smoke flow passed.
+- Admin product list and TinyMCE `/news/edit` smoke flow passed.
+- Attribute API category `159` was observed around `53-61ms` warm.
+- Products API category `159` was observed around `44-45ms` warm.
 
 ### Known Gaps
 
-- Quantity sai đang bị clamp thay vì reject ở quote/order input.
-- Order endpoint chưa có rate-limit/anti-spam và production CORS allowlist.
-- Shipping/receiver/invoice validation mới ở mức tối thiểu.
-- Chưa có automated integration test cho transaction tạo đơn.
-- Cart có thể hiển thị cache giá localStorage trong thời gian quote đang chạy.
-
-
-## 2026-07-06 - Admin CRUD
-
-### Added
-
-- Admin CRUD API for products, product categories, articles, and article categories.
-- Admin migration helper tables `web_admin_sequence` and `web_admin_entity_registry`.
-- `npm.cmd run admin:migrate` script gated by `ADMIN_WRITE_ENABLED=true`.
-- First-pass Admin edit/list UI wiring for save, hide/delete, loading, error, and success states.
-- `RichTextEditor` controlled `value/onChange` support.
-- Admin migration guide at `web-admin/database-docs/ADMIN_MIGRATION_GUIDE.md`.
-
-### Changed
-
-- Storefront news category API now reads article membership through `idv_article_category` instead of fuzzy string matching.
-- ESLint ignores offline runtime assets and legacy scratch scripts, and relaxes rules that were failing broad legacy code.
-
-### Verification
-
-- `web-admin`: `npm.cmd run lint` pass with warnings.
-- `web-admin`: `npm.cmd run build` pass.
-- DB write integration tests not run because no real `DATABASE_URL` is present in this workspace.
+- Checkout quantity handling still needs stricter backend rejection rather than clamping.
+- Order endpoint still needs rate limiting, CORS allowlist, stronger validation, idempotency, and safer error responses.
+- No automated integration test yet for order transaction commit/rollback.
+- Cart can briefly display cached local prices while quote is loading.

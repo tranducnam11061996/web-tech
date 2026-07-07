@@ -1,18 +1,23 @@
 # HACOM E-commerce Workspace
 
-Workspace này gồm storefront dành cho khách hàng và hệ thống backend/admin dùng chung cơ sở dữ liệu MySQL `hanoi23_db`.
+Last audited: `2026-07-07`
 
-## Thành phần
+This workspace contains the storefront, admin dashboard, REST backend, search prototype, and runtime database documentation for the HACOM e-commerce rebuild.
 
-| Thư mục | Vai trò | Công nghệ | Cổng mặc định |
-|---|---|---|---|
-| `font-end` | Storefront khách hàng | Next.js 15, React 19, Tailwind CSS 3 | `3001` |
-| `web-admin` | REST API và Admin Dashboard | Next.js 16.2.9, React 19.2, Tailwind CSS 4, MySQL2 | `3000` |
-| `web-admin/database-docs` | Tài liệu schema runtime | Markdown, dữ liệu kiểm tra từ `hanoi23_db` | - |
+Start here, then read `AI_HANDOFF.md`, `ARCHITECTURE.md`, `PROJECT_PROGRESS.md`, and the files under `web-admin/database-docs/`.
 
-Storefront không được kết nối trực tiếp MySQL. Mọi dữ liệu sản phẩm, danh mục, báo giá giỏ hàng và tạo đơn đều đi qua API của `web-admin`.
+## Apps
 
-## Khởi chạy local
+| Path | Role | Stack | Default port |
+|---|---|---|---:|
+| `web-admin` | Admin dashboard and all REST APIs | Next.js 16.2.9, React 19.2, Tailwind CSS 4, MySQL2 | 3000 |
+| `font-end` | Customer storefront | Next.js 15, React 19, Tailwind CSS 3 | 3001 |
+| `search-tool` | Older standalone search prototype/reference | Next.js/Node prototype | varies |
+| `web-admin/database-docs` | Live DB schema and migration notes | Markdown | - |
+
+`font-end` must not connect to MySQL directly. All dynamic storefront data goes through `web-admin`.
+
+## Local Run
 
 ```powershell
 cd D:\web-tech\web-admin
@@ -26,53 +31,59 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-Truy cập:
+URLs:
 
-- Storefront: `http://localhost:3001`
 - Admin/API: `http://localhost:3000`
+- Storefront: `http://localhost:3001`
 
-## Biến môi trường
+## Environment
 
-Backend ưu tiên `DATABASE_URL`, sau đó mới fallback về `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
+`web-admin/src/lib/db.ts` reads `DATABASE_URL` from `process.env`, `web-admin/.env.local`, app `.env`, or parent workspace `.env`.
+
+Important variables:
 
 ```env
 DATABASE_URL="mysql://user:password@127.0.0.1:3306/hanoi23_db"
 NEXT_PUBLIC_API_URL="http://localhost:3000"
 STOREFRONT_URL="http://localhost:3001"
+ADMIN_WRITE_ENABLED=false
+MEDIA_ROOT="D:\\web-tech\\media"
+MEDIA_BASE_URL="/api/media"
 ```
 
-Không commit `.env` hoặc `.env.local`. Xem rủi ro đang mở trong `PROJECT_PROGRESS.md`.
+Writes are intentionally gated. Do not set `ADMIN_WRITE_ENABLED=true` unless you are using a safe development/staging DB.
 
-## Chức năng đã triển khai
+## Current Feature State
 
-- Dynamic slug gateway cho sản phẩm và danh mục, fetch dữ liệu ban đầu ở server.
-- Danh mục sản phẩm có phân trang, lọc thuộc tính, lọc giá và sort.
-- API category attributes dùng aggregate query và lọc dữ liệu legacy không hợp lệ.
-- Guest cart lưu tại `localStorage` với key `hacom.cart.v1`.
-- Quote giỏ hàng và checkout luôn xác thực lại giá/trạng thái sản phẩm ở backend.
-- Tạo đơn trong transaction vào `build_buy` và `build_buy_item`.
-- Header badge, mua sau, chọn sản phẩm, cập nhật số lượng và checkout.
-- TinyMCE offline chỉ tải khi `RichTextEditor` được mount.
-- `main.js` không còn được nạp global; menu và filter dùng React state.
+- Product/category slug gateway through `GET /api/products/[slug]`.
+- Category listing, filters, price bounds, sort, pagination, and SSR initial data.
+- Guest cart in localStorage key `hacom.cart.v1`.
+- Cart quote and order creation validate price/status on backend.
+- Admin CRUD for products, product categories, articles, and article categories.
+- In-memory product search API backed by `product_data_search`, Fuse.js, synonyms, and dynamic facets.
+- Product image upload/album code is implemented, but the new image metadata table is not present in the live DB until admin migration runs.
 
-## Kiểm thử gần nhất
+## Verification Notes
 
-Ngày `2026-07-06`:
+Most recent code checks:
 
-- `font-end`: `npm.cmd run build` pass.
-- `web-admin`: `npm.cmd run build` pass.
-- Smoke test: `/laptop`, product detail, `/gio-hang`, `/thanh-toan`, admin product list và `/news/edit` pass.
-- `/api/categories/attributes?categoryId=159`: khoảng `53-61ms` warm.
-- `/api/products?category_id=159&limit=24&page=1`: khoảng `44-45ms` warm.
-- Empty order và category id sai trả HTTP `400`.
+- `web-admin`: `npx.cmd tsc --noEmit` pass.
+- `font-end`: `npx.cmd tsc --noEmit` pass.
+- `web-admin`: build passes with `NODE_OPTIONS=--max-old-space-size=4096`.
+- `font-end`: build passes with `NODE_OPTIONS=--max-old-space-size=4096`.
+- `npm.cmd run lint` in `web-admin` still reports pre-existing legacy lint errors outside the latest feature work.
+- `npm.cmd run lint` in `font-end` prompts for ESLint setup because that app has no committed ESLint config.
 
-## Tài liệu
+## Documentation Map
 
-- `ARCHITECTURE.md`: ranh giới hệ thống và data flow.
-- `PROJECT_PROGRESS.md`: tiến độ, mức độ xác minh và backlog ưu tiên.
-- `CHANGELOG.md`: lịch sử thay đổi theo ngày.
-- `font-end/README.md`: kiến trúc storefront.
-- `web-admin/README.md`: backend/admin và API.
-- `web-admin/database-docs/QUICK_REFERENCE.md`: quan hệ bảng thường dùng.
-- `web-admin/database-docs/DATABASE_SCHEMA.md`: snapshot schema runtime đã xác minh.
+- `AI_HANDOFF.md`: concise handoff for the next AI/engineer.
+- `ARCHITECTURE.md`: app boundaries, major flows, APIs, search, product images.
+- `PROJECT_PROGRESS.md`: completion status, risks, backlog.
+- `CHANGELOG.md`: dated change history.
+- `web-admin/README.md`: backend/admin API details and operational commands.
+- `font-end/README.md`: storefront routes/components/data flow.
+- `web-admin/database-docs/DATABASE_SCHEMA.md`: live DB schema reference.
+- `web-admin/database-docs/QUICK_REFERENCE.md`: query snippets and table relationships.
+- `web-admin/database-docs/ADMIN_MIGRATION_GUIDE.md`: safe migration instructions.
+- `web-admin/database-docs/STATISTICS.md`: live table counts and observations.
 

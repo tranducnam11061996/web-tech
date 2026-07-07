@@ -65,12 +65,6 @@ export function EditProductClient({
     description: product?.description || '',
     categoryIds: selectedCategoryIds(product),
     attributeValueIds: [],
-    images: (productImages || []).map((image: any) => ({
-      fileName: String(image.url || '').split('/').pop() || '',
-      alt: image.alt || '',
-      ordering: image.stt || 0,
-      isPrimary: image.isMain,
-    })),
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -141,7 +135,7 @@ export function EditProductClient({
           {activeTab === 'description' && <TabDescription product={product} />}
           {activeTab === 'category' && <TabCategory form={form} onChange={updateField} product={product} categories={categories} />}
           {activeTab === 'attributes' && <TabAttributes attributesData={attributesData} form={form} onChange={updateField} />}
-          {activeTab === 'images' && <TabImages images={productImages || []} />}
+          {activeTab === 'images' && <TabImages productId={product?.id} initialImages={productImages || []} />}
           {activeTab === 'combo' && <TabCombo combosData={combosData} />}
           {activeTab === 'config' && <div className="text-gray-400 p-10 text-center font-mono">Module cấu hình đang phát triển</div>}
           {activeTab === 'services' && <TabServices />}

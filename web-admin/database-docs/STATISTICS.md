@@ -1,94 +1,92 @@
 # Database Statistics
 
-**Database:** `hanoi23_db`  
-**Verified:** `2026-07-06`  
-**Source:** `information_schema`
+Verified: 2026-07-07  
+Database: configured `DB_NAME` for `web-admin`  
+Source: live MySQL audit plus targeted exact counts
 
-## Physical summary
+## Physical Summary
 
 | Metric | Value |
-|---|---:|
-| Total tables | 241 |
-| InnoDB | 113 |
-| MyISAM | 128 |
-| `latin1_swedish_ci` tables | 241 |
+| --- | ---: |
+| Total tables | 244 |
+| InnoDB tables | 116 |
+| MyISAM tables | 128 |
+| `latin1_swedish_ci` tables | 243 |
+| `utf8mb4_unicode_ci` tables | 1 |
 
-## Prefix/module distribution
+The only audited `utf8mb4_unicode_ci` table is `product_data_search`. Most legacy tables remain `latin1_swedish_ci`, so connection encoding and text normalization still matter.
 
-Phân nhóm là heuristic theo tên bảng, dùng để định hướng audit.
+## Exact Counts Captured
 
-| Group | Tables |
-|---|---:|
-| `idv_seller_*` | 50 |
-| `idv_sell_product_*` | 13 |
-| `erp_*` | 11 |
-| Analytics (`idv_visit_*`, `idv_report_*`) | 9 |
-| `idv_customer_*` | 8 |
-| Attribute core | 7 |
-| `build_*` | 5 |
-| `idv_order_*` | 1 |
-| Category-related names | 17 |
-| Other | 120 |
+| Table | Engine | Exact rows | Notes |
+| --- | --- | ---: | --- |
+| `idv_sell_product_store` | InnoDB | 28,763 | Product source of truth |
+| `product_data_search` | InnoDB | 28,763 | Search cache, fully synced at audit time |
+| `idv_product_image_stock` | InnoDB | 210,998 | Existing image stock/library |
+| `idv_sell_product_image_name` | InnoDB | 212,184 | Existing per-product image table |
+| `product_image_folder_counter` | InnoDB | 48,378 | Existing image folder counter |
+| `idv_customer_product_image` | MyISAM | 0 | Legacy customer image table, currently empty |
+| `web_admin_entity_registry` | InnoDB | 0 | Admin helper table |
+| `web_admin_sequence` | InnoDB | 1 | `product -> 90788` |
 
-Một bảng có thể phù hợp nhiều domain về nghiệp vụ; bảng trên chỉ gán mỗi table vào một group heuristic.
+`web_admin_product_images` was not present in the live database at audit time. The table is implemented in code and should be created by the admin migration once `ADMIN_WRITE_ENABLED=true`.
 
-## Core table estimates
+## Search Health
 
-| Table | Engine | Estimated rows |
-|---|---|---:|
-| `idv_product_attribute` | InnoDB | 242,304 |
-| `idv_product_category` | InnoDB | 88,057 |
-| `idv_url` | InnoDB | 32,709 |
-| `idv_sell_product_price` | InnoDB | 28,616 |
-| `idv_sell_product_store` | InnoDB | 21,158 |
-| `idv_attribute_category` | InnoDB | 3,885 |
-| `idv_seller_news` | InnoDB | 2,485 |
-| `idv_attribute_value` | InnoDB | 2,446 |
-| `idv_seller_news_content` | InnoDB | 2,365 |
-| `idv_seller_category` | InnoDB | 1,617 |
-| `idv_attribute` | InnoDB | 347 |
-| `build_buy_item` | InnoDB | 33 |
-| `build_buy` | InnoDB | 6 |
+| Check | Value |
+| --- | ---: |
+| Product rows | 28,763 |
+| Search rows | 28,763 |
+| Products missing search row | 0 |
 
-InnoDB row count là estimate và có thể lệch so với `COUNT(*)`.
+Search infrastructure present:
 
-## Performance observations
+- `product_data_search`
+- `webtech_normalize_product_search`
+- `webtech_product_search_after_insert`
+- `webtech_product_search_after_update`
+- `fk_product_data_search_product`
 
-- `idv_product_attribute` và `idv_product_category` là hai junction table lớn nhất trong flow category.
-- Existing indexes hỗ trợ lookup đơn cột `pro_id`, `attr_value_id`, `category_id`.
-- Attribute count đã được tối ưu bằng derived aggregate, không chạy count lặp theo value.
-- Product count/list hiện chạy song song ở API list.
-- `build_buy_item.order_id` chưa có index; chưa thêm migration vì volume hiện nhỏ và cần benchmark use case admin order trước.
+## Performance Observations
 
-## Data quality observations
+- Category listing depends heavily on `idv_product_category`, `idv_sell_product_store`, product price data, and attribute junction tables.
+- `/api/search` should prefer `product_data_search.data_search` instead of building large text expressions per request.
+- The search cache table has one row per product and a primary key on `product_id`.
+- New product image filtering should use `web_admin_product_images(product_id, type)` after migration.
+- `build_buy_item.order_id` was previously noted as a possible future index, but current order volume is too small to justify an immediate migration without an admin order workload benchmark.
 
-- Attribute icon/value có dữ liệu legacy dạng URL và `javascript:void(0)`.
-- API `/api/categories/attributes` sanitize dữ liệu trước khi trả storefront.
-- Collation legacy có nguy cơ tạo mojibake khi client/connection encoding không đồng nhất.
-- Database trộn InnoDB và MyISAM, nên không được giả định mọi module hỗ trợ transaction như nhau.
+## Data Quality Observations
 
-## Security observations
+- Legacy content contains mixed encodings and old HTML/string fragments.
+- Attribute/icon values may contain URL-like or script-like legacy values; storefront APIs sanitize before rendering filters.
+- The database mixes transactional and non-transactional engines. Do not assume rollback works across every table touched by a feature.
+- Legacy image paths can be stored as folder/name combinations, absolute-looking media paths, or serialized collection strings.
 
-- Credential local hiện dùng development database.
-- Production cần dedicated DB user với least privilege.
-- Không commit `.env` hoặc log connection string.
-- Không expose raw DB error qua API public.
-
-## Re-check commands
+## Useful Re-Check Queries
 
 ```sql
-SELECT engine, COUNT(*)
+SELECT engine, COUNT(*) AS tables
 FROM information_schema.tables
-WHERE table_schema = 'hanoi23_db'
+WHERE table_schema = DATABASE()
 GROUP BY engine;
 ```
 
 ```sql
-SELECT table_name, table_rows, engine, table_collation
+SELECT table_collation, COUNT(*) AS tables
 FROM information_schema.tables
-WHERE table_schema = 'hanoi23_db'
-ORDER BY table_rows DESC;
+WHERE table_schema = DATABASE()
+GROUP BY table_collation
+ORDER BY tables DESC;
 ```
 
-Chạy lại audit sau migration, import DB mới hoặc thay đổi schema.
-
+```sql
+SELECT
+  (SELECT COUNT(*) FROM idv_sell_product_store) AS product_count,
+  (SELECT COUNT(*) FROM product_data_search) AS search_count,
+  (
+    SELECT COUNT(*)
+    FROM idv_sell_product_store p
+    LEFT JOIN product_data_search s ON s.product_id = p.id
+    WHERE s.product_id IS NULL
+  ) AS missing_search_count;
+```

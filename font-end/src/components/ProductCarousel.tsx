@@ -1,9 +1,34 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { Camera, ClipboardList, MessageCircle, Star, Users, Video } from "lucide-react";
 import ProgressiveImage from "./ProgressiveImage";
 
+type GalleryImage = {
+  url: string;
+  alt?: string;
+  type?: string;
+};
+
+function normalizeGalleryImages(input: unknown): GalleryImage[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((item) => {
+      if (typeof item === "string") return { url: item };
+      const record = item as Partial<GalleryImage>;
+      return record.url ? { url: record.url, alt: record.alt, type: record.type } : null;
+    })
+    .filter(Boolean) as GalleryImage[];
+}
+
 export default function ProductCarousel({ productData }: { productData: any }) {
-  const totalSlides = productData?.images?.length || 5;
+  const productImages = useMemo(() => {
+    const grouped = normalizeGalleryImages(productData?.imageGroups?.product);
+    return grouped.length > 0 ? grouped : normalizeGalleryImages(productData?.images);
+  }, [productData?.imageGroups?.product, productData?.images]);
+  const customerImages = useMemo(() => normalizeGalleryImages(productData?.imageGroups?.customer), [productData?.imageGroups?.customer]);
+  const [activeImageTab, setActiveImageTab] = useState<"product" | "customer">("product");
+  const currentGallery = activeImageTab === "customer" && customerImages.length > 0 ? customerImages : productImages;
+  const totalSlides = currentGallery.length || 1;
   const [curSlide, setCurSlide] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -15,6 +40,11 @@ export default function ProductCarousel({ productData }: { productData: any }) {
   const autoTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const realIndex = curSlide === 0 ? totalSlides - 1 : curSlide === totalSlides + 1 ? 0 : curSlide - 1;
+
+  useEffect(() => {
+    setIsTransitioning(false);
+    setCurSlide(1);
+  }, [activeImageTab]);
 
   useEffect(() => {
     startAuto();
@@ -63,6 +93,7 @@ export default function ProductCarousel({ productData }: { productData: any }) {
 
   const startAuto = () => {
     stopAuto();
+    if (totalSlides <= 1) return;
     autoTimerRef.current = setInterval(() => {
       setIsTransitioning(true);
       setCurSlide((prev) => prev + 1);
@@ -109,10 +140,10 @@ export default function ProductCarousel({ productData }: { productData: any }) {
     startAuto();
   };
 
-  const images = useMemo(
-    () => Array.from({ length: totalSlides }).map((_, i) => productData?.images?.[i] || productData?.images?.[0] || ""),
-    [productData?.images, totalSlides],
-  );
+  const images = useMemo(() => {
+    const fallback = productData?.images?.[0] || "https://placehold.co/800x800/1f2937/a1a1aa?text=No+Image";
+    return Array.from({ length: totalSlides }).map((_, i) => currentGallery[i] || currentGallery[0] || { url: fallback });
+  }, [currentGallery, productData?.images, totalSlides]);
   const clonedImages = useMemo(
     () => [images[images.length - 1], ...images, images[0]],
     [images],
@@ -127,7 +158,7 @@ export default function ProductCarousel({ productData }: { productData: any }) {
             className="flex flex-row lg:flex-col gap-3 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-1 lg:pb-0 h-full lg:max-h-[calc(5*100cqi+4*0.75rem)]"
             id="thumbList"
           >
-            {images.map((imgSrc, i) => (
+            {images.map((image, i) => (
               <div
                 key={i}
                 className={`thumb ${
@@ -140,8 +171,8 @@ export default function ProductCarousel({ productData }: { productData: any }) {
                 }}
               >
                 <ProgressiveImage
-                  src={imgSrc}
-                  alt={`${productData.name} thumb ${i + 1}`}
+                  src={image.url}
+                  alt={image.alt || `${productData.name} thumb ${i + 1}`}
                   className="w-full h-full object-cover text-transparent text-[0px]"
                 />
               </div>
@@ -174,12 +205,12 @@ export default function ProductCarousel({ productData }: { productData: any }) {
                 transition: isDragging || !isTransitioning ? "none" : "transform .4s cubic-bezier(.25,1,.5,1)",
               }}
             >
-              {clonedImages.map((imgSrc, i) => (
+              {clonedImages.map((image, i) => (
                 <div className="carousel-slide" key={i}>
                   <div className="w-full h-full p-2 lg:p-6 flex items-center justify-center">
                     <ProgressiveImage
-                      src={imgSrc}
-                      alt={`${productData.name} image ${i}`}
+                      src={image.url}
+                      alt={image.alt || `${productData.name} image ${i}`}
                       className="w-full h-full object-contain text-transparent text-[0px] drop-shadow-xl"
                     />
                   </div>
@@ -202,29 +233,66 @@ export default function ProductCarousel({ productData }: { productData: any }) {
 
       {/* Nav Buttons */}
       <div className="flex gap-3 mt-5 justify-center flex-wrap lg:pl-[calc(15%+0.75rem)]">
-        <a href="#sec-images" className="nav-btn">
-          <div className="icon">📷</div>
+        <button
+          type="button"
+          onClick={() => setActiveImageTab("product")}
+          className={`nav-btn ${activeImageTab === "product" ? "ring-2 ring-red-500/40" : ""}`}
+        >
+          <div className="icon">
+            <Camera className="w-7 h-7" />
+          </div>
           <span>
             Hình ảnh<br />
             sản phẩm
           </span>
-        </a>
+        </button>
+        <button
+          type="button"
+          onClick={() => customerImages.length > 0 && setActiveImageTab("customer")}
+          disabled={customerImages.length === 0}
+          className={`nav-btn ${activeImageTab === "customer" ? "ring-2 ring-red-500/40" : ""} ${
+            customerImages.length === 0 ? "opacity-45 cursor-not-allowed" : ""
+          }`}
+        >
+          <div className="icon">
+            <Users className="w-7 h-7" />
+          </div>
+          <span>
+            Hình ảnh<br />
+            khách hàng
+          </span>
+        </button>
         <a href="#sec-specs" className="nav-btn">
-          <div className="icon">📋</div>
+          <div className="icon">
+            <ClipboardList className="w-7 h-7" />
+          </div>
           <span>
             Thông số<br />
             kỹ thuật
           </span>
         </a>
+        <a href="#sec-video" className="nav-btn">
+          <div className="icon">
+            <Video className="w-7 h-7" />
+          </div>
+          <span>
+            Video sản<br />
+            phẩm
+          </span>
+        </a>
         <a href="#sec-faq" className="nav-btn">
-          <div className="icon">💬</div>
+          <div className="icon">
+            <MessageCircle className="w-7 h-7" />
+          </div>
           <span>
             Câu hỏi<br />
             thường gặp
           </span>
         </a>
         <a href="#sec-reviews" className="nav-btn">
-          <div className="icon">⭐</div>
+          <div className="icon">
+            <Star className="w-7 h-7" />
+          </div>
           <span>
             Đánh giá<br />
             sản phẩm

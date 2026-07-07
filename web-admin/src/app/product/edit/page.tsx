@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { EditProductClient } from './EditProductClient';
+import { listProductImages } from '@/lib/admin/images';
 
 async function getProductById(id: string) {
   try {
@@ -43,24 +44,7 @@ async function getProductById(id: string) {
       }
     }
 
-    // Parse image_collection from PHP serialized format
-    const parsedImages: any[] = [];
-    const rawImgCol = product.image_collection || '';
-    if (rawImgCol) {
-      const blockRegex = /s:10:"image_name";s:\d+:"([^"]+)";s:3:"alt";s:\d+:"([^"]*)"/g;
-      let match;
-      let index = 0;
-      while ((match = blockRegex.exec(rawImgCol)) !== null) {
-        parsedImages.push({
-          id: index,
-          stt: index === 0 ? 100 : index + 80,
-          url: `https://hacom.vn/media/product/${match[1]}`,
-          alt: match[2] || `Image ${index + 1}`,
-          isMain: index === 0,
-        });
-        index++;
-      }
-    }
+    const parsedImages = await listProductImages(Number(id), product.image_collection || '');
 
     // Remove raw field to avoid serializing large text to client
     delete product.image_collection;

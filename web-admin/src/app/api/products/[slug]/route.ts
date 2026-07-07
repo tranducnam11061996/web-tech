@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { groupProductImages, listProductImages } from '@/lib/admin/images';
 
 export async function GET(
   request: NextRequest,
@@ -76,21 +77,13 @@ export async function GET(
 
     const product = products[0];
 
-    // 3. Parse image_collection
-    const parsedImages: string[] = [];
-    const rawImgCol = product.image_collection || '';
-    if (rawImgCol) {
-      // PHP serialized parsing with regex
-      const blockRegex = /s:10:"image_name";s:\d+:"([^"]+)";s:3:"alt";s:\d+:"([^"]*)"/g;
-      let imgMatch;
-      while ((imgMatch = blockRegex.exec(rawImgCol)) !== null) {
-        parsedImages.push(`https://hacom.vn/media/product/${imgMatch[1]}`);
-      }
-    }
-    
-    // Add default image if none found
-    if (parsedImages.length === 0) {
-      parsedImages.push('https://placehold.co/800x800/1f2937/a1a1aa?text=No+Image');
+    // 3. Load product images. This lazily seeds legacy image_collection into
+    // metadata rows, then keeps legacy URL array for older storefront code.
+    const productImages = await listProductImages(Number(product.id), product.image_collection || '');
+    const imageGroups = groupProductImages(productImages);
+    const flatImageUrls = productImages.map((image) => image.url).filter(Boolean);
+    if (flatImageUrls.length === 0) {
+      flatImageUrls.push('https://placehold.co/800x800/1f2937/a1a1aa?text=No+Image');
     }
 
     // 4. Format Output Data
@@ -103,7 +96,9 @@ export async function GET(
       price: product.price || 0,
       marketPrice: product.market_price || 0,
       savings: Math.max(0, (product.market_price || 0) - (product.price || 0)),
-      images: parsedImages,
+      images: flatImageUrls,
+      imageItems: productImages,
+      imageGroups,
       specs: product.spec || '',
       description: product.description || '',
       proSummary: product.proSummary || '',

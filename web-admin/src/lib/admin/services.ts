@@ -166,7 +166,18 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     const [skuRows] = await connection.query<RowDataPacket[]>(skuQuery, skuBindings);
     if (skuRows.length > 0) throw new AdminApiError(409, 'CONFLICT', 'SKU da ton tai');
 
-    const images = serializeProductImages(normalizeImages(payload.images));
+    let images = serializeProductImages(normalizeImages(payload.images));
+    if (!Array.isArray(payload.images) && isUpdate) {
+      const [existingImageRows] = await connection.query<RowDataPacket[]>(
+        'SELECT proThum, image_collection, image_count FROM idv_sell_product_store WHERE id = ? LIMIT 1',
+        [productId],
+      );
+      images = {
+        primary: String(existingImageRows[0]?.proThum || ''),
+        serialized: String(existingImageRows[0]?.image_collection || ''),
+        count: toInt(existingImageRows[0]?.image_count),
+      };
+    }
     const now = new Date();
     const unixTime = Math.floor(now.getTime() / 1000);
 

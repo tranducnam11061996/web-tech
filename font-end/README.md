@@ -1,52 +1,88 @@
-# HACOM Storefront (`font-end`)
+# HACOM Storefront
 
-Storefront khách hàng chạy bằng Next.js 15 App Router tại cổng `3001`.
+Last audited: 2026-07-07
 
-## Nguyên tắc bắt buộc
+`font-end` is the customer-facing storefront. It must not connect directly to MySQL. All dynamic data should come from `web-admin` APIs.
 
-- Không kết nối trực tiếp MySQL.
-- Mọi dữ liệu động đi qua API `web-admin` tại cổng `3000`.
-- Không thay đổi UI/class/layout khi task chỉ yêu cầu tối ưu logic hoặc hiệu suất.
-- Trang nội dung ưu tiên Server Component; chỉ tách Client Component cho tương tác.
-- Không gọi các hàm global từ `public/main.js`; menu/filter dùng React state.
-- Dùng `ProgressiveImage` cho ảnh động cần placeholder/lazy loading.
+## Responsibilities
 
-## Routes chính
+- Render customer product/category/news pages.
+- Own cart and checkout UI state.
+- Call backend APIs through `NEXT_PUBLIC_API_URL` or configured rewrites.
+- Keep UI behavior in React state instead of legacy global scripts.
+- Display product detail images using backend `imageGroups` when available.
 
-| Route | Component | Ghi chú |
-|---|---|---|
-| `/` | `app/page.tsx` | Static home shell |
-| `/[slug]` | `app/[slug]/page.tsx` | Server gateway cho product/category |
-| `/category` | `app/category/page.tsx` | Category theo query id |
-| `/gio-hang` | `CartClient` | Guest cart từ localStorage |
-| `/thanh-toan` | `CheckoutClient` | Quote selected items và tạo order |
-| `/tin-tuc` | `app/tin-tuc/page.tsx` | News landing |
-| `/tin-tuc/[slug]` | Server route | Article/category news |
+## Environment
 
-## Dynamic slug gateway
+```env
+NEXT_PUBLIC_API_URL=http://localhost:3000
+```
 
-`app/[slug]/page.tsx` gọi:
+The app currently has a Next rewrite for `/api/:path*` to the local backend, so client code can also call same-origin `/api/...` where appropriate.
+
+## Commands
+
+```powershell
+npm.cmd install
+npm.cmd run dev
+npx.cmd tsc --noEmit
+$env:NODE_OPTIONS='--max-old-space-size=4096'
+npm.cmd run build
+```
+
+Known checks:
+
+- Typecheck passed on 2026-07-07.
+- Build passed on 2026-07-07 with increased Node memory.
+- Lint is not configured; Next.js prompts for setup.
+
+## Main Routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Home shell |
+| `/[slug]` | Product/category dynamic gateway |
+| `/category` | Category by query id |
+| `/tim` | Search page |
+| `/gio-hang` | Guest cart |
+| `/thanh-toan` | Checkout |
+| `/tin-tuc` | News landing |
+| `/tin-tuc/[slug]` | News article/category |
+
+## Dynamic Slug Flow
+
+`app/[slug]/page.tsx` calls:
 
 ```text
 GET http://localhost:3000/api/products/{slug}
 ```
 
-Nếu response là category, server fetch song song:
+If the response is a category, the server fetches initial data from:
 
 - `/api/products?category_id=...`
 - `/api/categories?parentId=...`
 - `/api/categories/price-bounds?categoryId=...`
 - `/api/categories/attributes?categoryId=...`
 
-Sau hydration, `CategoryClient` chỉ fetch lại product list khi page/filter/sort thay đổi. Metadata category chỉ fetch lại khi category id đổi.
+After hydration, `CategoryClient` refetches product lists when page, filter, price, or sort changes.
 
-## Category filter
+## Product Detail Images
 
-- URL search params là source of truth cho attribute, brand, price và sort.
-- Active filters được derive bằng `Map`, không setState trong render.
-- Request cũ được hủy bằng `AbortController`.
-- Attribute value chứa URL/script legacy bị ẩn phòng thủ ở frontend; backend cũng làm sạch response.
-- Pagination hiện được giữ trong React state, mỗi trang `24` sản phẩm.
+`ProductCarousel` should prefer the new grouped payload from `/api/products/[slug]`:
+
+```ts
+imageGroups.product   // product + self images
+imageGroups.customer  // customer images
+```
+
+Fallback behavior still supports legacy flat image arrays so old products keep rendering.
+
+UI rules:
+
+- Default to product images.
+- Customer tab uses only `customer` type images.
+- Hide or lightly disable the customer tab when no customer images exist.
+- Do not change the wider product detail style unless the task explicitly asks for it.
 
 ## Cart
 
@@ -56,64 +92,46 @@ Storage key:
 hacom.cart.v1
 ```
 
-Cart hỗ trợ:
+Cart supports:
 
-- Merge item trùng `productId`.
-- Quantity `1..99` ở client.
-- Selected item, select all, remove selected.
-- Saved for later.
-- Header badge theo tổng quantity active.
-- Reload vẫn giữ dữ liệu.
+- Merge duplicate `productId`.
+- Quantity `1..99` on the client.
+- Selected items and select all.
+- Remove selected.
+- Save for later and restore.
+- Header badge for active quantity.
+- Reload persistence.
 
-Giá localStorage không phải nguồn tin cậy. Cart và checkout gọi `POST /api/cart/quote`; order API re-quote thêm lần nữa.
+Local cart price is not trusted. Cart and checkout call `POST /api/cart/quote`; order creation re-quotes on the backend.
 
-## Components hiệu suất
+## Component Notes
 
-### `ProgressiveImage`
+`ProgressiveImage`:
 
-- Cache SVG placeholder theo fallback text.
-- `IntersectionObserver` với root margin `50px`.
-- Native `loading="lazy"`.
-- Giữ placeholder nếu ảnh lỗi.
+- Caches SVG placeholders.
+- Uses native lazy loading.
+- Keeps placeholder if image loading fails.
 
-### `ProductCarousel`
+`ProductCarousel`:
 
-- Custom React carousel, không dùng Swiper.
-- Memoize `images` và cloned images.
-- Drag delta lưu trong ref để tránh render từng pixel.
-- Auto timer dừng khi tab ẩn và cleanup khi unmount.
+- Custom carousel, no Swiper.
+- Uses refs for drag delta.
+- Stops timer when document tab is hidden.
+- Reads grouped images when supplied.
 
-### `Header`
+`Header`:
 
-- Menu data ở `src/components/menuData.ts`.
-- Mega menu desktop/mobile render bằng React.
-- Click-outside và body class được cleanup.
-- Không phụ thuộc global script.
+- Uses `src/components/menuData.ts`.
+- Desktop/mobile menu are React-driven.
+- Does not depend on `public/main.js`.
 
-## Biến môi trường
-
-```env
-NEXT_PUBLIC_API_URL="http://localhost:3000"
-```
-
-Next config hiện vẫn có rewrite `/api/:path*` sang backend local để client gọi cùng origin.
-
-## Commands
-
-```powershell
-npm.cmd install
-npm.cmd run dev
-npm.cmd run build
-```
-
-## Kiểm thử tối thiểu
+## Minimum Manual Checks
 
 - `/laptop`: load, filter, sort, pagination, quick filter search.
-- Product detail: quantity, add cart, buy online.
-- Cart: select, quantity, saved for later, delete, quote.
+- `/tim`: search query and pagination.
+- Product detail: image tabs, quantity, add to cart, buy online.
+- Cart: select, quantity, save for later, delete, quote refresh.
 - Checkout: selected items, invalid item, submit validation.
 - Header: badge, desktop menu, mobile menu.
-- Build production trước khi bàn giao.
 
-Xem trạng thái và test gap tại `../PROJECT_PROGRESS.md`.
-
+See `..\PROJECT_PROGRESS.md` for current test gaps and production blockers.

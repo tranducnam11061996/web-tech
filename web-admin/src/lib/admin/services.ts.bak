@@ -153,11 +153,11 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     await assertRowsExist(connection, 'idv_seller_category', 'id', categoryIds, 'Danh muc');
     if (attrValueIds.length > 0) await assertRowsExist(connection, 'idv_attribute_value', 'id', attrValueIds, 'Thuoc tinh');
 
-    const isUpdate = id !== undefined && id > 0;
-    const skuQuery = 'SELECT id FROM idv_sell_product_store WHERE storeSKU = ?' + (isUpdate ? ' AND id <> ?' : '') + ' LIMIT 1';
-    const skuBindings = isUpdate ? [sku, productId] : [sku];
-    const skuRows = await connection.query<RowDataPacket[]>(skuQuery, skuBindings);
-    if (skuRows.length > 0) throw new AdminApiError(409, 'CONFLICT', 'SKU da ton tai');
+    const skuRows = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM idv_sell_product_store WHERE storeSKU = ? AND id <> ? LIMIT 1',
+      [sku, productId],
+    );
+    if (skuRows[0].length > 0) throw new AdminApiError(409, 'CONFLICT', 'SKU da ton tai');
 
     const images = serializeProductImages(normalizeImages(payload.images));
     const now = new Date();
@@ -493,8 +493,7 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
     const title = requireText(payload.title, 'title', 'Tieu de', 255);
     const categoryIds = parseIdList(payload.categoryIds || payload.categories || payload.catId, 100);
     await assertRowsExist(connection, 'idv_seller_news_category', 'id', categoryIds, 'Danh muc bai viet');
-    const existingCatId = id ? toInt((await connection.query('SELECT catId FROM idv_seller_news WHERE id = ? LIMIT 1', [id]))[0][0]?.catId) : 0;
-  const primaryCategoryId = payload.catId !== undefined ? toInt(payload.catId) : (existingCatId || toInt(categoryIds[0], 0));
+    const primaryCategoryId = toInt(payload.catId, categoryIds[0]);
     const slug = normalizeSlug(payload.slug || payload.url || title);
     if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le');
     const now = new Date();

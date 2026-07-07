@@ -12,11 +12,15 @@ declare global {
 export function RichTextEditor({ 
   title, 
   defaultValue, 
+  value,
+  onChange,
   minHeight = "200px",
   id
 }: { 
   title?: string; 
   defaultValue?: string; 
+  value?: string;
+  onChange?: (value: string) => void;
   minHeight?: string;
   id?: string;
 }) {
@@ -65,12 +69,18 @@ export function RichTextEditor({
           'alignright alignjustify | bullist numlist outdent indent | ' +
           'removeformat | help',
         setup: (editor: any) => {
-          if (defaultValue) {
+          const initialValue = value ?? defaultValue;
+          if (initialValue) {
             editor.on('init', () => {
               // If content already contains HTML tags, set it directly
               // Only convert \n to <br/> for plain text content
-              const isHtml = /<[a-z][\s\S]*>/i.test(defaultValue);
-              editor.setContent(isHtml ? defaultValue : defaultValue.replace(/\n/g, '<br/>'));
+              const isHtml = /<[a-z][\s\S]*>/i.test(initialValue);
+              editor.setContent(isHtml ? initialValue : initialValue.replace(/\n/g, '<br/>'));
+            });
+          }
+          if (onChange) {
+            editor.on('change keyup undo redo setcontent', () => {
+              onChange(editor.getContent());
             });
           }
         }
@@ -83,7 +93,7 @@ export function RichTextEditor({
         initialized.current = false;
       }
     };
-  }, [minHeight, defaultValue, scriptReady]);
+  }, [minHeight, defaultValue, value, onChange, scriptReady]);
 
   return (
     <>

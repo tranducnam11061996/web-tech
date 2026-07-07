@@ -2,121 +2,91 @@
 
 import { RichTextEditor } from './RichTextEditor';
 
-/**
- * Extract video URLs from PHP serialized string.
- * Input: 'a:1:{i:0;a:2:{s:3:"url";s:43:"https://www.youtube.com/watch?v=xxx";s:11:"description";...}}'
- * Output: 'https://www.youtube.com/watch?v=xxx'
- * Multiple URLs are separated by ';'
- */
-function extractVideoUrls(raw: string): string {
-  if (!raw) return '';
-  const matches = raw.match(/https?:\/\/[^"';\s]+/g);
-  if (!matches || matches.length === 0) return raw;
-  return matches.join(' ; ');
-}
+type Props = {
+  product?: any;
+  form?: Record<string, any>;
+  onChange?: (field: string, value: any) => void;
+};
 
-/**
- * Format number with dot thousand separators (Vietnamese style).
- * Example: 13999000 → '13.999.000'
- */
-function formatPrice(value: number | string | null | undefined): string {
-  if (value === null || value === undefined || value === '' || value === 0) return '';
-  const num = typeof value === 'string' ? parseInt(value, 10) : value;
-  if (isNaN(num)) return String(value);
-  return num.toLocaleString('vi-VN');
-}
+export function TabBasic({ product, form, onChange }: Props) {
+  const current = form || product || {};
+  const update = (field: string) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    onChange?.(field, event.target.value);
+  };
 
-export function TabBasic({ product }: { product?: any }) {
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      {/* Product Info Section */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {/* Row 1: Tên sản phẩm | Mã sản phẩm | Chọn thương hiệu */}
         <div className="col-span-1 md:col-span-2 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tên sản phẩm <span className="text-red-500">*</span></label>
-          <input type="text" defaultValue={product?.proName || ''} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 outline-none transition-all shadow-inner" />
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ten san pham <span className="text-red-500">*</span></label>
+          <input value={current.name || current.proName || ''} onChange={update('name')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 focus:ring-1 focus:ring-red-500/30 outline-none transition-all shadow-inner" />
         </div>
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Mã sản phẩm</label>
-          <input type="text" defaultValue={product?.storeSKU || ''} disabled className="w-full bg-gray-950/50 border border-gray-800 rounded-sm px-3 py-2 text-sm text-gray-500 cursor-not-allowed font-mono" />
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">SKU <span className="text-red-500">*</span></label>
+          <input value={current.sku || current.storeSKU || ''} onChange={update('sku')} maxLength={15} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
         </div>
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Chọn thương hiệu <span className="text-red-500">*</span></label>
-          <select disabled className="w-full bg-gray-950/50 border border-gray-800 rounded-sm px-3 py-2 text-sm text-gray-500 cursor-not-allowed appearance-none">
-            <option>{product?.brandName || 'N/A'}</option>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Brand ID</label>
+          <input value={current.brandId || 0} onChange={update('brandId')} type="number" className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner" />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Gia ban</label>
+          <input value={current.price ?? ''} onChange={update('price')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-green-400 font-bold focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Gia thi truong</label>
+          <input value={current.marketPrice ?? current.market_price ?? ''} onChange={update('marketPrice')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-orange-400 font-bold focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Hien thi</label>
+          <select value={String(current.status ?? current.isOn ?? 1)} onChange={update('status')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner appearance-none">
+            <option value="1">Hien</option>
+            <option value="0">An</option>
           </select>
         </div>
 
-        {/* Row 2: Giá HSSV | Giá thị trường | Hiển thị | Số thứ tự hiển thị */}
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Giá HSSV/Giá khoảng từ - đến</label>
-          <input type="text" defaultValue={formatPrice(product?.price)} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-green-400 font-bold focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
-        </div>
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Giá thị trường</label>
-          <input type="text" defaultValue={formatPrice(product?.market_price)} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-orange-400 font-bold focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
-        </div>
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Hiển thị</label>
-          <select defaultValue={product?.isOn ? 'Hiện' : 'Ẩn'} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner appearance-none">
-            <option value="Hiện">Hiện</option>
-            <option value="Ẩn">Ẩn</option>
-          </select>
-        </div>
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Số thứ tự hiển thị</label>
-          <input type="number" defaultValue={product?.ordering || 0} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner" />
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Thu tu</label>
+          <input type="number" value={current.ordering ?? 0} onChange={update('ordering')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner" />
         </div>
 
-        {/* Row 3: Link video sản phẩm | Tên mô tả ngắn sản phẩm | HighlightClass */}
-        <div className="col-span-1 md:col-span-2 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Link video sản phẩm</label>
-          <input type="text" defaultValue={extractVideoUrls(product?.video_code || '')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-blue-400 focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
-        </div>
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tên mô tả ngắn sản phẩm</label>
-          <input type="text" defaultValue="" className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner" />
-        </div>
-        <div className="col-span-1 md:col-span-1 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">HighlightClass</label>
-          <input type="text" defaultValue="" className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-yellow-400 focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
+        <div className="md:col-span-2 space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slug</label>
+          <input value={current.slug || current.url || ''} onChange={update('slug')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-blue-400 focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
         </div>
 
-        <div className="col-span-1 md:col-span-4 space-y-2 mb-4">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Note - Lưu ý</label>
-          <textarea 
-            rows={5}
-            className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner custom-scrollbar" 
-            defaultValue=""
-          />
+        <div className="md:col-span-2 space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Video</label>
+          <input value={current.videoCode || current.video_code || ''} onChange={update('videoCode')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-blue-400 focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
+        </div>
+
+        <div className="md:col-span-4 space-y-2">
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Tom tat ngan</label>
+          <textarea rows={6} value={current.summary ?? current.proSummary ?? ''} onChange={update('summary')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner custom-scrollbar" />
         </div>
       </div>
 
       <hr className="border-gray-800" />
 
-      {/* Thông số ngắn & Khuyến mãi (moved from Description tab) */}
-      <div className="space-y-6">
-        <RichTextEditor 
-          title="Khuyến mãi (web)" 
-          minHeight="150px"
-          defaultValue={product?.specialOffer || ''}
-        />
+      <RichTextEditor
+        title="Khuyen mai"
+        minHeight="150px"
+        value={current.specialOffer || ''}
+        onChange={(value) => onChange?.('specialOffer', value)}
+      />
 
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Thông số ngắn</label>
-          <textarea 
-            rows={6}
-            className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner custom-scrollbar" 
-            defaultValue={product?.proSummary || ''}
-          />
-        </div>
-
-        <RichTextEditor 
-          title="Bảng thông số sản phẩm" 
-          minHeight="200px"
-          defaultValue={product?.spec || ''}
-        />
-      </div>
+      <RichTextEditor
+        title="Bang thong so san pham"
+        minHeight="200px"
+        value={current.spec || ''}
+        onChange={(value) => onChange?.('spec', value)}
+      />
     </div>
   );
 }
+

@@ -37,28 +37,32 @@ function getDatabaseUrl() {
 function createPoolConfig(): mysql.PoolOptions {
   const databaseUrl = getDatabaseUrl();
 
+  const baseConfig: mysql.PoolOptions = {
+    waitForConnections: true,
+    connectionLimit: 25,
+    queueLimit: 0,
+  };
+
   if (databaseUrl) {
     const parsed = new URL(databaseUrl);
     return {
+      ...baseConfig,
       host: parsed.hostname,
       port: parsed.port ? Number(parsed.port) : 3306,
       user: decodeURIComponent(parsed.username),
       password: decodeURIComponent(parsed.password),
       database: decodeURIComponent(parsed.pathname.replace(/^\/+/, '')),
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0,
+      charset: 'utf8mb4',
     };
   }
 
   return {
+    ...baseConfig,
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'hanoi23_db',
-    waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0,
+    charset: 'utf8mb4',
   };
 }
 

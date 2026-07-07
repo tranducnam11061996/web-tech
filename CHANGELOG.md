@@ -56,3 +56,25 @@ Các thay đổi đáng chú ý của workspace HACOM được ghi theo ngày tr
 - Chưa có automated integration test cho transaction tạo đơn.
 - Cart có thể hiển thị cache giá localStorage trong thời gian quote đang chạy.
 
+
+## 2026-07-06 - Admin CRUD
+
+### Added
+
+- Admin CRUD API for products, product categories, articles, and article categories.
+- Admin migration helper tables `web_admin_sequence` and `web_admin_entity_registry`.
+- `npm.cmd run admin:migrate` script gated by `ADMIN_WRITE_ENABLED=true`.
+- First-pass Admin edit/list UI wiring for save, hide/delete, loading, error, and success states.
+- `RichTextEditor` controlled `value/onChange` support.
+- Admin migration guide at `web-admin/database-docs/ADMIN_MIGRATION_GUIDE.md`.
+
+### Changed
+
+- Storefront news category API now reads article membership through `idv_article_category` instead of fuzzy string matching.
+- ESLint ignores offline runtime assets and legacy scratch scripts, and relaxes rules that were failing broad legacy code.
+
+### Verification
+
+- `web-admin`: `npm.cmd run lint` pass with warnings.
+- `web-admin`: `npm.cmd run build` pass.
+- DB write integration tests not run because no real `DATABASE_URL` is present in this workspace.

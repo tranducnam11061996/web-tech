@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Eye, EyeOff, Star, Edit, Trash2, FileText, G
 import Link from 'next/link';
 import clsx from 'clsx';
 import { Pagination } from '@/components/shared/Pagination';
+import { useRouter } from 'next/navigation';
 
 export type CategoryNode = {
   id: string;
@@ -28,8 +29,21 @@ type CategoryTableProps = {
 };
 
 function CategoryRow({ node, level = 0 }: { node: CategoryNode, level?: number }) {
+  const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(level === 0 && node.children && node.children.length > 0);
   const hasChildren = node.children && node.children.length > 0;
+
+  const hideCategory = async () => {
+    if (!confirm(`An danh muc #${node.id}?`)) return;
+    try {
+      const response = await fetch(`/api/admin/product-categories/${node.id}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the an danh muc');
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || 'Khong the an danh muc');
+    }
+  };
 
   return (
     <>
@@ -82,10 +96,10 @@ function CategoryRow({ node, level = 0 }: { node: CategoryNode, level?: number }
         <td className="p-3 border-b border-gray-800/50 text-center">
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center justify-center gap-2">
-              <Link href="/product/categories-edit">
+              <Link href={`/product/categories-edit?id=${node.id}`}>
                 <button className="p-1 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-3.5 h-3.5" /></button>
               </Link>
-              <button className="p-1 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-3.5 h-3.5" /></button>
+              <button onClick={hideCategory} className="p-1 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-3.5 h-3.5" /></button>
               <button className="p-1 text-teal-400 hover:text-white hover:bg-teal-600 bg-teal-950/30 border border-teal-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(20,184,166,0.5)]"><FileText className="w-3.5 h-3.5" /></button>
               <button className="p-1 text-blue-400 hover:text-white hover:bg-blue-600 bg-blue-950/30 border border-blue-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(59,130,246,0.5)]"><Globe className="w-3.5 h-3.5" /></button>
             </div>

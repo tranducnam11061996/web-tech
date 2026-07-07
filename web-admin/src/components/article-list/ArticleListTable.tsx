@@ -4,6 +4,7 @@ import { Edit, Trash2, ArrowUpDown, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import ProgressiveImage from '@/components/shared/ProgressiveImage';
+import { useState } from 'react';
 
 export type ArticleNode = {
   id: string;
@@ -36,6 +37,7 @@ export function ArticleListTable({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const createPageURL = (pageNumber: number | string, limitValue?: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -50,13 +52,28 @@ export function ArticleListTable({
     router.push(createPageURL(1, Number(e.target.value)));
   };
 
+  const hideArticle = async (row: ArticleNode) => {
+    if (!confirm(`An bai viet #${row.id}?`)) return;
+    setBusyId(row.id);
+    try {
+      const response = await fetch(`/api/admin/articles/${row.id}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the an bai viet');
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || 'Khong the an bai viet');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   // Generate page numbers for pagination
   const renderPaginationButtons = () => {
     const buttons = [];
     const maxVisiblePages = 5;
     
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
     
     if (endPage - startPage + 1 < maxVisiblePages) {
       startPage = Math.max(1, endPage - maxVisiblePages + 1);
@@ -142,10 +159,10 @@ export function ArticleListTable({
                       <a href={row.url} target="_blank" rel="noopener noreferrer" className="p-1.5 text-blue-400 hover:text-white hover:bg-blue-600 bg-blue-950/30 border border-blue-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(59,130,246,0.5)]" title="Xem trên web">
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
-                      <Link href={`/news/edit`}>
+                      <Link href={`/news/edit?id=${row.id}`}>
                         <button className="p-1.5 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]" title="Chỉnh sửa"><Edit className="w-3.5 h-3.5" /></button>
                       </Link>
-                      <button className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button disabled={busyId === row.id} onClick={() => hideArticle(row)} className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-50" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </td>
                 </tr>

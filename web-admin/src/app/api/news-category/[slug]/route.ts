@@ -29,21 +29,23 @@ export async function GET(
 
     // 2. Fetch total count
     const [countRows] = await pool.query(
-      `SELECT COUNT(*) as total 
-       FROM idv_seller_news 
-       WHERE catId = ? OR article_category LIKE ?`,
-      [category.id, `%${category.id}%`]
+      `SELECT COUNT(DISTINCT n.id) as total
+       FROM idv_seller_news n
+       LEFT JOIN idv_article_category ac ON ac.news_id = n.id
+       WHERE n.catId = ? OR ac.category_id = ?`,
+      [category.id, category.id]
     );
     const totalNews = (countRows as any[])[0].total;
 
     // 3. Fetch articles for this category
     const [newsRows] = await pool.query(
-      `SELECT id, title, url, thumnail, summary, createDate, visit, createBy 
-       FROM idv_seller_news 
-       WHERE catId = ? OR article_category LIKE ? 
-       ORDER BY createDate DESC 
+      `SELECT DISTINCT n.id, n.title, n.url, n.thumnail, n.summary, n.createDate, n.visit, n.createBy
+       FROM idv_seller_news n
+       LEFT JOIN idv_article_category ac ON ac.news_id = n.id
+       WHERE n.catId = ? OR ac.category_id = ?
+       ORDER BY n.createDate DESC
        LIMIT ? OFFSET ?`,
-      [category.id, `%${category.id}%`, limit, offset]
+      [category.id, category.id, limit, offset]
     );
 
     const response = NextResponse.json({ 

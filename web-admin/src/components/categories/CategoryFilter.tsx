@@ -1,6 +1,7 @@
 'use client';
 
 import { Plus, Trash2, Download, Upload, Info, Search, Filter, CheckCircle } from 'lucide-react';
+import Link from 'next/link';
 
 export function CategoryFilter() {
   return (
@@ -10,9 +11,9 @@ export function CategoryFilter() {
         <button className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-gray-500 bg-gray-900/50 border border-gray-800 rounded-sm hover:text-red-400 hover:border-red-900 transition-all uppercase tracking-wider disabled:opacity-50">
           <Trash2 className="w-3.5 h-3.5" /> Xóa (đã chọn)
         </button>
-        <button className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-blue-400 bg-blue-950/20 border border-blue-900 rounded-sm hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all uppercase tracking-wider">
+        <Link href="/product/categories-edit" className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-blue-400 bg-blue-950/20 border border-blue-900 rounded-sm hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all uppercase tracking-wider">
           <Plus className="w-3.5 h-3.5" /> Thêm mới
-        </button>
+        </Link>
         <button className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-green-400 bg-green-950/20 border border-green-900 rounded-sm hover:border-green-500 hover:shadow-[0_0_15px_rgba(34,197,94,0.3)] transition-all uppercase tracking-wider">
           <Download className="w-3.5 h-3.5" /> Export Excel
         </button>

@@ -174,13 +174,24 @@ export default async function EditProductPage(props: {
   const searchParams = await props.searchParams;
   const id = searchParams?.id as string;
   
-  if (!id) {
-    return <div className="p-10 text-center text-red-500 font-bold">Vui lòng cung cấp ID sản phẩm!</div>;
-  }
+  const { product, parsedImages } = id
+    ? await getProductById(id)
+    : {
+        product: {
+          id: undefined,
+          proName: '',
+          storeSKU: '',
+          brandId: 0,
+          price: 0,
+          market_price: 0,
+          isOn: 1,
+          ordering: 0,
+          product_cat: '',
+        },
+        parsedImages: [] as any[],
+      };
 
-  const { product, parsedImages } = await getProductById(id);
-
-  if (!product) {
+  if (id && !product) {
     return <div className="p-10 text-center text-red-500 font-bold">Không tìm thấy sản phẩm!</div>;
   }
 
@@ -191,7 +202,7 @@ export default async function EditProductPage(props: {
 
   const [categories, attributesData, combosData] = await Promise.all([
     getCategories(),
-    getProductAttributes(product.id, product.product_cat || ''),
+    product.id ? getProductAttributes(product.id, product.product_cat || '') : Promise.resolve([]),
     getCombos(page, limit, search, status)
   ]);
 

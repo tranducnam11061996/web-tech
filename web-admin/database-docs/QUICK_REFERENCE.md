@@ -167,3 +167,16 @@ ORDER BY id;
 - Filter metadata có dữ liệu URL/script legacy; API phải sanitize.
 - Không thêm index/migration chỉ dựa trên suy đoán; đo query và backup trước.
 
+
+## Admin CRUD helper tables
+
+```text
+web_admin_sequence.name = 'product'
+  -> allocates new idv_sell_product_store.id values inside transactions
+
+web_admin_entity_registry(entity_type, entity_id)
+  -> marks entities created by the new Admin API
+  -> required before permanent delete is allowed
+```
+
+Writes require `ADMIN_WRITE_ENABLED=true`. Legacy data should be hidden/restored, not permanently deleted.

@@ -1,251 +1,147 @@
-import { RichTextEditor } from '@/components/products/edit/RichTextEditor';
-import { Save, X, Image as ImageIcon, Upload } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
+'use client';
 
-export default function CategoryEditPage() {
+import { Suspense } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Save, X } from 'lucide-react';
+
+function CategoryEditInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id');
+  const [form, setForm] = useState({
+    name: '',
+    slug: '',
+    parentId: 0,
+    status: 1,
+    ordering: 0,
+    description: '',
+    metaTitle: '',
+    metaKeyword: '',
+    metaDescription: '',
+  });
+  const [loading, setLoading] = useState(Boolean(id));
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    fetch(`/api/admin/product-categories/${id}`)
+      .then((response) => response.json().then((payload) => ({ response, payload })))
+      .then(({ response, payload }) => {
+        if (!alive) return;
+        if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the tai danh muc');
+        const row = payload.data;
+        setForm({
+          name: row.name || '',
+          slug: row.url || '',
+          parentId: Number(row.parentId || 0),
+          status: Number(row.status ?? 1),
+          ordering: Number(row.ordering || 0),
+          description: row.description || '',
+          metaTitle: row.meta_title || '',
+          metaKeyword: row.meta_keyword || '',
+          metaDescription: row.meta_description || '',
+        });
+      })
+      .catch((loadError) => setError(loadError.message || 'Khong the tai danh muc'))
+      .finally(() => setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  const update = (field: string) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    setForm((current) => ({ ...current, [field]: event.target.value }));
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setMessage('');
+    setError('');
+    try {
+      const response = await fetch(id ? `/api/admin/product-categories/${id}` : '/api/admin/product-categories', {
+        method: id ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the luu danh muc');
+      setMessage(payload.message || 'Da luu danh muc');
+      if (!id && payload.data?.id) router.replace(`/product/categories-edit?id=${payload.data.id}`);
+      router.refresh();
+    } catch (saveError: any) {
+      setError(saveError.message || 'Khong the luu danh muc');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="w-full h-full p-6 text-gray-400">Dang tai danh muc...</div>;
+  }
+
   return (
     <div className="w-full h-full p-2 animate-in fade-in duration-300 overflow-y-auto custom-scrollbar relative">
       <div className="flex justify-between items-center mb-4 sticky top-0 bg-[#0a0a0f]/90 backdrop-blur-md z-20 py-2 border-b border-gray-800/50">
-        <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-blue-500 flex items-center gap-3">
-          <span className="w-1.5 h-6 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>
-          Chỉnh sửa danh mục sản phẩm
-        </h1>
+        <h1 className="text-xl font-bold text-gray-200">{id ? 'Chinh sua danh muc san pham' : 'Them danh muc san pham'}</h1>
         <div className="flex gap-3">
-          <Link href="/product/categories">
-            <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-700 hover:border-gray-500 text-gray-300 rounded-md transition-all">
-              <X className="w-4 h-4" /> Đóng danh mục
-            </button>
-          </Link>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] hover:shadow-[0_0_20px_rgba(37,99,235,0.5)]">
-            <Save className="w-4 h-4" /> Sửa danh mục
+          <button onClick={() => router.push('/product/categories')} className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-700 hover:border-gray-500 text-gray-300 rounded-md transition-all">
+            <X className="w-4 h-4" /> Dong
+          </button>
+          <button onClick={save} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all disabled:opacity-60">
+            <Save className="w-4 h-4" /> {saving ? 'Dang luu...' : 'Luu'}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 w-full h-full pb-20">
-        
-        {/* Section 1: Thông tin cơ bản */}
+      {message && <div className="mb-3 px-3 py-2 border border-green-900 bg-green-950/30 text-green-300 text-xs font-bold">{message}</div>}
+      {error && <div className="mb-3 px-3 py-2 border border-red-900 bg-red-950/30 text-red-300 text-xs font-bold">{error}</div>}
+
+      <div className="grid grid-cols-1 gap-6 w-full pb-20">
         <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-5">
-          <h2 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-1 h-4 bg-blue-500 rounded-full"></span> Thông tin cơ bản
-          </h2>
-          
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Tên danh mục: <span className="text-red-500">*</span></label>
-              <input type="text" defaultValue="Laptop, Tablet, Surface" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Mã danh mục: <span className="text-red-500">*</span></label>
-              <input type="text" defaultValue="693" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-300">URL</label>
-            <input type="text" defaultValue="/laptop-tablet-mobile" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Nổi bật <span className="text-red-500">*</span></label>
-              <select className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
-                <option>Nổi bật</option>
-                <option>Không</option>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <label className="space-y-1 text-sm text-gray-300">Ten danh muc
+              <input value={form.name} onChange={update('name')} className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
+            </label>
+            <label className="space-y-1 text-sm text-gray-300">Slug
+              <input value={form.slug} onChange={update('slug')} className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50 font-mono" />
+            </label>
+            <label className="space-y-1 text-sm text-gray-300">Parent ID
+              <input type="number" value={form.parentId} onChange={update('parentId')} className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
+            </label>
+            <label className="space-y-1 text-sm text-gray-300">Trang thai
+              <select value={form.status} onChange={update('status')} className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
+                <option value={1}>Hien</option>
+                <option value={0}>An</option>
               </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Trạng thái <span className="text-red-500">*</span></label>
-              <select className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
-                <option>Hiện</option>
-                <option>Ẩn</option>
-              </select>
-            </div>
+            </label>
+            <label className="space-y-1 text-sm text-gray-300">Thu tu
+              <input type="number" value={form.ordering} onChange={update('ordering')} className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
+            </label>
           </div>
-
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Là danh mục con của:</label>
-              <select className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
-                <option>Chọn danh mục cha...</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Loại nội dung hiển thị: <span className="text-red-500">*</span></label>
-              <select className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
-                <option>Hiển thị sản phẩm + Danh mục con</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-12 gap-6 items-center bg-gray-900/30 p-4 rounded-md border border-gray-800">
-            <div className="col-span-4 space-y-1">
-              <label className="text-sm font-medium text-gray-300 block">Là danh mục sản phẩm hay SEO <span className="text-red-500">*</span></label>
-              <select className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
-                <option>Category</option>
-              </select>
-            </div>
-            <div className="col-span-4 flex items-center gap-2">
-              <input type="checkbox" className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-red-500 focus:ring-red-500" />
-              <label className="text-sm text-gray-300">Dùng làm danh mục build pc</label>
-            </div>
-            <div className="col-span-4 flex items-center gap-2">
-              <input type="checkbox" className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-red-500 focus:ring-red-500" />
-              <label className="text-sm text-gray-300">Dùng làm mega menu</label>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-6">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Thứ tự xuất hiện (cao xếp trước):</label>
-              <input type="number" defaultValue="35" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Template File:</label>
-              <input type="text" placeholder="Template File..." className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-            <div className="flex items-center gap-2 pt-6">
-              <input type="checkbox" className="w-4 h-4 rounded bg-gray-900 border-gray-700 text-red-500 focus:ring-red-500" />
-              <label className="text-sm text-gray-300">Hiển thị danh mục này trong homepage</label>
-            </div>
-          </div>
+          <label className="space-y-1 text-sm text-gray-300 block">Mo ta
+            <textarea rows={5} value={form.description} onChange={update('description')} className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
+          </label>
         </div>
 
-        {/* Section 2: Hình ảnh & Mô tả */}
         <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-5">
-          <h2 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-1 h-4 bg-purple-500 rounded-full"></span> Hình ảnh & Thông tin thêm
-          </h2>
-
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">Ảnh icon</label>
-              <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-md p-1">
-                <span className="bg-gray-800 text-gray-400 px-3 py-1 rounded text-xs truncate flex-1">tablet_0904.png</span>
-                <button className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs transition-colors flex items-center gap-1"><Upload className="w-3 h-3"/> Tải lên</button>
-              </div>
-              <div className="h-40 border border-dashed border-gray-700 rounded-md flex flex-col items-center justify-center bg-gray-950/50 group hover:border-red-500/50 transition-colors">
-                <ImageIcon className="w-10 h-10 text-gray-600 group-hover:text-red-500/50 mb-2" />
-                <span className="text-xs text-gray-500">Ảnh icon hiện tại</span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-300">Ảnh đại diện</label>
-              <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-md p-1">
-                <span className="bg-gray-800 text-gray-400 px-3 py-1 rounded text-xs truncate flex-1">Banner-Laptop-VP.png</span>
-                <button className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs transition-colors flex items-center gap-1"><Upload className="w-3 h-3"/> Tải lên</button>
-              </div>
-              <div className="h-40 border border-dashed border-gray-700 rounded-md flex flex-col items-center justify-center bg-gray-950/50 group hover:border-red-500/50 transition-colors">
-                <ImageIcon className="w-10 h-10 text-gray-600 group-hover:text-red-500/50 mb-2" />
-                <span className="text-xs text-gray-500">Ảnh đại diện hiện tại</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-200 flex items-center gap-2 mb-2 uppercase tracking-widest"><span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>Mô tả (nếu có):</label>
-            <textarea className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50 min-h-[120px]" />
-          </div>
-          
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-200 flex items-center gap-2 mb-2 uppercase tracking-widest"><span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>Từ khóa (tags, nếu có - nhập mỗi cụm từ 1 dòng)</label>
-            <textarea className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50 min-h-[120px]" />
-          </div>
+          <h2 className="text-md font-bold text-gray-300">SEO</h2>
+          <input value={form.metaTitle} onChange={update('metaTitle')} placeholder="Meta title" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
+          <input value={form.metaKeyword} onChange={update('metaKeyword')} placeholder="Meta keyword" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
+          <textarea rows={4} value={form.metaDescription} onChange={update('metaDescription')} placeholder="Meta description" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
         </div>
-
-        {/* Section 3: Cấu hình bổ sung */}
-        <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-5">
-          <h2 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-1 h-4 bg-green-500 rounded-full"></span> Cấu hình bổ sung
-          </h2>
-          
-          <div className="space-y-1">
-            <label className="text-sm font-bold text-gray-200 flex items-center gap-2 mb-2 uppercase tracking-widest"><span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>Khoảng lọc giá:</label>
-            <textarea 
-              defaultValue="1000000;15000000;20000000;25000000;30000000;35000000;40000000;45000000;50000000;60000000;70000000;80000000;" 
-              className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50 min-h-[100px]"
-            />
-            <p className="text-xs text-gray-500 italic mt-2">(Nhập từng giá cách nhau dấu ;) ví dụ: 300000;800000;1500000 có nghĩa là tạo ra 4 khoảng giá cho khách hàng lọc Sản phẩm. Đó là: - Dưới 300000, - Từ 300000 đến 800000, - Từ 800000 đến 1500000 và - Trên 1500000</p>
-          </div>
-
-          <div className="pt-4 border-t border-gray-800">
-            <RichTextEditor 
-              title="Nhập nội dung:" 
-              defaultValue="<p>HACOM với tuổi đời thành lập từ năm 2001, tạo dựng nên thương hiệu phân phối bán lẻ máy tính hàng đầu tại thị trường Việt Nam...</p>"
-              minHeight="400px"
-              id="category-content"
-            />
-          </div>
-        </div>
-
-        {/* Section 4: Cấu hình liên kết & SEO */}
-        <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-5">
-          <h2 className="text-lg font-bold text-gray-200 mb-4 flex items-center gap-2">
-            <span className="w-1 h-4 bg-yellow-500 rounded-full"></span> Cấu hình Liên kết & SEO
-          </h2>
-
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Thay đổi liên kết</label>
-              <select className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
-                <option>Bật/Tắt</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Số thứ tự hiển thị:</label>
-              <input type="text" placeholder="Số thứ tự hiển thị..." className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Redirect tới URL (khi truy cập danh mục sẽ chuyển sang link này):</label>
-              <input type="text" placeholder="URL..." className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Số Sản phẩm hiển thị (để = 0 nếu mặc định theo hệ thống cài đặt chung):</label>
-              <input type="number" defaultValue="0" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-          </div>
-
-          <div className="pt-6 mt-6 border-t border-gray-800 space-y-5">
-            <h3 className="text-md font-bold text-gray-300">Dùng cho SEO</h3>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Index for SEO:</label>
-                <select className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50">
-                  <option>Index...</option>
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-gray-300">Link SEO (alias):</label>
-                <input type="text" defaultValue="laptop-tablet-mobile" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-gray-300">Meta Title <span className="text-gray-500 font-normal">0 ký tự, 0 từ :</span> <span className="text-red-500">*</span></label>
-              <input type="text" defaultValue="Laptop, máy tính xách tay, máy tính bảng chính hãng | HACOM" className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <label className="text-sm font-bold text-gray-200 flex items-center gap-2 mb-2 uppercase tracking-widest"><span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>Meta Keyword 14 ký tự, 77 từ : *</label>
-                <textarea 
-                  defaultValue="laptop, tablet, surface, máy tính bảng, máy tính xách tay, máy tính, đồng hồ," 
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50 min-h-[120px]"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-sm font-bold text-gray-200 flex items-center gap-2 mb-2 uppercase tracking-widest"><span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>Meta Description 0 ký tự, 0 từ : *</label>
-                <textarea 
-                  defaultValue="HACOM phân phối chính hãng các dòng sản phẩm laptop, tablet, máy tính xách tay, máy tính bảng, đồng hồ,... chính hãng, hỗ trợ trả góp 0% tháng. Xem ngay!" 
-                  className="w-full bg-gray-900 border border-gray-700 rounded-md px-3 py-2 text-gray-200 focus:outline-none focus:border-red-500/50 min-h-[120px]"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
     </div>
+  );
+}
+
+export default function CategoryEditPage() {
+  return (
+    <Suspense fallback={<div className="w-full h-full p-6 text-gray-400">Dang tai...</div>}>
+      <CategoryEditInner />
+    </Suspense>
   );
 }

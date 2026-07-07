@@ -2,6 +2,7 @@
 
 import { Search, Upload, RefreshCw, Download, FileSpreadsheet, AlertCircle, X } from 'lucide-react';
 import { useSearch } from '@/hooks/useSearch';
+import Link from 'next/link';
 
 export function ProductTopActions() {
   return (
@@ -10,6 +11,9 @@ export function ProductTopActions() {
         <span className="font-medium text-gray-300 bg-gray-800/50 border border-gray-700/50 px-3 py-1 rounded-sm">DANH SÁCH SẢN PHẨM</span>
       </div>
       <div className="flex flex-wrap gap-2">
+        <Link href="/product/edit" className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-400 bg-blue-950/20 border border-blue-900 rounded-sm hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all uppercase tracking-wider">
+          Thêm mới
+        </Link>
         <button className="flex items-center gap-2 px-4 py-2 text-xs font-bold text-gray-300 bg-gray-900 border border-gray-700 rounded-sm hover:border-blue-500/50 hover:text-blue-400 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] transition-all uppercase tracking-wider">
           <Upload className="w-3.5 h-3.5" /> Import IMG
         </button>

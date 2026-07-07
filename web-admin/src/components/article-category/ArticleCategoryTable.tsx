@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Edit, Trash2, ArrowUpDown, ChevronRight, ChevronDown, Bookmark } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export type ArticleCategoryNode = {
   id: string;
@@ -21,12 +22,25 @@ interface Props {
 }
 
 export function ArticleCategoryTable({ initialData }: Props) {
+  const router = useRouter();
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({
     '13': true // Expand "Tin khuyến mại" by default if it happens to be id 13
   });
 
   const toggleExpand = (id: string) => {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const hideCategory = async (row: ArticleCategoryNode) => {
+    if (!confirm(`An danh muc bai viet #${row.id}?`)) return;
+    try {
+      const response = await fetch(`/api/admin/article-categories/${row.id}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the an danh muc');
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || 'Khong the an danh muc');
+    }
   };
 
   const renderRow = (row: ArticleCategoryNode, isChild = false) => {
@@ -78,12 +92,12 @@ export function ArticleCategoryTable({ initialData }: Props) {
           </td>
           <td className="p-3 text-center border-b border-gray-800/50 w-28">
             <div className="flex items-center justify-center gap-2">
-              <Link href="/news/news-category/edit">
+              <Link href={`/news/news-category/edit?id=${row.id}`}>
                 <button className="p-1.5 text-yellow-500 hover:text-white hover:bg-yellow-600 bg-yellow-950/30 border border-yellow-900/50 rounded transition-all hover:shadow-[0_0_10px_rgba(234,179,8,0.3)]">
                   <Edit className="w-4 h-4" />
                 </button>
               </Link>
-              <button className="p-1.5 text-red-500 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+              <button onClick={() => hideCategory(row)} className="p-1.5 text-red-500 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>

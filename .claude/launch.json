@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "font-end",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npm", "run", "dev"],
+      "port": 3001,
+      "cwd": "D:\\web-tech\\font-end",
+      "autoPort": true
+    },
+    {
+      "name": "web-admin",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "npm", "run", "dev"],
+      "port": 3000,
+      "cwd": "D:\\web-tech\\web-admin",
+      "autoPort": true
+    }
+  ]
+}

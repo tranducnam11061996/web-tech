@@ -6,13 +6,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "admin:migrate": "tsx scripts/run-admin-migration.ts"
   },
   "dependencies": {
+    "@types/nodemailer": "^8.0.1",
     "clsx": "^2.1.1",
+    "fuse.js": "^7.4.2",
     "lucide-react": "^1.21.0",
     "mysql2": "^3.22.5",
     "next": "16.2.9",
+    "nodemailer": "^9.0.3",
     "php-serialize": "^5.1.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",

@@ -81,3 +81,12 @@
 - [ ] CORS và DB credential được cấu hình theo môi trường.
 - [ ] Thực hiện một order E2E trên database test/staging.
 
+
+## 5. Admin CRUD Update - 2026-07-06
+
+- Added first-pass Admin CRUD API/UI for products, product categories, articles, and article categories.
+- Added `web_admin_sequence` and `web_admin_entity_registry` helper-table migration via `web-admin` script `npm.cmd run admin:migrate`.
+- Admin mutation routes require `ADMIN_WRITE_ENABLED=true`; production should leave writes disabled until authentication/authorization exists.
+- Permanent delete remains limited to entities created by the new Admin API and recorded in `web_admin_entity_registry`.
+- Verification in this workspace: `web-admin` `npm.cmd run lint` pass with legacy warnings; `npm.cmd run build` pass.
+- DB write integration tests were not run because the workspace does not contain a real `.env`/`DATABASE_URL`.

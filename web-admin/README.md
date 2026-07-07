@@ -99,3 +99,28 @@ npm.cmd run lint
 - `database-docs/QUICK_REFERENCE.md`: quan hệ và query mẫu.
 - `database-docs/STATISTICS.md`: số liệu database tại lần audit gần nhất.
 
+
+## Admin CRUD API
+
+Admin write endpoints are same-origin and require `ADMIN_WRITE_ENABLED=true`.
+
+| Endpoint | Methods | Function |
+|---|---|---|
+| `/api/admin/products` | `GET`, `POST` | List/create products, bulk action |
+| `/api/admin/products/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete product |
+| `/api/admin/product-categories` | `GET`, `POST` | List/create product categories, bulk action |
+| `/api/admin/product-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete product category |
+| `/api/admin/articles` | `GET`, `POST` | List/create articles, bulk action |
+| `/api/admin/articles/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete article |
+| `/api/admin/article-categories` | `GET`, `POST` | List/create article categories, bulk action |
+| `/api/admin/article-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or permanent-delete article category |
+| `/api/admin/migrate` | `POST` | Create admin helper tables when writes are enabled |
+
+Run helper-table migration with:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED="true"
+npm.cmd run admin:migrate
+```
+
+See `database-docs/ADMIN_MIGRATION_GUIDE.md`.

@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const nextConfig: NextConfig = {
   experimental: {
@@ -16,9 +15,6 @@ const nextConfig: NextConfig = {
         hostname: 'hacom.vn',
       },
     ],
-  },
-  turbopack: {
-    root: path.resolve(process.cwd(), '..'),
   },
 };
 

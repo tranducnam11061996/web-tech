@@ -6,6 +6,7 @@ import { RefreshCw, Edit, ExternalLink, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
 import { Pagination } from '@/components/shared/Pagination';
+import { useRouter } from 'next/navigation';
 
 
 export type Product = {
@@ -37,6 +38,24 @@ type ProductTableProps = {
 };
 
 export function ProductTable({ products, pagination }: ProductTableProps) {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const hideProduct = async (product: Product) => {
+    if (!confirm(`An san pham #${product.id}?`)) return;
+    setBusyId(product.id);
+    try {
+      const response = await fetch(`/api/admin/products/${product.id}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the an san pham');
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || 'Khong the an san pham');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="glass-panel rounded-lg shadow-sm overflow-hidden text-sm relative z-10">
       <div className="overflow-x-auto custom-scrollbar">
@@ -107,7 +126,7 @@ export function ProductTable({ products, pagination }: ProductTableProps) {
                 </td>
                 <td className="p-4 align-top text-center space-y-3">
                   <div className="flex items-center justify-center gap-2 mb-1">
-                    <button className="p-1.5 text-blue-400 hover:text-white hover:bg-blue-600 bg-blue-950/30 border border-blue-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(59,130,246,0.5)]"><RefreshCw className="w-4 h-4" /></button>
+                    <button disabled={busyId === product.id} onClick={() => hideProduct(product)} className="p-1.5 text-blue-400 hover:text-white hover:bg-blue-600 bg-blue-950/30 border border-blue-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(59,130,246,0.5)] disabled:opacity-50"><RefreshCw className="w-4 h-4" /></button>
                     <Link href={`/product/edit?id=${product.id}`}>
                       <button className="p-1.5 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-4 h-4" /></button>
                     </Link>

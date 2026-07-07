@@ -138,8 +138,7 @@ export async function getProduct(id: number) {
 
 export async function saveProduct(payload: Record<string, unknown>, id?: number) {
   return withTransaction(async (connection) => {
-    requireText(payload.name || payload.proName, 'name', 'Ten san pham');
-    const name = requireText(payload.name || payload.proName, 'name', 'Ten san pham', 255);
+      const name = requireText(payload.name || payload.proName, 'name', 'Ten san pham', 255);
     const sku = requireText(payload.sku || payload.storeSKU, 'sku', 'SKU', 15);
     const productId = id || (await allocateProductId(connection));
     const brandId = toInt(payload.brandId);

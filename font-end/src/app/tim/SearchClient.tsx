@@ -1,16 +1,20 @@
 "use client";
-import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import SimilarProducts from "../../components/SimilarProducts";
 import WhyBuyFaq from "../../components/WhyBuyFaq";
-import ProgressiveImage from "../../components/ProgressiveImage";
-import Link from "next/link";
+import ProductGridCard from "../../components/ProductGridCard";
+import {
+  buildSidebarSectionVisibility,
+  type SidebarSectionVisibility,
+} from "../../lib/sidebarFilterVisibility";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
 
-// ─── Types ───────────────────────────────────────────────────────
 export interface Product {
   id: number;
   name: string;
@@ -32,21 +36,39 @@ export interface Attribute {
   values: { id: number; name: string; productCount: number }[];
 }
 
+interface AttributeValue {
+  id: number;
+  name: string;
+  productCount: number;
+}
+
+interface PreparedAttribute extends Attribute {
+  sectionVisibility: SidebarSectionVisibility<AttributeValue>;
+}
+
+interface PriceBounds {
+  min: number;
+  max: number;
+}
+
 export interface SearchClientProps {
   initialData: {
-    products: { data: Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
+    products: {
+      data: Product[];
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    };
     attributes: { data: Attribute[] };
+    priceBounds: { data: PriceBounds };
     query: string;
   };
 }
 
-// ─── Slugify helper (giống CategoryClient) ──────────────────────
 const slugify = (str: string) => {
   if (!str) return "";
   return str
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .replace(/đ/g, "d")
     .replace(/Đ/g, "d")
     .replace(/[^a-z0-9\- ]/g, "")
@@ -54,15 +76,49 @@ const slugify = (str: string) => {
     .replace(/\s+/g, "-");
 };
 
-// ─── Attribute Filter Block (giống CategoryClient) ──────────────
+const getAttributeIcon = (value: unknown) => {
+  const icon = String(value || "").trim();
+  if (!icon || unsafeFilterValuePattern.test(icon) || icon.length > 16) return "📌";
+  return icon;
+};
+
+const isDisplayableFilterValue = (value: unknown) => {
+  const label = String(value || "").trim();
+  return label.length > 0 && !unsafeFilterValuePattern.test(label);
+};
+
+function normalizePriceBounds(bounds: PriceBounds | undefined): PriceBounds {
+  const min = Number(bounds?.min || 0);
+  const max = Number(bounds?.max || 0);
+  if (min <= 0 || max <= 0 || max < min) return { min: 0, max: 0 };
+  return { min, max };
+}
+
+function clampPriceSelection(min: number, max: number, bounds: PriceBounds) {
+  if (bounds.min <= 0 || bounds.max <= 0 || bounds.max < bounds.min) {
+    return { min: 0, max: 0 };
+  }
+
+  const safeMin = Math.min(Math.max(min, bounds.min), bounds.max);
+  const safeMax = Math.max(Math.min(max, bounds.max), bounds.min);
+
+  if (safeMin > safeMax) {
+    return { min: bounds.min, max: bounds.max };
+  }
+
+  return { min: safeMin, max: safeMax };
+}
+
 function AttributeFilterBlock({
   attr,
   isLast,
   isOpen,
+  isFilterSearchActive,
 }: {
-  attr: Attribute;
+  attr: PreparedAttribute;
   isLast: boolean;
   isOpen: boolean;
+  isFilterSearchActive: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
   const [isExpanded, setIsExpanded] = useState(isOpen);
@@ -71,18 +127,31 @@ function AttributeFilterBlock({
 
   const filterKey = attr.filter_code || slugify(attr.name);
   const currentValues = searchParams.get(filterKey)?.split(",") || [];
-  const displayValues = useMemo(
-    () => (attr.values || []).filter((v) => (v.name || "").trim().length > 0),
-    [attr.values]
-  );
+  const displayValues = showAll
+    ? [...attr.sectionVisibility.visibleValues, ...attr.sectionVisibility.collapsedValues]
+    : attr.sectionVisibility.visibleValues;
+  const collapsedCount = attr.sectionVisibility.collapsedCount;
+  const hasVisibleFilterValues = attr.sectionVisibility.visibleValues.length > 0;
+
+  useEffect(() => {
+    if (isFilterSearchActive && hasVisibleFilterValues) {
+      setIsExpanded(true);
+    }
+  }, [
+    attr.id,
+    attr.sectionVisibility.hasMatchedValues,
+    attr.sectionVisibility.sectionNameMatches,
+    hasVisibleFilterValues,
+    isFilterSearchActive,
+  ]);
 
   const handleToggle = (valName: string) => {
     const valSlug = slugify(valName);
     const newParams = new URLSearchParams(searchParams.toString());
-
     let newValues = [...currentValues];
+
     if (newValues.includes(valSlug)) {
-      newValues = newValues.filter((v) => v !== valSlug);
+      newValues = newValues.filter((value) => value !== valSlug);
     } else {
       newValues.push(valSlug);
     }
@@ -93,10 +162,7 @@ function AttributeFilterBlock({
       newParams.delete(filterKey);
     }
 
-    const currentPath =
-      typeof window !== "undefined"
-        ? window.location.pathname
-        : "/tim";
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
     router.push(currentPath + "?" + newParams.toString(), { scroll: false });
   };
 
@@ -106,12 +172,9 @@ function AttributeFilterBlock({
       style={isLast ? { borderBottom: "none" } : {}}
       data-group={`attr-${attr.id}`}
     >
-      <div
-        className="filter-title"
-        onClick={() => setIsExpanded((open) => !open)}
-      >
+      <div className="filter-title" onClick={() => setIsExpanded((open) => !open)}>
         <span className="flex items-center gap-2">
-          <span className="text-sm">{attr.icon || "📌"}</span> {attr.name}
+          <span className="text-sm">{getAttributeIcon(attr.icon)}</span> {attr.name}
         </span>
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -122,14 +185,12 @@ function AttributeFilterBlock({
           />
         </svg>
       </div>
-      <div
-        className="filter-content mt-3"
-        style={!isExpanded ? { display: "none" } : {}}
-      >
+      <div className="filter-content mt-3" style={!isExpanded ? { display: "none" } : {}}>
         <div className="space-y-2">
-          {displayValues.slice(0, showAll ? undefined : 4).map((val) => {
+          {displayValues.map((val) => {
             const valSlug = slugify(val.name);
             const isChecked = currentValues.includes(valSlug);
+
             return (
               <label
                 key={val.id}
@@ -148,9 +209,7 @@ function AttributeFilterBlock({
                 />
                 <div
                   className={`w-[18px] h-[18px] rounded-[6px] border-2 flex items-center justify-center shrink-0 shadow-sm transition-colors ${
-                    isChecked
-                      ? "border-cyan-500 bg-cyan-500"
-                      : "border-[#4b4b4b] bg-transparent"
+                    isChecked ? "border-cyan-500 bg-cyan-500" : "border-[#4b4b4b] bg-transparent"
                   }`}
                 >
                   {isChecked && (
@@ -185,10 +244,10 @@ function AttributeFilterBlock({
             );
           })}
         </div>
-        {displayValues.length > 4 && (
+        {collapsedCount > 0 && (
           <button
             className="flex items-center gap-3 mt-4 mb-2 ml-1 text-[15px] text-gray-400 hover:text-white transition-colors font-medium"
-            onClick={() => setShowAll(!showAll)}
+            onClick={() => setShowAll((value) => !value)}
           >
             <div className="relative w-[20px] h-[20px] flex items-center justify-center rounded-[3px] bg-[#1a1a1e] border border-[#27272a] rotate-45 shrink-0 m-1">
               {showAll ? (
@@ -199,11 +258,7 @@ function AttributeFilterBlock({
                   stroke="currentColor"
                   strokeWidth="3"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               ) : (
                 <svg
@@ -213,15 +268,11 @@ function AttributeFilterBlock({
                   stroke="currentColor"
                   strokeWidth="3"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 4v16m8-8H4"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               )}
             </div>
-            {showAll ? "Thu gọn" : `+ ${displayValues.length - 4} mục`}
+            {showAll ? "Thu gọn" : `+ ${collapsedCount} mục`}
           </button>
         )}
       </div>
@@ -229,14 +280,23 @@ function AttributeFilterBlock({
   );
 }
 
-// ─── Main SearchClient ───────────────────────────────────────────
 export default function SearchClient({ initialData }: SearchClientProps) {
+  const initialBounds = normalizePriceBounds(initialData?.priceBounds?.data);
   const [products, setProducts] = useState<Product[]>(initialData?.products?.data || []);
   const [currentPage, setCurrentPage] = useState(initialData?.products?.pagination?.page || 1);
   const [totalPages, setTotalPages] = useState(initialData?.products?.pagination?.totalPages || 1);
   const [totalProducts, setTotalProducts] = useState(initialData?.products?.pagination?.total || 0);
   const [attributes, setAttributes] = useState<Attribute[]>(initialData?.attributes?.data || []);
+  const [priceBounds, setPriceBounds] = useState<PriceBounds>(initialBounds);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSidebarSearchOpen, setIsSidebarSearchOpen] = useState(false);
+  const [sidebarSearchKeyword, setSidebarSearchKeyword] = useState("");
+  const [isPriceFilterOpen, setIsPriceFilterOpen] = useState(true);
+  const [currentPrice, setCurrentPrice] = useState<PriceBounds>(() => {
+    return initialBounds.min > 0 ? initialBounds : { min: 0, max: 0 };
+  });
+
+  const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
   const searchParamsHook = useSearchParams();
   const searchKey = searchParamsHook?.toString() || "";
   const router = useRouter();
@@ -244,7 +304,33 @@ export default function SearchClient({ initialData }: SearchClientProps) {
   const lastRequestKeyRef = useRef(`${searchKey}|${currentPage}`);
   const query = searchParamsHook?.get("q") || initialData?.query || "";
 
-  // Re-fetch the combined product/facet response when URL filters or pagination change.
+  useEffect(() => {
+    if (isSidebarSearchOpen) {
+      sidebarSearchInputRef.current?.focus();
+    }
+  }, [isSidebarSearchOpen]);
+
+  useEffect(() => {
+    const nextBounds = normalizePriceBounds(priceBounds);
+    const urlMin = searchParamsHook?.get("min-price");
+    const urlMax = searchParamsHook?.get("max-price");
+
+    if (nextBounds.min <= 0) {
+      setCurrentPrice({ min: 0, max: 0 });
+      return;
+    }
+
+    const nextMin = urlMin ? parseInt(urlMin, 10) : nextBounds.min;
+    const nextMax = urlMax ? parseInt(urlMax, 10) : nextBounds.max;
+    setCurrentPrice(clampPriceSelection(nextMin, nextMax, nextBounds));
+  }, [priceBounds, searchKey, searchParamsHook]);
+
+  useEffect(() => {
+    if (searchKey !== lastSearchKeyRef.current && currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [currentPage, searchKey]);
+
   useEffect(() => {
     if (searchKey !== lastSearchKeyRef.current && currentPage !== 1) {
       lastSearchKeyRef.current = searchKey;
@@ -265,7 +351,6 @@ export default function SearchClient({ initialData }: SearchClientProps) {
     url.searchParams.set("limit", "24");
     url.searchParams.set("page", String(currentPage));
 
-    // Copy tất cả filter params từ URL (brand, cpu, ram...)
     const paramsFromUrl = new URLSearchParams(searchKey);
     paramsFromUrl.forEach((value, key) => {
       if (!["q", "page", "limit"].includes(key)) {
@@ -281,12 +366,12 @@ export default function SearchClient({ initialData }: SearchClientProps) {
     fetch(url.toString(), { signal: controller.signal })
       .then((res) => res.json())
       .then((res) => {
-        if (res.success) {
-          setProducts(res.data);
-          setTotalPages(res.pagination.totalPages);
-          setTotalProducts(res.pagination.total);
-          setAttributes(res.attributes || []);
-        }
+        if (!res.success) return;
+        setProducts(res.data || []);
+        setTotalPages(res.pagination?.totalPages || 1);
+        setTotalProducts(res.pagination?.total || 0);
+        setAttributes(res.attributes || []);
+        setPriceBounds(normalizePriceBounds(res.priceBounds));
       })
       .catch((err) => {
         if (!(err instanceof DOMException && err.name === "AbortError")) {
@@ -298,33 +383,70 @@ export default function SearchClient({ initialData }: SearchClientProps) {
       });
 
     return () => controller.abort();
-  }, [currentPage, searchKey, query]);
+  }, [currentPage, query, searchKey]);
 
-  // Build active filters list
-  const activeFilters: any[] = [];
-  const attributeActiveFilters = useMemo(() => {
-    const filters: any[] = [];
+  const normalizedSidebarKeyword = sidebarSearchKeyword.trim().toLowerCase();
+  const isFilterSearchActive = normalizedSidebarKeyword.length > 0;
+  const matchesSidebarSearch = (value: string) =>
+    !isFilterSearchActive || value.toLowerCase().includes(normalizedSidebarKeyword);
+
+  const visibleAttributes = useMemo(() => {
+    return attributes
+      .map((attr) => {
+        const displayableValues = (attr.values || []).filter((value) =>
+          isDisplayableFilterValue(value.name),
+        );
+        const filterKey = attr.filter_code || slugify(attr.name);
+        const selectedSlugs = new Set(
+          (searchParamsHook?.get(filterKey)?.split(",") || []).filter(Boolean),
+        );
+        const sectionVisibility = buildSidebarSectionVisibility({
+          values: displayableValues,
+          keyword: normalizedSidebarKeyword,
+          sectionName: attr.name || "",
+          selectedSlugs,
+          slugify,
+        });
+
+        if (!sectionVisibility.shouldRenderSection) return null;
+
+        return {
+          ...attr,
+          values: displayableValues,
+          sectionVisibility,
+        };
+      })
+      .filter(Boolean) as PreparedAttribute[];
+  }, [attributes, normalizedSidebarKeyword, searchParamsHook]);
+
+  const activeFilters = useMemo(() => {
+    const filters: Array<{
+      key?: string;
+      attrName?: string;
+      valSlug?: string;
+      valName: string;
+      isPrice?: boolean;
+    }> = [];
     const paramsFromUrl = new URLSearchParams(searchKey);
-    const attributeLookup = new Map<
-      string,
-      { attrName: string; values: Map<string, string> }
-    >();
+    const attributeLookup = new Map<string, { attrName: string; values: Map<string, string> }>();
 
     for (const attr of attributes) {
       const key = attr.filter_code || slugify(attr.name);
       const values = new Map<string, string>();
+
       for (const val of attr.values || []) {
         values.set(slugify(val.name), val.name);
       }
+
       attributeLookup.set(key, { attrName: attr.name, values });
     }
 
     paramsFromUrl.forEach((value, key) => {
-      if (["q", "page", "limit"].includes(key)) return;
+      if (["q", "page", "limit", "sort", "min-price", "max-price"].includes(key)) return;
       const attr = attributeLookup.get(key);
       if (!attr) return;
 
-      (value.split(",") || []).forEach((valSlug) => {
+      value.split(",").forEach((valSlug) => {
         const valName = attr.values.get(valSlug);
         if (valName) {
           filters.push({ key, attrName: attr.attrName, valSlug, valName });
@@ -332,82 +454,133 @@ export default function SearchClient({ initialData }: SearchClientProps) {
       });
     });
 
+    const urlMin = searchParamsHook?.get("min-price");
+    const urlMax = searchParamsHook?.get("max-price");
+    if (urlMin || urlMax) {
+      filters.unshift({
+        isPrice: true,
+        valName: `Giá từ: ${new Intl.NumberFormat("vi-VN").format(currentPrice.min)} - ${new Intl.NumberFormat("vi-VN").format(currentPrice.max)}`,
+      });
+    }
+
     return filters;
-  }, [attributes, searchKey, query]);
+  }, [attributes, currentPrice.max, currentPrice.min, searchKey, searchParamsHook]);
 
-  activeFilters.push(...attributeActiveFilters);
+  const hasPriceBounds = priceBounds.min > 0 && priceBounds.max > 0 && priceBounds.max >= priceBounds.min;
 
-  // Clear/filter handlers
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>, type: "min" | "max") => {
+    const value = parseInt(e.target.value, 10);
+
+    setCurrentPrice((prev) => {
+      if (!hasPriceBounds) return prev;
+      let nextMin = prev.min;
+      let nextMax = prev.max;
+
+      if (type === "min") {
+        nextMin = Math.min(value, prev.max);
+      } else {
+        nextMax = Math.max(value, prev.min);
+      }
+
+      return clampPriceSelection(nextMin, nextMax, priceBounds);
+    });
+  };
+
+  const handlePriceCommit = () => {
+    const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
+    if (!hasPriceBounds) {
+      newParams.delete("min-price");
+      newParams.delete("max-price");
+    } else {
+      if (currentPrice.min > priceBounds.min) {
+        newParams.set("min-price", String(currentPrice.min));
+      } else {
+        newParams.delete("min-price");
+      }
+
+      if (currentPrice.max < priceBounds.max) {
+        newParams.set("max-price", String(currentPrice.max));
+      } else {
+        newParams.delete("max-price");
+      }
+    }
+
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
+    const queryString = newParams.toString();
+    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
+  };
+
   const handleClearAll = () => {
-    const currentPath =
-      typeof window !== "undefined"
-        ? window.location.pathname
-        : "/tim";
     const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
-    activeFilters.forEach((f) => {
-      if (f.key) newParams.delete(f.key);
+    activeFilters.forEach((filter) => {
+      if (filter.key) newParams.delete(filter.key);
     });
-    const qs = newParams.toString();
-    router.push(qs ? currentPath + "?" + qs : currentPath, {
-      scroll: false,
-    });
+    newParams.delete("min-price");
+    newParams.delete("max-price");
+
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
+    const queryString = newParams.toString();
+    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
   };
 
-  const handleRemoveFilter = (f: any) => {
+  const handleRemoveFilter = (filter: {
+    key?: string;
+    valSlug?: string;
+    isPrice?: boolean;
+  }) => {
     const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
-    let vals = newParams.get(f.key)?.split(",") || [];
-    vals = vals.filter((v) => v !== f.valSlug);
-    if (vals.length > 0) newParams.set(f.key, vals.join(","));
-    else newParams.delete(f.key);
-    const currentPath =
-      typeof window !== "undefined"
-        ? window.location.pathname
-        : "/tim";
-    router.push(currentPath + "?" + newParams.toString(), { scroll: false });
+
+    if (filter.isPrice) {
+      newParams.delete("min-price");
+      newParams.delete("max-price");
+    } else if (filter.key && filter.valSlug) {
+      let values = newParams.get(filter.key)?.split(",") || [];
+      values = values.filter((value) => value !== filter.valSlug);
+      if (values.length > 0) newParams.set(filter.key, values.join(","));
+      else newParams.delete(filter.key);
+    }
+
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
+    const queryString = newParams.toString();
+    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
   };
+
+  const priceTrackStyles = hasPriceBounds
+    ? {
+        left: `${((currentPrice.min - priceBounds.min) / (priceBounds.max - priceBounds.min || 1)) * 100}%`,
+        right: `${100 - ((currentPrice.max - priceBounds.min) / (priceBounds.max - priceBounds.min || 1)) * 100}%`,
+      }
+    : { left: "0%", right: "100%" };
 
   return (
     <div className="bg-[#0a0a0c] min-h-screen text-white font-sans">
       <Header />
 
-      {/* ─── SEARCH HEADER BAR ─────────────────────── */}
       <div className="max-w-[1800px] mx-auto px-6 pt-6">
         <div className="flex flex-col gap-4 mb-6">
-          {/* Title + result count */}
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">
               Kết quả tìm kiếm: &ldquo;{query}&rdquo;
             </h1>
-            <p className="text-[13px] text-gray-500 mt-1">
-              Tìm thấy {totalProducts} sản phẩm
-            </p>
+            <p className="text-[13px] text-gray-500 mt-1">Tìm thấy {totalProducts} sản phẩm</p>
           </div>
 
-          {/* Sort bar */}
           <div className="flex flex-col md:flex-row items-center justify-between bg-[#111115] border border-[#1a1a1e] rounded-2xl p-4">
             <h2 className="text-[15px] font-extrabold text-white mb-4 md:mb-0 pl-1 tracking-wide">
               {totalProducts} sản phẩm
             </h2>
             <div className="flex items-center gap-4 w-full md:w-auto">
-              {/* Sort Dropdown */}
               <div className="relative shrink-0 min-w-[170px]">
                 <select
                   className="w-full appearance-none bg-[#18181b] border border-[#27272a] text-[15px] font-bold text-gray-300 rounded-xl pl-4 pr-10 py-2.5 focus:outline-none focus:border-cyan-700 hover:border-[#3f3f46] transition-all cursor-pointer"
                   onChange={(e) => {
-                    const newParams = new URLSearchParams(
-                      searchParamsHook?.toString() || ""
-                    );
+                    const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
                     if (e.target.value) newParams.set("sort", e.target.value);
                     else newParams.delete("sort");
-                    const currentPath =
-                      typeof window !== "undefined"
-                        ? window.location.pathname
-                        : "/tim";
+
+                    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
                     const queryString = newParams.toString();
-                    router.push(
-                      currentPath + (queryString ? "?" + queryString : ""),
-                      { scroll: false }
-                    );
+                    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
                   }}
                   defaultValue={searchParamsHook?.get("sort") || ""}
                 >
@@ -417,12 +590,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                   <option value="newest">Mới nhất</option>
                 </select>
                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none flex flex-col gap-[2px]">
-                  <svg
-                    className="w-2.5 h-2.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
+                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -437,159 +605,169 @@ export default function SearchClient({ initialData }: SearchClientProps) {
         </div>
       </div>
 
-      {/* ─── PRODUCTS + SIDEBAR ───────────────────── */}
       <div className="max-w-[1800px] mx-auto flex gap-6 px-6 pb-6">
-        {/* ===== SIDEBAR LEFT ===== */}
         <aside className="w-[300px] shrink-0 hidden lg:block">
           <div className="bg-[#111115] border border-[#1a1a1e] rounded-2xl p-5 mb-5">
-            {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="text-base">🔧</span>
-                <span className="text-[15px] font-extrabold text-white">
-                  Bộ Lọc
-                </span>
+                <span className="text-[15px] font-extrabold text-white">Bộ Lọc</span>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                <button
+                  className="hover:text-white transition"
+                  onClick={() => {
+                    setIsSidebarSearchOpen((open) => {
+                      if (open) setSidebarSearchKeyword("");
+                      return !open;
+                    });
+                  }}
+                >
+                  🔍 Tìm Nhanh
+                </button>
               </div>
             </div>
 
-            {/* Active Filters */}
+            <div className={`${isSidebarSearchOpen ? "" : "hidden"} mb-4 transition-all`}>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">🔍</span>
+                <input
+                  ref={sidebarSearchInputRef}
+                  type="text"
+                  placeholder="Nhập từ khóa tìm kiếm bộ lọc ..."
+                  className="w-full bg-[#18181b] border border-[#27272a] rounded-lg py-2 pl-8 pr-8 text-sm text-gray-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
+                  value={sidebarSearchKeyword}
+                  onChange={(event) => setSidebarSearchKeyword(event.target.value)}
+                />
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs transition"
+                  onClick={() => {
+                    setIsSidebarSearchOpen(false);
+                    setSidebarSearchKeyword("");
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
             <div
               id="active-filters-sidebar"
               style={activeFilters.length === 0 ? { display: "none" } : {}}
             >
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-gray-400 font-semibold">
-                  Bộ lọc đã chọn :{" "}
-                </span>
-                <span
-                  id="active-filters-count"
-                  className="bg-[#1a1a1e] text-[10px] text-gray-500 px-1.5 py-0.5 rounded font-bold"
-                >
+                <span className="text-xs text-gray-400 font-semibold">Bộ lọc đã chọn :</span>
+                <span className="bg-[#1a1a1e] text-[10px] text-gray-500 px-1.5 py-0.5 rounded font-bold">
                   {activeFilters.length}
                 </span>
                 <span
-                  id="clear-all-filters"
                   className="text-[10px] text-cyan-500 ml-auto cursor-pointer hover:underline"
                   onClick={handleClearAll}
                 >
                   Bỏ chọn tất cả
                 </span>
               </div>
-              <div
-                id="active-filters-list"
-                className="flex gap-2 mb-4 flex-wrap mt-2"
-              >
-                {activeFilters.map((f, i) => (
+              <div className="flex gap-2 mb-4 flex-wrap mt-2">
+                {activeFilters.map((filter) => (
                   <span
-                    key={f.isPrice ? "price" : `${f.key}-${f.valSlug}`}
+                    key={filter.isPrice ? "price" : `${filter.key}-${filter.valSlug}`}
                     className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 text-[11px] px-2 py-1 rounded flex items-center gap-1 cursor-pointer hover:bg-cyan-900/50 transition-colors"
-                    onClick={() => handleRemoveFilter(f)}
+                    onClick={() => handleRemoveFilter(filter)}
                   >
-                    {f.isPrice
-                      ? `Giá`
-                      : f.valName}
-                    <span className="text-cyan-500 hover:text-white">
-                      ✕
-                    </span>
+                    {filter.isPrice ? filter.valName : filter.valName}
+                    <span className="text-cyan-500 hover:text-white">✕</span>
                   </span>
                 ))}
               </div>
             </div>
 
-            {/* Attribute filter blocks */}
-            {attributes.map((attr, index) => (
+            <div
+              className={`filter-section ${isPriceFilterOpen ? "open" : ""}`}
+              style={isFilterSearchActive && !matchesSidebarSearch("Khoảng Giá") ? { display: "none" } : {}}
+            >
+              <div className="filter-title" onClick={() => setIsPriceFilterOpen((open) => !open)}>
+                <span className="flex items-center gap-2">
+                  <span className="text-sm">💰</span> Khoảng Giá
+                </span>
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </div>
+              <div className="filter-content px-1 mt-2" style={!isPriceFilterOpen ? { display: "none" } : {}}>
+                {hasPriceBounds ? (
+                  <>
+                    <div className="dual-range-container">
+                      <div className="dual-range-track" style={priceTrackStyles}></div>
+                      <input
+                        type="range"
+                        className="dual-range-slider"
+                        min={priceBounds.min}
+                        max={priceBounds.max}
+                        value={currentPrice.min}
+                        step={1000}
+                        onChange={(e) => handlePriceChange(e, "min")}
+                        onMouseUp={handlePriceCommit}
+                        onTouchEnd={handlePriceCommit}
+                      />
+                      <input
+                        type="range"
+                        className="dual-range-slider"
+                        min={priceBounds.min}
+                        max={priceBounds.max}
+                        value={currentPrice.max}
+                        step={1000}
+                        onChange={(e) => handlePriceChange(e, "max")}
+                        onMouseUp={handlePriceCommit}
+                        onTouchEnd={handlePriceCommit}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mt-4">
+                      <span>Từ: {new Intl.NumberFormat("vi-VN").format(currentPrice.min)} đ</span>
+                      <span>Đến: {new Intl.NumberFormat("vi-VN").format(currentPrice.max)} đ</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-[12px] text-gray-500 py-2">Không có khoảng giá khả dụng cho kết quả hiện tại.</div>
+                )}
+              </div>
+            </div>
+
+            {visibleAttributes.map((attr, index) => (
               <AttributeFilterBlock
                 key={attr.id}
                 attr={attr}
-                isLast={index === attributes.length - 1}
+                isLast={index === visibleAttributes.length - 1}
                 isOpen={index < 4}
+                isFilterSearchActive={isFilterSearchActive}
               />
             ))}
           </div>
         </aside>
 
-        {/* ===== PRODUCT GRID RIGHT ===== */}
         <main className="flex-1 min-w-0">
-          <div
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-            id="productGrid"
-          >
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" id="productGrid">
             {isLoading ? (
               <div className="col-span-1 sm:col-span-2 xl:col-span-4 flex flex-col items-center justify-center py-32 text-center">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mb-4"></div>
-                <p className="text-gray-400 text-sm font-medium animate-pulse">
-                  Đang tìm kiếm sản phẩm...
-                </p>
+                <p className="text-gray-400 text-sm font-medium animate-pulse">Đang tìm kiếm sản phẩm...</p>
               </div>
             ) : products.length > 0 ? (
               products.map((product) => (
-                <Link
-                  key={product.id}
-                  href={`/${product.slug}`}
-                  className="block bg-gradient-to-b from-[#1a1a1d] to-[#111113] border border-[#27272a] rounded-xl overflow-hidden transition-all duration-300 hover:border-[#3f3f46] shadow-[0_4px_12px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)] hover:-translate-y-1.5 flex flex-col h-full group relative"
-                >
-                  {/* Image Area */}
-                  <div className="w-full aspect-[4/3] relative flex items-center justify-center bg-[#151518]">
-                    <ProgressiveImage
-                      src={product.thumbnail}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* Content Area */}
-                  <div className="p-4 flex flex-col flex-1 relative z-10">
-                    {/* Brand */}
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <span className="border border-[#333] bg-[#1a1a1e] text-[#a1a1aa] text-[10.5px] font-medium px-4 py-1 rounded-full">
-                        {product.name.split(" ")[0] || "Brand"}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <p
-                      className="text-sm font-medium text-center leading-relaxed line-clamp-2 mb-5 min-h-[42px] bg-clip-text text-transparent bg-gradient-to-r from-gray-100 via-gray-300 to-gray-500"
-                    >
-                      {product.name}
-                    </p>
-
-                    {/* Price & Stock */}
-                    <div className="flex items-center justify-between mt-auto">
-                      <span className="bg-gradient-to-r from-white via-cyan-400 to-purple-500 bg-clip-text text-transparent font-extrabold text-[17px] tracking-wide">
-                        {!product.price || product.price == 0 ? (
-                          "Liên hệ"
-                        ) : (
-                          <>
-                            {new Intl.NumberFormat("vi-VN").format(
-                              product.price
-                            )}
-                            <span className="text-[12px] font-bold ml-0.5 align-top underline decoration-1 underline-offset-[2px]">
-                              đ
-                            </span>
-                          </>
-                        )}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[#10b981] text-[11px] font-bold flex items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#10b981]"></div>
-                          In Stock
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
+                <ProductGridCard key={product.id} product={product} />
               ))
             ) : (
               <div className="col-span-1 sm:col-span-2 xl:col-span-4 flex flex-col items-center justify-center py-20 text-center bg-[#111115] rounded-2xl border border-[#1a1a1e] my-4">
                 <div className="w-20 h-20 mb-5 rounded-full bg-[#1a1a1e] border border-[#27272a] flex items-center justify-center text-3xl">
                   🔍
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">
-                  Không tìm thấy sản phẩm phù hợp
-                </h3>
+                <h3 className="text-lg font-bold text-white mb-2">Không tìm thấy sản phẩm phù hợp</h3>
                 <p className="text-[15px] text-gray-500 max-w-sm mx-auto mb-6 leading-relaxed">
-                  Rất tiếc, không có sản phẩm nào khớp với từ khóa &ldquo;
-                  {query}&rdquo;.
+                  Rất tiếc, không có sản phẩm nào khớp với từ khóa &ldquo;{query}&rdquo;.
                 </p>
                 <button
                   className="bg-emerald-600/20 text-emerald-500 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white px-6 py-2 rounded-lg text-sm font-semibold transition-all"
@@ -601,13 +779,10 @@ export default function SearchClient({ initialData }: SearchClientProps) {
             )}
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-12 mb-10">
               <button
-                onClick={() =>
-                  setCurrentPage((prev) => Math.max(1, prev - 1))
-                }
+                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
                 className="w-10 h-10 flex items-center justify-center bg-[#18181b] rounded-xl text-gray-400 hover:text-white hover:bg-[#27272a] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
@@ -627,35 +802,32 @@ export default function SearchClient({ initialData }: SearchClientProps) {
 
               <div className="flex gap-2 flex-wrap justify-center">
                 {(() => {
-                  const range = [];
-                  const rangeWithDots: (number | "...")[] = [];
-                  let l: number | undefined;
+                  const range: number[] = [];
+                  const rangeWithDots: Array<number | "..."> = [];
+                  let lastPage: number | undefined;
 
-                  for (let i = 1; i <= totalPages; i++) {
-                    if (i === 1 || i === totalPages) {
-                      range.push(i);
-                    } else if (currentPage <= 3 && i <= 5) {
-                      range.push(i);
-                    } else if (
-                      currentPage >= totalPages - 2 &&
-                      i >= totalPages - 4
-                    ) {
-                      range.push(i);
-                    } else if (i >= currentPage - 1 && i <= currentPage + 1) {
-                      range.push(i);
+                  for (let page = 1; page <= totalPages; page += 1) {
+                    if (page === 1 || page === totalPages) {
+                      range.push(page);
+                    } else if (currentPage <= 3 && page <= 5) {
+                      range.push(page);
+                    } else if (currentPage >= totalPages - 2 && page >= totalPages - 4) {
+                      range.push(page);
+                    } else if (page >= currentPage - 1 && page <= currentPage + 1) {
+                      range.push(page);
                     }
                   }
 
-                  for (const i of range) {
-                    if (l !== undefined) {
-                      if (i - l === 2) {
-                        rangeWithDots.push(l + 1);
-                      } else if (i - l !== 1) {
+                  for (const page of range) {
+                    if (lastPage !== undefined) {
+                      if (page - lastPage === 2) {
+                        rangeWithDots.push(lastPage + 1);
+                      } else if (page - lastPage !== 1) {
                         rangeWithDots.push("...");
                       }
                     }
-                    rangeWithDots.push(i);
-                    l = i;
+                    rangeWithDots.push(page);
+                    lastPage = page;
                   }
 
                   return rangeWithDots.map((page, index) =>
@@ -678,17 +850,13 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                       >
                         {page}
                       </button>
-                    )
+                    ),
                   );
                 })()}
               </div>
 
               <button
-                onClick={() =>
-                  setCurrentPage((prev) =>
-                    Math.min(totalPages, prev + 1)
-                  )
-                }
+                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
                 className="w-10 h-10 flex items-center justify-center bg-[#18181b] rounded-xl text-gray-400 hover:text-white hover:bg-[#27272a] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >

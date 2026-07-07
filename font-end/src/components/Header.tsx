@@ -9,14 +9,16 @@ export default function Header() {
   const router = useRouter();
   const [showSubMenu, setShowSubMenu] = useState(true);
   const lastScrollY = useRef(0);
-  const topHeaderRef = useRef<HTMLElement>(null);
+  const scrollDistance = useRef(0);
+  const scrollDirection = useRef<'up' | 'down' | null>(null);
+  const scrollFrame = useRef<number | null>(null);
+  const isMenuOpenRef = useRef(false);
   const megaMenuRef = useRef<HTMLDivElement>(null);
   const desktopMenuButtonRef = useRef<HTMLDivElement>(null);
   const mobileMenuButtonRef = useRef<HTMLDivElement>(null);
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
 
-  const [headerHeight, setHeaderHeight] = useState(73);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeDesktopMenuId, setActiveDesktopMenuId] = useState(menuCategories[0]?.id || '');
   const [activeMobileMenuId, setActiveMobileMenuId] = useState<string | null>(null);
@@ -41,33 +43,62 @@ export default function Header() {
   }, [router]);
 
   useEffect(() => {
-    const updateHeaderHeight = () => {
-      if (topHeaderRef.current) {
-        setHeaderHeight(topHeaderRef.current.offsetHeight);
+    lastScrollY.current = window.scrollY;
+
+    const updateFromScroll = () => {
+      scrollFrame.current = null;
+      const currentScrollY = Math.max(0, window.scrollY);
+      const delta = currentScrollY - lastScrollY.current;
+      lastScrollY.current = currentScrollY;
+
+      if (currentScrollY < 50 || isMenuOpenRef.current) {
+        scrollDistance.current = 0;
+        scrollDirection.current = null;
+        setShowSubMenu(true);
+        return;
+      }
+
+      if (Math.abs(delta) <= 2) return;
+
+      const nextDirection = delta > 0 ? 'down' : 'up';
+      if (scrollDirection.current !== nextDirection) {
+        scrollDirection.current = nextDirection;
+        scrollDistance.current = 0;
+      }
+
+      scrollDistance.current += Math.abs(delta);
+
+      if (nextDirection === 'down' && scrollDistance.current >= 12) {
+        setShowSubMenu(false);
+        scrollDistance.current = 0;
+      } else if (nextDirection === 'up' && scrollDistance.current >= 8) {
+        setShowSubMenu(true);
+        scrollDistance.current = 0;
       }
     };
 
-    updateHeaderHeight();
-    window.addEventListener('resize', updateHeaderHeight);
-
     const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY < 50) {
-        setShowSubMenu(true);
-      } else if (currentScrollY > lastScrollY.current) {
-        setShowSubMenu(false);
-      } else {
-        setShowSubMenu(true);
+      if (scrollFrame.current === null) {
+        scrollFrame.current = window.requestAnimationFrame(updateFromScroll);
       }
-      lastScrollY.current = currentScrollY;
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', updateHeaderHeight);
+      if (scrollFrame.current !== null) {
+        window.cancelAnimationFrame(scrollFrame.current);
+      }
     };
   }, []);
+
+  useEffect(() => {
+    isMenuOpenRef.current = isMenuOpen;
+    lastScrollY.current = Math.max(0, window.scrollY);
+    scrollDistance.current = 0;
+    scrollDirection.current = null;
+    if (isMenuOpen) setShowSubMenu(true);
+  }, [isMenuOpen]);
 
   useEffect(() => {
     document.body.classList.toggle('mobile-menu-open', isMenuOpen);
@@ -98,10 +129,13 @@ export default function Header() {
     });
   };
 
+  const isSubMenuVisible = showSubMenu || isMenuOpen;
+
   return (
     <>
       {/* START Header */}
-      <header ref={topHeaderRef} className="bg-dark border-b border-dark-border sticky top-0 z-[100] w-full">
+      <div className="sticky top-0 z-[100] w-full bg-[#000]">
+        <header className="bg-dark border-b border-dark-border w-full">
         {/* Max-width container 1800px */}
         <div className="max-w-[1800px] mx-auto relative px-0 md:px-6">
 
@@ -204,10 +238,16 @@ export default function Header() {
           </div>
 
         </div>
-      </header>
+        </header>
 
-      <div className={`bg-[#000] border-b border-dark-border sticky z-[90] transition-transform duration-300 ${showSubMenu ? 'translate-y-0' : '-translate-y-full'}`} style={{ top: headerHeight + 'px' }}>
-        <div className="max-w-[1800px] mx-auto relative px-0 md:px-6">
+        <div className="bg-[#000]">
+          <div className="max-w-[1800px] mx-auto relative px-0 md:px-6">
+            <div
+              className={`header-submenu-motion grid border-b border-dark-border ${isSubMenuVisible ? 'is-visible' : 'is-hidden'}`}
+              aria-hidden={!isSubMenuVisible}
+              inert={!isSubMenuVisible}
+            >
+              <div className="min-h-0 overflow-hidden">
           {/* DESKTOP BOTTOM ROW (NAV) */}
           <div className="hidden md:flex items-center py-2 border-t md:border-t-0 border-dark-border relative" id="bottom-header-menu">
             {/* Menu Button */}
@@ -247,8 +287,10 @@ export default function Header() {
             <a href="#" className="nav-link">Components</a>
             <a href="#" className="nav-link">Pre Built PCs</a>
           </nav>
+              </div>
+            </div>
 
-          {/* MEGA MENU DROPDOWN */}
+            {/* MEGA MENU DROPDOWN */}
           <div id="megaMenu" ref={megaMenuRef} className={`${isMenuOpen ? 'show-menu' : 'hidden-menu'} fixed top-[64px] bottom-[60px] md:absolute md:top-[100%] md:bottom-auto left-0 w-full bg-[#0a0a0c] md:border-t border-dark-border shadow-2xl flex-col md:flex-row z-40 overflow-y-auto md:overflow-visible min-h-600`}>
 
             {/* MOBILE NAV LINKS */}
@@ -376,6 +418,7 @@ export default function Header() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* MOBILE BOTTOM NAV BAR (< 768px) */}

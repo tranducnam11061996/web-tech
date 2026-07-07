@@ -1,4 +1,5 @@
 import '../styles/style.css';
+import AddToCartSuccessModal from '@/components/AddToCartSuccessModal';
 
 export const metadata = {
   title: 'HACOM - Siêu thị Công nghệ',
@@ -10,6 +11,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="vi">
       <body className="bg-dark text-white">
         {children}
+        <AddToCartSuccessModal />
       </body>
     </html>
   );

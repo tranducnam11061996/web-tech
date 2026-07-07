@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, X, ExternalLink } from 'lucide-react';
 import { TabBasic } from '@/components/products/edit/TabBasic';
 import { TabDescription } from '@/components/products/edit/TabDescription';
 import { TabCategory } from '@/components/products/edit/TabCategory';
 import { TabAttributes } from '@/components/products/edit/TabAttributes';
-import { TabImages } from '@/components/products/edit/TabImages';
+import { TabImages, type TabImagesHandle } from '@/components/products/edit/TabImages';
 import { TabCombo } from '@/components/products/edit/TabCombo';
 import { TabServices } from '@/components/products/edit/TabServices';
 
@@ -47,6 +47,7 @@ export function EditProductClient({
   combosData?: any;
 }) {
   const router = useRouter();
+  const imagesRef = useRef<TabImagesHandle>(null);
   const [activeTab, setActiveTab] = useState('basic');
   const [form, setForm] = useState<Record<string, any>>({
     id: product?.id,
@@ -67,6 +68,7 @@ export function EditProductClient({
     attributeValueIds: [],
   });
   const [saving, setSaving] = useState(false);
+  const [imagesBusy, setImagesBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
@@ -78,6 +80,7 @@ export function EditProductClient({
     setSaving(true);
     setMessage('');
     setError('');
+    let productSaved = false;
     try {
       const endpoint = form.id ? `/api/admin/products/${form.id}` : '/api/admin/products';
       const response = await fetch(endpoint, {
@@ -89,14 +92,21 @@ export function EditProductClient({
       if (!response.ok || !payload.success) {
         throw new Error(payload?.error?.message || 'Khong the luu san pham');
       }
-      setMessage(payload.message || 'Da luu san pham');
+      productSaved = true;
+      const hasImageChanges = imagesRef.current?.isDirty() === true;
+      if (hasImageChanges) await imagesRef.current?.saveChanges();
+      setMessage(hasImageChanges ? 'Đã lưu sản phẩm và thay đổi ảnh.' : (payload.message || 'Đã lưu sản phẩm.'));
       if (!form.id && payload.data?.id) {
         router.replace(`/product/edit?id=${payload.data.id}`);
       } else {
         router.refresh();
       }
     } catch (saveError: any) {
-      setError(saveError.message || 'Khong the luu san pham');
+      setError(
+        productSaved
+          ? `Sản phẩm đã lưu nhưng ảnh chưa lưu: ${saveError.message || 'Không thể lưu ảnh.'}`
+          : (saveError.message || 'Không thể lưu sản phẩm.'),
+      );
     } finally {
       setSaving(false);
     }
@@ -128,14 +138,16 @@ export function EditProductClient({
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3 bg-transparent relative">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500/20 to-transparent"></div>
-          {message && <div className="mb-3 px-3 py-2 border border-green-900 bg-green-950/30 text-green-300 text-xs font-bold">{message}</div>}
-          {error && <div className="mb-3 px-3 py-2 border border-red-900 bg-red-950/30 text-red-300 text-xs font-bold">{error}</div>}
+          {message && <div aria-live="polite" className="mb-3 px-3 py-2 border border-green-900 bg-green-950/30 text-green-300 text-xs font-bold">{message}</div>}
+          {error && <div role="alert" className="mb-3 px-3 py-2 border border-red-900 bg-red-950/30 text-red-300 text-xs font-bold">{error}</div>}
 
           {activeTab === 'basic' && <TabBasic product={product} form={form} onChange={updateField} />}
           {activeTab === 'description' && <TabDescription product={product} />}
           {activeTab === 'category' && <TabCategory form={form} onChange={updateField} product={product} categories={categories} />}
           {activeTab === 'attributes' && <TabAttributes attributesData={attributesData} form={form} onChange={updateField} />}
-          {activeTab === 'images' && <TabImages productId={product?.id} initialImages={productImages || []} />}
+          <div className={activeTab === 'images' ? 'block' : 'hidden'} aria-hidden={activeTab !== 'images'}>
+            <TabImages ref={imagesRef} productId={product?.id} initialImages={productImages || []} onBusyChange={setImagesBusy} />
+          </div>
           {activeTab === 'combo' && <TabCombo combosData={combosData} />}
           {activeTab === 'config' && <div className="text-gray-400 p-10 text-center font-mono">Module cấu hình đang phát triển</div>}
           {activeTab === 'services' && <TabServices />}
@@ -146,8 +158,8 @@ export function EditProductClient({
         <button className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-blue-400 bg-blue-950/20 border border-blue-900 rounded-sm hover:border-blue-500 hover:text-blue-300 hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] transition-all uppercase tracking-wider">
           <ExternalLink className="w-4 h-4" /> Xem trên web
         </button>
-        <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-8 py-2.5 text-xs font-bold text-green-400 bg-green-950/20 border border-green-900 rounded-sm hover:border-green-500 hover:text-green-300 hover:shadow-[0_0_15px_rgba(34,197,94,0.4)] transition-all uppercase tracking-wider disabled:opacity-60">
-          <Save className="w-4 h-4" /> {saving ? 'Đang lưu...' : 'Lưu'}
+        <button onClick={handleSave} disabled={saving || imagesBusy} aria-busy={saving} className="flex items-center gap-2 px-8 py-2.5 text-xs font-bold text-green-400 bg-green-950/20 border border-green-900 rounded-sm hover:border-green-500 hover:text-green-300 hover:shadow-[0_0_15px_rgba(34,197,94,0.4)] transition-all uppercase tracking-wider disabled:opacity-60">
+          <Save className="w-4 h-4" aria-hidden="true" /> {saving ? 'Đang lưu...' : 'Lưu'}
         </button>
         <button onClick={() => router.push('/product/product-list')} className="flex items-center gap-2 px-6 py-2.5 text-xs font-bold text-red-400 bg-red-950/20 border border-red-900 rounded-sm hover:border-red-500 hover:text-red-300 hover:shadow-[0_0_15px_rgba(239,68,68,0.4)] transition-all uppercase tracking-wider">
           <X className="w-4 h-4" /> Đóng

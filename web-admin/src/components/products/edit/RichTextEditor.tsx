@@ -25,12 +25,20 @@ export function RichTextEditor({
   id?: string;
 }) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const tinyEditorRef = useRef<any>(null);
+  const valueRef = useRef(value ?? defaultValue ?? '');
+  const onChangeRef = useRef(onChange);
   const reactId = useId();
   const editorId = id || `tinymce-${reactId.replace(/:/g, '')}`;
   const initialized = useRef(false);
   const [scriptReady, setScriptReady] = useState(
     () => typeof window !== 'undefined' && Boolean(window.tinymce)
   );
+
+  useEffect(() => {
+    valueRef.current = value ?? defaultValue ?? '';
+    onChangeRef.current = onChange;
+  }, [defaultValue, onChange, value]);
 
   useEffect(() => {
     if (scriptReady && typeof window !== 'undefined' && window.tinymce && editorRef.current && !initialized.current) {
@@ -69,31 +77,41 @@ export function RichTextEditor({
           'alignright alignjustify | bullist numlist outdent indent | ' +
           'removeformat | help',
         setup: (editor: any) => {
-          const initialValue = value ?? defaultValue;
-          if (initialValue) {
-            editor.on('init', () => {
+          tinyEditorRef.current = editor;
+          editor.on('init', () => {
+            const initialValue = valueRef.current;
+            if (initialValue) {
               // If content already contains HTML tags, set it directly
               // Only convert \n to <br/> for plain text content
               const isHtml = /<[a-z][\s\S]*>/i.test(initialValue);
               editor.setContent(isHtml ? initialValue : initialValue.replace(/\n/g, '<br/>'));
-            });
-          }
-          if (onChange) {
-            editor.on('change keyup undo redo setcontent', () => {
-              onChange(editor.getContent());
-            });
-          }
+            }
+          });
+          editor.on('change keyup undo redo setcontent', () => {
+            onChangeRef.current?.(editor.getContent());
+          });
         }
+      }).catch(() => {
+        initialized.current = false;
+        tinyEditorRef.current = null;
       });
     }
 
     return () => {
       if (typeof window !== 'undefined' && window.tinymce && initialized.current) {
-        window.tinymce.remove(editorRef.current);
+        if (tinyEditorRef.current) window.tinymce.remove(tinyEditorRef.current);
+        tinyEditorRef.current = null;
         initialized.current = false;
       }
     };
-  }, [minHeight, defaultValue, value, onChange, scriptReady]);
+  }, [minHeight, scriptReady]);
+
+  useEffect(() => {
+    const editor = tinyEditorRef.current;
+    if (!editor || !initialized.current || !editor.initialized) return;
+    const nextValue = value ?? defaultValue ?? '';
+    if (editor.getContent() !== nextValue) editor.setContent(nextValue);
+  }, [defaultValue, value]);
 
   return (
     <>
@@ -109,8 +127,15 @@ export function RichTextEditor({
             {title}
           </h3>
         )}
-        <div className="w-full text-black tinymce-gaming-wrapper">
-          <textarea id={editorId} ref={editorRef} className="hidden" />
+        <div className="w-full text-black tinymce-gaming-wrapper rounded-sm border border-gray-800 bg-[#0a0a0f]" style={{ minHeight }}>
+          <textarea
+            id={editorId}
+            ref={editorRef}
+            defaultValue={value ?? defaultValue ?? ''}
+            className="block w-full resize-none border-0 bg-[#0a0a0f] p-3 text-sm text-gray-300 outline-none"
+            style={{ minHeight }}
+            aria-label={title || 'Nội dung'}
+          />
         </div>
 
         {/* Override Default TinyMCE Dark Theme to match Gaming UI */}

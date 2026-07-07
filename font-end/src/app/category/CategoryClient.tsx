@@ -5,8 +5,13 @@ import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import SimilarProducts from "../../components/SimilarProducts";
 import WhyBuyFaq from "../../components/WhyBuyFaq";
+import ProductGridCard from "../../components/ProductGridCard";
 import ProgressiveImage from "../../components/ProgressiveImage";
 import Link from "next/link";
+import {
+  buildSidebarSectionVisibility,
+  type SidebarSectionVisibility,
+} from "../../lib/sidebarFilterVisibility";
 
 const slugify = (str: string) => {
   if (!str) return "";
@@ -39,14 +44,31 @@ const isDisplayableFilterValue = (value: unknown) => {
   return label.length > 0 && !unsafeFilterValuePattern.test(label);
 };
 
+interface AttributeValue {
+  id: number;
+  name: string;
+  productCount: number;
+}
+
+interface PreparedAttribute {
+  id: number;
+  name: string;
+  icon: string | null;
+  filter_code?: string;
+  values: AttributeValue[];
+  sectionVisibility: SidebarSectionVisibility<AttributeValue>;
+}
+
 function AttributeFilterBlock({
   attr,
   isLast,
   isOpen,
+  isFilterSearchActive,
 }: {
-  attr: any;
+  attr: PreparedAttribute;
   isLast: boolean;
   isOpen: boolean;
+  isFilterSearchActive: boolean;
 }) {
   const [showAll, setShowAll] = useState(false);
   const [isExpanded, setIsExpanded] = useState(isOpen);
@@ -55,10 +77,23 @@ function AttributeFilterBlock({
 
   const filterKey = attr.filter_code || slugify(attr.name);
   const currentValues = searchParams.get(filterKey)?.split(",") || [];
-  const displayValues = useMemo(
-    () => (attr.values || []).filter((value: any) => isDisplayableFilterValue(value.name)),
-    [attr.values],
-  );
+  const displayValues = showAll
+    ? [...attr.sectionVisibility.visibleValues, ...attr.sectionVisibility.collapsedValues]
+    : attr.sectionVisibility.visibleValues;
+  const collapsedCount = attr.sectionVisibility.collapsedCount;
+  const hasVisibleFilterValues = attr.sectionVisibility.visibleValues.length > 0;
+
+  useEffect(() => {
+    if (isFilterSearchActive && hasVisibleFilterValues) {
+      setIsExpanded(true);
+    }
+  }, [
+    attr.id,
+    attr.sectionVisibility.hasMatchedValues,
+    attr.sectionVisibility.sectionNameMatches,
+    hasVisibleFilterValues,
+    isFilterSearchActive,
+  ]);
 
   const handleToggle = (valName: string) => {
     const valSlug = slugify(valName);
@@ -110,7 +145,7 @@ function AttributeFilterBlock({
         style={!isExpanded ? { display: "none" } : {}}
       >
         <div className="space-y-2">
-          {displayValues.slice(0, showAll ? undefined : 4).map((val: any) => {
+          {displayValues.map((val: any) => {
             const valSlug = slugify(val.name);
             const isChecked = currentValues.includes(valSlug);
             return (
@@ -150,7 +185,7 @@ function AttributeFilterBlock({
             );
           })}
         </div>
-        {displayValues.length > 4 && (
+        {collapsedCount > 0 && (
           <button
             className="flex items-center gap-3 mt-4 mb-2 ml-1 text-[15px] text-gray-400 hover:text-white transition-colors font-medium"
             onClick={() => setShowAll(!showAll)}
@@ -166,7 +201,7 @@ function AttributeFilterBlock({
                 </svg>
               )}
             </div>
-            {showAll ? "Thu gọn" : `+ ${displayValues.length - 4} mục`}
+            {showAll ? "Thu gọn" : `+ ${collapsedCount} mục`}
           </button>
         )}
       </div>
@@ -270,16 +305,33 @@ export default function CategoryContent({ categoryId, params, searchParams, init
   }, [isFilterSearchActive, normalizedSidebarKeyword, subcategories]);
 
   const visibleAttributes = useMemo(() => {
-    if (!isFilterSearchActive) return attributes;
-
     return attributes
       .map((attr) => {
-        if (matchesSidebarSearch(attr.name || "")) return attr;
-        const values = (attr.values || []).filter((val: any) => matchesSidebarSearch(val.name || ""));
-        return values.length > 0 ? { ...attr, values } : null;
+        const displayableValues = (attr.values || []).filter((value: any) =>
+          isDisplayableFilterValue(value.name),
+        );
+        const filterKey = attr.filter_code || slugify(attr.name);
+        const selectedSlugs = new Set(
+          (searchParamsHook?.get(filterKey)?.split(",") || []).filter(Boolean),
+        );
+        const sectionVisibility = buildSidebarSectionVisibility({
+          values: displayableValues,
+          keyword: normalizedSidebarKeyword,
+          sectionName: attr.name || "",
+          selectedSlugs,
+          slugify,
+        });
+
+        if (!sectionVisibility.shouldRenderSection) return null;
+
+        return {
+          ...attr,
+          values: displayableValues,
+          sectionVisibility,
+        };
       })
-      .filter(Boolean);
-  }, [attributes, isFilterSearchActive, normalizedSidebarKeyword]);
+      .filter(Boolean) as PreparedAttribute[];
+  }, [attributes, normalizedSidebarKeyword, searchParamsHook]);
   const urlMin = searchParamsHook?.get("min-price");
   const urlMax = searchParamsHook?.get("max-price");
   if (urlMin || urlMax) {
@@ -844,6 +896,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                 attr={attr}
                 isLast={index === visibleAttributes.length - 1}
                 isOpen={index < 4}
+                isFilterSearchActive={isFilterSearchActive}
               />
             ))}
           </div>
@@ -1011,57 +1064,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
               </div>
             ) : products.length > 0 ? (
               products.map((product: any) => (
-                <Link
-                  key={product.id}
-                  href={`/${product.slug}`}
-                  className="block bg-gradient-to-b from-[#1a1a1d] to-[#111113] border border-[#27272a] rounded-xl overflow-hidden transition-all duration-300 hover:border-[#3f3f46] shadow-[0_4px_12px_rgba(0,0,0,0.2)] hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)] hover:-translate-y-1.5 flex flex-col h-full group relative"
-                >
-                  {/* Image Area - Edge to Edge */}
-                  <div className="w-full aspect-[4/3] relative flex items-center justify-center bg-[#151518]">
-                    <ProgressiveImage
-                      src={product.thumbnail}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  
-                  {/* Content Area */}
-                  <div className="p-4 flex flex-col flex-1 relative z-10">
-                    {/* Badges / Brand */}
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <span className="border border-[#333] bg-[#1a1a1e] text-[#a1a1aa] text-[10.5px] font-medium px-4 py-1 rounded-full">
-                        {product.name.split(' ')[0] || "Brand"}
-                      </span>
-                    </div>
-
-                    {/* Title with Gradient */}
-                    <p className="text-sm font-medium text-center leading-relaxed line-clamp-2 mb-5 min-h-[42px] bg-clip-text text-transparent bg-gradient-to-r from-gray-100 via-gray-300 to-gray-500">
-                      {product.name}
-                    </p>
-
-                    {/* Footer: Price & Stock */}
-                    <div className="flex items-center justify-between mt-auto">
-                      <span className="bg-gradient-to-r from-white via-cyan-400 to-purple-500 bg-clip-text text-transparent font-extrabold text-[17px] tracking-wide">
-                        {!product.price || product.price == 0 ? (
-                          "Liên hệ"
-                        ) : (
-                          <>
-                            {new Intl.NumberFormat("vi-VN").format(product.price)}
-                            <span className="text-[12px] font-bold ml-0.5 align-top underline decoration-1 underline-offset-[2px]">đ</span>
-                          </>
-                        )}
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[#10b981] text-[11px] font-bold flex items-center gap-1">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#10b981]"></div> In Stock
-                        </span>
-                        <svg className="w-4 h-4 text-gray-500 hover:text-white transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
+                <ProductGridCard key={product.id} product={product} />
               ))
             ) : (
               <div className="col-span-1 sm:col-span-2 xl:col-span-4 flex flex-col items-center justify-center py-20 text-center bg-[#111115] rounded-2xl border border-[#1a1a1e] my-4">

@@ -3,6 +3,7 @@ import SearchClient, { type SearchClientProps } from "./SearchClient";
 
 type SearchApiResponse = SearchClientProps["initialData"]["products"] & {
   attributes?: SearchClientProps["initialData"]["attributes"]["data"];
+  priceBounds?: SearchClientProps["initialData"]["priceBounds"]["data"];
 };
 
 export default async function SearchPage(props: {
@@ -16,13 +17,23 @@ export default async function SearchPage(props: {
   let products: SearchApiResponse = {
     data: [],
     attributes: [],
+    priceBounds: { min: 0, max: 0 },
     pagination: { page: 1, limit: 24, totalPages: 1, total: 0 },
   };
   let attributes: SearchClientProps["initialData"]["attributes"] = { data: [] };
+  let priceBounds: SearchClientProps["initialData"]["priceBounds"] = {
+    data: { min: 0, max: 0 },
+  };
 
   if (query.trim()) {
     try {
       const productUrl = new URL(`${API_URL}/api/search`);
+      Object.entries(searchParams || {}).forEach(([key, value]) => {
+        const normalizedValue = Array.isArray(value) ? value[0] : value;
+        if (normalizedValue != null && normalizedValue !== "") {
+          productUrl.searchParams.set(key, String(normalizedValue));
+        }
+      });
       productUrl.searchParams.set("q", query);
       productUrl.searchParams.set("page", "1");
       productUrl.searchParams.set("limit", "24");
@@ -32,13 +43,14 @@ export default async function SearchPage(props: {
       if (productsRes.ok) {
         products = await productsRes.json();
         attributes = { data: products.attributes || [] };
+        priceBounds = { data: products.priceBounds || { min: 0, max: 0 } };
       }
     } catch (err) {
       console.error("Error fetching search results:", err);
     }
   }
 
-  const initialData = { products, attributes, query };
+  const initialData = { products, attributes, priceBounds, query };
 
   return (
     <Suspense

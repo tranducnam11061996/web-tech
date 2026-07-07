@@ -4,6 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 
 export const CART_STORAGE_KEY = "hacom.cart.v1";
 const CART_CHANGED_EVENT = "hacom-cart-change";
+export const CART_ITEM_ADDED_EVENT = "hacom-cart-item-added";
 const MAX_QUANTITY = 99;
 const EMPTY_CART: CartItem[] = [];
 
@@ -22,6 +23,11 @@ export type CartItem = {
 };
 
 export type CartInput = Omit<CartItem, "quantity" | "selected" | "savedForLater" | "addedAt">;
+
+export type CartItemAddedDetail = {
+  item: CartInput;
+  quantity: number;
+};
 
 let cartCache: CartItem[] | null = null;
 
@@ -189,6 +195,14 @@ export function addCartItem(item: CartInput, quantity = 1, options?: { selectOnl
   }
 
   setCartItems(nextItems);
+
+  if (!options?.selectOnly) {
+    window.dispatchEvent(
+      new CustomEvent<CartItemAddedDetail>(CART_ITEM_ADDED_EVENT, {
+        detail: { item, quantity: qty },
+      }),
+    );
+  }
 }
 
 export function updateCartQuantity(productId: number, quantity: number) {

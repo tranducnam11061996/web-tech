@@ -1,5 +1,7 @@
 import { fail, ok, requireAdminWrite, toInt } from '@/lib/admin/common';
 import { groupProductImages, listProductImages, patchProductImages } from '@/lib/admin/images';
+import pool from '@/lib/db';
+import type { RowDataPacket } from 'mysql2/promise';
 
 function formatImagePayload(images: Awaited<ReturnType<typeof listProductImages>>) {
   const groups = groupProductImages(images);
@@ -17,7 +19,13 @@ function formatImagePayload(images: Awaited<ReturnType<typeof listProductImages>
 export async function GET(_request: Request, context: RouteContext<'/api/admin/products/[id]/images'>) {
   try {
     const { id } = await context.params;
-    const images = await listProductImages(toInt(id));
+    const productId = toInt(id);
+    const [rows] = await pool.query<RowDataPacket[]>(
+      'SELECT proThum, image_collection FROM idv_sell_product_store WHERE id = ? LIMIT 1',
+      [productId],
+    );
+    const product = rows[0];
+    const images = await listProductImages(productId, product?.image_collection || '', product?.proThum || '');
     return ok(formatImagePayload(images));
   } catch (error) {
     return fail(error);

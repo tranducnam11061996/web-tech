@@ -178,23 +178,63 @@ export function serializeProductImages(images: AdminImageInput[]) {
   };
 }
 
-export function parseLegacyProductImages(rawImageCollection: unknown): AdminImageInput[] {
-  const raw = String(rawImageCollection || '');
-  if (!raw) return [];
+function normalizeLegacyPath(value: unknown) {
+  return String(value || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+}
 
+function legacyImageKey(value: unknown) {
+  return normalizeLegacyPath(value).toLocaleLowerCase('en-US');
+}
+
+function legacyImageBasenameKey(value: unknown) {
+  return basenameFromPath(normalizeLegacyPath(value)).toLocaleLowerCase('en-US');
+}
+
+export function parseLegacyProductImages(rawImageCollection: unknown, rawThumbnail?: unknown): AdminImageInput[] {
+  const raw = String(rawImageCollection || '');
   const parsed: AdminImageInput[] = [];
+  const seen = new Set<string>();
   const blockRegex = /s:10:"image_name";s:\d+:"([^"]+)";s:3:"alt";s:\d+:"([^"]*)"/g;
   let match: RegExpExecArray | null;
   let index = 0;
   while ((match = blockRegex.exec(raw)) !== null) {
+    const fileName = normalizeLegacyPath(match[1]);
+    const key = legacyImageKey(fileName);
+    if (!fileName || seen.has(key)) continue;
+    seen.add(key);
     parsed.push({
-      fileName: match[1],
+      fileName,
       alt: match[2] || '',
-      ordering: index === 0 ? 100 : index + 80,
-      isPrimary: index === 0,
+      ordering: index,
+      isPrimary: false,
     });
     index += 1;
   }
+
+  const thumbnail = normalizeLegacyPath(rawThumbnail);
+  if (thumbnail) {
+    const thumbnailPathKey = legacyImageKey(thumbnail);
+    const thumbnailBasenameKey = legacyImageBasenameKey(thumbnail);
+    const matchingImage = parsed.find(
+      (image) =>
+        legacyImageKey(image.fileName) === thumbnailPathKey ||
+        legacyImageBasenameKey(image.fileName) === thumbnailBasenameKey,
+    );
+
+    if (matchingImage) {
+      matchingImage.isPrimary = true;
+    } else {
+      parsed.push({
+        fileName: thumbnail,
+        alt: '',
+        ordering: index,
+        isPrimary: true,
+      });
+    }
+  } else if (parsed[0]) {
+    parsed[0].isPrimary = true;
+  }
+
   return parsed;
 }
 
@@ -206,13 +246,27 @@ async function hasProductImages(connection: PoolConnection, productId: number) {
   return rows.length > 0;
 }
 
-export async function seedLegacyProductImages(connection: PoolConnection, productId: number, rawImageCollection: unknown) {
+export async function seedLegacyProductImages(
+  connection: PoolConnection,
+  productId: number,
+  rawImageCollection: unknown,
+  rawThumbnail?: unknown,
+) {
   await ensureProductImageTable(connection);
-  if (await hasProductImages(connection, productId)) return;
-
-  const legacyImages = parseLegacyProductImages(rawImageCollection);
+  const legacyImages = parseLegacyProductImages(rawImageCollection, rawThumbnail);
+  const alreadySeeded = await hasProductImages(connection, productId);
   for (const image of legacyImages) {
-    const relativePath = image.fileName.replace(/\\/g, '/').replace(/^\/+/, '');
+    const relativePath = normalizeLegacyPath(image.fileName);
+    const [existingRows] = await connection.query<RowDataPacket[]>(
+      `
+        SELECT id FROM web_admin_product_images
+        WHERE product_id = ? AND (LOWER(relative_path) = LOWER(?) OR LOWER(file_name) = LOWER(?))
+        LIMIT 1
+      `,
+      [productId, relativePath, basenameFromPath(relativePath)],
+    );
+    if (existingRows.length > 0) continue;
+
     await connection.query(
       `
         INSERT INTO web_admin_product_images
@@ -229,13 +283,31 @@ export async function seedLegacyProductImages(connection: PoolConnection, produc
       ],
     );
   }
+
+  const thumbnail = normalizeLegacyPath(rawThumbnail);
+  if (thumbnail) {
+    const [thumbnailRows] = await connection.query<RowDataPacket[]>(
+      `
+        SELECT id FROM web_admin_product_images
+        WHERE product_id = ? AND (LOWER(relative_path) = LOWER(?) OR LOWER(file_name) = LOWER(?))
+        ORDER BY id ASC LIMIT 1
+      `,
+      [productId, thumbnail, basenameFromPath(thumbnail)],
+    );
+    if (thumbnailRows[0]?.id) {
+      await connection.query('UPDATE web_admin_product_images SET is_main = 0 WHERE product_id = ?', [productId]);
+      await connection.query('UPDATE web_admin_product_images SET is_main = 1 WHERE id = ? AND product_id = ?', [thumbnailRows[0].id, productId]);
+    }
+  } else if (!alreadySeeded && legacyImages.length > 0) {
+    await enforceSingleMain(connection, productId);
+  }
 }
 
-export async function listProductImages(productId: number, rawImageCollection?: unknown) {
+export async function listProductImages(productId: number, rawImageCollection?: unknown, rawThumbnail?: unknown) {
   await ensureProductImageTable();
   if (rawImageCollection !== undefined) {
     await withTransaction(async (connection) => {
-      await seedLegacyProductImages(connection, productId, rawImageCollection);
+      await seedLegacyProductImages(connection, productId, rawImageCollection, rawThumbnail);
     });
   }
 

@@ -6,7 +6,7 @@ async function getProductById(id: string) {
   try {
     const [rows] = await pool.query(`
       SELECT 
-        p.id, p.proName, p.storeSKU, p.proSummary, p.specialOffer, p.promotion, p.cond, p.product_cat, p.image_collection,
+        p.id, p.proName, p.storeSKU, p.proThum, p.proSummary, p.specialOffer, p.promotion, p.cond, p.product_cat, p.image_collection,
         pr.price, pr.market_price, pr.isOn, pr.ordering, 
         b.name as brandName, 
         i.video_code, i.spec, i.multipart_spec, i.description
@@ -44,7 +44,7 @@ async function getProductById(id: string) {
       }
     }
 
-    const parsedImages = await listProductImages(Number(id), product.image_collection || '');
+    const parsedImages = await listProductImages(Number(id), product.image_collection || '', product.proThum || '');
 
     // Remove raw field to avoid serializing large text to client
     delete product.image_collection;

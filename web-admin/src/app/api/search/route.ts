@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { ensureSearchCacheFresh } from '@/lib/searchCache';
 import {
+  applySearchPriceFilter,
   applySearchFilters,
   buildSearchFacets,
   formatSearchProduct,
+  getSearchPriceBounds,
   parseSearchFilters,
   rankSearchProducts,
   sortSearchProducts,
@@ -25,14 +27,34 @@ export async function GET(request: Request) {
     const q = searchParams.get('q') || '';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
     const limit = Math.min(96, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24));
+    const minPriceParam = searchParams.get('min-price');
+    const maxPriceParam = searchParams.get('max-price');
+    const minPrice = minPriceParam === null ? null : Number(minPriceParam);
+    const maxPrice = maxPriceParam === null ? null : Number(maxPriceParam);
+
+    if (minPriceParam !== null && (!Number.isFinite(minPrice) || (minPrice ?? 0) < 0)) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid min-price parameter' },
+        { status: 400, headers: corsHeaders },
+      );
+    }
+
+    if (maxPriceParam !== null && (!Number.isFinite(maxPrice) || (maxPrice ?? 0) < 0)) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid max-price parameter' },
+        { status: 400, headers: corsHeaders },
+      );
+    }
 
     await ensureSearchCacheFresh();
 
     const ranked = rankSearchProducts(q);
     const activeFilters = parseSearchFilters(searchParams);
     const filtered = applySearchFilters(ranked, activeFilters);
-    const attributes = buildSearchFacets(filtered);
-    const sorted = sortSearchProducts(filtered, searchParams.get('sort'));
+    const priceBounds = getSearchPriceBounds(filtered);
+    const priceFiltered = applySearchPriceFilter(filtered, minPrice, maxPrice);
+    const attributes = buildSearchFacets(priceFiltered);
+    const sorted = sortSearchProducts(priceFiltered, searchParams.get('sort'));
     const total = sorted.length;
     const totalPages = Math.max(1, Math.ceil(total / limit));
     const safePage = Math.min(page, totalPages);
@@ -46,6 +68,7 @@ export async function GET(request: Request) {
         success: true,
         data,
         attributes,
+        priceBounds,
         pagination: { page: safePage, limit, total, totalPages },
       },
       { headers: corsHeaders },

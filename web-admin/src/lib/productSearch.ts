@@ -21,7 +21,12 @@ export interface SearchFacet {
   values: Array<{ id: number; name: string; productCount: number }>;
 }
 
-const RESERVED_PARAMS = new Set(['q', 'page', 'limit', 'sort']);
+export interface SearchPriceBounds {
+  min: number;
+  max: number;
+}
+
+const RESERVED_PARAMS = new Set(['q', 'page', 'limit', 'sort', 'min-price', 'max-price']);
 const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
 
 export const SEARCH_EXCLUSIONS: Record<string, string[]> = {
@@ -178,6 +183,38 @@ export function applySearchFilters(
       }
       if (!matches) return false;
     }
+    return true;
+  });
+}
+
+export function getSearchPriceBounds(rankedProducts: RankedSearchProduct[]): SearchPriceBounds {
+  let min = Number.POSITIVE_INFINITY;
+  let max = 0;
+
+  for (const { product } of rankedProducts) {
+    if (product.price <= 0) continue;
+    if (product.price < min) min = product.price;
+    if (product.price > max) max = product.price;
+  }
+
+  if (!Number.isFinite(min) || max <= 0) {
+    return { min: 0, max: 0 };
+  }
+
+  return { min, max };
+}
+
+export function applySearchPriceFilter(
+  rankedProducts: RankedSearchProduct[],
+  minPrice: number | null,
+  maxPrice: number | null,
+) {
+  if (minPrice === null && maxPrice === null) return rankedProducts;
+
+  return rankedProducts.filter(({ product }) => {
+    if (product.price <= 0) return false;
+    if (minPrice !== null && product.price < minPrice) return false;
+    if (maxPrice !== null && product.price > maxPrice) return false;
     return true;
   });
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { FileImage, ImageOff, Loader2, Save, Star, Trash2, Upload } from 'lucide-react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle2, ImageOff, ImagePlus, Loader2, Star, Trash2, Upload, X } from 'lucide-react';
 
 type ProductImageType = 'product' | 'self' | 'customer';
 
@@ -19,6 +19,36 @@ type ProductImage = {
 type ImagePayload = {
   items: ProductImage[];
 };
+
+export type TabImagesHandle = {
+  isDirty: () => boolean;
+  saveChanges: () => Promise<void>;
+};
+
+type TabImagesProps = {
+  productId?: number;
+  initialImages?: ProductImage[];
+  onBusyChange?: (busy: boolean) => void;
+};
+
+type QueuedFile = {
+  id: string;
+  file: File;
+  previewUrl: string;
+  error: string;
+};
+
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+function fileKey(file: File) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 const ALBUMS: Array<{
   id: ProductImageType;
@@ -141,24 +171,43 @@ function ImageCard({
               ? 'border-yellow-500/50 text-yellow-500 bg-yellow-500/10 shadow-[0_0_10px_rgba(234,179,8,0.2)]'
               : 'border-gray-700 text-gray-400 hover:border-blue-500/50 hover:text-blue-400'
           }`}
-          title={isCustomer ? 'Ảnh khách hàng không đặt làm ảnh chính sản phẩm' : 'Chọn ảnh chính'}
+          title={isCustomer ? 'Ảnh khách hàng không thể đặt làm thumbnail' : 'Chọn làm ảnh thumbnail'}
         >
-          <Star className={`w-3.5 h-3.5 ${image.isMain && !isCustomer ? 'fill-yellow-500' : ''}`} /> Ảnh chính
+          <Star className={`w-3.5 h-3.5 ${image.isMain && !isCustomer ? 'fill-yellow-500' : ''}`} /> Ảnh thumbnail
         </button>
       </div>
     </div>
   );
 }
 
-export function TabImages({ productId, initialImages = [] }: { productId?: number; initialImages?: ProductImage[] }) {
+export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function TabImages(
+  { productId, initialImages = [], onBusyChange },
+  ref,
+) {
   const [images, setImages] = useState<ProductImage[]>(() => normalizeImages(initialImages));
   const [selectedType, setSelectedType] = useState<ProductImageType>('product');
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [queuedFiles, setQueuedFiles] = useState<QueuedFile[]>([]);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queueRef = useRef<QueuedFile[]>([]);
+
+  useEffect(() => {
+    queueRef.current = queuedFiles;
+  }, [queuedFiles]);
+
+  useEffect(() => () => {
+    queueRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+  }, []);
+
+  useEffect(() => {
+    onBusyChange?.(saving || uploading);
+  }, [onBusyChange, saving, uploading]);
 
   const groupedImages = useMemo(
     () =>
@@ -168,15 +217,57 @@ export function TabImages({ productId, initialImages = [] }: { productId?: numbe
       })),
     [images],
   );
-  const selectedSize = selectedFiles.reduce((sum, file) => sum + file.size, 0);
+  const selectedSize = queuedFiles.reduce((sum, item) => sum + item.file.size, 0);
   const selectedSizeMb = selectedSize / (1024 * 1024);
   const remainingMb = Math.max(0, 50 - selectedSizeMb);
+  const hasInvalidFiles = queuedFiles.some((item) => Boolean(item.error));
+  const exceedsLimit = selectedSize > MAX_UPLOAD_BYTES;
+  const canUpload = Boolean(productId && queuedFiles.length > 0 && !hasInvalidFiles && !exceedsLimit && !uploading);
+  const capacityPercent = Math.min(100, (selectedSize / MAX_UPLOAD_BYTES) * 100);
 
   const applyPayload = (payload: ImagePayload) => {
     setImages(normalizeImages(payload.items || []));
+    setIsDirty(false);
+  };
+
+  const addFilesToQueue = (files: File[]) => {
+    if (uploading || files.length === 0) return;
+    setQueuedFiles((current) => {
+      const existing = new Set(current.map((item) => fileKey(item.file)));
+      const additions = files
+        .filter((file) => !existing.has(fileKey(file)))
+        .map((file) => ({
+          id: fileKey(file),
+          file,
+          previewUrl: URL.createObjectURL(file),
+          error: ALLOWED_IMAGE_TYPES.has(file.type) ? '' : 'Định dạng không được hỗ trợ',
+        }));
+      return [...current, ...additions];
+    });
+    setError('');
+  };
+
+  const removeQueuedFile = (id: string) => {
+    if (uploading) return;
+    setQueuedFiles((current) => {
+      const removed = current.find((item) => item.id === id);
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return current.filter((item) => item.id !== id);
+    });
+  };
+
+  const clearQueue = () => {
+    if (uploading) return;
+    setQueuedFiles((current) => {
+      current.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      return [];
+    });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setUploadProgress(0);
   };
 
   const updateImage = (id: number, patch: Partial<ProductImage>) => {
+    setIsDirty(true);
     setImages((current) =>
       current.map((image) => {
         if (image.id !== id) {
@@ -188,9 +279,9 @@ export function TabImages({ productId, initialImages = [] }: { productId?: numbe
   };
 
   const saveImages = async () => {
+    if (!isDirty) return;
     if (!productId) {
-      setError('Cần lưu sản phẩm trước khi cập nhật ảnh.');
-      return;
+      throw new Error('Cần lưu sản phẩm trước khi cập nhật ảnh.');
     }
     setSaving(true);
     setMessage('');
@@ -212,38 +303,60 @@ export function TabImages({ productId, initialImages = [] }: { productId?: numbe
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể lưu ảnh.');
       applyPayload(payload.data);
-      setMessage(payload.message || 'Đã lưu thay đổi ảnh.');
     } catch (saveError: any) {
       setError(saveError.message || 'Không thể lưu ảnh.');
+      throw saveError;
     } finally {
       setSaving(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    isDirty: () => isDirty,
+    saveChanges: saveImages,
+  }));
 
   const uploadImages = async () => {
     if (!productId) {
       setError('Cần lưu sản phẩm trước khi upload ảnh.');
       return;
     }
-    if (selectedFiles.length === 0) {
+    if (queuedFiles.length === 0) {
       setError('Vui lòng chọn ít nhất một ảnh.');
       return;
     }
+    if (hasInvalidFiles || exceedsLimit) {
+      setError(exceedsLimit ? 'Tổng dung lượng hàng chờ vượt quá 50MB.' : 'Hãy loại bỏ các file không hợp lệ trước khi tải lên.');
+      return;
+    }
     setUploading(true);
+    setUploadProgress(0);
     setMessage('');
     setError('');
     try {
       const formData = new FormData();
       formData.set('type', selectedType);
-      selectedFiles.forEach((file) => formData.append('files', file));
-      const response = await fetch(`/api/admin/products/${productId}/images/upload`, {
-        method: 'POST',
-        body: formData,
+      queuedFiles.forEach((item) => formData.append('files', item.file));
+      const payload = await new Promise<any>((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open('POST', `/api/admin/products/${productId}/images/upload`);
+        request.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) setUploadProgress(Math.round((event.loaded / event.total) * 100));
+        });
+        request.addEventListener('load', () => {
+          let responsePayload: any = null;
+          try { responsePayload = JSON.parse(request.responseText); } catch { /* handled below */ }
+          if (request.status >= 200 && request.status < 300 && responsePayload?.success) resolve(responsePayload);
+          else reject(new Error(responsePayload?.error?.message || 'Không thể tải ảnh lên.'));
+        });
+        request.addEventListener('error', () => reject(new Error('Mất kết nối khi tải ảnh lên.')));
+        request.addEventListener('abort', () => reject(new Error('Đã hủy tải ảnh.')));
+        request.send(formData);
       });
-      const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể upload ảnh.');
       applyPayload(payload.data);
-      setSelectedFiles([]);
+      queuedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      setQueuedFiles([]);
+      setUploadProgress(100);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setMessage(payload.message || 'Tải ảnh thành công.');
     } catch (uploadError: any) {
@@ -278,14 +391,6 @@ export function TabImages({ productId, initialImages = [] }: { productId?: numbe
           <span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
           Ảnh sản phẩm ({images.length})
         </h3>
-        <button
-          type="button"
-          onClick={saveImages}
-          disabled={saving || uploading || !productId}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-green-400 bg-green-950/20 border border-green-900 rounded-sm hover:border-green-500 hover:text-green-300 hover:shadow-[0_0_15px_rgba(34,197,94,0.35)] transition-all uppercase tracking-wider disabled:opacity-60"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Lưu thay đổi ảnh
-        </button>
       </div>
 
       {message && <div className="px-3 py-2 border border-green-900 bg-green-950/30 text-green-300 text-xs font-bold">{message}</div>}
@@ -328,22 +433,18 @@ export function TabImages({ productId, initialImages = [] }: { productId?: numbe
         ))}
       </div>
 
-      <div className="mt-8 border border-gray-800 border-dashed rounded-lg p-6 bg-gray-950/30">
-        <h3 className="text-sm font-bold text-gray-200 uppercase tracking-widest mb-4">Thêm ảnh cho sản phẩm</h3>
-
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {ALBUMS.map((album) => (
-            <button
-              key={album.id}
-              type="button"
-              onClick={() => setSelectedType(album.id)}
-              className={`px-4 py-2 text-xs font-bold border rounded-sm uppercase tracking-wider transition-colors ${
-                selectedType === album.id ? album.active : 'text-gray-400 bg-gray-900 border-gray-800 hover:text-gray-200'
-              }`}
-            >
-              {album.uploadLabel}
-            </button>
-          ))}
+      <section className="mt-8 border-t border-slate-800/80 pt-5" aria-busy={uploading}>
+        <div className="mb-5 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-blue-400">Upload console</p>
+            <h3 className="mt-1 text-sm font-bold uppercase tracking-widest text-slate-100">Thêm ảnh cho sản phẩm</h3>
+          </div>
+          {queuedFiles.length > 0 && (
+            <div className="flex items-center gap-2 text-xs text-slate-400 queue-file-enter">
+              <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.8)]" />
+              {queuedFiles.length} ảnh trong hàng chờ
+            </div>
+          )}
         </div>
 
         <input
@@ -352,57 +453,130 @@ export function TabImages({ productId, initialImages = [] }: { productId?: numbe
           multiple
           accept="image/jpeg,image/png,image/webp,image/gif"
           className="hidden"
-          onChange={(event) => setSelectedFiles(Array.from(event.target.files || []))}
+          onChange={(event) => {
+            addFilesToQueue(Array.from(event.target.files || []));
+            event.target.value = '';
+          }}
         />
 
-        <div className="flex flex-wrap items-center gap-4 mb-4">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading || !productId}
-            className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-gray-300 bg-gray-900 border border-gray-700 rounded-sm hover:border-red-500/50 hover:text-red-400 transition-colors uppercase tracking-wider group disabled:opacity-60"
-          >
-            <Upload className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform" /> Chọn tệp...
-          </button>
-          <span className="text-gray-500 italic text-sm">hoặc</span>
-          <button
-            type="button"
-            disabled
-            className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-blue-400/60 bg-blue-950/20 border border-blue-900/60 rounded-sm uppercase tracking-wider cursor-not-allowed"
-            title="Kho ảnh có sẵn sẽ được nối ở bước sau"
-          >
-            <FileImage className="w-4 h-4" /> Kho ảnh có sẵn
-          </button>
-          <button
-            type="button"
-            onClick={uploadImages}
-            disabled={uploading || selectedFiles.length === 0 || !productId}
-            className="flex items-center gap-2 px-6 py-3 text-sm font-bold text-green-400 bg-green-950/20 border border-green-900 rounded-sm hover:border-green-500 hover:text-green-300 transition-colors uppercase tracking-wider disabled:opacity-60"
-          >
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Tải lên
-          </button>
-        </div>
+        <div className="space-y-5">
+          {queuedFiles.length > 0 && (
+            <div className="overflow-hidden rounded-lg border border-slate-800 bg-slate-950/45 queue-file-enter">
+              <div className="flex flex-col gap-3 border-b border-slate-800 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-slate-200">Đang chờ upload</h4>
+                    <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-bold text-blue-300">{queuedFiles.length}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-500">Đích đến: {ALBUMS.find((album) => album.id === selectedType)?.label}</p>
+                </div>
+                <button type="button" onClick={clearQueue} disabled={uploading} className="inline-flex items-center gap-1.5 self-start text-[11px] font-bold text-slate-500 transition-colors hover:text-red-400 disabled:opacity-40 sm:self-auto">
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Xóa tất cả
+                </button>
+              </div>
 
-        <div className="text-xs text-gray-500 space-y-1 font-mono">
-          <div>
-            Bạn đã chọn <strong className="text-blue-400">{selectedSizeMb.toFixed(2)}MB / 50MB</strong>. Dung lượng còn lại{' '}
-            <strong className="text-green-400">{remainingMb.toFixed(2)}MB</strong>.
-          </div>
-          {selectedFiles.length > 0 && (
-            <div className="text-gray-400">
-              {selectedFiles.length} tệp đang chờ tải lên vào album{' '}
-              <strong className="text-gray-200">{ALBUMS.find((album) => album.id === selectedType)?.label}</strong>.
+              <ul className="grid grid-cols-1 gap-3 p-3 lg:grid-cols-2 xl:grid-cols-3" aria-label="Ảnh đang chờ tải lên">
+                {queuedFiles.map((item) => (
+                  <li key={item.id} className={`relative flex min-w-0 gap-3 overflow-hidden rounded-md border bg-[#0d111a] p-2.5 queue-file-enter ${item.error ? 'border-red-900/70' : 'border-slate-800'}`}>
+                    <span className={`absolute inset-y-0 left-0 w-1 ${item.error ? 'bg-red-500' : uploading ? 'bg-blue-400' : 'bg-emerald-400'}`} aria-hidden="true" />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.previewUrl} alt="" className="h-16 w-16 shrink-0 rounded object-cover bg-slate-900" />
+                    <div className="min-w-0 flex-1 py-0.5">
+                      <p className="truncate text-xs font-semibold text-slate-200" title={item.file.name}>{item.file.name}</p>
+                      <p className="mt-1 text-[10px] text-slate-500">{formatFileSize(item.file.size)} · {ALBUMS.find((album) => album.id === selectedType)?.label}</p>
+                      <div className={`mt-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide ${item.error ? 'text-red-400' : uploading ? 'text-blue-300' : 'text-emerald-400'}`}>
+                        {item.error ? <AlertCircle className="h-3 w-3" /> : uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle2 className="h-3 w-3" />}
+                        {item.error || (uploading ? `Đang tải ${uploadProgress}%` : 'Đang chờ')}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => removeQueuedFile(item.id)} disabled={uploading} aria-label={`Loại bỏ ${item.file.name}`} className="grid h-7 w-7 shrink-0 place-items-center rounded border border-slate-700 text-slate-500 transition-colors hover:border-red-500/60 hover:text-red-400 disabled:opacity-30">
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="border-t border-slate-800 px-4 py-3">
+                <div className="mb-2 flex items-center justify-between text-[11px]">
+                  <span className={exceedsLimit ? 'font-bold text-red-400' : 'text-slate-400'}>{formatFileSize(selectedSize)} / 50 MB</span>
+                  <span className={exceedsLimit ? 'text-red-400' : remainingMb < 10 ? 'text-amber-400' : 'text-emerald-400'}>{exceedsLimit ? 'Đã vượt giới hạn' : `Còn ${remainingMb.toFixed(2)} MB`}</span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-slate-800">
+                  <div className={`h-full rounded-full transition-[width] duration-300 ${exceedsLimit ? 'bg-red-500' : remainingMb < 10 ? 'bg-amber-400' : 'bg-gradient-to-r from-blue-500 to-emerald-400'}`} style={{ width: `${capacityPercent}%` }} />
+                </div>
+                {uploading && <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800"><div className="h-full bg-blue-400 transition-[width]" style={{ width: `${uploadProgress}%` }} /></div>}
+              </div>
             </div>
           )}
-          <div className="text-yellow-500/80">Lưu ý: Tổng dung lượng ảnh tải lên tối đa là 50MB.</div>
-          <ul className="list-disc list-inside mt-2 space-y-1">
-            <li>Ảnh upload sẽ được lưu theo thư mục ngày trong media và tự tránh trùng tên file.</li>
-            <li>Chỉ dùng file ảnh đuôi .jpg, .png, .webp hoặc .gif.</li>
-            <li>Ảnh sản phẩm và ảnh tự chụp sẽ nằm trong tab ảnh sản phẩm ngoài website; ảnh khách hàng nằm ở tab riêng.</li>
-          </ul>
+
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">1. Chọn album đích</p>
+            <div className="flex flex-wrap items-center gap-2">
+              {ALBUMS.map((album) => (
+                <button
+                  key={album.id}
+                  type="button"
+                  onClick={() => setSelectedType(album.id)}
+                  disabled={uploading}
+                  className={`px-4 py-2 text-xs font-bold border rounded-sm uppercase tracking-wider transition-colors ${
+                    selectedType === album.id ? album.active : 'text-gray-400 bg-gray-900 border-gray-800 hover:text-gray-200'
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  {album.uploadLabel}
+                </button>
+              ))}
+              {queuedFiles.length > 0 && (
+                <button
+                  type="button"
+                  onClick={uploadImages}
+                  disabled={!canUpload}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 rounded-sm border border-emerald-500/50 bg-emerald-500/10 px-5 text-xs font-bold uppercase tracking-wider text-emerald-300 transition-[background-color,border-color,box-shadow] hover:border-emerald-400 hover:bg-emerald-500/15 hover:shadow-[0_0_22px_rgba(52,211,153,.14)] disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-600 disabled:shadow-none queue-file-enter"
+                >
+                  {uploading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+                  {uploading ? `Đang tải ${uploadProgress}%` : `Tải lên ${queuedFiles.length} ảnh`}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">2. Chọn ảnh</p>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              onDragEnter={(event) => { event.preventDefault(); if (!uploading) setIsDragging(true); }}
+              onDragOver={(event) => { event.preventDefault(); }}
+              onDragLeave={(event) => {
+                event.preventDefault();
+                if (!event.currentTarget.contains(event.relatedTarget as Node)) setIsDragging(false);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsDragging(false);
+                addFilesToQueue(Array.from(event.dataTransfer.files));
+              }}
+              disabled={uploading || !productId}
+              className={`group flex min-h-36 w-full flex-col items-center justify-center rounded-lg border border-dashed px-5 py-6 text-center transition-[border-color,background-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-50 ${
+                isDragging
+                  ? 'scale-[1.01] border-blue-400 bg-blue-500/10'
+                  : 'border-slate-700 bg-slate-950/60 hover:border-blue-500/70 hover:bg-blue-950/15'
+              }`}
+              aria-describedby="upload-help"
+            >
+              <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-400 group-hover:border-blue-400/60">
+                <ImagePlus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="text-sm font-bold text-slate-200">Kéo thả ảnh vào đây hoặc nhấn để chọn</span>
+              <span id="upload-help" className="mt-1.5 text-xs text-slate-500">JPG, PNG, WebP hoặc GIF · Có thể chọn nhiều lần · Tối đa 50MB</span>
+            </button>
+          </div>
+
+          <p className="sr-only" aria-live="polite">
+            {uploading ? `Đang tải lên ${queuedFiles.length} ảnh, tiến độ ${uploadProgress} phần trăm.` : `${queuedFiles.length} ảnh đang chờ tải lên.`}
+          </p>
         </div>
-      </div>
+      </section>
     </div>
   );
-}
+});
 

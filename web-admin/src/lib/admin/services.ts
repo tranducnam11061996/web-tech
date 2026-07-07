@@ -83,6 +83,95 @@ function optionalIdList(value: unknown, max = 100) {
   return Array.from(new Set(source.map((item) => toInt(item)).filter((id) => id > 0))).slice(0, max);
 }
 
+type ProductSection = 'basic' | 'description' | 'category' | 'attributes' | 'combo';
+
+async function getExistingProductForUpdate(connection: PoolConnection, productId: number) {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `
+      SELECT p.id, p.storeSKU, p.proName, p.brandId, p.url, p.product_cat,
+             pr.price, pr.market_price, pr.isOn, pr.ordering
+      FROM idv_sell_product_store p
+      LEFT JOIN idv_sell_product_price pr ON pr.id = p.id
+      WHERE p.id = ?
+      LIMIT 1
+    `,
+    [productId],
+  );
+  if (!rows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay san pham');
+  return rows[0];
+}
+
+async function assertSkuUnique(connection: PoolConnection, sku: string, productId: number) {
+  const [skuRows] = await connection.query<RowDataPacket[]>(
+    'SELECT id FROM idv_sell_product_store WHERE storeSKU = ? AND id <> ? LIMIT 1',
+    [sku, productId],
+  );
+  if (skuRows.length > 0) throw new AdminApiError(409, 'CONFLICT', 'SKU da ton tai');
+}
+
+async function validateCategoryUpdate(connection: PoolConnection, productId: number, categoryIds: number[]) {
+  const [existingRows] = await connection.query<RowDataPacket[]>(
+    'SELECT product_cat FROM idv_sell_product_store WHERE id = ? LIMIT 1',
+    [productId],
+  );
+  const existingCategoryIds = new Set(optionalIdList(existingRows[0]?.product_cat, 100));
+  const categoryIdsToValidate = categoryIds.filter((categoryId) => !existingCategoryIds.has(categoryId));
+  await assertRowsExist(connection, 'idv_seller_category', 'id', categoryIdsToValidate, 'Danh muc');
+}
+
+async function rebuildProductCategories(
+  connection: PoolConnection,
+  options: {
+    productId: number;
+    categoryIds: number[];
+    brandId: number;
+    price: number;
+    ordering: number;
+    status: number;
+  },
+) {
+  const now = Math.floor(Date.now() / 1000);
+  await connection.query('DELETE FROM idv_product_category WHERE pro_id = ?', [options.productId]);
+  for (const categoryId of options.categoryIds) {
+    await connection.query(
+      'INSERT INTO idv_product_category (category_id, pro_id, brandId, price, ordering, status, create_time, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        categoryId,
+        options.productId,
+        options.brandId,
+        Math.round(options.price),
+        options.ordering,
+        options.status,
+        now,
+        now,
+      ],
+    );
+  }
+}
+
+async function upsertProductInfoFields(connection: PoolConnection, productId: number, fields: Record<string, unknown>) {
+  const columnNames = Object.keys(fields);
+  if (columnNames.length === 0) return;
+
+  const [updateResult] = await connection.query(
+    `
+      UPDATE idv_sell_product_info
+      SET ${columnNames.map((column) => `${column} = ?`).join(', ')}
+      WHERE id = ?
+    `,
+    [...columnNames.map((column) => fields[column]), productId],
+  );
+  if ((updateResult as { affectedRows?: number }).affectedRows) return;
+
+  await connection.query(
+    `
+      INSERT INTO idv_sell_product_info (id, ${columnNames.join(', ')})
+      VALUES (?, ${columnNames.map(() => '?').join(', ')})
+    `,
+    [productId, ...columnNames.map((column) => fields[column])],
+  );
+}
+
 export async function listProductsFromRequest(url: string) {
   const params = clampListParams(new URL(url).searchParams);
   const offset = (params.page - 1) * params.limit;
@@ -142,6 +231,123 @@ export async function getProduct(id: number) {
   return rows[0];
 }
 
+export async function listProductComboSets(productId: number) {
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `
+      SELECT csp.id AS relationId, csp.set_id AS id, csp.ordering,
+             cs.title, cs.status, cs.from_time, cs.to_time, cs.product_count
+      FROM combo_set_product csp
+      JOIN combo_set cs ON cs.id = csp.set_id
+      WHERE csp.product_id = ?
+      ORDER BY csp.id DESC
+    `,
+    [productId],
+  );
+  return rows.map((row) => ({
+    relationId: Number(row.relationId),
+    id: Number(row.id),
+    title: String(row.title || ''),
+    status: Number(row.status || 0),
+    from_time: Number(row.from_time || 0),
+    to_time: Number(row.to_time || 0),
+    product_count: Number(row.product_count || 0),
+    ordering: Number(row.ordering || 0),
+  }));
+}
+
+export async function listComboSetCatalogFromRequest(url: string) {
+  const params = clampListParams(new URL(url).searchParams);
+  const searchParams = new URL(url).searchParams;
+  const productId = toInt(searchParams.get('productId'));
+  const offset = (params.page - 1) * params.limit;
+  const filters: string[] = [];
+  const values: unknown[] = [];
+
+  if (params.search) {
+    filters.push('cs.title LIKE ?');
+    values.push(`%${params.search}%`);
+  }
+  if (params.status === 'active') {
+    filters.push('cs.status = 1');
+  } else if (params.status === 'inactive') {
+    filters.push('cs.status = 0');
+  }
+
+  const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  const selectedExpression = productId > 0
+    ? 'EXISTS(SELECT 1 FROM combo_set_product selected WHERE selected.set_id = cs.id AND selected.product_id = ?) AS isSelected'
+    : '0 AS isSelected';
+  const selectedValues = productId > 0 ? [productId] : [];
+
+  const [countResult, listResult] = await Promise.all([
+    pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM combo_set cs ${where}`, values),
+    pool.query<RowDataPacket[]>(
+      `
+        SELECT cs.id, cs.title, cs.status, cs.product_count, cs.from_time, cs.to_time,
+               ${selectedExpression}
+        FROM combo_set cs
+        ${where}
+        ORDER BY cs.id DESC
+        LIMIT ? OFFSET ?
+      `,
+      [...selectedValues, ...values, params.limit, offset],
+    ),
+  ]);
+
+  const total = Number(countResult[0][0]?.total || 0);
+  return {
+    combos: listResult[0].map((row) => ({
+      id: Number(row.id),
+      title: String(row.title || ''),
+      status: Number(row.status || 0),
+      product_count: Number(row.product_count || 0),
+      from_time: Number(row.from_time || 0),
+      to_time: Number(row.to_time || 0),
+      isSelected: Boolean(row.isSelected),
+    })),
+    pagination: {
+      currentPage: params.page,
+      totalPages: Math.max(1, Math.ceil(total / params.limit)),
+      totalItems: total,
+      pageSize: params.limit,
+    },
+  };
+}
+
+export async function addProductToComboSet(productId: number, setId: number) {
+  if (productId <= 0 || setId <= 0) throw new AdminApiError(400, 'BAD_REQUEST', 'Combo set khong hop le');
+  await withTransaction(async (connection) => {
+    await getExistingProductForUpdate(connection, productId);
+    await assertRowsExist(connection, 'combo_set', 'id', [setId], 'Combo set');
+    const [existingRows] = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM combo_set_product WHERE product_id = ? AND set_id = ? LIMIT 1 FOR UPDATE',
+      [productId, setId],
+    );
+    const unixTime = Math.floor(Date.now() / 1000);
+    if (existingRows.length === 0) {
+      await connection.query(
+        `
+          INSERT INTO combo_set_product
+            (product_id, set_id, ordering, create_time, create_by, last_update, last_update_by)
+          VALUES (?, ?, 0, ?, '', ?, '')
+        `,
+        [productId, setId, unixTime, unixTime],
+      );
+    }
+    await connection.query(
+      `
+        UPDATE combo_set
+        SET product_count = (SELECT COUNT(*) FROM combo_set_product WHERE set_id = ?),
+            last_update = ?
+        WHERE id = ?
+      `,
+      [setId, unixTime, setId],
+    );
+  });
+
+  return { items: await listProductComboSets(productId) };
+}
+
 export async function saveProduct(payload: Record<string, unknown>, id?: number) {
   const saved = await withTransaction(async (connection) => {
     const name = requireText(payload.name || payload.proName, 'name', 'Ten san pham', 255);
@@ -152,15 +358,24 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     const marketPrice = Math.max(0, Number(payload.marketPrice || payload.market_price || 0));
     const status = toBoolInt(payload.status ?? payload.isOn, 1);
     const categoryInput = payload.categoryIds ?? payload.categories ?? payload.categoryId;
-    const categoryIds = id ? optionalIdList(categoryInput, 100) : parseIdList(categoryInput, 100);
+    const categoryIds = optionalIdList(categoryInput, 100);
     const attrValueIds = Array.isArray(payload.attributeValueIds) ? optionalIdList(payload.attributeValueIds, 500) : [];
-    const slug = normalizeSlug(payload.slug || payload.url || name);
+    const slug = normalizeSlug(payload.url || payload.slug || name);
     if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le', { slug: 'invalid' });
 
-    await assertRowsExist(connection, 'idv_seller_category', 'id', categoryIds, 'Danh muc');
+    const isUpdate = id !== undefined && id > 0;
+    let categoryIdsToValidate = categoryIds;
+    if (isUpdate) {
+      const [existingRows] = await connection.query<RowDataPacket[]>(
+        'SELECT product_cat FROM idv_sell_product_store WHERE id = ? LIMIT 1',
+        [productId],
+      );
+      const existingCategoryIds = new Set(optionalIdList(existingRows[0]?.product_cat, 100));
+      categoryIdsToValidate = categoryIds.filter((categoryId) => !existingCategoryIds.has(categoryId));
+    }
+    await assertRowsExist(connection, 'idv_seller_category', 'id', categoryIdsToValidate, 'Danh muc');
     if (attrValueIds.length > 0) await assertRowsExist(connection, 'idv_attribute_value', 'id', attrValueIds, 'Thuoc tinh');
 
-    const isUpdate = id !== undefined && id > 0;
     const skuQuery = 'SELECT id FROM idv_sell_product_store WHERE storeSKU = ?' + (isUpdate ? ' AND id <> ?' : '') + ' LIMIT 1';
     const skuBindings = isUpdate ? [sku, productId] : [sku];
     const [skuRows] = await connection.query<RowDataPacket[]>(skuQuery, skuBindings);
@@ -184,12 +399,13 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     await connection.query(
       `
         INSERT INTO idv_sell_product_store
-          (id, storeSKU, proName, brandId, proThum, product_cat, image_collection, image_count, proSummary, specialOffer, promotion, cond, postDate, lastUpdate)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (id, storeSKU, proName, brandId, url, proThum, product_cat, image_collection, image_count, proSummary, specialOffer, promotion, cond, postDate, lastUpdate)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
           storeSKU = VALUES(storeSKU),
           proName = VALUES(proName),
           brandId = VALUES(brandId),
+          url = VALUES(url),
           proThum = VALUES(proThum),
           product_cat = VALUES(product_cat),
           image_collection = VALUES(image_collection),
@@ -205,6 +421,7 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
         sku,
         name,
         brandId,
+        slug,
         images.primary,
         csvCategoryIds(categoryIds),
         images.serialized,
@@ -284,6 +501,160 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
   }
 
   return { id: saved.id, slug: saved.slug };
+}
+
+export async function updateProductSection(productId: number, section: ProductSection, data: Record<string, unknown>) {
+  if (!['basic', 'description', 'category', 'attributes', 'combo'].includes(section)) {
+    throw new AdminApiError(400, 'BAD_REQUEST', 'Section khong hop le');
+  }
+
+  const saved = await withTransaction(async (connection) => {
+    const existing = await getExistingProductForUpdate(connection, productId);
+    const now = new Date();
+
+    if (section === 'basic') {
+      const name = requireText(data.name || data.proName, 'name', 'Ten san pham', 255);
+      const sku = requireText(data.sku || data.storeSKU, 'sku', 'SKU', 15);
+      const brandId = toInt(data.brandId);
+      const price = Math.max(0, Number(data.price || 0));
+      const marketPrice = Math.max(0, Number(data.marketPrice || data.market_price || 0));
+      const status = toBoolInt(data.status ?? data.isOn, 1);
+      const ordering = toInt(data.ordering);
+      const slug = normalizeSlug(data.url || data.slug || name);
+      if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le', { slug: 'invalid' });
+
+      await assertSkuUnique(connection, sku, productId);
+      await connection.query(
+        `
+          UPDATE idv_sell_product_store
+          SET storeSKU = ?, proName = ?, brandId = ?, url = ?, proSummary = ?, lastUpdate = ?
+          WHERE id = ?
+        `,
+        [
+          sku,
+          name,
+          brandId,
+          slug,
+          maybeText(data.summary || data.proSummary),
+          now,
+          productId,
+        ],
+      );
+      await connection.query(
+        `
+          INSERT INTO idv_sell_product_price (id, price, market_price, isOn, ordering, lastUpdate)
+          VALUES (?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            price = VALUES(price),
+            market_price = VALUES(market_price),
+            isOn = VALUES(isOn),
+            ordering = VALUES(ordering),
+            lastUpdate = VALUES(lastUpdate)
+        `,
+        [productId, price, marketPrice, status, ordering, now],
+      );
+      await upsertProductInfoFields(connection, productId, {
+        video_code: maybeText(data.videoCode || data.video_code),
+        spec: maybeText(data.spec),
+      });
+      await upsertUrl(connection, `module:product/view:product-detail/view_id:${productId}`, slug);
+      const categoryIds = data.categoryIds === undefined
+        ? optionalIdList(existing.product_cat, 100)
+        : optionalIdList(data.categoryIds ?? data.categories ?? data.categoryId, 100);
+      await validateCategoryUpdate(connection, productId, categoryIds);
+      await connection.query(
+        'UPDATE idv_sell_product_store SET product_cat = ?, lastUpdate = ? WHERE id = ?',
+        [csvCategoryIds(categoryIds), now, productId],
+      );
+      await rebuildProductCategories(connection, {
+        productId,
+        categoryIds,
+        brandId,
+        price,
+        ordering,
+        status,
+      });
+      return { id: productId, section, slug, sku, name, categoryIds };
+    }
+
+    if (section === 'description') {
+      await connection.query(
+        `
+          UPDATE idv_sell_product_store
+          SET meta_title = ?, meta_keyword = ?, meta_description = ?, lastUpdate = ?
+          WHERE id = ?
+        `,
+        [
+          maybeText(data.metaTitle || data.meta_title, 255),
+          maybeText(data.metaKeyword || data.meta_keyword, 255),
+          maybeText(data.metaDescription || data.meta_description, 512),
+          now,
+          productId,
+        ],
+      );
+      await upsertProductInfoFields(connection, productId, {
+        description: maybeText(data.description),
+      });
+      return { id: productId, section };
+    }
+
+    if (section === 'combo') {
+      await connection.query(
+        'UPDATE idv_sell_product_store SET specialOffer = ?, lastUpdate = ? WHERE id = ?',
+        [maybeText(data.specialOffer), now, productId],
+      );
+      return { id: productId, section };
+    }
+
+    if (section === 'category') {
+      const categoryIds = optionalIdList(data.categoryIds ?? data.categories ?? data.categoryId, 100);
+      await validateCategoryUpdate(connection, productId, categoryIds);
+      await connection.query(
+        'UPDATE idv_sell_product_store SET product_cat = ?, lastUpdate = ? WHERE id = ?',
+        [csvCategoryIds(categoryIds), now, productId],
+      );
+      await rebuildProductCategories(connection, {
+        productId,
+        categoryIds,
+        brandId: toInt(existing.brandId),
+        price: Number(existing.price || 0),
+        ordering: toInt(existing.ordering),
+        status: toBoolInt(existing.isOn, 1),
+      });
+      return { id: productId, section, categoryIds };
+    }
+
+    const attrValueIds = optionalIdList(data.attributeValueIds ?? data.attributes ?? data.attributeValueId, 500);
+    if (attrValueIds.length > 0) await assertRowsExist(connection, 'idv_attribute_value', 'id', attrValueIds, 'Thuoc tinh');
+    await connection.query('DELETE FROM idv_product_attribute WHERE pro_id = ?', [productId]);
+    if (attrValueIds.length > 0) {
+      const placeholders = attrValueIds.map(() => '?').join(',');
+      const [values] = await connection.query<RowDataPacket[]>(
+        `SELECT id, attributeId FROM idv_attribute_value WHERE id IN (${placeholders})`,
+        attrValueIds,
+      );
+      for (const value of values) {
+        await connection.query(
+          'INSERT INTO idv_product_attribute (pro_id, attr_id, attr_value_id) VALUES (?, ?, ?)',
+          [productId, Number(value.attributeId), Number(value.id)],
+        );
+      }
+    }
+    return { id: productId, section, attributeValueIds: attrValueIds };
+  });
+
+  if (section === 'basic') {
+    try {
+      await mutateSearchCache(saved.id, 'UPDATE', {
+        SKU: saved.sku,
+        ten_san_pham: saved.name,
+      });
+    } catch (error) {
+      console.error('[SearchCache] Failed to sync product section:', error);
+    }
+  }
+
+  return saved;
 }
 
 export async function deleteProduct(id: number, mode: string) {
@@ -515,6 +886,13 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
     if (table === 'idv_seller_category') {
       const [products] = await connection.query<RowDataPacket[]>('SELECT pro_id FROM idv_product_category WHERE category_id = ? LIMIT 1', [id]);
       if (products.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co san pham');
+      const [legacyProducts] = await connection.query<RowDataPacket[]>(
+        `SELECT id FROM idv_sell_product_store
+         WHERE FIND_IN_SET(?, REPLACE(COALESCE(product_cat, ''), ' ', '')) > 0
+         LIMIT 1`,
+        [String(id)],
+      );
+      if (legacyProducts.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co san pham trong product_cat');
       const [attrs] = await connection.query<RowDataPacket[]>('SELECT attr_id FROM idv_attribute_category WHERE category_id = ? LIMIT 1', [id]);
       if (attrs.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co thuoc tinh');
     } else {

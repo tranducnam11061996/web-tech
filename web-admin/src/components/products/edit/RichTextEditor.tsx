@@ -41,6 +41,22 @@ export function RichTextEditor({
   }, [defaultValue, onChange, value]);
 
   useEffect(() => {
+    if (scriptReady || typeof window === 'undefined') return;
+
+    const detectTinyMce = () => {
+      if (window.tinymce) setScriptReady(true);
+    };
+    detectTinyMce();
+    const interval = window.setInterval(detectTinyMce, 50);
+    const timeout = window.setTimeout(() => window.clearInterval(interval), 10000);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [scriptReady]);
+
+  useEffect(() => {
     if (scriptReady && typeof window !== 'undefined' && window.tinymce && editorRef.current && !initialized.current) {
       initialized.current = true;
       
@@ -118,6 +134,7 @@ export function RichTextEditor({
       <Script
         src="/tinymce.min.js"
         strategy="afterInteractive"
+        onLoad={() => setScriptReady(true)}
         onReady={() => setScriptReady(true)}
       />
       <div className="space-y-2 w-full">

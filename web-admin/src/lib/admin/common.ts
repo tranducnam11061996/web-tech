@@ -172,8 +172,7 @@ export async function isRegistered(connection: PoolConnection, entityType: Admin
 }
 
 export function csvCategoryIds(ids: number[]) {
-  if (ids.length === 0) return '0,';
-  return `0,${ids.join(',')},`;
+  return Array.from(new Set(ids.map((id) => toInt(id)).filter((id) => id > 0))).join(',');
 }
 
 export function csvArticleIds(ids: number[]) {

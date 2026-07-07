@@ -29,6 +29,7 @@ type TabImagesProps = {
   productId?: number;
   initialImages?: ProductImage[];
   onBusyChange?: (busy: boolean) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type QueuedFile = {
@@ -133,7 +134,9 @@ function ImageCard({
         <div className="grid grid-cols-[44px_1fr] items-center gap-2">
           <label className="text-[10px] text-gray-500 uppercase">STT</label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={image.ordering}
             onChange={(event) => onChange({ ordering: Number(event.target.value) })}
             className="w-full bg-gray-950 border border-gray-700 rounded-sm px-1.5 py-1 text-xs text-gray-300 focus:outline-none focus:border-red-500/50"
@@ -181,7 +184,7 @@ function ImageCard({
 }
 
 export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function TabImages(
-  { productId, initialImages = [], onBusyChange },
+  { productId, initialImages = [], onBusyChange, onDirtyChange },
   ref,
 ) {
   const [images, setImages] = useState<ProductImage[]>(() => normalizeImages(initialImages));
@@ -208,6 +211,10 @@ export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function Ta
   useEffect(() => {
     onBusyChange?.(saving || uploading);
   }, [onBusyChange, saving, uploading]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const groupedImages = useMemo(
     () =>
@@ -404,7 +411,9 @@ export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function Ta
       )}
 
       <div className="space-y-8">
-        {groupedImages.map((album) => (
+        {groupedImages
+          .filter((album) => album.id === 'product' || album.images.length > 0)
+          .map((album) => (
           <section key={album.id} className="space-y-3">
             <div className="flex items-center gap-2 border-b border-gray-800 pb-2">
               <span className={`w-1 h-4 rounded-full inline-block ${album.accent}`}></span>
@@ -430,7 +439,7 @@ export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function Ta
               </div>
             )}
           </section>
-        ))}
+          ))}
       </div>
 
       <section className="mt-8 border-t border-slate-800/80 pt-5" aria-busy={uploading}>

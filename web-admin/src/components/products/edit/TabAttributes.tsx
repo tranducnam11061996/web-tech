@@ -15,8 +15,26 @@ export function TabAttributes({
   const [attributes, setAttributes] = useState<any[]>(attributesData);
 
   useEffect(() => {
-    setAttributes(attributesData);
-  }, [attributesData]);
+    const selectedSet = new Set(
+      Array.isArray(form?.attributeValueIds)
+        ? form.attributeValueIds.map((id: unknown) => Number(id)).filter((id: number) => id > 0)
+        : attributesData.flatMap((attr) =>
+            (attr.options || [])
+              .filter((opt: any) => opt.checked)
+              .map((opt: any) => Number(opt.id))
+              .filter((id: number) => id > 0),
+          ),
+    );
+    setAttributes(
+      attributesData.map((attr) => ({
+        ...attr,
+        options: (attr.options || []).map((opt: any) => ({
+          ...opt,
+          checked: selectedSet.has(Number(opt.id)),
+        })),
+      })),
+    );
+  }, [attributesData, form?.attributeValueIds]);
 
   const syncSelectedValueIds = (nextAttributes: any[]) => {
     const selectedIds = nextAttributes.flatMap((attr) =>

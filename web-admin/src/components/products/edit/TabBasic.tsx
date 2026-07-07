@@ -1,14 +1,18 @@
 'use client';
 
 import { RichTextEditor } from './RichTextEditor';
+import { BrandCombobox, type BrandOption } from './BrandCombobox';
+import { TabCategory } from './TabCategory';
 
 type Props = {
   product?: any;
   form?: Record<string, any>;
   onChange?: (field: string, value: any) => void;
+  brands?: BrandOption[];
+  categories?: any[];
 };
 
-export function TabBasic({ product, form, onChange }: Props) {
+export function TabBasic({ product, form, onChange, brands = [], categories = [] }: Props) {
   const current = form || product || {};
   const update = (field: string) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     onChange?.(field, event.target.value);
@@ -28,8 +32,15 @@ export function TabBasic({ product, form, onChange }: Props) {
         </div>
 
         <div className="space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Brand ID</label>
-          <input value={current.brandId || 0} onChange={update('brandId')} type="number" className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner" />
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Thương hiệu</label>
+          <BrandCombobox
+            brands={brands}
+            value={Number(current.brandId || 0)}
+            onChange={(brandId, brandName) => {
+              onChange?.('brandId', brandId);
+              onChange?.('brandName', brandName);
+            }}
+          />
         </div>
 
         <div className="space-y-2">
@@ -52,12 +63,12 @@ export function TabBasic({ product, form, onChange }: Props) {
 
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Thứ tự</label>
-          <input type="number" value={current.ordering ?? 0} onChange={update('ordering')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner" />
+          <input type="text" inputMode="numeric" pattern="[0-9]*" value={current.ordering ?? 0} onChange={update('ordering')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner" />
         </div>
 
         <div className="md:col-span-2 space-y-2">
-          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slug</label>
-          <input value={current.slug || current.url || ''} onChange={update('slug')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-blue-400 focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
+          <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Link sản phẩm</label>
+          <input value={current.url || ''} onChange={update('url')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-blue-400 focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
         </div>
 
         <div className="md:col-span-2 space-y-2">
@@ -74,19 +85,15 @@ export function TabBasic({ product, form, onChange }: Props) {
       <hr className="border-gray-800" />
 
       <RichTextEditor
-        title="Khuyến mãi"
-        minHeight="180px"
-        value={current.specialOffer || ''}
-        onChange={(value) => onChange?.('specialOffer', value)}
-      />
-
-      <RichTextEditor
         title="Bảng thông số sản phẩm"
-        minHeight="240px"
+        minHeight="380px"
         value={current.spec || ''}
         onChange={(value) => onChange?.('spec', value)}
       />
+
+      <hr className="border-gray-800" />
+
+      <TabCategory product={product} form={form} categories={categories} onChange={onChange} />
     </div>
   );
 }
-

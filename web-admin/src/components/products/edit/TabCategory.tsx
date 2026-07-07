@@ -14,6 +14,12 @@ export function TabCategory({
   form?: Record<string, any>;
   onChange?: (field: string, value: any) => void;
 }) {
+  const normalizedCategories = useMemo(
+    () => categories
+      .map((category) => ({ ...category, id: Number(category.id), parentId: Number(category.parentId || 0) }))
+      .filter((category) => category.id > 0),
+    [categories],
+  );
   // Parse initial selected categories
   const initialCatIds = useMemo(() => {
     if (Array.isArray(form?.categoryIds)) {
@@ -24,22 +30,38 @@ export function TabCategory({
     }
     const ids = (product?.product_cat || '').split(',').filter(Boolean).map(Number);
     return new Set<number>(ids);
-  }, [form?.categoryIds, product]);
+  }, [form, product]);
 
   const [checkedIds, setCheckedIds] = useState<Set<number>>(initialCatIds);
   const [openIds, setOpenIds] = useState<Set<number>>(new Set());
 
+  const selectedAncestorIds = useMemo(() => {
+    const parentMap = new Map(normalizedCategories.map((category) => [category.id, category.parentId]));
+    const ancestors = new Set<number>();
+    for (const selectedId of initialCatIds) {
+      let parentId = parentMap.get(selectedId) || 0;
+      const visited = new Set<number>();
+      while (parentId > 0 && !visited.has(parentId)) {
+        visited.add(parentId);
+        ancestors.add(parentId);
+        parentId = parentMap.get(parentId) || 0;
+      }
+    }
+    return ancestors;
+  }, [initialCatIds, normalizedCategories]);
+
   // Update when product changes
   useEffect(() => {
     setCheckedIds(initialCatIds);
-  }, [initialCatIds]);
+    setOpenIds((current) => new Set([...current, ...selectedAncestorIds]));
+  }, [initialCatIds, selectedAncestorIds]);
 
   // Build tree from flat categories
   const tree = useMemo(() => {
     const map = new Map();
-    categories.forEach(c => map.set(c.id, { ...c, children: [] }));
+    normalizedCategories.forEach(c => map.set(c.id, { ...c, children: [] }));
     const roots: any[] = [];
-    categories.forEach(c => {
+    normalizedCategories.forEach(c => {
       if (c.parentId === 0) {
         roots.push(map.get(c.id));
       } else {
@@ -53,11 +75,11 @@ export function TabCategory({
       }
     });
     return roots;
-  }, [categories]);
+  }, [normalizedCategories]);
 
   const catMap = useMemo(() => {
-    return new Map(categories.map(c => [c.id, c.name]));
-  }, [categories]);
+    return new Map(normalizedCategories.map(c => [c.id, c.name]));
+  }, [normalizedCategories]);
 
   const toggleOpen = (id: number) => {
     const next = new Set(openIds);
@@ -74,13 +96,13 @@ export function TabCategory({
     onChange?.('categoryIds', Array.from(next));
   };
 
-  const isAllExpanded = openIds.size > 0 && openIds.size >= categories.filter(c => tree.some(r => c.id !== r.id)).length / 2; // Rough heuristic
+  const isAllExpanded = openIds.size > 0 && openIds.size >= normalizedCategories.filter(c => tree.some(r => c.id !== r.id)).length / 2; // Rough heuristic
 
   const handleExpandAll = () => {
     if (isAllExpanded) {
       setOpenIds(new Set());
     } else {
-      setOpenIds(new Set(categories.map(c => c.id)));
+      setOpenIds(new Set(normalizedCategories.map(c => c.id)));
     }
   };
 
@@ -134,12 +156,17 @@ export function TabCategory({
         <div className="glass-panel border-gray-800 rounded-sm p-4 space-y-2 text-sm max-h-[500px] overflow-y-auto custom-scrollbar">
           {Array.from(checkedIds).map(id => {
             const name = catMap.get(id);
-            if (!name) return null;
+            const missing = !name;
             return (
-              <div key={id} className="text-blue-400 hover:text-blue-300 cursor-pointer font-medium flex items-center gap-2 group" onClick={() => toggleCheck(id)}>
-                <span>- {name}</span>
-                <span className="text-gray-600 group-hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs">(Bỏ)</span>
-              </div>
+              <button
+                type="button"
+                key={id}
+                className={`w-full text-left cursor-pointer font-medium flex items-center gap-2 group rounded-sm px-2 py-1.5 transition-colors ${missing ? 'border border-amber-900/50 bg-amber-950/20 text-amber-400 hover:text-amber-300' : 'text-blue-400 hover:bg-blue-950/20 hover:text-blue-300'}`}
+                onClick={() => toggleCheck(id)}
+              >
+                <span>- {name || `Danh mục #${id} — không còn tồn tại`}</span>
+                <span className="ml-auto text-gray-600 group-hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs">(Bỏ)</span>
+              </button>
             );
           })}
           {checkedIds.size === 0 && (

@@ -21,7 +21,7 @@ export function TabDescription({ product }: { product?: any }) {
         
         <RichTextEditor 
           title="" 
-          minHeight="400px"
+          minHeight="440px"
           defaultValue={product?.description || ''}
         />
       </div>
@@ -67,10 +67,11 @@ export function TabDescription({ product }: { product?: any }) {
           </div>
 
           <div className="col-span-1 md:col-span-4 space-y-2">
-            <RichTextEditor 
-              title="Meta Description" 
-              minHeight="100px"
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Meta Description</label>
+            <textarea
+              rows={5}
               defaultValue="Sở hữu MSI Katana 15 B13VFK-676VN i7-13620H RTX 4060 8GB, màn 144Hz siêu mượt. Laptop gaming hiệu năng cao, tối ưu FPS, chiến game & làm đồ họa ổn định..."
+              className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-gray-200 focus:border-red-500/50 outline-none transition-all shadow-inner custom-scrollbar resize-y min-h-[100px]"
             />
             <div className="text-[10px] text-gray-500 font-mono">Số từ: 30, Số ký tự: 153</div>
           </div>

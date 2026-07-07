@@ -24,6 +24,21 @@ function truncate(value: string, maxLength: number) {
   return String(value || '').slice(0, maxLength);
 }
 
+function toAscii(value: string) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D');
+}
+
+function toDbSafeText(value: string) {
+  return String(value || '').replace(/[^\x20-\x7E]/g, (char) => {
+    const code = char.codePointAt(0) ?? 0;
+    return `\\u${code.toString(16).padStart(4, '0')}`;
+  });
+}
+
 export async function POST(request: Request) {
   const connection = await pool.getConnection();
 
@@ -66,6 +81,7 @@ export async function POST(request: Request) {
       orderItems.length === 1
         ? orderItems[0].name
         : `Đơn hàng website (${orderItems.length} sản phẩm)`;
+    const safeProductTitle = toAscii(productTitle);
 
     const buyerInfo = JSON.stringify({
       customer: (body as any).customer || {},
@@ -82,6 +98,8 @@ export async function POST(request: Request) {
       totals: quote.totals,
       note: (body as any).note || '',
     });
+    const safeBuyerInfo = toDbSafeText(buyerInfo);
+    const safeConfig = toDbSafeText(config);
 
     await connection.beginTransaction();
 
@@ -92,11 +110,11 @@ export async function POST(request: Request) {
       VALUES (?, ?, ?, ?, ?, 1, ?, ?)
       `,
       [
-        truncate(productTitle, 255),
+        truncate(safeProductTitle, 255),
         quote.totals.total,
         orderItems.length === 1 ? orderItems[0].productId : 0,
-        buyerInfo,
-        config,
+        safeBuyerInfo,
+        safeConfig,
         now,
         now,
       ],
@@ -111,7 +129,7 @@ export async function POST(request: Request) {
         (order_id, product_id, title, product_price, quantity)
         VALUES (?, ?, ?, ?, ?)
         `,
-        [orderId, item.productId, truncate(item.name, 255), Math.round(item.price), item.quantity],
+        [orderId, item.productId, truncate(toAscii(item.name), 255), Math.round(item.price), item.quantity],
       );
     }
 

@@ -33,7 +33,7 @@ export default function Header() {
   );
 
   // Search navigation: lấy giá trị từ input và navigate
-  const navigateToSearch = useCallback((inputRef: React.RefObject<HTMLInputElement>) => {
+  const navigateToSearch = useCallback((inputRef: React.RefObject<HTMLInputElement | null>) => {
     const value = inputRef.current?.value?.trim();
     if (value) {
       router.push(`/tim?q=${encodeURIComponent(value)}`);

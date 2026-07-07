@@ -11,7 +11,7 @@ import Link from "next/link";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // ─── Types ───────────────────────────────────────────────────────
-interface Product {
+export interface Product {
   id: number;
   name: string;
   sku: string;
@@ -23,7 +23,7 @@ interface Product {
   brand: string;
 }
 
-interface Attribute {
+export interface Attribute {
   id: number;
   name: string;
   icon: string | null;
@@ -32,7 +32,7 @@ interface Attribute {
   values: { id: number; name: string; productCount: number }[];
 }
 
-interface SearchClientProps {
+export interface SearchClientProps {
   initialData: {
     products: { data: Product[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
     attributes: { data: Attribute[] };
@@ -241,19 +241,23 @@ export default function SearchClient({ initialData }: SearchClientProps) {
   const searchKey = searchParamsHook?.toString() || "";
   const router = useRouter();
   const lastSearchKeyRef = useRef(searchKey);
-  const query = initialData?.query || "";
+  const lastRequestKeyRef = useRef(`${searchKey}|${currentPage}`);
+  const query = searchParamsHook?.get("q") || initialData?.query || "";
 
-  // Re-fetch products khi search params thay đổi (filter, page, sort...)
+  // Re-fetch the combined product/facet response when URL filters or pagination change.
   useEffect(() => {
-    if (isLoading) return;
-
     if (searchKey !== lastSearchKeyRef.current && currentPage !== 1) {
+      lastSearchKeyRef.current = searchKey;
       setCurrentPage(1);
       return;
     }
     if (searchKey !== lastSearchKeyRef.current) {
       lastSearchKeyRef.current = searchKey;
     }
+
+    const requestKey = `${searchKey}|${currentPage}`;
+    if (requestKey === lastRequestKeyRef.current) return;
+    lastRequestKeyRef.current = requestKey;
 
     const controller = new AbortController();
     const url = new URL(`${API_URL}/api/search`);
@@ -281,70 +285,20 @@ export default function SearchClient({ initialData }: SearchClientProps) {
           setProducts(res.data);
           setTotalPages(res.pagination.totalPages);
           setTotalProducts(res.pagination.total);
+          setAttributes(res.attributes || []);
         }
       })
       .catch((err) => {
-        if (err.name !== "AbortError") console.error("Error fetching products:", err);
+        if (!(err instanceof DOMException && err.name === "AbortError")) {
+          console.error("Error fetching products:", err);
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
       });
 
-    // Fetch attributes mới từ products mới
-    fetchAttributesFromParams(searchKey, query);
-
     return () => controller.abort();
   }, [currentPage, searchKey, query]);
-
-  // Fetch attributes từ search results (dynamic)
-  const fetchAttributesFromParams = async (
-    paramsString: string,
-    searchQuery: string
-  ) => {
-    const controller = new AbortController();
-    try {
-      // Lấy tất cả productIds từ full search result (không paginate) để count đúng
-      const productUrl = new URL(`${API_URL}/api/search`);
-      productUrl.searchParams.set("q", searchQuery);
-      productUrl.searchParams.set("limit", "48"); // Lấy 2 trang để có đủ count
-
-      // Apply filters
-      const paramsFromUrl = new URLSearchParams(paramsString);
-      paramsFromUrl.forEach((value, key) => {
-        if (!["q", "page", "limit"].includes(key)) {
-          productUrl.searchParams.set(key, value);
-        }
-      });
-
-      const res = await fetch(productUrl.toString(), {
-        signal: controller.signal,
-      });
-      if (res.ok) {
-        const json = await res.json();
-        const productIds = (json.data || [])
-          .map((p: Product) => p.id)
-          .join(",");
-
-        if (productIds) {
-          const attrUrl = new URL(`${API_URL}/api/search-attributes`);
-          attrUrl.searchParams.set("productIds", productIds);
-          const attrRes = await fetch(attrUrl.toString(), {
-            signal: controller.signal,
-          });
-          if (attrRes.ok) {
-            const attrJson = await attrRes.json();
-            if (attrJson.success) {
-              setAttributes(attrJson.data);
-            }
-          }
-        }
-      }
-    } catch (err) {
-      if (err.name !== "AbortError")
-        console.error("Error fetching attributes:", err);
-    }
-    return () => controller.abort();
-  };
 
   // Build active filters list
   const activeFilters: any[] = [];
@@ -390,7 +344,6 @@ export default function SearchClient({ initialData }: SearchClientProps) {
         ? window.location.pathname
         : "/tim";
     const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
-    newParams.delete("q");
     activeFilters.forEach((f) => {
       if (f.key) newParams.delete(f.key);
     });

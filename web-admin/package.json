@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "admin:migrate": "tsx scripts/run-admin-migration.ts"
+    "admin:migrate": "tsx scripts/run-admin-migration.ts",
+    "search:migrate": "tsx scripts/run-search-migration.ts",
+    "search:rebuild": "tsx scripts/rebuild-search-data.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

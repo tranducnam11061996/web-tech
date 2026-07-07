@@ -14,7 +14,7 @@ export function RichTextEditor({
   defaultValue, 
   value,
   onChange,
-  minHeight = "200px",
+  minHeight = "240px",
   id
 }: { 
   title?: string; 

@@ -3,12 +3,28 @@
 import { PlusSquare, MinusSquare, CheckSquare, Square } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 
-export function TabCategory({ product, categories = [] }: { product?: any, categories?: any[] }) {
+export function TabCategory({
+  product,
+  categories = [],
+  form,
+  onChange,
+}: {
+  product?: any;
+  categories?: any[];
+  form?: Record<string, any>;
+  onChange?: (field: string, value: any) => void;
+}) {
   // Parse initial selected categories
   const initialCatIds = useMemo(() => {
+    if (Array.isArray(form?.categoryIds)) {
+      return new Set<number>(form.categoryIds.map((item: unknown) => Number(item)).filter((id: number) => id > 0));
+    }
+    if (Array.isArray(product?.categoryIds)) {
+      return new Set<number>(product.categoryIds.map((item: unknown) => Number(item)).filter((id: number) => id > 0));
+    }
     const ids = (product?.product_cat || '').split(',').filter(Boolean).map(Number);
     return new Set<number>(ids);
-  }, [product]);
+  }, [form?.categoryIds, product]);
 
   const [checkedIds, setCheckedIds] = useState<Set<number>>(initialCatIds);
   const [openIds, setOpenIds] = useState<Set<number>>(new Set());
@@ -55,6 +71,7 @@ export function TabCategory({ product, categories = [] }: { product?: any, categ
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setCheckedIds(next);
+    onChange?.('categoryIds', Array.from(next));
   };
 
   const isAllExpanded = openIds.size > 0 && openIds.size >= categories.filter(c => tree.some(r => c.id !== r.id)).length / 2; // Rough heuristic

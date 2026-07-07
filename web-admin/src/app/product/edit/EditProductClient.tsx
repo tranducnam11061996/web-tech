@@ -23,6 +23,10 @@ const TABS = [
 ];
 
 function selectedCategoryIds(product: any) {
+  if (Array.isArray(product?.categoryIds)) {
+    return product.categoryIds.map((item: unknown) => Number(item)).filter((id: number) => id > 0);
+  }
+
   return String(product?.product_cat || '')
     .split(',')
     .map((item) => Number(item))
@@ -135,7 +139,7 @@ export function EditProductClient({
 
           {activeTab === 'basic' && <TabBasic product={product} form={form} onChange={updateField} />}
           {activeTab === 'description' && <TabDescription product={product} />}
-          {activeTab === 'category' && <TabCategory product={product} categories={categories} />}
+          {activeTab === 'category' && <TabCategory form={form} onChange={updateField} product={product} categories={categories} />}
           {activeTab === 'attributes' && <TabAttributes attributesData={attributesData} />}
           {activeTab === 'images' && <TabImages images={productImages || []} />}
           {activeTab === 'combo' && <TabCombo combosData={combosData} />}

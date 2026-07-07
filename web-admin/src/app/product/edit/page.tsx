@@ -21,6 +21,27 @@ async function getProductById(id: string) {
       return { product: null, parsedImages: [] as any[] };
     }
     const product = products[0];
+    const [categoryRows] = await pool.query(
+      'SELECT category_id FROM idv_product_category WHERE pro_id = ? ORDER BY ordering DESC, category_id ASC',
+      [Number(id)]
+    );
+    product.categoryIds = (categoryRows as any[])
+      .map((row: any) => Number(row.category_id))
+      .filter((categoryId: number) => categoryId > 0);
+    if (product.categoryIds.length === 0) {
+      const productCatIds = String(product.product_cat || '')
+        .split(',')
+        .map((item) => Number(item))
+        .filter((categoryId) => categoryId > 0);
+      if (productCatIds.length > 0) {
+        const placeholders = productCatIds.map(() => '?').join(',');
+        const [validRows] = await pool.query(
+          `SELECT id FROM idv_seller_category WHERE id IN (${placeholders})`,
+          productCatIds
+        );
+        product.categoryIds = (validRows as any[]).map((row: any) => Number(row.id));
+      }
+    }
 
     // Parse image_collection from PHP serialized format
     const parsedImages: any[] = [];

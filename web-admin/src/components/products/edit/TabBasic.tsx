@@ -75,14 +75,14 @@ export function TabBasic({ product, form, onChange }: Props) {
 
       <RichTextEditor
         title="Khuyen mai"
-        minHeight="150px"
+        minHeight="180px"
         value={current.specialOffer || ''}
         onChange={(value) => onChange?.('specialOffer', value)}
       />
 
       <RichTextEditor
         title="Bang thong so san pham"
-        minHeight="200px"
+        minHeight="240px"
         value={current.spec || ''}
         onChange={(value) => onChange?.('spec', value)}
       />

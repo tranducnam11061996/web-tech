@@ -1,5 +1,6 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
+import { mutateSearchCache } from '@/lib/searchCache';
 import {
   AdminApiError,
   AdminEntityType,
@@ -77,6 +78,11 @@ async function assertRowsExist(connection: PoolConnection, table: string, idColu
   if (rows.length !== ids.length) throw new AdminApiError(400, 'BAD_REQUEST', `${label} khong hop le`);
 }
 
+function optionalIdList(value: unknown, max = 100) {
+  const source = Array.isArray(value) ? value : String(value || '').split(',');
+  return Array.from(new Set(source.map((item) => toInt(item)).filter((id) => id > 0))).slice(0, max);
+}
+
 export async function listProductsFromRequest(url: string) {
   const params = clampListParams(new URL(url).searchParams);
   const offset = (params.page - 1) * params.limit;
@@ -137,16 +143,17 @@ export async function getProduct(id: number) {
 }
 
 export async function saveProduct(payload: Record<string, unknown>, id?: number) {
-  return withTransaction(async (connection) => {
-      const name = requireText(payload.name || payload.proName, 'name', 'Ten san pham', 255);
+  const saved = await withTransaction(async (connection) => {
+    const name = requireText(payload.name || payload.proName, 'name', 'Ten san pham', 255);
     const sku = requireText(payload.sku || payload.storeSKU, 'sku', 'SKU', 15);
     const productId = id || (await allocateProductId(connection));
     const brandId = toInt(payload.brandId);
     const price = Math.max(0, Number(payload.price || 0));
     const marketPrice = Math.max(0, Number(payload.marketPrice || payload.market_price || 0));
     const status = toBoolInt(payload.status ?? payload.isOn, 1);
-    const categoryIds = parseIdList(payload.categoryIds || payload.categories || payload.categoryId, 100);
-    const attrValueIds = Array.isArray(payload.attributeValueIds) ? parseIdList(payload.attributeValueIds, 500) : [];
+    const categoryInput = payload.categoryIds ?? payload.categories ?? payload.categoryId;
+    const categoryIds = id ? optionalIdList(categoryInput, 100) : parseIdList(categoryInput, 100);
+    const attrValueIds = Array.isArray(payload.attributeValueIds) ? optionalIdList(payload.attributeValueIds, 500) : [];
     const slug = normalizeSlug(payload.slug || payload.url || name);
     if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le', { slug: 'invalid' });
 
@@ -156,11 +163,12 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     const isUpdate = id !== undefined && id > 0;
     const skuQuery = 'SELECT id FROM idv_sell_product_store WHERE storeSKU = ?' + (isUpdate ? ' AND id <> ?' : '') + ' LIMIT 1';
     const skuBindings = isUpdate ? [sku, productId] : [sku];
-    const skuRows = await connection.query<RowDataPacket[]>(skuQuery, skuBindings);
+    const [skuRows] = await connection.query<RowDataPacket[]>(skuQuery, skuBindings);
     if (skuRows.length > 0) throw new AdminApiError(409, 'CONFLICT', 'SKU da ton tai');
 
     const images = serializeProductImages(normalizeImages(payload.images));
     const now = new Date();
+    const unixTime = Math.floor(now.getTime() / 1000);
 
     await connection.query(
       `
@@ -229,8 +237,8 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     await connection.query('DELETE FROM idv_product_category WHERE pro_id = ?', [productId]);
     for (const categoryId of categoryIds) {
       await connection.query(
-        'INSERT INTO idv_product_category (category_id, pro_id, brandId, price, ordering, status) VALUES (?, ?, ?, ?, ?, ?)',
-        [categoryId, productId, brandId, Math.round(price), toInt(payload.ordering), status],
+        'INSERT INTO idv_product_category (category_id, pro_id, brandId, price, ordering, status, create_time, last_update) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [categoryId, productId, brandId, Math.round(price), toInt(payload.ordering), status, unixTime, unixTime],
       );
     }
 
@@ -252,12 +260,23 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     await upsertUrl(connection, `module:product/view:product-detail/view_id:${productId}`, slug);
     if (!id) await markRegistry(connection, 'product', productId);
 
-    return { id: productId, slug };
+    return { id: productId, slug, sku, name, isUpdate };
   });
+
+  try {
+    await mutateSearchCache(saved.id, saved.isUpdate ? 'UPDATE' : 'ADD', {
+      SKU: saved.sku,
+      ten_san_pham: saved.name,
+    });
+  } catch (error) {
+    console.error('[SearchCache] Failed to sync saved product:', error);
+  }
+
+  return { id: saved.id, slug: saved.slug };
 }
 
 export async function deleteProduct(id: number, mode: string) {
-  return withTransaction(async (connection) => {
+  const result = await withTransaction(async (connection) => {
     if (mode !== 'permanent') {
       await connection.query('UPDATE idv_sell_product_price SET isOn = 0 WHERE id = ?', [id]);
       return { id, deleted: false, hidden: true };
@@ -274,6 +293,16 @@ export async function deleteProduct(id: number, mode: string) {
     await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['product', id]);
     return { id, deleted: true };
   });
+
+  if (result.deleted) {
+    try {
+      await mutateSearchCache(id, 'DELETE');
+    } catch (error) {
+      console.error('[SearchCache] Failed to remove deleted product:', error);
+    }
+  }
+
+  return result;
 }
 
 export async function bulkProducts(ids: number[], action: string) {
@@ -337,12 +366,19 @@ async function saveCategory(options: {
 
     const slug = normalizeSlug(payload.slug || payload.url || name);
     if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le');
+    const requestPath = `/${slug}`;
+    const status = toBoolInt(payload.status, 1);
+    const ordering = toInt(payload.ordering);
+    const metaTitle = maybeText(payload.metaTitle || payload.meta_title, 255);
+    const metaKeyword = maybeText(payload.metaKeyword || payload.meta_keyword, 255);
+    const metaDescription = maybeText(payload.metaDescription || payload.meta_description, 512);
+    const summary = maybeText(payload.description);
 
-    if (id) {
+    if (table === 'idv_seller_category' && id) {
       await connection.query(
         `
           UPDATE ${table}
-          SET name = ?, parentId = ?, url = ?, status = ?, ordering = ?, description = ?,
+          SET name = ?, parentId = ?, url = ?, request_path = ?, status = ?, ordering = ?, summary = ?,
               meta_title = ?, meta_keyword = ?, meta_description = ?
           WHERE id = ?
         `,
@@ -350,12 +386,59 @@ async function saveCategory(options: {
           name,
           parentId,
           slug,
-          toBoolInt(payload.status, 1),
-          toInt(payload.ordering),
+          requestPath,
+          status,
+          ordering,
+          summary,
+          metaTitle,
+          metaKeyword,
+          metaDescription,
+          id,
+        ],
+      );
+    } else if (table === 'idv_seller_category') {
+      const [insert] = await connection.query(
+        `
+          INSERT INTO ${table}
+            (name, parentId, url, request_path, status, ordering, summary, image_background, meta_title, meta_keyword, meta_description)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          name,
+          parentId,
+          slug,
+          requestPath,
+          status,
+          ordering,
+          summary,
+          '',
+          metaTitle,
+          metaKeyword,
+          metaDescription,
+        ],
+      );
+      id = resultId(insert);
+      await markRegistry(connection, entityType, id);
+    } else if (id) {
+      await connection.query(
+        `
+          UPDATE ${table}
+          SET name = ?, parentId = ?, url = ?, request_path = ?, status = ?, ordering = ?, summary = ?, description = ?,
+              meta_title = ?, meta_keyword = ?, meta_description = ?
+          WHERE id = ?
+        `,
+        [
+          name,
+          parentId,
+          slug,
+          requestPath,
+          status,
+          ordering,
+          maybeText(payload.summary || payload.description, 250),
           maybeText(payload.description),
-          maybeText(payload.metaTitle || payload.meta_title, 255),
-          maybeText(payload.metaKeyword || payload.meta_keyword, 255),
-          maybeText(payload.metaDescription || payload.meta_description, 512),
+          metaTitle,
+          metaKeyword,
+          metaDescription,
           id,
         ],
       );
@@ -363,19 +446,21 @@ async function saveCategory(options: {
       const [insert] = await connection.query(
         `
           INSERT INTO ${table}
-            (name, parentId, url, status, ordering, description, meta_title, meta_keyword, meta_description)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (name, parentId, url, request_path, status, ordering, summary, description, meta_title, meta_keyword, meta_description)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           name,
           parentId,
           slug,
-          toBoolInt(payload.status, 1),
-          toInt(payload.ordering),
+          requestPath,
+          status,
+          ordering,
+          maybeText(payload.summary || payload.description, 250),
           maybeText(payload.description),
-          maybeText(payload.metaTitle || payload.meta_title, 255),
-          maybeText(payload.metaKeyword || payload.meta_keyword, 255),
-          maybeText(payload.metaDescription || payload.meta_description, 512),
+          metaTitle,
+          metaKeyword,
+          metaDescription,
         ],
       );
       id = resultId(insert);
@@ -422,7 +507,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
       const [attrs] = await connection.query<RowDataPacket[]>('SELECT attr_id FROM idv_attribute_category WHERE category_id = ? LIMIT 1', [id]);
       if (attrs.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co thuoc tinh');
     } else {
-      const [articles] = await connection.query<RowDataPacket[]>('SELECT news_id FROM idv_article_category WHERE category_id = ? LIMIT 1', [id]);
+      const [articles] = await connection.query<RowDataPacket[]>('SELECT article_id FROM idv_article_category WHERE category_id = ? LIMIT 1', [id]);
       if (articles.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co bai viet');
     }
     await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
@@ -493,8 +578,11 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
     const title = requireText(payload.title, 'title', 'Tieu de', 255);
     const categoryIds = parseIdList(payload.categoryIds || payload.categories || payload.catId, 100);
     await assertRowsExist(connection, 'idv_seller_news_category', 'id', categoryIds, 'Danh muc bai viet');
-    const existingCatId = id ? toInt((await connection.query('SELECT catId FROM idv_seller_news WHERE id = ? LIMIT 1', [id]))[0][0]?.catId) : 0;
-  const primaryCategoryId = payload.catId !== undefined ? toInt(payload.catId) : (existingCatId || toInt(categoryIds[0], 0));
+    const [existingRows] = id
+      ? await connection.query<RowDataPacket[]>('SELECT catId FROM idv_seller_news WHERE id = ? LIMIT 1', [id])
+      : [[] as RowDataPacket[]];
+    const existingCatId = toInt(existingRows[0]?.catId);
+    const primaryCategoryId = payload.catId !== undefined ? toInt(payload.catId) : (existingCatId || toInt(categoryIds[0], 0));
     const slug = normalizeSlug(payload.slug || payload.url || title);
     if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le');
     const now = new Date();
@@ -504,7 +592,7 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
         `
           UPDATE idv_seller_news
           SET title = ?, url = ?, request_path = ?, catId = ?, article_category = ?, summary = ?, status = ?,
-              thumnail = ?, ordering = ?, meta_title = ?, meta_keyword = ?, meta_description = ?, lastUpdate = ?
+              thumnail = ?, ordering = ?, meta_title = ?, meta_keywords = ?, meta_description = ?, lastUpdate = ?
           WHERE id = ?
         `,
         [
@@ -528,8 +616,8 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
       const [insert] = await connection.query(
         `
           INSERT INTO idv_seller_news
-            (title, url, request_path, catId, article_category, summary, status, thumnail, ordering, meta_title, meta_keyword, meta_description, createDate, lastUpdate)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (title, url, request_path, catId, article_category, summary, status, thumnail, image_background, ordering, meta_title, meta_keywords, meta_description, createDate, lastUpdate)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           title,
@@ -540,6 +628,7 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
           maybeText(payload.summary),
           toBoolInt(payload.status, 1),
           maybeText(payload.thumbnail || payload.thumnail, 255),
+          '',
           toInt(payload.ordering),
           maybeText(payload.metaTitle || payload.meta_title, 255),
           maybeText(payload.metaKeyword || payload.meta_keyword, 255),
@@ -560,9 +649,9 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
       `,
       [id, maybeText(payload.content)],
     );
-    await connection.query('DELETE FROM idv_article_category WHERE news_id = ?', [id]);
+    await connection.query('DELETE FROM idv_article_category WHERE article_id = ?', [id]);
     for (const categoryId of categoryIds) {
-      await connection.query('INSERT INTO idv_article_category (news_id, category_id) VALUES (?, ?)', [id, categoryId]);
+      await connection.query('INSERT INTO idv_article_category (article_id, category_id) VALUES (?, ?)', [id, categoryId]);
     }
     await upsertUrl(connection, `module:news/view:detail/view_id:${id}`, slug);
     return { id, slug };
@@ -578,7 +667,7 @@ export async function deleteArticle(id: number, mode: string) {
     if (!(await isRegistered(connection, 'article', id))) {
       throw new AdminApiError(409, 'CONFLICT', 'Chi duoc xoa vinh vien bai viet do API moi tao');
     }
-    await connection.query('DELETE FROM idv_article_category WHERE news_id = ?', [id]);
+    await connection.query('DELETE FROM idv_article_category WHERE article_id = ?', [id]);
     await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:news/view:detail/view_id:${id}`]);
     await connection.query('DELETE FROM idv_seller_news_content WHERE id = ?', [id]);
     await connection.query('DELETE FROM idv_seller_news WHERE id = ?', [id]);

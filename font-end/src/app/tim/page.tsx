@@ -1,5 +1,9 @@
 import { Suspense } from "react";
-import SearchClient from "./SearchClient";
+import SearchClient, { type SearchClientProps } from "./SearchClient";
+
+type SearchApiResponse = SearchClientProps["initialData"]["products"] & {
+  attributes?: SearchClientProps["initialData"]["attributes"]["data"];
+};
 
 export default async function SearchPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -9,8 +13,12 @@ export default async function SearchPage(props: {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
   // Fetch products từ search API
-  let products = { data: [], pagination: { totalPages: 1, total: 0 } };
-  let attributes = { data: [] };
+  let products: SearchApiResponse = {
+    data: [],
+    attributes: [],
+    pagination: { page: 1, limit: 24, totalPages: 1, total: 0 },
+  };
+  let attributes: SearchClientProps["initialData"]["attributes"] = { data: [] };
 
   if (query.trim()) {
     try {
@@ -19,34 +27,14 @@ export default async function SearchPage(props: {
       productUrl.searchParams.set("page", "1");
       productUrl.searchParams.set("limit", "24");
 
-      const [productsRes, attributesRes] = await Promise.all([
-        fetch(productUrl.toString(), { cache: "no-store" }),
-        // Attributes sẽ fetch sau khi có productIds — placeholder, fetch ở client
-        Promise.resolve(null as any),
-      ]);
+      const productsRes = await fetch(productUrl.toString(), { cache: "no-store" });
 
       if (productsRes.ok) {
         products = await productsRes.json();
+        attributes = { data: products.attributes || [] };
       }
     } catch (err) {
       console.error("Error fetching search results:", err);
-    }
-  }
-
-  // Build product IDs for attributes fetch
-  const productIds = (products.data || []).map((p: { id: number }) => p.id).join(',');
-
-  // Fetch attributes từ search results (nếu có products)
-  if (productIds) {
-    try {
-      const attrUrl = new URL(`${API_URL}/api/search-attributes`);
-      attrUrl.searchParams.set("productIds", productIds);
-      const attrRes = await fetch(attrUrl.toString(), { cache: "no-store" });
-      if (attrRes.ok) {
-        attributes = await attrRes.json();
-      }
-    } catch (err) {
-      console.error("Error fetching search attributes:", err);
     }
   }
 

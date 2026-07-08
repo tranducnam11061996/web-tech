@@ -505,6 +505,7 @@ function CategoryEditInner() {
             value={form.summary}
             onChange={updateRichText('summary')}
             minHeight="320px"
+            resizable
           />
           <div className="text-xs font-bold text-gray-400">Số kí tự: {form.summary.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length} từ</div>
           <RichTextEditor
@@ -513,6 +514,7 @@ function CategoryEditInner() {
             value={form.staticHtml}
             onChange={updateRichText('staticHtml')}
             minHeight="320px"
+            resizable
           />
         </div>
 

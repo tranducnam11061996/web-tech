@@ -95,7 +95,7 @@ export const menuGroups = [
       { name: 'Danh sách nội dung cố định', path: '#' },
       { name: 'Danh sách ảnh khách hàng', path: '#' },
       { name: 'Danh sách media', path: '#' },
-      { name: 'Quản lý nội dung menu', path: '#' }
+      { name: 'Quản lý nội dung menu', path: '/content/menu' }
     ]
   },
   {

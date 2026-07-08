@@ -111,6 +111,7 @@ function ArticleEditInner() {
   const [uploadingField, setUploadingField] = useState('');
   const [uploadedContentImages, setUploadedContentImages] = useState<UploadedContentImage[]>([]);
   const [imageError, setImageError] = useState('');
+  const [headerCompact, setHeaderCompact] = useState(false);
   const contentEditorRef = useRef<RichTextEditorHandle | null>(null);
   const contentUploadInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -119,6 +120,11 @@ function ArticleEditInner() {
   const openContentImagePicker = () => {
     if (uploadingField) return;
     contentUploadInputRef.current?.click();
+  };
+
+  const handlePageScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const nextCompact = event.currentTarget.scrollTop > 128;
+    setHeaderCompact((current) => (current === nextCompact ? current : nextCompact));
   };
 
   useEffect(() => {
@@ -330,20 +336,20 @@ function ArticleEditInner() {
   if (loading) return <div className="w-full h-full p-6 text-gray-400">Đang tải bài viết...</div>;
 
   return (
-    <div className="w-full h-full min-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar p-4 animate-in fade-in duration-300">
-      <header className="mb-5 flex flex-col gap-4 border-b border-gray-800/80 pb-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="border-l-4 border-blue-500 pl-3">
-          <h1 className="text-2xl text-blue-300">{id ? 'Cập nhật bài viết' : 'Thêm bài viết'}</h1>
-          <p className="mt-1 text-sm text-gray-500">Quản lý thông tin chi tiết và nội dung của bài viết</p>
+    <div className="w-full h-full min-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar p-4 animate-in fade-in duration-300" onScroll={handlePageScroll}>
+      <header className={`${headerCompact ? 'sticky top-0 z-40 -mt-4 mb-3 gap-2 py-2 shadow-md animate-in fade-in slide-in-from-top-2 duration-200' : 'relative mb-5 gap-4 pb-4'} -mx-4 flex flex-col border-b border-gray-800/80 bg-[#080b12]/95 px-4 lg:flex-row lg:items-center lg:justify-between`}>
+        <div className={`border-l-4 border-blue-500 pl-3 ${headerCompact ? 'py-0.5' : ''}`}>
+          <h1 className={`${headerCompact ? 'text-lg leading-6' : 'text-2xl'} text-blue-300`}>{id ? 'Cập nhật bài viết' : 'Thêm bài viết'}</h1>
+          <p className={`${headerCompact ? 'hidden' : 'mt-1 text-sm'} text-gray-500`}>Quản lý thông tin chi tiết và nội dung của bài viết</p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button type="button" onClick={openArticle} disabled={!form.slug} className="inline-flex items-center gap-2 rounded-md border border-blue-700 bg-blue-950/40 px-4 py-2 text-sm text-blue-200 transition hover:border-blue-400 disabled:opacity-40">
+        <div className={`flex flex-wrap ${headerCompact ? 'gap-2' : 'gap-3'}`}>
+          <button type="button" onClick={openArticle} disabled={!form.slug} className={`inline-flex items-center gap-2 rounded-md border border-blue-700 bg-blue-950/40 text-sm text-blue-200 transition hover:border-blue-400 disabled:opacity-40 ${headerCompact ? 'px-3 py-1.5' : 'px-4 py-2'}`}>
             <ExternalLink className="h-4 w-4" /> Mở trang tab
           </button>
-          <button type="button" onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-5 py-2 text-sm text-white transition hover:bg-blue-500 disabled:opacity-60">
+          <button type="button" onClick={save} disabled={saving} className={`inline-flex items-center gap-2 rounded-md bg-blue-600 text-sm text-white transition hover:bg-blue-500 disabled:opacity-60 ${headerCompact ? 'px-4 py-1.5' : 'px-5 py-2'}`}>
             <Save className="h-4 w-4" /> {saving ? 'Đang lưu...' : 'Lưu'}
           </button>
-          <button type="button" onClick={() => router.push('/news/news-list')} className="inline-flex items-center gap-2 rounded-md border border-red-500/50 bg-red-500/10 px-5 py-2 text-sm text-red-300 transition hover:bg-red-500/20">
+          <button type="button" onClick={() => router.push('/news/news-list')} className={`inline-flex items-center gap-2 rounded-md border border-red-500/50 bg-red-500/10 text-sm text-red-300 transition hover:bg-red-500/20 ${headerCompact ? 'px-4 py-1.5' : 'px-5 py-2'}`}>
             <X className="h-4 w-4" /> Đóng
           </button>
         </div>
@@ -433,7 +439,7 @@ function ArticleEditInner() {
 
         <section className="glass-panel overflow-hidden rounded-xl border border-gray-800/80 p-5">
           <h2 className="mb-4 text-sm text-gray-100">Nội dung</h2>
-          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[20%_minmax(0,1fr)]">
             <aside className="min-w-0 space-y-3">
               <button
                 type="button"
@@ -472,7 +478,7 @@ function ArticleEditInner() {
               </div>
             </aside>
             <div className="min-w-0 overflow-hidden">
-              <RichTextEditor id="article-content-editor" value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} minHeight="360px" editorHandleRef={contentEditorRef} />
+              <RichTextEditor id="article-content-editor" value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} minHeight="360px" editorHandleRef={contentEditorRef} resizable />
               <p className="mt-2 text-right text-xs text-gray-500">Số từ: {wordCount(form.content)}</p>
             </div>
           </div>

@@ -1,12 +1,47 @@
 export type MenuCategory = {
   id: string;
   name: string;
+  label?: string;
   icon: string;
+  iconKey?: string;
   suffix?: string;
+  suffixText?: string;
+  badgeText?: string;
+  url?: string;
   cols: Array<{
+    id?: string;
     title: string;
-    items: string[];
+    label?: string;
+    items: MenuLinkItem[];
   }>;
+};
+
+export type MenuLinkObject = {
+  id?: string;
+  label?: string;
+  name?: string;
+  url?: string;
+  suffix?: string;
+  suffixText?: string;
+  badgeText?: string;
+  icon?: string;
+  iconKey?: string;
+};
+
+export type MenuLinkItem = string | MenuLinkObject;
+
+export type HeaderMenuLabels = {
+  zones: string;
+  faves: string;
+};
+
+export type HeaderMenuData = {
+  zones: MenuCategory[];
+  faves: MenuLinkObject[];
+  topNav: MenuLinkObject[];
+  utilityLinks: MenuLinkObject[];
+  labels: HeaderMenuLabels;
+  meta?: Record<string, unknown>;
 };
 
 export const menuCategories: MenuCategory[] = [
@@ -15,7 +50,7 @@ export const menuCategories: MenuCategory[] = [
     name: "Laptops & NoteBooks",
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
     cols: [
-      { title: "Laptops On Special", items: ["Laptop Best Sellers 🔥", "Gaming laptops on Special", "AMD Laptops on Special", "Intel Laptops on Special", "AI Laptop Finder 🤖", "All Laptops on Special"] },
+      { title: "Laptops On Special", items: ["Laptop Best Sellers \uD83D\uDD25", "Gaming laptops on Special", "AMD Laptops on Special", "Intel Laptops on Special", "AI Laptop Finder \uD83E\uDD16", "All Laptops on Special"] },
       { title: "Gaming Laptops", items: ["GeForce Gaming Laptops", "Intel Gaming Laptops", "AMD Gaming Laptops", "Gaming Laptops Under R20k", "Gaming Laptops Above R20k"] },
       { title: "Intel Laptops", items: ["Intel Core i3 Laptops", "Intel Core i5 Laptops", "Intel Core i7 Laptops"] },
       { title: "Laptops by Brand", items: ["ASUS Laptops", "MSI Laptops", "Lenovo Laptops", "HP Laptops", "Dell Laptops"] },
@@ -36,7 +71,7 @@ export const menuCategories: MenuCategory[] = [
     id: "bestsellers",
     name: "Best Sellers",
     icon: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z",
-    suffix: "🔥",
+    suffix: "\uD83D\uDD25",
     cols: [
       { title: "Top Components", items: ["Top Selling CPUs", "Top Selling GPUs", "Top Selling Motherboards"] },
       { title: "Top Peripherals", items: ["Top Selling Mice", "Top Selling Keyboards", "Top Selling Headsets"] },
@@ -210,3 +245,36 @@ export const menuCategories: MenuCategory[] = [
     ],
   },
 ];
+
+export const fallbackHeaderMenu: HeaderMenuData = {
+  labels: {
+    zones: 'Danh M\u1ee5c',
+    faves: 'N\u1ed5i b\u1eadt',
+  },
+  zones: menuCategories,
+  faves: [
+    { id: 'fav-best-sellers', label: 'Best Sellers', url: '#', suffixText: '\uD83D\uDD25' },
+    { id: 'fav-builder', label: 'PC Builder', url: '#' },
+    { id: 'fav-flash', label: 'Flash Deals', url: '#', badgeText: 'NEW' },
+  ],
+  topNav: [
+    { id: 'components', label: 'Components', url: '#' },
+    { id: 'laptops-special', label: 'Laptops Special', url: '#', suffixText: '\uD83D\uDCBB' },
+    { id: 'pre-built', label: 'Pre Built PCs', url: '#' },
+    { id: 'best-sellers', label: 'Best Sellers', url: '#', suffixText: '\uD83D\uDD25' },
+    { id: 'flash-deals', label: 'Flash Deals', url: '#', suffixText: '\u23F3', badgeText: 'NEW' },
+    { id: 'winter-special', label: 'Winter Special', url: '#', suffixText: '\u26C4' },
+    { id: 'ai-builder', label: 'AI PC Builder', url: '#', suffixText: '\u2728' },
+    { id: 'upgrade-kits', label: 'Upgrade Kits', url: '#' },
+    { id: 'new-arrivals', label: 'New Arrivals', url: '#' },
+    { id: 'specials', label: 'Specials', url: '#', suffixText: '\u26A1' },
+    { id: 'clearance', label: 'Clearance', url: '#', suffixText: '\uD83C\uDFF7\uFE0F' },
+    { id: 'elegoo', label: 'Elegoo', url: '#', suffixText: '\u2699\uFE0F', badgeText: 'NEW' },
+  ],
+  utilityLinks: [
+    { id: 'account', label: 'Account', url: '#' },
+    { id: 'cart', label: 'Cart', url: '/gio-hang' },
+    { id: 'favorites', label: 'Favorites', url: '#' },
+    { id: 'assistant', label: 'Assistant', url: '#' },
+  ],
+};

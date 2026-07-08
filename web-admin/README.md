@@ -161,6 +161,12 @@ After image changes, code syncs back to legacy product fields:
 - `image_collection`
 - `image_count`
 
+## Admin Editor Guidelines
+
+- Use `RichTextEditor` for long-form rich content only.
+- Pass `resizable` to long-form admin editors so users can drag the TinyMCE status bar to expand/collapse height.
+- Keep resizing vertical only; do not introduce horizontal editor resizing on admin forms.
+
 ## Quote and Order
 
 Shared quote logic lives in `src/lib/cart-quote.ts`.

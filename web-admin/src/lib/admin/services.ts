@@ -229,6 +229,11 @@ function normalizeCategoryDisplayOption(value: unknown) {
   return ['child_only', 'product', 'child_product'].includes(option) ? option : 'child_product';
 }
 
+function normalizeArticleCategoryDisplayOption(value: unknown) {
+  const option = String(value || '').trim();
+  return ['article', 'child_article'].includes(option) ? option : 'article';
+}
+
 export async function listProductsFromRequest(url: string) {
   const params = clampListParams(new URL(url).searchParams);
   const offset = (params.page - 1) * params.limit;
@@ -841,6 +846,7 @@ async function saveCategory(options: {
     const categoryStaticHtml = maybeText(payload.staticHtml ?? payload.static_html);
     const categoryIsFeatured = toBoolInt(payload.isFeatured ?? payload.is_featured, 0);
     const categoryDisplayOption = normalizeCategoryDisplayOption(payload.displayOption ?? payload.display_option);
+    const articleCategoryDisplayOption = normalizeArticleCategoryDisplayOption(payload.displayOption ?? payload.display_option);
 
     if (table === 'idv_seller_category' && id) {
       await connection.query(
@@ -905,7 +911,7 @@ async function saveCategory(options: {
       await connection.query(
         `
           UPDATE ${table}
-          SET name = ?, parentId = ?, url = ?, request_path = ?, status = ?, ordering = ?, summary = ?, description = ?,
+          SET name = ?, parentId = ?, url = ?, request_path = ?, status = ?, ordering = ?, summary = ?, description = ?, display_option = ?,
               meta_title = ?, meta_keyword = ?, meta_description = ?
           WHERE id = ?
         `,
@@ -916,8 +922,9 @@ async function saveCategory(options: {
           requestPath,
           status,
           ordering,
-          maybeText(payload.summary || payload.description, 250),
+          maybeText(payload.summary, 250),
           maybeText(payload.description),
+          articleCategoryDisplayOption,
           metaTitle,
           metaKeyword,
           metaDescription,
@@ -928,8 +935,8 @@ async function saveCategory(options: {
       const [insert] = await connection.query(
         `
           INSERT INTO ${table}
-            (name, parentId, url, request_path, status, ordering, summary, description, meta_title, meta_keyword, meta_description)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (name, parentId, url, request_path, status, ordering, summary, description, display_option, meta_title, meta_keyword, meta_description)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           name,
@@ -938,8 +945,9 @@ async function saveCategory(options: {
           requestPath,
           status,
           ordering,
-          maybeText(payload.summary || payload.description, 250),
+          maybeText(payload.summary, 250),
           maybeText(payload.description),
+          articleCategoryDisplayOption,
           metaTitle,
           metaKeyword,
           metaDescription,
@@ -949,8 +957,17 @@ async function saveCategory(options: {
       await markRegistry(connection, entityType, id);
     }
 
-    await upsertUrl(connection, `${slugPrefix}${id}`, slug);
-    if (table === 'idv_seller_news_category') await rebuildNewsCategoryCache(connection);
+    if (table === 'idv_seller_news_category') {
+      await upsertUrlWithAliases(
+        connection,
+        `${slugPrefix}${id}`,
+        [`module:article/view:category/view_id:${id}`],
+        slug,
+      );
+      await rebuildNewsCategoryCache(connection);
+    } else {
+      await upsertUrl(connection, `${slugPrefix}${id}`, slug);
+    }
     return { id, slug };
   });
 }
@@ -1039,7 +1056,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
       }
 
       await connection.query('DELETE FROM idv_article_category WHERE category_id = ?', [id]);
-      await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:news/view:category/view_id:${id}`]);
+      await connection.query('DELETE FROM idv_url WHERE id_path IN (?, ?)', [`module:news/view:category/view_id:${id}`, `module:article/view:category/view_id:${id}`]);
       await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
       await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', [entityType, id]);
       await rebuildNewsCategoryCache(connection);
@@ -1416,5 +1433,7 @@ export function saveArticleCategory(payload: Record<string, unknown>, id?: numbe
 
 export async function runAdminMigration() {
   await ensureAdminTables();
+  const { ensureHeaderMenuSeeded } = await import('@/lib/admin/menus');
+  await ensureHeaderMenuSeeded();
   return { migrated: true };
 }

@@ -197,6 +197,7 @@ export function TabCombo({
         minHeight="240px"
         value={form?.specialOffer || ''}
         onChange={(value) => onChange?.('specialOffer', value)}
+        resizable
       />
 
       <section className="space-y-4" aria-busy={loadingCatalog || addingId !== null}>

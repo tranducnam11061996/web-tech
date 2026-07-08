@@ -1,6 +1,6 @@
 # Project Progress
 
-Last updated: 2026-07-07
+Last updated: 2026-07-09
 
 This file tracks implementation status for the HACOM workspace. For the shortest handoff path, read `AI_HANDOFF.md` first, then this file, then the database docs.
 
@@ -13,6 +13,7 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | Admin CRUD | Implemented first pass | Writes are gated by `ADMIN_WRITE_ENABLED=true`; auth/authorization is still missing |
 | Search infrastructure | Implemented and present in live DB | `product_data_search` has 28,763 rows and 0 missing products at audit time |
 | Product image albums | Implemented in code, DB migration pending | `web_admin_product_images` code exists; table was not present in live DB at audit time |
+| Header menu management | Implemented, needs live smoke test | Admin menu manager, draft/publish API, storefront fetch, labels, preview, collapse tree, and mojibake/icon fixes are in code |
 | Documentation audit | Updated | Core handoff docs refreshed on 2026-07-07 |
 
 ## Completed Work
@@ -25,16 +26,21 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | Admin helper tables | `web_admin_sequence` and `web_admin_entity_registry` exist |
 | Storefront image grouping | Product detail code can consume `imageGroups.product` and `imageGroups.customer` |
 | Admin image album UI/API | Upload, batch metadata update, delete, media serving, and legacy sync code paths exist |
+| Header menu DB/API | `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`, admin APIs, public `/api/menu/header`, and target search endpoint exist |
+| Header menu admin UI | `/content/menu` supports live preview, editable `Danh Mục`/`Nổi bật` labels, expand/collapse tree, area switching, quick custom links, save draft, and publish |
+| Header storefront integration | `font-end` header loads public menu data, falls back locally, renders `Danh Mục`/`Nổi bật`, and repairs known mojibake values |
+| Header icon/text cleanup | Header chrome icons now use `lucide-react`; Vietnamese labels/placeholders render with encoded strings or repair helpers |
 | Build verification | `web-admin` and `font-end` builds passed with increased Node memory |
 
 ## Important Pending Work
 
 1. Run the admin migration with writes enabled on the intended database to create `web_admin_product_images`.
-2. Verify image upload end to end: upload each type, reload admin edit page, check storefront tabs, check legacy `proThum/image_collection/image_count`.
-3. Add authentication and authorization before enabling admin write routes outside a trusted environment.
-4. Harden checkout before production: rate limit, CORS allowlist, request validation, backend quantity rules, idempotency, and safer error responses.
-5. Add integration tests around order transaction rollback and search/image migration behavior.
-6. Decide whether to keep or remove legacy scratch/debug files at workspace root.
+2. Run admin migrations for header menu tables/settings on the intended database, then smoke-test `/content/menu` save draft, publish, and storefront header at `localhost:3001`.
+3. Verify image upload end to end: upload each type, reload admin edit page, check storefront tabs, check legacy `proThum/image_collection/image_count`.
+4. Add authentication and authorization before enabling admin write routes outside a trusted environment.
+5. Harden checkout before production: rate limit, CORS allowlist, request validation, backend quantity rules, idempotency, and safer error responses.
+6. Add integration tests around order transaction rollback and search/image/menu migration behavior.
+7. Decide whether to keep or remove legacy scratch/debug files at workspace root.
 
 ## Verification Matrix
 
@@ -44,6 +50,8 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | `font-end` typecheck | Pass | `npx.cmd tsc --noEmit` |
 | `web-admin` build | Pass | Use `NODE_OPTIONS=--max-old-space-size=4096` |
 | `font-end` build | Pass | Use `NODE_OPTIONS=--max-old-space-size=4096` |
+| Header menu frontend/admin typecheck | Pass | Rechecked on 2026-07-09 with `npx tsc --noEmit` in both apps |
+| Header menu frontend/admin build | Pass | Rechecked on 2026-07-09 with `npm run build` in both apps; `web-admin` still shows the known multi-lockfile Next warning |
 | `web-admin` admin migration without write flag | Expected failure | Safety gate rejects when `ADMIN_WRITE_ENABLED` is not `true` |
 | Search DB health | Pass | Product rows = search rows = 28,763; missing = 0 |
 | `web-admin` lint | Not clean | Legacy lint errors remain |
@@ -88,6 +96,28 @@ Owners:
 - Runtime helpers: `web-admin/src/lib/searchInfrastructure.ts`
 - API: `web-admin/src/app/api/search/route.ts`
 - Webhook sync: `web-admin/src/app/api/webhook/update-search/route.ts`
+
+## Header Menu State
+
+Header navigation is now managed from `web-admin` instead of only from hardcoded storefront data.
+
+Owners:
+
+- Admin UI: `web-admin/src/app/content/menu/page.tsx` and `web-admin/src/components/menu/HeaderMenuManager.tsx`
+- Admin API: `web-admin/src/app/api/admin/menus/header/*`
+- Public API: `web-admin/src/app/api/menu/header/route.ts`
+- Backend service: `web-admin/src/lib/admin/menus.ts`
+- Seed data: `web-admin/src/lib/header-menu-seed.ts`
+- Storefront renderer: `font-end/src/components/Header.tsx`
+- Storefront fallback data: `font-end/src/components/menuData.ts`
+
+Current behavior:
+
+- Admin edits draft menu data, then publishes it for the storefront.
+- `Danh Mục` and `Nổi bật` labels are editable in draft/published settings.
+- Admin preview updates from local draft state and supports area switching.
+- Menu tree is expandable/collapsible so large zone/group/link lists stay manageable.
+- Storefront fetches `/api/menu/header`, uses fallback data if the API fails, and repairs known mojibake labels/suffixes before rendering.
 
 ## Known Risks
 

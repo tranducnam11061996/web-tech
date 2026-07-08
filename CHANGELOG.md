@@ -2,6 +2,13 @@
 
 Notable workspace changes are grouped by implementation/audit date.
 
+## 2026-07-09
+
+### Changed
+
+- Enabled vertical resize for the article category detail editor in `web-admin`.
+- Documented the admin UI rule that long-form `RichTextEditor` fields should use the `resizable` prop and vertical-only TinyMCE resizing.
+
 ## 2026-07-07
 
 ### Added

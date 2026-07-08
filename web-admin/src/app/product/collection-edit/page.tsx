@@ -109,6 +109,7 @@ export default function CollectionEditPage() {
             defaultValue="<p>Chương trình Back to School Acer 2026 mang đến...</p>"
             minHeight="400px"
             id="collection-content"
+            resizable
           />
         </div>
 

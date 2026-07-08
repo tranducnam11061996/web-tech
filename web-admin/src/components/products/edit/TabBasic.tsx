@@ -89,6 +89,7 @@ export function TabBasic({ product, form, onChange, brands = [], categories = []
         minHeight="380px"
         value={current.spec || ''}
         onChange={(value) => onChange?.('spec', value)}
+        resizable
       />
 
       <hr className="border-gray-800" />

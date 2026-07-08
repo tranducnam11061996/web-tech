@@ -20,7 +20,8 @@ export function RichTextEditor({
   onChange,
   minHeight = "240px",
   id,
-  editorHandleRef
+  editorHandleRef,
+  resizable = false,
 }: { 
   title?: string; 
   defaultValue?: string; 
@@ -29,6 +30,7 @@ export function RichTextEditor({
   minHeight?: string;
   id?: string;
   editorHandleRef?: MutableRefObject<RichTextEditorHandle | null>;
+  resizable?: boolean;
 }) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const tinyEditorRef = useRef<any>(null);
@@ -132,7 +134,7 @@ export function RichTextEditor({
           img { max-width: 100%; height: auto; }
         `,
         menubar: false,
-        resize: false,
+        resize: resizable ? 'vertical' : false,
         plugins: [
           'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
           'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
@@ -179,7 +181,7 @@ export function RichTextEditor({
         initialized.current = false;
       }
     };
-  }, [editorHandleRef, minHeight, scriptReady]);
+  }, [editorHandleRef, minHeight, resizable, scriptReady]);
 
   useEffect(() => {
     const editor = tinyEditorRef.current;

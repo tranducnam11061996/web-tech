@@ -2,8 +2,99 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import {
+  Bot,
+  ChevronRight,
+  Heart,
+  Menu as MenuGlyph,
+  Moon,
+  MoreVertical,
+  Search,
+  ShoppingCart,
+  Star,
+  User,
+  X,
+} from 'lucide-react';
 import { useCartSummary } from '@/lib/cart';
-import { menuCategories } from './menuData';
+import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem, type MenuLinkObject } from './menuData';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+const TEXT_REPAIRS: Record<string, string> = {
+  'Danh Má»¥c': 'Danh Mục',
+  'Ná»•i báº­t': 'Nổi bật',
+  'ðŸ”¥': '🔥',
+  'Ã°Å¸â€Â¥': '🔥',
+  'ðŸ’»': '💻',
+  'Ã°Å¸â€™Â»': '💻',
+  'ðŸ¤–': '🤖',
+  'Ã°Å¸Â¤â€“': '🤖',
+  'ðŸ› ï¸': '🛠️',
+  'ðŸ·ï¸': '🏷️',
+  'Ã°Å¸ÂÂ·Ã¯Â¸Â': '🏷️',
+  'â³': '⏳',
+  'Ã¢ÂÂ³': '⏳',
+  'â›„': '⛄',
+  'Ã¢â€ºâ€ž': '⛄',
+  'âœ¨': '✨',
+  'Ã¢Å“Â¨': '✨',
+  'âš¡': '⚡',
+  'Ã¢Å¡Â¡': '⚡',
+  'âš™ï¸': '⚙️',
+  'Ã¢Å¡â„¢Ã¯Â¸Â': '⚙️',
+  'â˜…': '★',
+  'Ã¢Ëœâ€¦': '★',
+  'â˜†': '☆',
+  'Ã¢Ëœâ€ ': '☆',
+  'â€º': '›',
+  'Ã¢â‚¬Âº': '›',
+};
+
+const FINAL_TEXT_REPAIRS: Record<string, string> = {
+  'Danh Má»¥c': 'Danh Mục',
+  'Ná»•i báº­t': 'Nổi bật',
+  'ðŸ”¥': '🔥',
+  'ðŸ’»': '💻',
+  'ðŸ¤–': '🤖',
+  'ðŸ› ï¸': '🛠️',
+  'ðŸ·ï¸': '🏷️',
+  'â³': '⏳',
+  'â›„': '⛄',
+  'âœ¨': '✨',
+  'âš¡': '⚡',
+  'âš™ï¸': '⚙️',
+  'â˜…': '★',
+  'â˜†': '☆',
+  'â€º': '›',
+};
+
+function cleanHeaderText(value: unknown) {
+  let text = String(value || '');
+  for (const [broken, fixed] of [...Object.entries(TEXT_REPAIRS), ...Object.entries(FINAL_TEXT_REPAIRS)]) {
+    text = text.split(broken).join(fixed);
+  }
+  return text;
+}
+
+function linkLabel(item: MenuLinkItem | MenuCategory) {
+  if (typeof item === 'string') return cleanHeaderText(item);
+  return cleanHeaderText(item.label || item.name || '');
+}
+
+function linkUrl(item: MenuLinkItem | MenuCategory) {
+  if (typeof item === 'string') return '#';
+  return item.url || '#';
+}
+
+function linkSuffix(item: MenuLinkItem | MenuCategory) {
+  if (typeof item === 'string') return '';
+  return cleanHeaderText(item.suffixText || item.suffix || '');
+}
+
+function linkBadge(item: MenuLinkItem | MenuCategory) {
+  if (typeof item === 'string') return '';
+  return cleanHeaderText(item.badgeText || '');
+}
 
 export default function Header() {
   const router = useRouter();
@@ -19,22 +110,55 @@ export default function Header() {
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
 
+  const [headerMenu, setHeaderMenu] = useState<HeaderMenuData>(fallbackHeaderMenu);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activeDesktopMenuId, setActiveDesktopMenuId] = useState(menuCategories[0]?.id || '');
+  const [activeDesktopTab, setActiveDesktopTab] = useState<'zones' | 'faves'>('zones');
+  const [activeMobileTab, setActiveMobileTab] = useState<'zones' | 'faves'>('zones');
+  const [activeDesktopMenuId, setActiveDesktopMenuId] = useState(fallbackHeaderMenu.zones[0]?.id || '');
   const [activeMobileMenuId, setActiveMobileMenuId] = useState<string | null>(null);
   const { totalQuantity } = useCartSummary();
 
+  const menuCategories = headerMenu.zones.length > 0 ? headerMenu.zones : fallbackHeaderMenu.zones;
+
   const activeDesktopMenu = useMemo(
     () => menuCategories.find((category) => category.id === activeDesktopMenuId) || menuCategories[0],
-    [activeDesktopMenuId],
+    [activeDesktopMenuId, menuCategories],
   );
 
   const activeMobileMenu = useMemo(
     () => menuCategories.find((category) => category.id === activeMobileMenuId) || null,
-    [activeMobileMenuId],
+    [activeMobileMenuId, menuCategories],
   );
 
-  // Search navigation: lấy giá trị từ input và navigate
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_URL}/api/menu/header`, { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((payload) => {
+        if (cancelled || !payload?.success || !payload.data) return;
+        const nextMenu = {
+          zones: payload.data.zones?.length ? payload.data.zones : fallbackHeaderMenu.zones,
+          faves: payload.data.faves || [],
+          topNav: payload.data.topNav || [],
+          utilityLinks: payload.data.utilityLinks || [],
+          labels: {
+            zones: cleanHeaderText(payload.data.labels?.zones || payload.data.settings?.zonesLabel || fallbackHeaderMenu.labels.zones),
+            faves: cleanHeaderText(payload.data.labels?.faves || payload.data.settings?.favesLabel || fallbackHeaderMenu.labels.faves),
+          },
+          meta: payload.data.meta,
+        };
+        setHeaderMenu(nextMenu);
+        setActiveDesktopMenuId(nextMenu.zones[0]?.id || '');
+      })
+      .catch(() => {
+        if (!cancelled) setHeaderMenu(fallbackHeaderMenu);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Search navigation: lấy giá trị từ input và chuyển trang.
   const navigateToSearch = useCallback((inputRef: React.RefObject<HTMLInputElement | null>) => {
     const value = inputRef.current?.value?.trim();
     if (value) {
@@ -130,6 +254,10 @@ export default function Header() {
   };
 
   const isSubMenuVisible = showSubMenu || isMenuOpen;
+  const menuLabels = {
+    zones: cleanHeaderText(headerMenu.labels?.zones || fallbackHeaderMenu.labels.zones),
+    faves: cleanHeaderText(headerMenu.labels?.faves || fallbackHeaderMenu.labels.faves),
+  };
 
   return (
     <>
@@ -153,14 +281,18 @@ export default function Header() {
             {/* Search (mobile) */}
             <div className="flex-1 search-glow-container">
               <div className="search-input-box rounded-full flex items-center px-4 h-10">
-                <span
-                  className="text-gray-500 mr-2 text-sm cursor-pointer hover:text-white transition-colors"
+                <button
+                  type="button"
+                  className="text-gray-500 mr-2 hover:text-white transition-colors"
                   onClick={() => navigateToSearch(mobileSearchRef)}
-                >🔍</span>
+                  aria-label={'T\u00ecm ki\u1ebfm'}
+                >
+                  <Search className="h-4 w-4" aria-hidden="true" />
+                </button>
                 <input
                   ref={mobileSearchRef}
                   type="text"
-                  placeholder="Search..."
+                  placeholder={'T\u00ecm ki\u1ebfm...'}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
@@ -180,7 +312,7 @@ export default function Header() {
               onClick={toggleMenu}
             >
               <div className="w-full h-full bg-[#111113] rounded-full flex items-center justify-center text-white text-lg font-bold">
-                <span id="menuIconMobile" className="mt-[-2px]">{isMenuOpen ? '✕' : '≡'}</span>
+                {isMenuOpen ? <X id="menuIconMobile" className="h-5 w-5" aria-hidden="true" /> : <MenuGlyph id="menuIconMobile" className="h-5 w-5" aria-hidden="true" />}
               </div>
             </div>
           </div>
@@ -203,14 +335,18 @@ export default function Header() {
             <div className="flex-1 max-w-4xl mx-8">
               <div className="search-glow-container">
                 <div className="search-input-box rounded-full flex items-center px-4 py-2.5">
-                  <span
-                    className="text-gray-500 mr-3 cursor-pointer hover:text-white transition-colors"
+                  <button
+                    type="button"
+                    className="text-gray-500 mr-3 hover:text-white transition-colors"
                     onClick={() => navigateToSearch(desktopSearchRef)}
-                  >🔍</span>
+                    aria-label={'T\u00ecm ki\u1ebfm'}
+                  >
+                    <Search className="h-4 w-4" aria-hidden="true" />
+                  </button>
                   <input
                     ref={desktopSearchRef}
                     type="text"
-                    placeholder="Search for products, pages and posts ..."
+                    placeholder={'T\u00ecm s\u1ea3n ph\u1ea9m, trang v\u00e0 b\u00e0i vi\u1ebft...'}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -225,15 +361,26 @@ export default function Header() {
 
             {/* Icons */}
             <div className="flex items-center gap-6 text-gray-400 shrink-0">
-              <button className="hover:text-white transition-colors">👤</button>
-              <Link href="/gio-hang" className="hover:text-white transition-colors relative">
-                🛒<span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
+              <button type="button" className="hover:text-white transition-colors" aria-label={'T\u00e0i kho\u1ea3n'}>
+                <User className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <Link href="/gio-hang" className="hover:text-white transition-colors relative" aria-label={'Gi\u1ecf h\u00e0ng'}>
+                <ShoppingCart className="h-5 w-5" aria-hidden="true" />
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
               </Link>
-              <button className="hover:text-white transition-colors">♡</button>
-              <button className="hover:text-white transition-colors">🤖</button>
+              <button type="button" className="hover:text-white transition-colors" aria-label={'Y\u00eau th\u00edch'}>
+                <Heart className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <button type="button" className="hover:text-white transition-colors" aria-label={'Tr\u1ee3 l\u00fd'}>
+                <Bot className="h-5 w-5" aria-hidden="true" />
+              </button>
               <div className="w-px h-5 bg-dark-border mx-2"></div>
-              <button className="hover:text-white transition-colors">🌙</button>
-              <button className="hover:text-white transition-colors">⋮</button>
+              <button type="button" className="hover:text-white transition-colors" aria-label={'Ch\u1ebf \u0111\u1ed9 t\u1ed1i'}>
+                <Moon className="h-5 w-5" aria-hidden="true" />
+              </button>
+              <button type="button" className="hover:text-white transition-colors" aria-label={'Th\u00eam t\u00f9y ch\u1ecdn'}>
+                <MoreVertical className="h-5 w-5" aria-hidden="true" />
+              </button>
             </div>
           </div>
 
@@ -258,34 +405,30 @@ export default function Header() {
               onClick={toggleMenu}
             >
               <div className="bg-dark rounded-full px-5 py-2 flex items-center gap-2 text-white text-sm font-semibold">
-                <span id="menuIconDesktop" className={`${isMenuOpen ? 'text-[14px]' : 'text-lg mt-[-2px]'} leading-none`}>{isMenuOpen ? '✕' : '≡'}</span>
+                {isMenuOpen ? <X id="menuIconDesktop" className="h-4 w-4" aria-hidden="true" /> : <MenuGlyph id="menuIconDesktop" className="h-4 w-4" aria-hidden="true" />}
                 <span>Menu</span>
               </div>
             </div>
 
             {/* Nav Links */}
             <nav className="flex items-center gap-6 ml-8 overflow-x-auto no-scrollbar w-full">
-              <a href="#" className="nav-link">Components</a>
-              <a href="#" className="nav-link"><span className="text-blue-400">💻</span> Laptops Special</a>
-              <a href="#" className="nav-link">Pre Built PCs</a>
-              <a href="#" className="nav-link"><span className="text-orange-500">🔥</span> Best Sellers</a>
-              <a href="#" className="nav-link"><span className="text-yellow-500">⏳</span> Flash Deals <span className="badge-new">NEW</span></a>
-              <a href="#" className="nav-link"><span className="text-blue-300">⛄</span> Winter Special</a>
-              <a href="#" className="nav-link"><span className="text-yellow-300">✨</span> AI PC Builder</a>
-              <a href="#" className="nav-link">Upgrade Kits</a>
-              <a href="#" className="nav-link">New Arrivals</a>
-              <a href="#" className="nav-link"><span className="text-red-500">⚡</span> Specials</a>
-              <a href="#" className="nav-link"><span className="text-yellow-600">🏷️</span> Clearance</a>
-              <a href="#" className="nav-link"><span className="text-gray-400">⚙️</span> Elegoo <span className="badge-new">NEW</span></a>
+              {(headerMenu.topNav.length ? headerMenu.topNav : fallbackHeaderMenu.topNav).map((item) => (
+                <a key={item.id || item.label} href={item.url || '#'} className="nav-link">
+                  {linkSuffix(item) ? <span className="mr-1 text-blue-300">{linkSuffix(item)}</span> : null}
+                  {linkLabel(item)}
+                  {linkBadge(item) ? <span className="badge-new ml-1">{linkBadge(item)}</span> : null}
+                </a>
+              ))}
             </nav>
           </div>
 
           <nav className="flex md:hidden items-center gap-6 px-4 py-3 overflow-x-auto no-scrollbar border-b border-dark-border flex-shrink-0">
-            <a href="#" className="nav-link"><span className="text-blue-300">⛄</span> Winter Special</a>
-            <a href="#" className="nav-link"><span className="text-red-500">⚡</span> Specials</a>
-            <a href="#" className="nav-link"><span className="text-blue-400">💻</span> Laptops Special</a>
-            <a href="#" className="nav-link">Components</a>
-            <a href="#" className="nav-link">Pre Built PCs</a>
+            {(headerMenu.topNav.length ? headerMenu.topNav : fallbackHeaderMenu.topNav).slice(0, 6).map((item) => (
+              <a key={item.id || item.label} href={item.url || '#'} className="nav-link">
+                {linkSuffix(item) ? <span className="mr-1 text-blue-300">{linkSuffix(item)}</span> : null}
+                {linkLabel(item)}
+              </a>
+            ))}
           </nav>
               </div>
             </div>
@@ -299,13 +442,39 @@ export default function Header() {
             <div id="mobileGrid" className={`${activeMobileMenu ? 'hidden' : 'flex-1'} md:hidden p-4`}>
               {/* Tabs */}
               <div className="bg-[#131317] rounded-full flex p-1 mb-6">
-                <button className="flex-1 rounded-full bg-dark text-white py-2 flex items-center justify-center gap-2 text-sm font-semibold shadow-md"><span className="text-cyan-400">⊞</span> Zones</button>
-                <button className="flex-1 py-2 text-gray-500 flex items-center justify-center gap-2 text-sm font-semibold"><span className="text-orange-500">★</span> Faves</button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMobileTab('zones')}
+                  className={`flex-1 rounded-full py-2 flex items-center justify-center gap-2 text-sm font-semibold shadow-md ${activeMobileTab === 'zones' ? 'bg-dark text-white' : 'text-gray-500'}`}
+                >
+                  <span className="text-cyan-400">{menuLabels.zones}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveMobileTab('faves')}
+                  className={`flex-1 rounded-full py-2 flex items-center justify-center gap-2 text-sm font-semibold ${activeMobileTab === 'faves' ? 'bg-dark text-white' : 'text-gray-500'}`}
+                >
+                  <Star className="h-4 w-4 text-orange-500" fill="currentColor" aria-hidden="true" />
+                  <span>{menuLabels.faves}</span>
+                </button>
               </div>
 
               {/* 3-Col Grid Container */}
               <div id="mobileGridContainer" className="grid grid-cols-3 gap-3">
-                {menuCategories.map((category) => (
+                {activeMobileTab === 'faves' && (headerMenu.faves.length ? headerMenu.faves : fallbackHeaderMenu.faves).map((item) => (
+                  <a
+                    key={item.id || item.label}
+                    href={item.url || '#'}
+                    className="bg-[#111115] rounded-xl p-3 flex flex-col items-center justify-center gap-3 text-center border border-transparent hover:border-gray-700 transition"
+                  >
+                    <span className="text-lg">{linkSuffix(item) || <Star className="h-5 w-5 text-orange-500" aria-hidden="true" />}</span>
+                    <span className="text-[11px] text-gray-300 font-semibold leading-tight">
+                      {linkLabel(item)}
+                      {linkBadge(item) ? <span className="text-orange-500 ml-1">{linkBadge(item)}</span> : null}
+                    </span>
+                  </a>
+                ))}
+                {(activeMobileTab === 'zones' ? menuCategories : []).map((category) => (
                   <div
                     key={category.id}
                     className="bg-[#111115] rounded-xl p-3 flex flex-col items-center justify-center gap-3 text-center border border-transparent hover:border-gray-700 transition"
@@ -315,8 +484,8 @@ export default function Header() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d={category.icon}></path>
                     </svg>
                     <span className="text-[11px] text-gray-300 font-semibold leading-tight">
-                      {category.name}
-                      {category.suffix ? <span className="text-orange-500 ml-1">{category.suffix}</span> : null}
+                      {linkLabel(category)}
+                      {linkSuffix(category) ? <span className="text-orange-500 ml-1">{linkSuffix(category)}</span> : null}
                     </span>
                   </div>
                 ))}
@@ -328,15 +497,17 @@ export default function Header() {
               {/* Header */}
               <div className="flex items-center gap-4 mb-8">
                 <button
+                  type="button"
                   className="w-9 h-9 rounded-full bg-[#131317] flex items-center justify-center text-gray-400 hover:text-white transition"
                   onClick={() => setActiveMobileMenuId(null)}
+                  aria-label={'Quay l\u1ea1i'}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
                   </svg>
                 </button>
                 <div className="flex items-center gap-3">
-                  <h2 id="mobileSubTitle" className="text-xl font-bold title-gradient tracking-tight">{activeMobileMenu?.name}</h2>
+                  <h2 id="mobileSubTitle" className="text-xl font-bold title-gradient tracking-tight">{activeMobileMenu ? linkLabel(activeMobileMenu) : ''}</h2>
                 </div>
               </div>
 
@@ -344,11 +515,14 @@ export default function Header() {
               <div id="mobileSubContentList" className="space-y-8">
                 {activeMobileMenu?.cols.map((column) => (
                   <div key={column.title}>
-                    <h3 className="title-gradient font-bold text-[16px] mb-4">{column.title}</h3>
+                    <h3 className="title-gradient font-bold text-[16px] mb-4">{cleanHeaderText(column.title)}</h3>
                     <ul className="space-y-4">
                       {column.items.map((item) => (
-                        <li key={item} className="flex items-center gap-3 text-[14px] text-gray-400">
-                          <span className="text-gray-600 text-lg leading-none">☆</span> {item}
+                        <li key={typeof item === 'string' ? item : item.id || item.label || item.name}>
+                          <a href={linkUrl(item)} className="flex items-center gap-3 text-[14px] text-gray-400">
+                            <Star className="h-4 w-4 shrink-0 text-gray-600" aria-hidden="true" />
+                            <span>{linkSuffix(item) ? `${linkSuffix(item)} ` : ''}{linkLabel(item)}</span>
+                          </a>
                         </li>
                       ))}
                     </ul>
@@ -363,24 +537,32 @@ export default function Header() {
               <div className="w-80 border-r border-dark-border flex flex-col shrink-0 bg-[#0c0c0e]">
                 {/* Tabs */}
                 <div className="flex items-center border-b border-dark-border">
-                  <button className="flex-1 py-4 flex items-center justify-center gap-2 text-cyan-400 border-b-2 border-cyan-400 font-semibold text-sm bg-[#131317]">
+                  <button
+                    type="button"
+                    onClick={() => setActiveDesktopTab('zones')}
+                    className={`flex-1 py-4 flex items-center justify-center gap-2 font-semibold text-sm ${activeDesktopTab === 'zones' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-[#131317]' : 'text-gray-400 hover:text-white transition-colors'}`}
+                  >
                     <span className="grid grid-cols-2 gap-[2px]">
                       <div className="w-1.5 h-1.5 bg-cyan-400"></div>
                       <div className="w-1.5 h-1.5 bg-cyan-400"></div>
                       <div className="w-1.5 h-1.5 bg-cyan-400"></div>
                       <div className="w-1.5 h-1.5 bg-cyan-400"></div>
                     </span>
-                    Zones
+                    {menuLabels.zones}
                   </button>
-                  <button className="flex-1 py-2 flex items-center justify-center gap-2 text-gray-400 font-semibold text-sm hover:text-white transition-colors">
-                    <span className="text-orange-500">★</span> Faves
+                  <button
+                    type="button"
+                    onClick={() => setActiveDesktopTab('faves')}
+                    className={`flex-1 py-2 flex items-center justify-center gap-2 font-semibold text-sm ${activeDesktopTab === 'faves' ? 'text-orange-400 border-b-2 border-orange-400 bg-[#131317]' : 'text-gray-400 hover:text-white transition-colors'}`}
+                  >
+                    <Star className="h-4 w-4 text-orange-500" fill="currentColor" aria-hidden="true" /> {menuLabels.faves}
                   </button>
-                  <button className="px-4 text-gray-500 hover:text-white hidden md:block">🔍</button>
+                  <button type="button" className="px-4 text-gray-500 hover:text-white hidden md:block" aria-label={'T\u00ecm trong menu'}><Search className="h-4 w-4" aria-hidden="true" /></button>
                 </div>
 
                 {/* Categories List */}
                 <div id="desktopSidebarList" className="flex-1 overflow-y-auto py-4">
-                  {menuCategories.map((category) => {
+                  {activeDesktopTab === 'zones' ? menuCategories.map((category) => {
                     const isActive = category.id === activeDesktopMenuId;
                     return (
                       <div
@@ -390,29 +572,52 @@ export default function Header() {
                       >
                         <div className={`faux-icon ${isActive ? 'bg-gradient-active' : ''}`}></div>
                         <span className={`flex-1 ${isActive ? 'font-bold' : ''}`}>
-                          {category.name}
-                          {category.suffix ? <span className="text-orange-500 ml-1">{category.suffix}</span> : null}
+                          {linkLabel(category)}
+                          {linkSuffix(category) ? <span className="text-orange-500 ml-1">{linkSuffix(category)}</span> : null}
                         </span>
-                        {isActive ? <span className="text-gray-500">›</span> : null}
+                        {isActive ? <ChevronRight className="h-4 w-4 text-gray-500" aria-hidden="true" /> : null}
                       </div>
                     );
-                  })}
+                  }) : (headerMenu.faves.length ? headerMenu.faves : fallbackHeaderMenu.faves).map((item) => (
+                    <a key={item.id || item.label} href={item.url || '#'} className="sidebar-item">
+                      <div className="faux-icon"></div>
+                      <span className="flex-1">
+                        {linkLabel(item)}
+                        {linkSuffix(item) ? <span className="text-orange-500 ml-1">{linkSuffix(item)}</span> : null}
+                      </span>
+                    </a>
+                  ))}
                 </div>
               </div>
 
               {/* Content Area */}
               <div id="desktopContentContainer" className="flex-1 p-10 overflow-y-auto bg-[#0a0a0c]">
                 <div className="grid grid-cols-4 gap-12">
-                  {activeDesktopMenu?.cols.map((column) => (
+                  {activeDesktopTab === 'zones' ? activeDesktopMenu?.cols.map((column) => (
                     <div key={column.title}>
-                      <h3 className="title-gradient font-bold text-base mb-6">{column.title}</h3>
+                      <h3 className="title-gradient font-bold text-base mb-6">{cleanHeaderText(column.title)}</h3>
                       <ul className="space-y-3.5">
                         {column.items.map((item) => (
-                          <li key={item}><a href="#" className="sub-link">{item}</a></li>
+                          <li key={typeof item === 'string' ? item : item.id || item.label || item.name}>
+                            <a href={linkUrl(item)} className="sub-link">
+                              {linkSuffix(item) ? <span className="mr-1">{linkSuffix(item)}</span> : null}
+                              {linkLabel(item)}
+                              {linkBadge(item) ? <span className="badge-new ml-1">{linkBadge(item)}</span> : null}
+                            </a>
+                          </li>
                         ))}
                       </ul>
                     </div>
-                  ))}
+                  )) : (
+                    <div>
+                      <h3 className="title-gradient font-bold text-base mb-6">{menuLabels.faves}</h3>
+                      <ul className="space-y-3.5">
+                        {(headerMenu.faves.length ? headerMenu.faves : fallbackHeaderMenu.faves).map((item) => (
+                          <li key={item.id || item.label}><a href={item.url || '#'} className="sub-link">{linkSuffix(item) ? <span className="mr-1">{linkSuffix(item)}</span> : null}{linkLabel(item)}{linkBadge(item) ? <span className="badge-new ml-1">{linkBadge(item)}</span> : null}</a></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

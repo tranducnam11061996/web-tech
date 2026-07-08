@@ -1,6 +1,6 @@
 # AI Handoff - HACOM Workspace
 
-Last audited: `2026-07-07`
+Last audited: `2026-07-09`
 
 Read this file first. It is written for another AI or engineer who needs to continue coding immediately.
 
@@ -58,6 +58,8 @@ Search infrastructure also has:
 - Cart is guest-only and stored under localStorage key `hacom.cart.v1`.
 - Checkout calls backend quote and order APIs; client prices are display cache only.
 - Product detail carousel now supports image tabs from `productData.imageGroups`.
+- Header navigation now loads menu data from `web-admin /api/menu/header` with a local fallback.
+- Header menu labels default to Vietnamese `Danh Mục` and `Nổi bật`; the frontend repairs known mojibake strings and renders header chrome icons with `lucide-react` SVG icons.
 
 ### Backend/Admin
 
@@ -67,6 +69,10 @@ Search infrastructure also has:
 - Admin product image upload code stores files under `MEDIA_ROOT/ddMMyyyy/file.ext`, exposed through `/api/media/[...path]`.
 - Product image albums/types are `product`, `self`, `customer`.
 - Storefront should show `product + self` as product images and `customer` as customer images.
+- Header menu manager exists at `/content/menu` in `web-admin`.
+- Header menu data uses draft/published versions with `web_admin_menus`, `web_admin_menu_versions`, and `web_admin_menu_items`; version settings store editable frontend labels for `Danh Mục` and `Nổi bật`.
+- Admin menu UI supports area switching, live preview, expanded/collapsed tree management, quick custom-link input, draft save, publish, and link target search.
+- Public header menu output repairs known mojibake suffix/label values before returning data to the storefront.
 
 ### Search
 
@@ -126,6 +132,7 @@ Known verification caveats:
 
 - Do not add DB access to `font-end`.
 - Do not load TinyMCE in `web-admin/src/app/layout.tsx`; keep it inside `RichTextEditor`.
+- For admin long-form content fields that use `RichTextEditor`, pass `resizable` so TinyMCE can be resized vertically from the status bar. Keep horizontal resizing disabled.
 - Do not permanently delete legacy entities unless they are recorded in `web_admin_entity_registry`.
 - Do not replace `product_data_search` without preserving triggers/function/FK behavior.
 - Do not assume physical foreign keys exist across legacy tables.
@@ -134,6 +141,7 @@ Known verification caveats:
 
 ## High-Priority Next Work
 
+- Smoke-test `/content/menu` against the live dev DB after running admin migrations with `ADMIN_WRITE_ENABLED=true`, then publish a menu and verify `font-end` at `localhost:3001`.
 - Add auth/authorization for admin write APIs.
 - Add production CORS allowlist and rate limiting for public write endpoints.
 - Run `admin:migrate` with writes enabled to create `web_admin_product_images`, then smoke-test image upload UI.

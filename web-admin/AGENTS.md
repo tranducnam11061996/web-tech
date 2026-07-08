@@ -74,6 +74,7 @@ Before major changes, read:
 - Keep outer workspace padding compact.
 - Edit/create screens should prioritize readability: use larger labels, taller form controls, clearer spacing, and comfortable multi-column layouts on desktop while collapsing cleanly on mobile.
 - Use `RichTextEditor` only for primary rich content fields. Use normal inputs/textareas for SEO metadata, keywords, and simple descriptions.
+- Every admin `RichTextEditor` used for long-form content should enable vertical resizing with the `resizable` prop so users can expand/collapse editor height without changing layout width.
 - Keep the existing dark tech visual style unless the task explicitly asks for redesign.
 
 ## Reusable Modules

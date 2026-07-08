@@ -2,6 +2,7 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, ImageOff, ImagePlus, Loader2, Star, Trash2, Upload, X } from 'lucide-react';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
 
 type ProductImageType = 'product' | 'self' | 'customer';
 
@@ -197,6 +198,7 @@ export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function Ta
   const [isDragging, setIsDragging] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [pendingDeleteImage, setPendingDeleteImage] = useState<ProductImage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queueRef = useRef<QueuedFile[]>([]);
 
@@ -373,16 +375,23 @@ export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function Ta
     }
   };
 
-  const deleteImage = async (imageId: number) => {
-    if (!productId || !window.confirm('Xóa ảnh này khỏi sản phẩm?')) return;
+  const closeDeleteModal = () => {
+    if (saving) return;
+    setPendingDeleteImage(null);
+    setError('');
+  };
+
+  const deleteImage = async () => {
+    if (!productId || !pendingDeleteImage) return;
     setSaving(true);
     setMessage('');
     setError('');
     try {
-      const response = await fetch(`/api/admin/products/${productId}/images/${imageId}`, { method: 'DELETE' });
+      const response = await fetch(`/api/admin/products/${productId}/images/${pendingDeleteImage.id}`, { method: 'DELETE' });
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa ảnh.');
       applyPayload(payload.data);
+      setPendingDeleteImage(null);
       setMessage(payload.message || 'Đã xóa ảnh.');
     } catch (deleteError: any) {
       setError(deleteError.message || 'Không thể xóa ảnh.');
@@ -433,7 +442,10 @@ export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function Ta
                     image={image}
                     disabled={saving || uploading}
                     onChange={(patch) => updateImage(image.id, patch)}
-                    onDelete={() => deleteImage(image.id)}
+                    onDelete={() => {
+                      setPendingDeleteImage(image);
+                      setError('');
+                    }}
                   />
                 ))}
               </div>
@@ -585,6 +597,21 @@ export const TabImages = forwardRef<TabImagesHandle, TabImagesProps>(function Ta
           </p>
         </div>
       </section>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteImage}
+        title="Xóa ảnh sản phẩm?"
+        description="Hành động này sẽ xóa ảnh khỏi sản phẩm và dọn metadata ảnh liên quan. Vui lòng xác nhận trước khi thực hiện."
+        itemName={pendingDeleteImage?.fileName || pendingDeleteImage?.alt || pendingDeleteImage?.url}
+        details={[
+          { label: 'ID', value: pendingDeleteImage?.id },
+          { label: 'Album', value: pendingDeleteImage?.type },
+        ]}
+        error=""
+        loading={saving}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteImage}
+      />
     </div>
   );
 });

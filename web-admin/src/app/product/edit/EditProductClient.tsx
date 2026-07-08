@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink, Save, X } from 'lucide-react';
 import { TabAttributes } from '@/components/products/edit/TabAttributes';
@@ -168,6 +168,17 @@ export function EditProductClient({
   const productWebUrl = form.url
     ? `${String(storefrontUrl || 'http://localhost:3001').replace(/\/+$/, '')}/${String(form.url).replace(/^\/+/, '')}`
     : '';
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('returnFocus') !== 'product-list') return;
+
+    [0, 100, 300].forEach((delay) => {
+      window.setTimeout(() => window.opener?.focus(), delay);
+    });
+    url.searchParams.delete('returnFocus');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   const activeTabDirty = useMemo(() => {
     if (activeTab === 'images') return imagesDirty;

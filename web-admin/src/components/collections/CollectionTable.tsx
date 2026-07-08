@@ -3,6 +3,9 @@
 import { Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
 import clsx from 'clsx';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 type CollectionNode = {
   stt: number;
@@ -37,6 +40,35 @@ const MOCK_COLLECTIONS: CollectionNode[] = [
 ];
 
 export function CollectionTable() {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingDeleteCollection, setPendingDeleteCollection] = useState<CollectionNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteCollection(null);
+    setDeleteError('');
+  };
+
+  const deleteCollection = async () => {
+    const collection = pendingDeleteCollection;
+    if (!collection) return;
+    setBusyId(collection.id);
+    setDeleteError('');
+    try {
+      const response = await fetch(`/api/admin/collections/${collection.id}?mode=permanent`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa bộ sưu tập');
+      setPendingDeleteCollection(null);
+      router.refresh();
+    } catch (error: any) {
+      setDeleteError(error.message || 'Không thể xóa bộ sưu tập');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="glass-panel border-gray-800 rounded-lg shadow-sm overflow-hidden text-sm relative z-10 flex flex-col h-full">
       <div className="overflow-x-auto custom-scrollbar flex-1">
@@ -77,7 +109,19 @@ export function CollectionTable() {
                     <Link href="/product/collection-edit">
                       <button className="p-1 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-3.5 h-3.5" /></button>
                     </Link>
-                    <button className="p-1 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-3.5 h-3.5" /></button>
+                    <button
+                      type="button"
+                      disabled={busyId === row.id}
+                      onClick={() => {
+                        setPendingDeleteCollection(row);
+                        setDeleteError('');
+                      }}
+                      className="p-1 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-50"
+                      title="Xóa"
+                      aria-label={`Xóa bộ sưu tập ${row.name}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -113,6 +157,21 @@ export function CollectionTable() {
           <button className="w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm text-gray-500 hover:text-white hover:border-gray-600 transition-colors">&gt;|</button>
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteCollection}
+        title="Xóa vĩnh viễn bộ sưu tập?"
+        description="Hành động này sẽ xóa bộ sưu tập và toàn bộ liên kết item đang thuộc bộ sưu tập này."
+        itemName={pendingDeleteCollection?.name}
+        details={[
+          { label: 'ID', value: pendingDeleteCollection?.id },
+          { label: 'Số sản phẩm', value: pendingDeleteCollection?.productCount },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteCollection}
+      />
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { Edit, Trash2, ArrowUpDown, Star, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { BrandModal } from './BrandModal';
 import { Pagination } from '@/components/shared/Pagination';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
+import { useRouter } from 'next/navigation';
 
 type BrandNode = {
   id: number;
@@ -29,12 +31,40 @@ type BrandTableProps = {
 };
 
 export function BrandTable({ brands, pagination }: BrandTableProps) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBrand, setEditingBrand] = useState<BrandNode | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [pendingDeleteBrand, setPendingDeleteBrand] = useState<BrandNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const handleEdit = (brand: BrandNode) => {
     setEditingBrand(brand);
     setIsModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteBrand(null);
+    setDeleteError('');
+  };
+
+  const deleteBrand = async () => {
+    const brand = pendingDeleteBrand;
+    if (!brand) return;
+    setBusyId(brand.id);
+    setDeleteError('');
+    try {
+      const response = await fetch(`/api/admin/brands/${brand.id}?mode=permanent`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa thương hiệu');
+      setPendingDeleteBrand(null);
+      router.refresh();
+    } catch (error: any) {
+      setDeleteError(error.message || 'Không thể xóa thương hiệu');
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
@@ -98,7 +128,19 @@ export function BrandTable({ brands, pagination }: BrandTableProps) {
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    <button className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      type="button"
+                      disabled={busyId === row.id}
+                      onClick={() => {
+                        setPendingDeleteBrand(row);
+                        setDeleteError('');
+                      }}
+                      className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-50"
+                      title="Xóa"
+                      aria-label={`Xóa thương hiệu ${row.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -119,6 +161,21 @@ export function BrandTable({ brands, pagination }: BrandTableProps) {
         onClose={() => setIsModalOpen(false)} 
         isEdit={true} 
         initialData={editingBrand} 
+      />
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteBrand}
+        title="Xóa vĩnh viễn thương hiệu?"
+        description="Hành động này sẽ xóa thương hiệu, dữ liệu SEO liên quan và gỡ thương hiệu khỏi các sản phẩm đang sử dụng."
+        itemName={pendingDeleteBrand?.name}
+        details={[
+          { label: 'ID', value: pendingDeleteBrand?.id },
+          { label: 'Số sản phẩm', value: pendingDeleteBrand?.productCount },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteBrand}
       />
     </div>
   );

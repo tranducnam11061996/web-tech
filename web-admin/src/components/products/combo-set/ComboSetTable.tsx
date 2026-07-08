@@ -3,6 +3,9 @@
 import { Edit, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { Pagination } from '@/components/shared/Pagination';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 type ComboSetNode = {
   id: number;
@@ -27,6 +30,35 @@ function formatUnixTime(unixTimestamp: number) {
 }
 
 export function ComboSetTable({ combos, pagination }: { combos: ComboSetNode[], pagination: PaginationData }) {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [pendingDeleteCombo, setPendingDeleteCombo] = useState<ComboSetNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteCombo(null);
+    setDeleteError('');
+  };
+
+  const deleteCombo = async () => {
+    const combo = pendingDeleteCombo;
+    if (!combo) return;
+    setBusyId(combo.id);
+    setDeleteError('');
+    try {
+      const response = await fetch(`/api/admin/combo-sets/${combo.id}?mode=permanent`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa combo set');
+      setPendingDeleteCombo(null);
+      router.refresh();
+    } catch (error: any) {
+      setDeleteError(error.message || 'Không thể xóa combo set');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-gray-900/30 rounded-lg border border-gray-800/80 overflow-hidden shadow-xl">
       <div className="overflow-x-auto flex-1 custom-scrollbar">
@@ -92,7 +124,17 @@ export function ComboSetTable({ combos, pagination }: { combos: ComboSetNode[], 
                           <Edit className="w-4 h-4" />
                         </button>
                       </Link>
-                      <button className="p-1.5 text-red-500 hover:text-white hover:bg-red-600 rounded transition-colors shadow-sm" title="Xóa">
+                      <button
+                        type="button"
+                        disabled={busyId === combo.id}
+                        onClick={() => {
+                          setPendingDeleteCombo(combo);
+                          setDeleteError('');
+                        }}
+                        className="p-1.5 text-red-500 hover:text-white hover:bg-red-600 rounded transition-colors shadow-sm disabled:opacity-50"
+                        title="Xóa"
+                        aria-label={`Xóa combo set ${combo.title}`}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -112,6 +154,21 @@ export function ComboSetTable({ combos, pagination }: { combos: ComboSetNode[], 
           pageSize={pagination.pageSize}
         />
       )}
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteCombo}
+        title="Xóa vĩnh viễn combo set?"
+        description="Hành động này sẽ xóa combo set và toàn bộ liên kết sản phẩm đang thuộc combo set này."
+        itemName={pendingDeleteCombo?.title}
+        details={[
+          { label: 'ID', value: pendingDeleteCombo?.id },
+          { label: 'Số sản phẩm', value: pendingDeleteCombo?.product_count },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteCombo}
+      />
     </div>
   );
 }

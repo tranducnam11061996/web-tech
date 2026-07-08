@@ -2,6 +2,9 @@
 
 import { Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 type VariantGroupNode = {
   stt: number;
@@ -37,6 +40,35 @@ const MOCK_GROUPS: VariantGroupNode[] = [
 ];
 
 export function ProductGroupTable() {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingDeleteGroup, setPendingDeleteGroup] = useState<VariantGroupNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteGroup(null);
+    setDeleteError('');
+  };
+
+  const deleteGroup = async () => {
+    const group = pendingDeleteGroup;
+    if (!group) return;
+    setBusyId(group.id);
+    setDeleteError('');
+    try {
+      const response = await fetch(`/api/admin/product-groups/${group.id}?mode=permanent`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa nhóm sản phẩm');
+      setPendingDeleteGroup(null);
+      router.refresh();
+    } catch (error: any) {
+      setDeleteError(error.message || 'Không thể xóa nhóm sản phẩm');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="glass-panel border-gray-800 rounded-lg shadow-sm overflow-hidden text-sm relative z-10 flex flex-col h-full">
       <div className="overflow-x-auto custom-scrollbar flex-1">
@@ -70,7 +102,19 @@ export function ProductGroupTable() {
                     <Link href="/product-group/edit">
                       <button className="p-1.5 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-4 h-4" /></button>
                     </Link>
-                    <button className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      type="button"
+                      disabled={busyId === row.id}
+                      onClick={() => {
+                        setPendingDeleteGroup(row);
+                        setDeleteError('');
+                      }}
+                      className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-50"
+                      title="Xóa"
+                      aria-label={`Xóa nhóm sản phẩm ${row.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -106,6 +150,21 @@ export function ProductGroupTable() {
           <button className="w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm text-gray-500 hover:text-white hover:border-gray-600 transition-colors">&gt;|</button>
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteGroup}
+        title="Xóa vĩnh viễn nhóm sản phẩm?"
+        description="Hành động này sẽ xóa nhóm sản phẩm, các thuộc tính cấu hình và liên kết sản phẩm trong nhóm."
+        itemName={pendingDeleteGroup?.name}
+        details={[
+          { label: 'ID', value: pendingDeleteGroup?.id },
+          { label: 'Người cập nhật', value: pendingDeleteGroup?.updater },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteGroup}
+      />
     </div>
   );
 }

@@ -3,7 +3,17 @@ import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/prom
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
-export type AdminEntityType = 'product' | 'product-category' | 'article' | 'article-category';
+export type AdminEntityType =
+  | 'product'
+  | 'product-category'
+  | 'article'
+  | 'article-category'
+  | 'brand'
+  | 'attribute'
+  | 'combo-set'
+  | 'collection'
+  | 'banner'
+  | 'product-group';
 
 export type AdminApiErrorCode =
   | 'BAD_REQUEST'

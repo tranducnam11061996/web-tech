@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import ProgressiveImage from '@/components/shared/ProgressiveImage';
 import { useState } from 'react';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
 
 export type ArticleNode = {
   id: string;
@@ -38,6 +39,8 @@ export function ArticleListTable({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingDeleteArticle, setPendingDeleteArticle] = useState<ArticleNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
 
   const createPageURL = (pageNumber: number | string, limitValue?: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -52,16 +55,25 @@ export function ArticleListTable({
     router.push(createPageURL(1, Number(e.target.value)));
   };
 
-  const hideArticle = async (row: ArticleNode) => {
-    if (!confirm(`An bai viet #${row.id}?`)) return;
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteArticle(null);
+    setDeleteError('');
+  };
+
+  const deleteArticle = async () => {
+    const row = pendingDeleteArticle;
+    if (!row) return;
     setBusyId(row.id);
+    setDeleteError('');
     try {
-      const response = await fetch(`/api/admin/articles/${row.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/admin/articles/${row.id}?mode=permanent`, { method: 'DELETE' });
       const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the an bai viet');
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa bài viết');
+      setPendingDeleteArticle(null);
       router.refresh();
     } catch (error: any) {
-      alert(error.message || 'Khong the an bai viet');
+      setDeleteError(error.message || 'Không thể xóa bài viết');
     } finally {
       setBusyId(null);
     }
@@ -162,7 +174,19 @@ export function ArticleListTable({
                       <Link href={`/news/edit?id=${row.id}`}>
                         <button className="p-1.5 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]" title="Chỉnh sửa"><Edit className="w-3.5 h-3.5" /></button>
                       </Link>
-                      <button disabled={busyId === row.id} onClick={() => hideArticle(row)} className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-50" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button
+                        type="button"
+                        disabled={busyId === row.id}
+                        onClick={() => {
+                          setPendingDeleteArticle(row);
+                          setDeleteError('');
+                        }}
+                        className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-50"
+                        title="Xóa"
+                        aria-label={`Xóa bài viết ${row.title}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -226,6 +250,21 @@ export function ArticleListTable({
           </div>
         )}
       </div>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteArticle}
+        title="Xóa vĩnh viễn bài viết?"
+        description="Hành động này sẽ xóa vĩnh viễn bài viết cùng dữ liệu nội dung, liên kết danh mục và URL SEO liên quan. Vui lòng xác nhận trước khi thực hiện."
+        itemName={pendingDeleteArticle?.title}
+        details={[
+          { label: 'ID', value: pendingDeleteArticle?.id },
+          { label: 'Đường dẫn', value: pendingDeleteArticle?.url },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteArticle}
+      />
     </div>
   );
 }

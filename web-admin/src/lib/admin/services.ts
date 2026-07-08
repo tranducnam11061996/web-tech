@@ -38,12 +38,14 @@ function clampListParams(searchParams: URLSearchParams): ListParams {
   };
 }
 
-async function assertSlugUnique(connection: PoolConnection, slug: string, idPath: string) {
+async function assertSlugUnique(connection: PoolConnection, slug: string, idPath: string, ignoredIdPaths = [idPath]) {
+  const ignoredPaths = Array.from(new Set(ignoredIdPaths.length ? ignoredIdPaths : [idPath]));
+  const placeholders = ignoredPaths.map(() => '?').join(',');
   const [rows] = await connection.query<RowDataPacket[]>(
-    'SELECT id_path FROM idv_url WHERE request_path = ? AND id_path <> ? LIMIT 1',
-    [`/${slug}`, idPath],
+    `SELECT id_path FROM idv_url WHERE request_path = ? AND id_path NOT IN (${placeholders}) LIMIT 1`,
+    [`/${slug}`, ...ignoredPaths],
   );
-  if (rows.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Slug da ton tai');
+  if (rows.length > 0) throw new AdminApiError(409, 'CONFLICT', 'URL đã tồn tại');
 }
 
 async function upsertUrl(connection: PoolConnection, idPath: string, slug: string, targetPath = '') {
@@ -170,6 +172,61 @@ async function upsertProductInfoFields(connection: PoolConnection, productId: nu
     `,
     [productId, ...columnNames.map((column) => fields[column])],
   );
+}
+
+async function upsertUrlWithAliases(connection: PoolConnection, primaryIdPath: string, aliasIdPaths: string[], slug: string, targetPath = '') {
+  const requestPath = `/${slug}`;
+  const allIdPaths = Array.from(new Set([primaryIdPath, ...aliasIdPaths]));
+  await assertSlugUnique(connection, slug, primaryIdPath, allIdPaths);
+  if (aliasIdPaths.length > 0) {
+    const placeholders = aliasIdPaths.map(() => '?').join(',');
+    await connection.query(`DELETE FROM idv_url WHERE id_path IN (${placeholders})`, aliasIdPaths);
+  }
+  const [updateResult] = await connection.query(
+    `
+      UPDATE idv_url
+      SET request_path = ?, request_path_index = ?, target_path = ?
+      WHERE id_path = ?
+    `,
+    [requestPath, requestPathIndex(slug), targetPath, primaryIdPath],
+  );
+  if ((updateResult as { affectedRows?: number }).affectedRows) return;
+
+  await connection.query(
+    `
+      INSERT INTO idv_url (request_path, request_path_index, id_path, target_path, redirect_code)
+      VALUES (?, ?, ?, ?, '')
+    `,
+    [requestPath, requestPathIndex(slug), primaryIdPath, targetPath],
+  );
+}
+
+async function tableExists(connection: PoolConnection, tableName: string) {
+  const [rows] = await connection.query<RowDataPacket[]>(
+    `
+      SELECT TABLE_NAME
+      FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = ?
+      LIMIT 1
+    `,
+    [tableName],
+  );
+  return rows.length > 0;
+}
+
+function removeCategoryIdFromCsv(value: unknown, categoryId: number) {
+  return csvCategoryIds(optionalIdList(value, 100).filter((id) => id !== categoryId));
+}
+
+function removeArticleCategoryIdFromCsv(value: unknown, categoryId: number) {
+  const ids = optionalIdList(value, 200).filter((id) => id !== categoryId);
+  return ids.length ? csvArticleIds(ids) : '';
+}
+
+function normalizeCategoryDisplayOption(value: unknown) {
+  const option = String(value || '').trim();
+  return ['child_only', 'product', 'child_product'].includes(option) ? option : 'child_product';
 }
 
 export async function listProductsFromRequest(url: string) {
@@ -663,12 +720,33 @@ export async function deleteProduct(id: number, mode: string) {
       await connection.query('UPDATE idv_sell_product_price SET isOn = 0 WHERE id = ?', [id]);
       return { id, deleted: false, hidden: true };
     }
-    if (!(await isRegistered(connection, 'product', id))) {
-      throw new AdminApiError(409, 'CONFLICT', 'Chi duoc xoa vinh vien san pham do API moi tao');
-    }
+
+    await getExistingProductForUpdate(connection, id);
+
+    const [comboRows] = await connection.query<RowDataPacket[]>(
+      'SELECT DISTINCT set_id FROM combo_set_product WHERE product_id = ?',
+      [id],
+    );
+    const comboSetIds = comboRows.map((row) => Number(row.set_id)).filter((setId) => setId > 0);
+
     await connection.query('DELETE FROM idv_product_attribute WHERE pro_id = ?', [id]);
     await connection.query('DELETE FROM idv_product_category WHERE pro_id = ?', [id]);
+    await connection.query('DELETE FROM combo_set_product WHERE product_id = ?', [id]);
+    for (const setId of comboSetIds) {
+      await connection.query(
+        `
+          UPDATE combo_set
+          SET product_count = (SELECT COUNT(*) FROM combo_set_product WHERE set_id = ?)
+          WHERE id = ?
+        `,
+        [setId, setId],
+      );
+    }
+    await connection.query('DELETE FROM product_data_search WHERE product_id = ?', [id]);
     await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:product/view:product-detail/view_id:${id}`]);
+    if (await tableExists(connection, 'web_admin_product_images')) {
+      await connection.query('DELETE FROM web_admin_product_images WHERE product_id = ?', [id]);
+    }
     await connection.query('DELETE FROM idv_sell_product_info WHERE id = ?', [id]);
     await connection.query('DELETE FROM idv_sell_product_price WHERE id = ?', [id]);
     await connection.query('DELETE FROM idv_sell_product_store WHERE id = ?', [id]);
@@ -754,13 +832,23 @@ async function saveCategory(options: {
     const metaTitle = maybeText(payload.metaTitle || payload.meta_title, 255);
     const metaKeyword = maybeText(payload.metaKeyword || payload.meta_keyword, 255);
     const metaDescription = maybeText(payload.metaDescription || payload.meta_description, 512);
-    const summary = maybeText(payload.description);
+    const summary = table === 'idv_seller_category'
+      ? maybeText(payload.summary ?? payload.description)
+      : maybeText(payload.description);
+    const categoryImgUrl = maybeText(payload.imgUrl ?? payload.img_url, 150);
+    const categoryImgBig = maybeText(payload.imgBig ?? payload.img_big, 150);
+    const categoryPriceRange = maybeText(payload.priceRange ?? payload.price_range, 150);
+    const categoryStaticHtml = maybeText(payload.staticHtml ?? payload.static_html);
+    const categoryIsFeatured = toBoolInt(payload.isFeatured ?? payload.is_featured, 0);
+    const categoryDisplayOption = normalizeCategoryDisplayOption(payload.displayOption ?? payload.display_option);
 
     if (table === 'idv_seller_category' && id) {
       await connection.query(
         `
           UPDATE ${table}
           SET name = ?, parentId = ?, url = ?, request_path = ?, status = ?, ordering = ?, summary = ?,
+              imgUrl = ?, img_big = ?, priceRange = ?, static_html = ?,
+              is_featured = ?, display_option = ?,
               meta_title = ?, meta_keyword = ?, meta_description = ?
           WHERE id = ?
         `,
@@ -772,6 +860,12 @@ async function saveCategory(options: {
           status,
           ordering,
           summary,
+          categoryImgUrl,
+          categoryImgBig,
+          categoryPriceRange,
+          categoryStaticHtml,
+          categoryIsFeatured,
+          categoryDisplayOption,
           metaTitle,
           metaKeyword,
           metaDescription,
@@ -782,8 +876,8 @@ async function saveCategory(options: {
       const [insert] = await connection.query(
         `
           INSERT INTO ${table}
-            (name, parentId, url, request_path, status, ordering, summary, image_background, meta_title, meta_keyword, meta_description)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (name, parentId, url, request_path, status, ordering, summary, imgUrl, img_big, priceRange, static_html, is_featured, display_option, image_background, meta_title, meta_keyword, meta_description)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           name,
@@ -793,6 +887,12 @@ async function saveCategory(options: {
           status,
           ordering,
           summary,
+          categoryImgUrl,
+          categoryImgBig,
+          categoryPriceRange,
+          categoryStaticHtml,
+          categoryIsFeatured,
+          categoryDisplayOption,
           '',
           metaTitle,
           metaKeyword,
@@ -873,36 +973,88 @@ export function saveProductCategory(payload: Record<string, unknown>, id?: numbe
 }
 
 export async function deleteCategory(entityType: AdminEntityType, table: string, id: number, mode: string) {
-  return withTransaction(async (connection) => {
+  const result = await withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>(`SELECT id FROM ${table} WHERE id = ? LIMIT 1`, [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay danh muc');
+
     if (mode !== 'permanent') {
       await connection.query(`UPDATE ${table} SET status = 0 WHERE id = ?`, [id]);
       return { id, hidden: true };
     }
-    if (!(await isRegistered(connection, entityType, id))) {
-      throw new AdminApiError(409, 'CONFLICT', 'Chi duoc xoa vinh vien danh muc do API moi tao');
-    }
+
     const [children] = await connection.query<RowDataPacket[]>(`SELECT id FROM ${table} WHERE parentId = ? LIMIT 1`, [id]);
     if (children.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc con van ton tai');
+
     if (table === 'idv_seller_category') {
-      const [products] = await connection.query<RowDataPacket[]>('SELECT pro_id FROM idv_product_category WHERE category_id = ? LIMIT 1', [id]);
-      if (products.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co san pham');
+      const [linkedProducts] = await connection.query<RowDataPacket[]>('SELECT DISTINCT pro_id FROM idv_product_category WHERE category_id = ?', [id]);
       const [legacyProducts] = await connection.query<RowDataPacket[]>(
         `SELECT id FROM idv_sell_product_store
          WHERE FIND_IN_SET(?, REPLACE(COALESCE(product_cat, ''), ' ', '')) > 0
-         LIMIT 1`,
+        `,
         [String(id)],
       );
-      if (legacyProducts.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co san pham trong product_cat');
-      const [attrs] = await connection.query<RowDataPacket[]>('SELECT attr_id FROM idv_attribute_category WHERE category_id = ? LIMIT 1', [id]);
-      if (attrs.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co thuoc tinh');
+      const affectedProductIds = Array.from(
+        new Set([
+          ...linkedProducts.map((row) => Number(row.pro_id || 0)),
+          ...legacyProducts.map((row) => Number(row.id || 0)),
+        ].filter((productId) => productId > 0)),
+      );
+
+      if (affectedProductIds.length > 0) {
+        const [productCategoryRows] = await connection.query<RowDataPacket[]>(
+          `SELECT id, product_cat FROM idv_sell_product_store WHERE id IN (${affectedProductIds.map(() => '?').join(',')})`,
+          affectedProductIds,
+        );
+        for (const row of productCategoryRows) {
+          await connection.query(
+            'UPDATE idv_sell_product_store SET product_cat = ?, lastUpdate = ? WHERE id = ?',
+            [removeCategoryIdFromCsv(row.product_cat, id), new Date(), Number(row.id)],
+          );
+        }
+      }
+
+      await connection.query('DELETE FROM idv_product_category WHERE category_id = ?', [id]);
+      await connection.query('DELETE FROM idv_attribute_category WHERE category_id = ?', [id]);
+      await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:product/view:category/view_id:${id}`]);
+      await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', [entityType, id]);
+      await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
+      return { id, deleted: true, affectedProductIds };
     } else {
-      const [articles] = await connection.query<RowDataPacket[]>('SELECT article_id FROM idv_article_category WHERE category_id = ? LIMIT 1', [id]);
-      if (articles.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Danh muc van co bai viet');
+      const [linkedArticles] = await connection.query<RowDataPacket[]>('SELECT DISTINCT article_id FROM idv_article_category WHERE category_id = ?', [id]);
+      const [primaryArticles] = await connection.query<RowDataPacket[]>('SELECT id, article_category FROM idv_seller_news WHERE catId = ? OR FIND_IN_SET(?, REPLACE(COALESCE(article_category, \'\'), \' \', \'\')) > 0', [id, String(id)]);
+      const affectedArticleIds = Array.from(
+        new Set([
+          ...linkedArticles.map((row) => Number(row.article_id || 0)),
+          ...primaryArticles.map((row) => Number(row.id || 0)),
+        ].filter((articleId) => articleId > 0)),
+      );
+
+      if (primaryArticles.length > 0) {
+        for (const row of primaryArticles) {
+          await connection.query(
+            'UPDATE idv_seller_news SET catId = IF(catId = ?, 0, catId), article_category = ?, lastUpdate = ? WHERE id = ?',
+            [id, removeArticleCategoryIdFromCsv(row.article_category, id), new Date(), Number(row.id)],
+          );
+        }
+      }
+
+      await connection.query('DELETE FROM idv_article_category WHERE category_id = ?', [id]);
+      await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:news/view:category/view_id:${id}`]);
+      await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
+      await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', [entityType, id]);
+      await rebuildNewsCategoryCache(connection);
+      return { id, deleted: true, affectedArticleIds };
     }
-    await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
-    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', [entityType, id]);
-    return { id, deleted: true };
   });
+
+  if (table === 'idv_seller_category' && mode === 'permanent') {
+    const affectedProductIds = Array.isArray((result as { affectedProductIds?: number[] }).affectedProductIds)
+      ? (result as { affectedProductIds: number[] }).affectedProductIds
+      : [];
+    await Promise.all(affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
+  }
+
+  return result;
 }
 
 export async function bulkCategoryStatus(table: string, ids: number[], action: string) {
@@ -975,13 +1127,25 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
     const slug = normalizeSlug(payload.slug || payload.url || title);
     if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le');
     const now = new Date();
+    const status = toBoolInt(payload.status, 1);
+    const ordering = toInt(payload.ordering);
+    const isFeatured = toBoolInt(payload.isFeatured ?? payload.is_featured, 0);
+    const thumbnail = maybeText(payload.thumbnail || payload.thumnail, 255);
+    const imageBackground = maybeText(payload.imageBackground || payload.image_background, 255);
+    const tags = maybeText(payload.tags);
+    const articleTimeSet = toBoolInt(payload.articleTimeSet ?? payload.article_time_set, 0);
+    const articleTime = articleTimeSet ? toInt(payload.articleTime ?? payload.article_time) : 0;
+    const articleDisplayTimeSet = toBoolInt(payload.articleDisplayTimeSet ?? payload.article_display_time_set, 0);
+    const articleDisplayTime = articleDisplayTimeSet ? toInt(payload.articleDisplayTime ?? payload.article_display_time) : 0;
 
     if (id) {
       await connection.query(
         `
           UPDATE idv_seller_news
           SET title = ?, url = ?, request_path = ?, catId = ?, article_category = ?, summary = ?, status = ?,
-              thumnail = ?, ordering = ?, meta_title = ?, meta_keywords = ?, meta_description = ?, lastUpdate = ?
+              thumnail = ?, image_background = ?, tags = ?, ordering = ?, is_featured = ?,
+              article_time = ?, article_time_set = ?, article_display_time = ?, article_display_time_set = ?,
+              meta_title = ?, meta_keywords = ?, meta_description = ?, lastUpdate = ?
           WHERE id = ?
         `,
         [
@@ -991,9 +1155,16 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
           primaryCategoryId,
           csvArticleIds(categoryIds),
           maybeText(payload.summary),
-          toBoolInt(payload.status, 1),
-          maybeText(payload.thumbnail || payload.thumnail, 255),
-          toInt(payload.ordering),
+          status,
+          thumbnail,
+          imageBackground,
+          tags,
+          ordering,
+          isFeatured,
+          articleTime,
+          articleTimeSet,
+          articleDisplayTime,
+          articleDisplayTimeSet,
           maybeText(payload.metaTitle || payload.meta_title, 255),
           maybeText(payload.metaKeyword || payload.meta_keyword, 255),
           maybeText(payload.metaDescription || payload.meta_description, 512),
@@ -1005,8 +1176,8 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
       const [insert] = await connection.query(
         `
           INSERT INTO idv_seller_news
-            (title, url, request_path, catId, article_category, summary, status, thumnail, image_background, ordering, meta_title, meta_keywords, meta_description, createDate, lastUpdate)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (title, url, request_path, catId, article_category, summary, status, thumnail, image_background, tags, ordering, is_featured, article_time, article_time_set, article_display_time, article_display_time_set, meta_title, meta_keywords, meta_description, createDate, lastUpdate)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           title,
@@ -1015,10 +1186,16 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
           primaryCategoryId,
           csvArticleIds(categoryIds),
           maybeText(payload.summary),
-          toBoolInt(payload.status, 1),
-          maybeText(payload.thumbnail || payload.thumnail, 255),
-          '',
-          toInt(payload.ordering),
+          status,
+          thumbnail,
+          imageBackground,
+          tags,
+          ordering,
+          isFeatured,
+          articleTime,
+          articleTimeSet,
+          articleDisplayTime,
+          articleDisplayTimeSet,
           maybeText(payload.metaTitle || payload.meta_title, 255),
           maybeText(payload.metaKeyword || payload.meta_keyword, 255),
           maybeText(payload.metaDescription || payload.meta_description, 512),
@@ -1039,25 +1216,42 @@ export async function saveArticle(payload: Record<string, unknown>, id?: number)
       [id, maybeText(payload.content)],
     );
     await connection.query('DELETE FROM idv_article_category WHERE article_id = ?', [id]);
+    const unixNow = Math.floor(now.getTime() / 1000);
     for (const categoryId of categoryIds) {
-      await connection.query('INSERT INTO idv_article_category (article_id, category_id) VALUES (?, ?)', [id, categoryId]);
+      await connection.query(
+        `
+          INSERT INTO idv_article_category
+            (article_id, category_id, article_type, status, is_featured, ordering, create_time, article_update_time, article_display_time)
+          VALUES (?, ?, 'article', 1, ?, ?, ?, ?, ?)
+        `,
+        [id, categoryId, isFeatured, ordering, unixNow, articleTime || unixNow, articleDisplayTime],
+      );
     }
-    await upsertUrl(connection, `module:news/view:detail/view_id:${id}`, slug);
+    await upsertUrlWithAliases(
+      connection,
+      `module:article/view:detail/view_id:${id}`,
+      [`module:news/view:detail/view_id:${id}`],
+      slug,
+    );
     return { id, slug };
   });
 }
 
 export async function deleteArticle(id: number, mode: string) {
   return withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_seller_news WHERE id = ? LIMIT 1', [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay bai viet');
+
     if (mode !== 'permanent') {
       await connection.query('UPDATE idv_seller_news SET status = 0 WHERE id = ?', [id]);
       return { id, hidden: true };
     }
-    if (!(await isRegistered(connection, 'article', id))) {
-      throw new AdminApiError(409, 'CONFLICT', 'Chi duoc xoa vinh vien bai viet do API moi tao');
-    }
+
     await connection.query('DELETE FROM idv_article_category WHERE article_id = ?', [id]);
-    await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:news/view:detail/view_id:${id}`]);
+    await connection.query('DELETE FROM idv_url WHERE id_path IN (?, ?)', [
+      `module:article/view:detail/view_id:${id}`,
+      `module:news/view:detail/view_id:${id}`,
+    ]);
     await connection.query('DELETE FROM idv_seller_news_content WHERE id = ?', [id]);
     await connection.query('DELETE FROM idv_seller_news WHERE id = ?', [id]);
     await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['article', id]);
@@ -1070,6 +1264,136 @@ export async function bulkArticleStatus(ids: number[], action: string) {
   return withTransaction(async (connection) => {
     await connection.query(`UPDATE idv_seller_news SET status = ? WHERE id IN (${ids.map(() => '?').join(',')})`, [status, ...ids]);
     return { ids, action: action === 'restore' ? 'restore' : 'hide' };
+  });
+}
+
+export async function deleteBrand(id: number, mode: string) {
+  const result = await withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_brand WHERE id = ? LIMIT 1', [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay thuong hieu');
+
+    if (mode !== 'permanent') {
+      await connection.query('UPDATE idv_brand SET status = 0 WHERE id = ?', [id]);
+      return { id, hidden: true, affectedProductIds: [] };
+    }
+
+    const [products] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_sell_product_store WHERE brandId = ?', [id]);
+    const affectedProductIds = products.map((row) => Number(row.id || 0)).filter((productId) => productId > 0);
+    await connection.query('UPDATE idv_sell_product_store SET brandId = 0, lastUpdate = ? WHERE brandId = ?', [new Date(), id]);
+    await connection.query('DELETE FROM idv_brand_info WHERE id = ?', [id]);
+    await connection.query('DELETE FROM idv_brand_category WHERE brandId = ?', [id]);
+    await connection.query('DELETE FROM idv_brand WHERE id = ?', [id]);
+    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['brand', id]);
+    return { id, deleted: true, affectedProductIds };
+  });
+
+  if (mode === 'permanent') {
+    await Promise.all(result.affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
+  }
+  return result;
+}
+
+export async function deleteAttribute(id: number, mode: string) {
+  const result = await withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_attribute WHERE id = ? LIMIT 1', [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay thuoc tinh');
+
+    if (mode !== 'permanent') {
+      await connection.query('UPDATE idv_attribute SET status = 0 WHERE id = ?', [id]);
+      return { id, hidden: true, affectedProductIds: [] };
+    }
+
+    const [products] = await connection.query<RowDataPacket[]>('SELECT DISTINCT pro_id FROM idv_product_attribute WHERE attr_id = ?', [id]);
+    const affectedProductIds = products.map((row) => Number(row.pro_id || 0)).filter((productId) => productId > 0);
+    await connection.query('DELETE FROM idv_product_attribute WHERE attr_id = ?', [id]);
+    await connection.query('DELETE FROM idv_attribute_category WHERE attr_id = ?', [id]);
+    if (await tableExists(connection, 'idv_attribute_category_for_seo')) {
+      await connection.query('DELETE FROM idv_attribute_category_for_seo WHERE attr_id = ?', [id]);
+    }
+    await connection.query('DELETE FROM idv_attribute_value WHERE attributeId = ?', [id]);
+    await connection.query('DELETE FROM idv_attribute WHERE id = ?', [id]);
+    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['attribute', id]);
+    return { id, deleted: true, affectedProductIds };
+  });
+
+  if (mode === 'permanent') {
+    await Promise.all(result.affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
+  }
+  return result;
+}
+
+export async function deleteComboSet(id: number, mode: string) {
+  return withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM combo_set WHERE id = ? LIMIT 1', [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay combo set');
+
+    if (mode !== 'permanent') {
+      await connection.query('UPDATE combo_set SET status = 0 WHERE id = ?', [id]);
+      return { id, hidden: true };
+    }
+
+    await connection.query('DELETE FROM combo_set_product WHERE set_id = ?', [id]);
+    await connection.query('DELETE FROM combo_set WHERE id = ?', [id]);
+    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['combo-set', id]);
+    return { id, deleted: true };
+  });
+}
+
+export async function deleteCollection(id: number, mode: string) {
+  return withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_product_deal_collection WHERE id = ? LIMIT 1', [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay bo suu tap');
+
+    if (mode !== 'permanent') {
+      await connection.query('UPDATE idv_product_deal_collection SET status = 0 WHERE id = ?', [id]);
+      return { id, hidden: true };
+    }
+
+    const [children] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_product_deal_collection WHERE parent_id = ? LIMIT 1', [id]);
+    if (children.length > 0) throw new AdminApiError(409, 'CONFLICT', 'Bo suu tap con van ton tai');
+    await connection.query('DELETE FROM idv_product_deal_collection_item WHERE collection_id = ?', [id]);
+    await connection.query('DELETE FROM idv_product_deal_collection WHERE id = ?', [id]);
+    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['collection', id]);
+    return { id, deleted: true };
+  });
+}
+
+export async function deleteBanner(id: number, mode: string) {
+  return withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_seller_ad WHERE id = ? LIMIT 1', [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay banner');
+
+    if (mode !== 'permanent') {
+      await connection.query('UPDATE idv_seller_ad SET status = 0 WHERE id = ?', [id]);
+      return { id, hidden: true };
+    }
+
+    await connection.query('DELETE FROM idv_seller_ad_category WHERE adId = ?', [id]);
+    await connection.query('DELETE FROM idv_seller_ad WHERE id = ?', [id]);
+    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['banner', id]);
+    return { id, deleted: true };
+  });
+}
+
+export async function deleteProductGroup(id: number, mode: string) {
+  return withTransaction(async (connection) => {
+    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM config_group WHERE id = ? LIMIT 1', [id]);
+    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay nhom san pham');
+
+    if (mode !== 'permanent') {
+      return { id, hidden: true };
+    }
+
+    const [attributes] = await connection.query<RowDataPacket[]>('SELECT id FROM config_group_attribute WHERE group_id = ?', [id]);
+    const attributeIds = attributes.map((row) => Number(row.id || 0)).filter((attributeId) => attributeId > 0);
+    await connection.query('DELETE FROM config_group_product WHERE group_id = ?', [id]);
+    if (attributeIds.length > 0) {
+      await connection.query(`DELETE FROM config_group_attribute_value WHERE attr_id IN (${attributeIds.map(() => '?').join(',')})`, attributeIds);
+    }
+    await connection.query('DELETE FROM config_group_attribute WHERE group_id = ?', [id]);
+    await connection.query('DELETE FROM config_group WHERE id = ?', [id]);
+    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['product-group', id]);
+    return { id, deleted: true };
   });
 }
 

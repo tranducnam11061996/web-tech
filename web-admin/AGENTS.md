@@ -69,8 +69,10 @@ Before major changes, read:
 
 - Do not include top breadcrumbs unless specifically requested.
 - Do not add warning banners unless specifically requested.
+- All user-facing warning text, instructional text, and button labels must use proper Vietnamese with diacritics when displayed in the admin UI.
 - Use the full workspace width; avoid unnecessary `max-width` wrappers on admin work screens.
 - Keep outer workspace padding compact.
+- Edit/create screens should prioritize readability: use larger labels, taller form controls, clearer spacing, and comfortable multi-column layouts on desktop while collapsing cleanly on mobile.
 - Use `RichTextEditor` only for primary rich content fields. Use normal inputs/textareas for SEO metadata, keywords, and simple descriptions.
 - Keep the existing dark tech visual style unless the task explicitly asks for redesign.
 

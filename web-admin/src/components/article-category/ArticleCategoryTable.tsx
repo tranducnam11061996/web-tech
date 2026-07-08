@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Edit, Trash2, ArrowUpDown, ChevronRight, ChevronDown, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
 
 export type ArticleCategoryNode = {
   id: string;
@@ -27,19 +28,35 @@ export function ArticleCategoryTable({ initialData }: Props) {
     '13': true // Expand "Tin khuyến mại" by default if it happens to be id 13
   });
 
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingDeleteCategory, setPendingDeleteCategory] = useState<ArticleCategoryNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
   const toggleExpand = (id: string) => {
     setExpandedRows(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const hideCategory = async (row: ArticleCategoryNode) => {
-    if (!confirm(`An danh muc bai viet #${row.id}?`)) return;
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteCategory(null);
+    setDeleteError('');
+  };
+
+  const deleteCategory = async () => {
+    const row = pendingDeleteCategory;
+    if (!row) return;
+    setBusyId(row.id);
+    setDeleteError('');
     try {
-      const response = await fetch(`/api/admin/article-categories/${row.id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/admin/article-categories/${row.id}?mode=permanent`, { method: 'DELETE' });
       const payload = await response.json();
-      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the an danh muc');
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa danh mục bài viết');
+      setPendingDeleteCategory(null);
       router.refresh();
     } catch (error: any) {
-      alert(error.message || 'Khong the an danh muc');
+      setDeleteError(error.message || 'Không thể xóa danh mục bài viết');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -97,7 +114,17 @@ export function ArticleCategoryTable({ initialData }: Props) {
                   <Edit className="w-4 h-4" />
                 </button>
               </Link>
-              <button onClick={() => hideCategory(row)} className="p-1.5 text-red-500 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+              <button
+                type="button"
+                disabled={busyId === row.id}
+                onClick={() => {
+                  setPendingDeleteCategory(row);
+                  setDeleteError('');
+                }}
+                className="p-1.5 text-red-500 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.3)] disabled:opacity-50"
+                title="Xóa"
+                aria-label={`Xóa danh mục bài viết ${row.name}`}
+              >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -170,6 +197,21 @@ export function ArticleCategoryTable({ initialData }: Props) {
           </tbody>
         </table>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteCategory}
+        title="Xóa vĩnh viễn danh mục bài viết?"
+        description="Hành động này sẽ xóa vĩnh viễn danh mục bài viết, gỡ liên kết khỏi các bài viết liên quan và dọn URL SEO. Vui lòng xác nhận trước khi thực hiện."
+        itemName={pendingDeleteCategory?.name}
+        details={[
+          { label: 'ID', value: pendingDeleteCategory?.id },
+          { label: 'Số bài viết', value: pendingDeleteCategory?.articleCount },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteCategory}
+      />
     </div>
   );
 }

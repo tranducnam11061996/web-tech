@@ -1,6 +1,8 @@
 'use client';
 
 import { Eye, Trash2, ArrowUpDown } from 'lucide-react';
+import { useState } from 'react';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
 
 type FrameProductNode = {
   stt: number;
@@ -21,6 +23,8 @@ const MOCK_PRODUCTS: FrameProductNode[] = [
 ];
 
 export function ProductFrameProductTable() {
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<FrameProductNode | null>(null);
+
   return (
     <div className="glass-panel border-gray-800 rounded-lg shadow-sm overflow-hidden text-sm relative z-10 flex flex-col h-full">
       <div className="overflow-x-auto custom-scrollbar flex-1">
@@ -66,7 +70,15 @@ export function ProductFrameProductTable() {
                 <td className="p-4 text-center align-middle">
                   <div className="flex items-center justify-center gap-2">
                     <button className="p-1.5 text-blue-400 hover:text-white hover:bg-blue-600 bg-blue-950/30 border border-blue-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(59,130,246,0.5)]"><Eye className="w-4 h-4" /></button>
-                    <button className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteProduct(row)}
+                      className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+                      title="Xóa"
+                      aria-label={`Xóa sản phẩm khỏi khung ${row.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -98,6 +110,21 @@ export function ProductFrameProductTable() {
           <button className="w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm text-gray-500 hover:text-white hover:border-gray-600 transition-colors">&gt;|</button>
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteProduct}
+        title="Chưa thể xóa sản phẩm khỏi khung"
+        description="Màn này hiện đang dùng dữ liệu mock và chưa được kết nối backend xóa thật. Hệ thống sẽ không thực hiện xóa giả."
+        itemName={pendingDeleteProduct?.name}
+        details={[
+          { label: 'ID', value: pendingDeleteProduct?.id },
+          { label: 'SKU', value: pendingDeleteProduct?.sku },
+        ]}
+        confirmDisabled
+        confirmLabel="Chưa hỗ trợ"
+        onCancel={() => setPendingDeleteProduct(null)}
+        onConfirm={() => undefined}
+      />
     </div>
   );
 }

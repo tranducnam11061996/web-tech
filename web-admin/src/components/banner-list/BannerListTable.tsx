@@ -2,6 +2,9 @@
 
 import { Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 type BannerNode = {
   id: number;
@@ -23,6 +26,35 @@ const MOCK_BANNERS: BannerNode[] = [
 ];
 
 export function BannerListTable() {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [pendingDeleteBanner, setPendingDeleteBanner] = useState<BannerNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteBanner(null);
+    setDeleteError('');
+  };
+
+  const deleteBanner = async () => {
+    const banner = pendingDeleteBanner;
+    if (!banner) return;
+    setBusyId(banner.id);
+    setDeleteError('');
+    try {
+      const response = await fetch(`/api/admin/banners/${banner.id}?mode=permanent`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa banner');
+      setPendingDeleteBanner(null);
+      router.refresh();
+    } catch (error: any) {
+      setDeleteError(error.message || 'Không thể xóa banner');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="glass-panel border-gray-800 rounded-lg shadow-sm overflow-hidden text-sm relative z-10 flex flex-col h-full">
       <div className="overflow-x-auto custom-scrollbar flex-1">
@@ -101,7 +133,17 @@ export function BannerListTable() {
                         <Edit className="w-4 h-4" />
                       </button>
                     </Link>
-                    <button className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]" title="Xóa">
+                    <button
+                      type="button"
+                      disabled={busyId === row.id}
+                      onClick={() => {
+                        setPendingDeleteBanner(row);
+                        setDeleteError('');
+                      }}
+                      className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)] disabled:opacity-50"
+                      title="Xóa"
+                      aria-label={`Xóa banner ${row.name}`}
+                    >
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -139,6 +181,21 @@ export function BannerListTable() {
           <button className="w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm text-gray-500 hover:text-white hover:border-gray-600 transition-colors">&gt;|</button>
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteBanner}
+        title="Xóa vĩnh viễn banner?"
+        description="Hành động này sẽ xóa banner và dữ liệu danh mục áp dụng của banner."
+        itemName={pendingDeleteBanner?.name}
+        details={[
+          { label: 'ID', value: pendingDeleteBanner?.id },
+          { label: 'STT', value: pendingDeleteBanner?.stt },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteBanner}
+      />
     </div>
   );
 }

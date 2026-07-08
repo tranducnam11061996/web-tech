@@ -1,7 +1,7 @@
 'use client';
 
 import Script from 'next/script';
-import { useEffect, useRef, useId, useState } from 'react';
+import { useEffect, useRef, useId, useState, type MutableRefObject } from 'react';
 
 declare global {
   interface Window {
@@ -9,13 +9,18 @@ declare global {
   }
 }
 
+export type RichTextEditorHandle = {
+  insertHtmlAtCursor: (html: string) => void;
+};
+
 export function RichTextEditor({ 
   title, 
   defaultValue, 
   value,
   onChange,
   minHeight = "240px",
-  id
+  id,
+  editorHandleRef
 }: { 
   title?: string; 
   defaultValue?: string; 
@@ -23,9 +28,11 @@ export function RichTextEditor({
   onChange?: (value: string) => void;
   minHeight?: string;
   id?: string;
+  editorHandleRef?: MutableRefObject<RichTextEditorHandle | null>;
 }) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const tinyEditorRef = useRef<any>(null);
+  const lastBookmarkRef = useRef<any>(null);
   const valueRef = useRef(value ?? defaultValue ?? '');
   const onChangeRef = useRef(onChange);
   const reactId = useId();
@@ -39,6 +46,47 @@ export function RichTextEditor({
     valueRef.current = value ?? defaultValue ?? '';
     onChangeRef.current = onChange;
   }, [defaultValue, onChange, value]);
+
+  const rememberSelection = (editor: any) => {
+    try {
+      if (editor?.selection) lastBookmarkRef.current = editor.selection.getBookmark(2, true);
+    } catch {
+      lastBookmarkRef.current = null;
+    }
+  };
+
+  const syncContent = (editor: any) => {
+    const content = editor.getContent();
+    valueRef.current = content;
+    onChangeRef.current?.(content);
+  };
+
+  const insertHtmlAtCursor = (html: string) => {
+    const editor = tinyEditorRef.current;
+    if (!editor || !initialized.current || !editor.initialized) {
+      const nextValue = `${valueRef.current || ''}${html}`;
+      valueRef.current = nextValue;
+      onChangeRef.current?.(nextValue);
+      return;
+    }
+
+    editor.focus();
+    try {
+      if (lastBookmarkRef.current) {
+        editor.selection.moveToBookmark(lastBookmarkRef.current);
+      } else {
+        editor.selection.select(editor.getBody(), true);
+        editor.selection.collapse(false);
+      }
+    } catch {
+      editor.selection.select(editor.getBody(), true);
+      editor.selection.collapse(false);
+    }
+
+    editor.insertContent(html);
+    rememberSelection(editor);
+    syncContent(editor);
+  };
 
   useEffect(() => {
     if (scriptReady || typeof window === 'undefined') return;
@@ -81,8 +129,10 @@ export function RichTextEditor({
           ::selection { background: rgba(239, 68, 68, 0.3); color: #fca5a5; }
           a { color: #3b82f6; text-decoration: none; }
           a:hover { color: #60a5fa; text-decoration: underline; text-shadow: 0 0 8px rgba(59,130,246,0.5); }
+          img { max-width: 100%; height: auto; }
         `,
         menubar: false,
+        resize: false,
         plugins: [
           'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
           'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
@@ -94,6 +144,9 @@ export function RichTextEditor({
           'removeformat | help',
         setup: (editor: any) => {
           tinyEditorRef.current = editor;
+          if (editorHandleRef) {
+            editorHandleRef.current = { insertHtmlAtCursor };
+          }
           editor.on('init', () => {
             const initialValue = valueRef.current;
             if (initialValue) {
@@ -102,9 +155,13 @@ export function RichTextEditor({
               const isHtml = /<[a-z][\s\S]*>/i.test(initialValue);
               editor.setContent(isHtml ? initialValue : initialValue.replace(/\n/g, '<br/>'));
             }
+            rememberSelection(editor);
           });
           editor.on('change keyup undo redo setcontent', () => {
-            onChangeRef.current?.(editor.getContent());
+            syncContent(editor);
+          });
+          editor.on('click mouseup keyup focus nodechange', () => {
+            rememberSelection(editor);
           });
         }
       }).catch(() => {
@@ -117,10 +174,12 @@ export function RichTextEditor({
       if (typeof window !== 'undefined' && window.tinymce && initialized.current) {
         if (tinyEditorRef.current) window.tinymce.remove(tinyEditorRef.current);
         tinyEditorRef.current = null;
+        lastBookmarkRef.current = null;
+        if (editorHandleRef) editorHandleRef.current = null;
         initialized.current = false;
       }
     };
-  }, [minHeight, scriptReady]);
+  }, [editorHandleRef, minHeight, scriptReady]);
 
   useEffect(() => {
     const editor = tinyEditorRef.current;
@@ -144,7 +203,7 @@ export function RichTextEditor({
             {title}
           </h3>
         )}
-        <div className="w-full text-black tinymce-gaming-wrapper rounded-sm border border-gray-800 bg-[#0a0a0f]" style={{ minHeight }}>
+        <div className="relative z-0 w-full overflow-hidden text-black tinymce-gaming-wrapper rounded-sm border border-gray-800 bg-[#0a0a0f]" style={{ minHeight }}>
           <textarea
             id={editorId}
             ref={editorRef}
@@ -162,6 +221,13 @@ export function RichTextEditor({
           border-radius: 0.125rem !important;
           box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05) !important;
           transition: border-color 0.3s ease, box-shadow 0.3s ease !important;
+          max-width: 100% !important;
+          position: relative !important;
+          z-index: 0 !important;
+        }
+        .tinymce-gaming-wrapper .tox .tox-edit-area,
+        .tinymce-gaming-wrapper .tox .tox-edit-area__iframe {
+          background-color: #0a0a0f !important;
         }
         .tinymce-gaming-wrapper .tox-tinymce:focus-within {
           border-color: rgba(239, 68, 68, 0.5) !important;

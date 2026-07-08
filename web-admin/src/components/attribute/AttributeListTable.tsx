@@ -4,6 +4,9 @@ import { Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { Pagination } from '@/components/shared/Pagination';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export type AttributeNode = {
   id: number;
@@ -26,6 +29,35 @@ type AttributeListTableProps = {
 };
 
 export function AttributeListTable({ attributes, pagination }: AttributeListTableProps) {
+  const router = useRouter();
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [pendingDeleteAttribute, setPendingDeleteAttribute] = useState<AttributeNode | null>(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  const closeDeleteModal = () => {
+    if (busyId !== null) return;
+    setPendingDeleteAttribute(null);
+    setDeleteError('');
+  };
+
+  const deleteAttribute = async () => {
+    const attribute = pendingDeleteAttribute;
+    if (!attribute) return;
+    setBusyId(attribute.id);
+    setDeleteError('');
+    try {
+      const response = await fetch(`/api/admin/attributes/${attribute.id}?mode=permanent`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xóa thuộc tính');
+      setPendingDeleteAttribute(null);
+      router.refresh();
+    } catch (error: any) {
+      setDeleteError(error.message || 'Không thể xóa thuộc tính');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="glass-panel border-gray-800 rounded-lg shadow-sm overflow-hidden text-sm relative z-10 flex flex-col h-full">
       <div className="overflow-x-auto custom-scrollbar flex-1">
@@ -116,7 +148,17 @@ export function AttributeListTable({ attributes, pagination }: AttributeListTabl
                           <Edit className="w-4 h-4" />
                         </button>
                       </Link>
-                      <button className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+                      <button
+                        type="button"
+                        disabled={busyId === attr.id}
+                        onClick={() => {
+                          setPendingDeleteAttribute(attr);
+                          setDeleteError('');
+                        }}
+                        className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.3)] disabled:opacity-50"
+                        title="Xóa"
+                        aria-label={`Xóa thuộc tính ${attr.name}`}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -133,6 +175,21 @@ export function AttributeListTable({ attributes, pagination }: AttributeListTabl
         totalPages={pagination.totalPages}
         totalItems={pagination.totalItems}
         pageSize={pagination.pageSize}
+      />
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteAttribute}
+        title="Xóa vĩnh viễn thuộc tính?"
+        description="Hành động này sẽ xóa thuộc tính, các giá trị thuộc tính, liên kết danh mục và dữ liệu thuộc tính trên sản phẩm liên quan."
+        itemName={pendingDeleteAttribute?.name}
+        details={[
+          { label: 'ID', value: pendingDeleteAttribute?.id },
+          { label: 'Mã', value: pendingDeleteAttribute?.code },
+        ]}
+        error={deleteError}
+        loading={busyId !== null}
+        onCancel={closeDeleteModal}
+        onConfirm={deleteAttribute}
       />
     </div>
   );

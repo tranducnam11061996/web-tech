@@ -2,6 +2,8 @@
 
 import { Edit, Trash2, ArrowUpDown } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
+import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
 
 type FrameNode = {
   stt: number;
@@ -33,6 +35,8 @@ const MOCK_FRAMES: FrameNode[] = [
 ];
 
 export function ProductFrameTable() {
+  const [pendingDeleteFrame, setPendingDeleteFrame] = useState<FrameNode | null>(null);
+
   return (
     <div className="glass-panel border-gray-800 rounded-lg shadow-sm overflow-hidden text-sm relative z-10 flex flex-col h-full">
       <div className="overflow-x-auto custom-scrollbar flex-1">
@@ -77,7 +81,15 @@ export function ProductFrameTable() {
                     <Link href="/product/collection/product-frame-edit">
                       <button className="p-1.5 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"><Edit className="w-4 h-4" /></button>
                     </Link>
-                    <button className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteFrame(row)}
+                      className="p-1.5 text-red-400 hover:text-white hover:bg-red-600 bg-red-950/30 border border-red-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+                      title="Xóa"
+                      aria-label={`Xóa khung sản phẩm ${row.name}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -107,6 +119,18 @@ export function ProductFrameTable() {
           <button className="w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm text-gray-500 hover:text-white hover:border-gray-600 transition-colors">&gt;|</button>
         </div>
       </div>
+
+      <ConfirmDeleteModal
+        open={!!pendingDeleteFrame}
+        title="Chưa thể xóa khung sản phẩm"
+        description="Màn này hiện đang dùng dữ liệu mock và chưa được kết nối backend xóa thật. Hệ thống sẽ không thực hiện xóa giả."
+        itemName={pendingDeleteFrame?.name}
+        details={[{ label: 'ID', value: pendingDeleteFrame?.id }]}
+        confirmDisabled
+        confirmLabel="Chưa hỗ trợ"
+        onCancel={() => setPendingDeleteFrame(null)}
+        onConfirm={() => undefined}
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import pool from '@/lib/db';
 import { AdminApiError, maybeText, requireText, toBoolInt, toInt, withTransaction } from '@/lib/admin/common';
 import { HEADER_MENU_ICON_PATHS, HEADER_MENU_SEED, type HeaderMenuSeed, type HeaderMenuSeedNode } from '@/lib/header-menu-seed';
 
-export type HeaderMenuArea = 'zones' | 'faves' | 'topNav' | 'utilityLinks';
+export type HeaderMenuArea = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory';
 export type HeaderMenuNodeType = 'zone' | 'group' | 'link';
 export type HeaderMenuLinkMode = 'custom' | 'entity' | 'system';
 export type HeaderMenuEntityType = 'product-category' | 'article-category';
@@ -16,6 +16,9 @@ export type HeaderMenuDraftNode = {
   iconKey?: string;
   badgeText?: string;
   suffixText?: string;
+  backgroundColor?: string;
+  imageUrl?: string;
+  subText?: string;
   linkMode?: HeaderMenuLinkMode;
   entityType?: HeaderMenuEntityType;
   entityId?: number;
@@ -56,6 +59,9 @@ type MenuItemRow = RowDataPacket & {
   icon_key: string;
   badge_text: string;
   suffix_text: string;
+  background_color: string;
+  image_url: string;
+  sub_text: string;
   link_mode: HeaderMenuLinkMode;
   entity_type: HeaderMenuEntityType | '';
   entity_id: number | null;
@@ -68,7 +74,7 @@ type MenuItemRow = RowDataPacket & {
 };
 
 const HEADER_MENU_CODE = 'header';
-const HEADER_MENU_AREAS: HeaderMenuArea[] = ['zones', 'faves', 'topNav', 'utilityLinks'];
+const HEADER_MENU_AREAS: HeaderMenuArea[] = ['zones', 'faves', 'topNav', 'utilityLinks', 'circleStory'];
 const DEFAULT_HEADER_MENU_SETTINGS: HeaderMenuSettings = {
   zonesLabel: 'Danh Mục',
   favesLabel: 'Nổi bật',
@@ -173,6 +179,9 @@ export async function ensureHeaderMenuTables(db: PoolConnection | typeof pool = 
       icon_key varchar(64) NOT NULL DEFAULT '',
       badge_text varchar(64) NOT NULL DEFAULT '',
       suffix_text varchar(64) NOT NULL DEFAULT '',
+      background_color varchar(6) NOT NULL DEFAULT '',
+      image_url varchar(512) NOT NULL DEFAULT '',
+      sub_text varchar(255) NOT NULL DEFAULT '',
       link_mode varchar(24) NOT NULL DEFAULT 'custom',
       entity_type varchar(64) NOT NULL DEFAULT '',
       entity_id int unsigned NULL,
@@ -196,6 +205,16 @@ export async function ensureHeaderMenuTables(db: PoolConnection | typeof pool = 
         ON DELETE CASCADE ON UPDATE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+
+  const itemColumns: Array<[string, string]> = [
+    ['background_color', `ALTER TABLE web_admin_menu_items ADD COLUMN background_color varchar(6) NOT NULL DEFAULT '' AFTER suffix_text`],
+    ['image_url', `ALTER TABLE web_admin_menu_items ADD COLUMN image_url varchar(512) NOT NULL DEFAULT '' AFTER background_color`],
+    ['sub_text', `ALTER TABLE web_admin_menu_items ADD COLUMN sub_text varchar(255) NOT NULL DEFAULT '' AFTER image_url`],
+  ];
+  for (const [column, statement] of itemColumns) {
+    const [columns] = await db.query<RowDataPacket[]>(`SHOW COLUMNS FROM web_admin_menu_items LIKE ?`, [column]);
+    if (columns.length === 0) await db.query(statement);
+  }
 }
 
 async function getHeaderMenuId(connection: PoolConnection) {
@@ -250,6 +269,11 @@ function cleanUrl(value: unknown) {
   return maybeText(value, 512);
 }
 
+function cleanHexColor(value: unknown) {
+  const text = String(value || '').trim().replace(/^#/, '').toLowerCase();
+  return /^[0-9a-f]{3}([0-9a-f]{3})?$/.test(text) ? text.slice(0, 6) : '';
+}
+
 async function insertNodeTree(
   connection: PoolConnection,
   versionId: number,
@@ -268,9 +292,9 @@ async function insertNodeTree(
       `
         INSERT INTO web_admin_menu_items
           (version_id, area, parent_id, node_type, label, icon_key, badge_text, suffix_text,
-           link_mode, entity_type, entity_id, custom_url, url_override, ordering,
-           is_active, desktop_visible, mobile_visible)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           background_color, image_url, sub_text, link_mode, entity_type, entity_id, custom_url,
+           url_override, ordering, is_active, desktop_visible, mobile_visible)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         versionId,
@@ -281,6 +305,9 @@ async function insertNodeTree(
         maybeText(rawNode.iconKey, 64),
         maybeText(rawNode.badgeText, 64),
         maybeText(rawNode.suffixText, 64),
+        cleanHexColor(rawNode.backgroundColor),
+        cleanUrl(rawNode.imageUrl),
+        maybeText(rawNode.subText, 255),
         linkMode,
         entityType,
         entityId > 0 ? entityId : null,
@@ -327,9 +354,9 @@ async function copyItemsToVersion(connection: PoolConnection, sourceVersionId: n
         `
           INSERT INTO web_admin_menu_items
             (version_id, area, parent_id, node_type, label, icon_key, badge_text, suffix_text,
-             link_mode, entity_type, entity_id, custom_url, url_override, ordering,
-             is_active, desktop_visible, mobile_visible)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             background_color, image_url, sub_text, link_mode, entity_type, entity_id, custom_url,
+             url_override, ordering, is_active, desktop_visible, mobile_visible)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           targetVersionId,
@@ -340,6 +367,9 @@ async function copyItemsToVersion(connection: PoolConnection, sourceVersionId: n
           row.icon_key,
           row.badge_text,
           row.suffix_text,
+          row.background_color,
+          row.image_url,
+          row.sub_text,
           row.link_mode,
           row.entity_type,
           row.entity_id,
@@ -426,6 +456,9 @@ function rowToDraftNode(row: MenuItemRow): HeaderMenuDraftNode {
     iconKey: row.icon_key || '',
     badgeText: row.badge_text || '',
     suffixText: row.suffix_text || '',
+    backgroundColor: row.background_color || '',
+    imageUrl: row.image_url || '',
+    subText: row.sub_text || '',
     linkMode: row.link_mode || 'custom',
     entityType: row.entity_type || undefined,
     entityId: row.entity_id || undefined,
@@ -441,7 +474,7 @@ function rowToDraftNode(row: MenuItemRow): HeaderMenuDraftNode {
 
 function buildDraftTree(rows: MenuItemRow[]): HeaderMenuDraft {
   const nodeMap = new Map<number, HeaderMenuDraftNode>();
-  const draft: HeaderMenuDraft = { zones: [], faves: [], topNav: [], utilityLinks: [] };
+  const draft: HeaderMenuDraft = { zones: [], faves: [], topNav: [], utilityLinks: [], circleStory: [] };
 
   for (const row of rows) nodeMap.set(Number(row.id), rowToDraftNode(row));
   for (const row of rows) {
@@ -585,6 +618,9 @@ function rowToPublicLink(row: MenuItemRow, maps: UrlMaps) {
     badgeText,
     suffixText,
     suffix: suffixText,
+    backgroundColor: row.background_color || '',
+    imageUrl: row.image_url || '',
+    subText: repairMenuText(row.sub_text || ''),
     linkMode: row.link_mode,
     entityType: row.entity_type || undefined,
     entityId: row.entity_id || undefined,
@@ -651,6 +687,7 @@ function buildPublicMenu(rows: MenuItemRow[], maps: UrlMaps, meta: Record<string
     faves: rootLinks('faves'),
     topNav: rootLinks('topNav'),
     utilityLinks: rootLinks('utilityLinks'),
+    circleStory: rootLinks('circleStory'),
     labels,
     settings,
     meta: { ...meta, labels, settings },
@@ -674,6 +711,9 @@ function seedToRows(data: HeaderMenuSeed) {
         icon_key: node.iconKey || '',
         badge_text: node.badgeText || '',
         suffix_text: node.suffixText || '',
+        background_color: node.backgroundColor || '',
+        image_url: node.imageUrl || '',
+        sub_text: node.subText || '',
         link_mode: node.linkMode || 'custom',
         entity_type: node.entityType || '',
         entity_id: node.entityId || null,

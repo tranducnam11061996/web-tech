@@ -4,6 +4,9 @@ export type HeaderMenuSeedNode = {
   iconKey?: string;
   suffixText?: string;
   badgeText?: string;
+  backgroundColor?: string;
+  imageUrl?: string;
+  subText?: string;
   linkMode?: 'custom' | 'entity' | 'system';
   entityType?: 'product-category' | 'article-category';
   entityId?: number;
@@ -20,6 +23,7 @@ export type HeaderMenuSeed = {
   faves: HeaderMenuSeedNode[];
   topNav: HeaderMenuSeedNode[];
   utilityLinks: HeaderMenuSeedNode[];
+  circleStory: HeaderMenuSeedNode[];
 };
 
 function link(label: string, customUrl = '#', extra: Partial<HeaderMenuSeedNode> = {}): HeaderMenuSeedNode {
@@ -293,4 +297,5 @@ export const HEADER_MENU_SEED: HeaderMenuSeed = {
     link('Favorites', '#', { iconKey: 'star', linkMode: 'system', customUrl: 'favorites' }),
     link('Assistant', '#', { iconKey: 'cpu', linkMode: 'system', customUrl: 'assistant' }),
   ],
+  circleStory: [],
 };

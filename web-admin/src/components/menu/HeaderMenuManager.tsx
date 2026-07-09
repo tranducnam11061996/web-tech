@@ -22,10 +22,11 @@ import {
   Send,
   Smartphone,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import clsx from 'clsx';
 
-type AreaId = 'zones' | 'faves' | 'topNav' | 'utilityLinks';
+type AreaId = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory';
 type NodeType = 'zone' | 'group' | 'link';
 type LinkMode = 'custom' | 'entity' | 'system';
 type EntityType = 'product-category' | 'article-category';
@@ -37,6 +38,9 @@ type MenuNode = {
   iconKey?: string;
   badgeText?: string;
   suffixText?: string;
+  backgroundColor?: string;
+  imageUrl?: string;
+  subText?: string;
   linkMode?: LinkMode;
   entityType?: EntityType;
   entityId?: number;
@@ -92,6 +96,7 @@ const AREAS: Array<{ id: AreaId; label: string; description: string }> = [
   { id: 'faves', label: 'Nổi bật', description: 'Danh sách nổi bật trong menu' },
   { id: 'topNav', label: 'Thanh điều hướng', description: 'Dải link ngang phía dưới header' },
   { id: 'utilityLinks', label: 'Link tiện ích', description: 'Các link/icon phụ trong header' },
+  { id: 'circleStory', label: 'Circle Story', description: 'Dải story vòng tròn phía dưới header' },
 ];
 
 const STATUS_UNPUBLISHED = 'Có thay đổi chưa xuất bản';
@@ -143,6 +148,7 @@ function normalizeMenu(menu: MenuDraft): MenuDraft {
     faves: withStringIds(menu.faves),
     topNav: withStringIds(menu.topNav),
     utilityLinks: withStringIds(menu.utilityLinks),
+    circleStory: withStringIds(menu.circleStory || []),
   };
 }
 
@@ -303,6 +309,9 @@ function newNode(type: NodeType): MenuNode {
     nodeType: type,
     label: type === 'zone' ? 'Danh mục mới' : type === 'group' ? 'Nhóm mới' : 'Link mới',
     iconKey: type === 'zone' ? 'desktop' : '',
+    backgroundColor: '',
+    imageUrl: '',
+    subText: '',
     linkMode: type === 'link' ? 'custom' : 'custom',
     customUrl: type === 'link' ? '#' : '',
     isActive: true,
@@ -326,7 +335,42 @@ function menuForSave(menu: MenuDraft): MenuDraft {
     faves: flattenForSave(menu.faves),
     topNav: flattenForSave(menu.topNav),
     utilityLinks: flattenForSave(menu.utilityLinks),
+    circleStory: flattenForSave(menu.circleStory),
   };
+}
+
+function collectDraftMetadataLinks(nodes: MenuNode[], result: MenuNode[] = []) {
+  for (const node of nodes) {
+    if (node.nodeType === 'link' && node.isActive !== false && (node.iconKey || node.badgeText)) result.push(node);
+    collectDraftMetadataLinks(node.children || [], result);
+  }
+  return result;
+}
+
+function collectPublicLinks(data: any) {
+  const links: any[] = [];
+  for (const zone of data?.zones || []) {
+    for (const column of zone?.cols || []) links.push(...(column?.items || []));
+  }
+  for (const area of ['faves', 'topNav', 'utilityLinks', 'circleStory']) links.push(...(data?.[area] || []));
+  return links;
+}
+
+function assertPublishedMenuMetadata(menu: MenuDraft, publicData: any) {
+  const expected = AREAS.flatMap((area) => collectDraftMetadataLinks(menu[area.id]));
+  if (expected.length === 0) return;
+
+  const publicLinks = collectPublicLinks(publicData);
+  const missing = expected.find((node) => !publicLinks.some((item) => {
+    if (String(item?.label || item?.name || '') !== node.label) return false;
+    const iconOk = !node.iconKey || item?.iconKey === node.iconKey || Boolean(item?.icon);
+    const expectedBadge = String(node.badgeText || '').trim().toLowerCase();
+    const actualBadge = String(item?.badgeText || '').trim().toLowerCase();
+    const badgeOk = !expectedBadge || actualBadge === expectedBadge;
+    return iconOk && badgeOk;
+  }));
+
+  if (missing) throw new Error('Menu da xuat ban nhung public API chua tra metadata moi. Vui long tai lai va thu lai.');
 }
 
 function isNodeVisible(node: MenuNode, viewport: 'desktop' | 'mobile') {
@@ -456,14 +500,20 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
     setErrorText('');
     startTransition(async () => {
       try {
-        await fetch('/api/admin/menus/header', {
+        const saveResponse = await fetch('/api/admin/menus/header', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ menu: menuForSave(menu), settings }),
         });
+        const savePayload = await saveResponse.json();
+        if (!saveResponse.ok || !savePayload.success) throw new Error(savePayload?.error?.message || 'Khong the luu nhap truoc khi xuat ban');
         const response = await fetch('/api/admin/menus/header/publish', { method: 'POST' });
         const payload = await response.json();
         if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xuất bản');
+        const publicResponse = await fetch('/api/menu/header', { cache: 'no-store' });
+        const publicPayload = await publicResponse.json();
+        if (!publicResponse.ok || !publicPayload.success) throw new Error('Khong the kiem tra menu public sau khi xuat ban');
+        assertPublishedMenuMetadata(menu, publicPayload.data);
         setStatusText(STATUS_PUBLISHED);
       } catch (error: any) {
         setErrorText(error.message || 'Không thể xuất bản');
@@ -677,6 +727,7 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
         <aside className="min-h-0 rounded-lg border border-gray-800 bg-gray-950/70 p-3">
           <EditorPanel
             node={selectedNode}
+            activeArea={activeArea}
             iconOptions={initialData.iconOptions}
             targetQuery={targetQuery}
             targetOptions={targetOptions}
@@ -778,6 +829,7 @@ function TreeNode({
 
 function EditorPanel({
   node,
+  activeArea,
   iconOptions,
   targetQuery,
   targetOptions,
@@ -789,6 +841,7 @@ function EditorPanel({
   onMove,
 }: {
   node: MenuNode | null;
+  activeArea: AreaId;
   iconOptions: Array<{ key: string; path: string }>;
   targetQuery: string;
   targetOptions: TargetOption[];
@@ -803,6 +856,22 @@ function EditorPanel({
 
   const setField = (field: keyof MenuNode, value: any) => onUpdate((current) => ({ ...current, [field]: value }));
   const isLink = node.nodeType === 'link';
+  const showCircleStorySettings = activeArea === 'circleStory' && isLink;
+  const advancedPanelId = `circle-story-settings-${node.id}`;
+
+  const uploadStoryImage = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('/api/admin/menus/header/images/upload', { method: 'POST', body: formData });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể tải ảnh');
+      setField('imageUrl', payload.data?.url || '');
+    } catch (error: any) {
+      window.alert(error.message || 'Không thể tải ảnh');
+    }
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -885,6 +954,60 @@ function EditorPanel({
           </div>
         )}
 
+        {showCircleStorySettings && (
+          <details className="rounded-md border border-gray-800 bg-gray-900/40 p-3">
+            <summary
+              className="cursor-pointer select-none rounded-md text-sm font-semibold text-emerald-200 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
+              aria-controls={advancedPanelId}
+            >
+              Cài đặt khác
+            </summary>
+            <div id={advancedPanelId} className="mt-3 space-y-3">
+              <Field label="Màu nền" id="circle-story-bg">
+                <input
+                  id="circle-story-bg"
+                  value={node.backgroundColor || ''}
+                  onChange={(event) => setField('backgroundColor', event.target.value.trim().replace(/^#/, '').toLowerCase())}
+                  className="field-input"
+                  placeholder="c3c3c3"
+                  maxLength={7}
+                />
+              </Field>
+              <div>
+                <label htmlFor="circle-story-image" className="mb-1 block text-xs font-semibold text-gray-400">Ảnh icon</label>
+                <div className="flex gap-2">
+                  <input
+                    id="circle-story-image"
+                    value={node.imageUrl || ''}
+                    onChange={(event) => setField('imageUrl', event.target.value)}
+                    className="field-input"
+                    placeholder="https://..."
+                  />
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-700 px-3 text-xs font-semibold text-gray-200 hover:border-gray-500">
+                    <Upload className="h-4 w-4" aria-hidden="true" />
+                    Tải ảnh
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="sr-only"
+                      onChange={(event) => uploadStoryImage(event.target.files?.[0] || null)}
+                    />
+                  </label>
+                </div>
+              </div>
+              <Field label="Text phụ" id="circle-story-sub-text">
+                <input
+                  id="circle-story-sub-text"
+                  value={node.subText || ''}
+                  onChange={(event) => setField('subText', event.target.value)}
+                  className="field-input"
+                  placeholder="NEW ARRIVALS"
+                />
+              </Field>
+            </div>
+          </details>
+        )}
+
         <div className="grid grid-cols-3 gap-2">
           <Toggle label="Bật" checked={node.isActive !== false} onChange={(checked) => setField('isActive', checked)} />
           <Toggle label="Desktop" checked={node.desktopVisible !== false} onChange={(checked) => setField('desktopVisible', checked)} />
@@ -955,6 +1078,43 @@ function PreviewLabel({ node, iconPathByKey }: { node: MenuNode; iconPathByKey: 
       <span className="min-w-0 break-words">{node.label}</span>
       <PreviewBadge value={node.badgeText} />
     </span>
+  );
+}
+
+function storyColor(value?: string) {
+  const color = String(value || '').trim().replace(/^#/, '').toLowerCase();
+  return /^[0-9a-f]{3}([0-9a-f]{3})?$/.test(color) ? `#${color}` : '#26272d';
+}
+
+function CircleStoryItemPreview({ item, selected }: { item: MenuNode; selected?: boolean }) {
+  const imageUrl = String(item.imageUrl || '').trim();
+  const innerStyle = imageUrl
+    ? { backgroundImage: `url("${imageUrl}")` }
+    : { backgroundColor: storyColor(item.backgroundColor) };
+
+  return (
+    <div className={clsx('w-20 shrink-0 text-center', selected && 'text-emerald-200')}>
+      <div className={clsx('mx-auto rounded-full p-[3px]', selected && 'ring-2 ring-emerald-400/70')} style={{ background: 'linear-gradient(45deg, #00d2ff, #3a7bd5, #8a2387, #e94057, #f27121)' }}>
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-cover bg-center px-2 text-center text-[8px] font-black uppercase leading-tight text-white shadow-inner" style={innerStyle}>
+          {item.subText ? <span className="drop-shadow-[0_1px_1px_rgba(0,0,0,0.9)]">{item.subText}</span> : null}
+        </div>
+      </div>
+      <div className="mt-2 line-clamp-2 text-[10px] font-semibold leading-tight text-white">{item.label}</div>
+    </div>
+  );
+}
+
+function CircleStoryPreview({ items, selectedId, mode = 'desktop' }: { items: MenuNode[]; selectedId: string | null; mode?: 'desktop' | 'mobile' }) {
+  if (items.length === 0) return <PreviewEmpty />;
+  const limit = mode === 'mobile' ? 6 : 12;
+  return (
+    <div className="overflow-hidden rounded-md border border-gray-800 bg-[#111113] p-4 text-[11px]">
+      <div className="flex gap-5 overflow-x-auto pb-2 custom-scrollbar">
+        {previewItems(items, selectedId, limit).map((item) => (
+          <CircleStoryItemPreview key={item.id} item={item} selected={selectedId === item.id} />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1040,6 +1200,7 @@ function DesktopAreaPreview({
   iconPathByKey: Map<string, string>;
 }) {
   if (items.length === 0) return <PreviewEmpty />;
+  if (area === 'circleStory') return <CircleStoryPreview items={items} selectedId={selectedId} mode="desktop" />;
   const title = areaLabel(area, settings);
 
   if (area === 'topNav') {
@@ -1137,6 +1298,7 @@ function MobileAreaPreview({
   iconPathByKey: Map<string, string>;
 }) {
   if (items.length === 0) return <PreviewEmpty />;
+  if (area === 'circleStory') return <CircleStoryPreview items={items} selectedId={selectedId} mode="mobile" />;
   const title = areaLabel(area, settings);
   return (
     <div className="mx-auto max-w-[260px] rounded-2xl border border-gray-800 bg-black p-3 text-[11px]">

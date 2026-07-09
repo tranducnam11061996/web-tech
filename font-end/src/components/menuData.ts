@@ -7,6 +7,9 @@ export type MenuCategory = {
   suffix?: string;
   suffixText?: string;
   badgeText?: string;
+  backgroundColor?: string;
+  imageUrl?: string;
+  subText?: string;
   url?: string;
   cols: Array<{
     id?: string;
@@ -26,6 +29,9 @@ export type MenuLinkObject = {
   badgeText?: string;
   icon?: string;
   iconKey?: string;
+  backgroundColor?: string;
+  imageUrl?: string;
+  subText?: string;
 };
 
 export type MenuLinkItem = string | MenuLinkObject;
@@ -40,6 +46,7 @@ export type HeaderMenuData = {
   faves: MenuLinkObject[];
   topNav: MenuLinkObject[];
   utilityLinks: MenuLinkObject[];
+  circleStory: MenuLinkObject[];
   labels: HeaderMenuLabels;
   meta?: Record<string, unknown>;
 };
@@ -277,4 +284,5 @@ export const fallbackHeaderMenu: HeaderMenuData = {
     { id: 'favorites', label: 'Favorites', url: '#' },
     { id: 'assistant', label: 'Assistant', url: '#' },
   ],
+  circleStory: [],
 };

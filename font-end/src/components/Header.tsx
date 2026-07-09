@@ -20,6 +20,23 @@ import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLi
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
+const HEADER_MENU_ICON_PATHS: Record<string, string> = {
+  laptop: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  desktop: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  star: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
+  gift: 'M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 110-5C11 2 12 7 12 7zm0 0h4.5a2.5 2.5 0 100-5C13 2 12 7 12 7z',
+  case: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  chair: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
+  gpu: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z',
+  headset: 'M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z',
+  keyboard: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01',
+  memory: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+  cpu: 'M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z',
+  storage: 'M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2',
+  settings: 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z',
+  more: 'M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 110-2 1 1 0 012 0zm7 0a1 1 0 110-2 1 1 0 012 0zm7 0a1 1 0 110-2 1 1 0 012 0z',
+};
+
 const TEXT_REPAIRS: Record<string, string> = {
   'Danh Má»¥c': 'Danh Mục',
   'Ná»•i báº­t': 'Nổi bật',
@@ -96,6 +113,73 @@ function linkBadge(item: MenuLinkItem | MenuCategory) {
   return cleanHeaderText(item.badgeText || '');
 }
 
+function MenuLinkBadge({ item }: { item: MenuLinkItem | MenuCategory }) {
+  const badge = linkBadge(item);
+  if (!badge) return null;
+  return <span className="menu-link-badge">{badge}</span>;
+}
+
+function linkIconPath(item: MenuLinkItem | MenuCategory) {
+  if (typeof item === 'string') return '';
+  return item.icon || (item.iconKey ? HEADER_MENU_ICON_PATHS[item.iconKey] || '' : '');
+}
+
+function MenuLinkIcon({ item, className = 'h-3.5 w-3.5 shrink-0 text-gray-500' }: { item: MenuLinkItem | MenuCategory; className?: string }) {
+  const path = linkIconPath(item);
+  if (!path) return null;
+  return (
+    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d={path} />
+    </svg>
+  );
+}
+
+function storyImageUrl(value?: string) {
+  const url = String(value || '').trim();
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
+  if (url.startsWith('/api/media/')) return `${API_URL}${url}`;
+  return url;
+}
+
+function storyColor(value?: string) {
+  const color = String(value || '').trim().replace(/^#/, '').toLowerCase();
+  return /^[0-9a-f]{3}([0-9a-f]{3})?$/.test(color) ? `#${color}` : '#26272d';
+}
+
+function CircleStoryItem({ item }: { item: MenuLinkObject }) {
+  const imageUrl = storyImageUrl(item.imageUrl);
+  const innerStyle = imageUrl
+    ? { backgroundImage: `url("${imageUrl}")` }
+    : { backgroundColor: storyColor(item.backgroundColor) };
+  const label = linkLabel(item);
+  const subText = cleanHeaderText(item.subText || '');
+
+  return (
+    <a href={item.url || '#'} className="circle-story-item" aria-label={label}>
+      <span className="circle-story-ring" aria-hidden="true">
+        <span className="circle-story-inner" style={innerStyle}>
+          {subText ? <span className="circle-story-subtext">{subText}</span> : null}
+        </span>
+      </span>
+      <span className="circle-story-label">{label}</span>
+    </a>
+  );
+}
+
+function CircleStoryStrip({ items }: { items: MenuLinkObject[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="circle-story-strip" aria-label="Circle Story">
+      <div className="circle-story-scroll no-scrollbar">
+        {items.map((item) => (
+          <CircleStoryItem key={item.id || item.label || item.name} item={item} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Header() {
   const router = useRouter();
   const [showSubMenu, setShowSubMenu] = useState(true);
@@ -141,6 +225,7 @@ export default function Header() {
           faves: payload.data.faves || [],
           topNav: payload.data.topNav || [],
           utilityLinks: payload.data.utilityLinks || [],
+          circleStory: payload.data.circleStory || [],
           labels: {
             zones: cleanHeaderText(payload.data.labels?.zones || payload.data.settings?.zonesLabel || fallbackHeaderMenu.labels.zones),
             faves: cleanHeaderText(payload.data.labels?.faves || payload.data.settings?.favesLabel || fallbackHeaderMenu.labels.faves),
@@ -258,6 +343,7 @@ export default function Header() {
     zones: cleanHeaderText(headerMenu.labels?.zones || fallbackHeaderMenu.labels.zones),
     faves: cleanHeaderText(headerMenu.labels?.faves || fallbackHeaderMenu.labels.faves),
   };
+  const circleStoryItems = headerMenu.circleStory || [];
 
   return (
     <>
@@ -414,9 +500,10 @@ export default function Header() {
             <nav className="flex items-center gap-6 ml-8 overflow-x-auto no-scrollbar w-full">
               {(headerMenu.topNav.length ? headerMenu.topNav : fallbackHeaderMenu.topNav).map((item) => (
                 <a key={item.id || item.label} href={item.url || '#'} className="nav-link">
+                  <MenuLinkIcon item={item} className="mr-1 inline h-3.5 w-3.5 text-blue-300 align-[-2px]" />
                   {linkSuffix(item) ? <span className="mr-1 text-blue-300">{linkSuffix(item)}</span> : null}
                   {linkLabel(item)}
-                  {linkBadge(item) ? <span className="badge-new ml-1">{linkBadge(item)}</span> : null}
+                  <MenuLinkBadge item={item} />
                 </a>
               ))}
             </nav>
@@ -425,8 +512,10 @@ export default function Header() {
           <nav className="flex md:hidden items-center gap-6 px-4 py-3 overflow-x-auto no-scrollbar border-b border-dark-border flex-shrink-0">
             {(headerMenu.topNav.length ? headerMenu.topNav : fallbackHeaderMenu.topNav).slice(0, 6).map((item) => (
               <a key={item.id || item.label} href={item.url || '#'} className="nav-link">
+                <MenuLinkIcon item={item} className="mr-1 inline h-3.5 w-3.5 text-blue-300 align-[-2px]" />
                 {linkSuffix(item) ? <span className="mr-1 text-blue-300">{linkSuffix(item)}</span> : null}
                 {linkLabel(item)}
+                <MenuLinkBadge item={item} />
               </a>
             ))}
           </nav>
@@ -467,10 +556,10 @@ export default function Header() {
                     href={item.url || '#'}
                     className="bg-[#111115] rounded-xl p-3 flex flex-col items-center justify-center gap-3 text-center border border-transparent hover:border-gray-700 transition"
                   >
-                    <span className="text-lg">{linkSuffix(item) || <Star className="h-5 w-5 text-orange-500" aria-hidden="true" />}</span>
+                    <span className="text-lg">{linkIconPath(item) ? <MenuLinkIcon item={item} className="h-5 w-5 text-orange-500" /> : linkSuffix(item) || <Star className="h-5 w-5 text-orange-500" aria-hidden="true" />}</span>
                     <span className="text-[11px] text-gray-300 font-semibold leading-tight">
                       {linkLabel(item)}
-                      {linkBadge(item) ? <span className="text-orange-500 ml-1">{linkBadge(item)}</span> : null}
+                      <MenuLinkBadge item={item} />
                     </span>
                   </a>
                 ))}
@@ -520,8 +609,8 @@ export default function Header() {
                       {column.items.map((item) => (
                         <li key={typeof item === 'string' ? item : item.id || item.label || item.name}>
                           <a href={linkUrl(item)} className="flex items-center gap-3 text-[14px] text-gray-400">
-                            <Star className="h-4 w-4 shrink-0 text-gray-600" aria-hidden="true" />
-                            <span>{linkSuffix(item) ? `${linkSuffix(item)} ` : ''}{linkLabel(item)}</span>
+                            {linkIconPath(item) ? <MenuLinkIcon item={item} className="h-4 w-4 shrink-0 text-gray-600" /> : <Star className="h-4 w-4 shrink-0 text-gray-600" aria-hidden="true" />}
+                            <span>{linkSuffix(item) ? `${linkSuffix(item)} ` : ''}{linkLabel(item)}<MenuLinkBadge item={item} /></span>
                           </a>
                         </li>
                       ))}
@@ -580,10 +669,11 @@ export default function Header() {
                     );
                   }) : (headerMenu.faves.length ? headerMenu.faves : fallbackHeaderMenu.faves).map((item) => (
                     <a key={item.id || item.label} href={item.url || '#'} className="sidebar-item">
-                      <div className="faux-icon"></div>
+                      {linkIconPath(item) ? <MenuLinkIcon item={item} className="h-4 w-4 shrink-0 text-gray-400" /> : <div className="faux-icon"></div>}
                       <span className="flex-1">
                         {linkLabel(item)}
                         {linkSuffix(item) ? <span className="text-orange-500 ml-1">{linkSuffix(item)}</span> : null}
+                        <MenuLinkBadge item={item} />
                       </span>
                     </a>
                   ))}
@@ -600,9 +690,10 @@ export default function Header() {
                         {column.items.map((item) => (
                           <li key={typeof item === 'string' ? item : item.id || item.label || item.name}>
                             <a href={linkUrl(item)} className="sub-link">
+                              <MenuLinkIcon item={item} />
                               {linkSuffix(item) ? <span className="mr-1">{linkSuffix(item)}</span> : null}
                               {linkLabel(item)}
-                              {linkBadge(item) ? <span className="badge-new ml-1">{linkBadge(item)}</span> : null}
+                              <MenuLinkBadge item={item} />
                             </a>
                           </li>
                         ))}
@@ -613,7 +704,7 @@ export default function Header() {
                       <h3 className="title-gradient font-bold text-base mb-6">{menuLabels.faves}</h3>
                       <ul className="space-y-3.5">
                         {(headerMenu.faves.length ? headerMenu.faves : fallbackHeaderMenu.faves).map((item) => (
-                          <li key={item.id || item.label}><a href={item.url || '#'} className="sub-link">{linkSuffix(item) ? <span className="mr-1">{linkSuffix(item)}</span> : null}{linkLabel(item)}{linkBadge(item) ? <span className="badge-new ml-1">{linkBadge(item)}</span> : null}</a></li>
+                          <li key={item.id || item.label}><a href={item.url || '#'} className="sub-link"><MenuLinkIcon item={item} />{linkSuffix(item) ? <span className="mr-1">{linkSuffix(item)}</span> : null}{linkLabel(item)}<MenuLinkBadge item={item} /></a></li>
                         ))}
                       </ul>
                     </div>
@@ -625,6 +716,8 @@ export default function Header() {
         </div>
       </div>
       </div>
+
+      <CircleStoryStrip items={circleStoryItems} />
 
       {/* MOBILE BOTTOM NAV BAR (< 768px) */}
       <div className="md:hidden fixed bottom-0 left-0 w-full h-[60px] bg-dark border-t border-dark-border flex items-center justify-between px-6 z-50">

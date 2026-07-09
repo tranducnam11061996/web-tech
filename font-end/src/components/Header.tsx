@@ -16,9 +16,15 @@ import {
   X,
 } from 'lucide-react';
 import { useCartSummary } from '@/lib/cart';
+import { cleanMenuText } from '@/lib/menuUtils';
 import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem } from './menuData';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const HEADER_MENU_FALLBACK_CACHE_MS = 10 * 1000;
+const HEADER_MENU_CLIENT_CACHE_MS = 60 * 1000;
+let cachedHeaderMenu: HeaderMenuData | null = null;
+let cachedHeaderMenuExpiresAt = 0;
+let headerMenuRequest: Promise<HeaderMenuData> | null = null;
 
 const HEADER_MENU_ICON_PATHS: Record<string, string> = {
   laptop: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
@@ -86,11 +92,49 @@ const FINAL_TEXT_REPAIRS: Record<string, string> = {
 };
 
 function cleanHeaderText(value: unknown) {
-  let text = String(value || '');
-  for (const [broken, fixed] of [...Object.entries(TEXT_REPAIRS), ...Object.entries(FINAL_TEXT_REPAIRS)]) {
-    text = text.split(broken).join(fixed);
-  }
-  return text;
+  return cleanMenuText(value);
+}
+
+function normalizeHeaderMenuPayload(data: any): HeaderMenuData {
+  return {
+    zones: data?.zones?.length ? data.zones : fallbackHeaderMenu.zones,
+    faves: data?.faves || [],
+    topNav: data?.topNav || [],
+    utilityLinks: data?.utilityLinks || [],
+    circleStory: [],
+    shopByCategory: [],
+    labels: {
+      zones: cleanHeaderText(data?.labels?.zones || data?.settings?.zonesLabel || fallbackHeaderMenu.labels.zones),
+      faves: cleanHeaderText(data?.labels?.faves || data?.settings?.favesLabel || fallbackHeaderMenu.labels.faves),
+    },
+    meta: data?.meta,
+  };
+}
+
+function loadHeaderMenu() {
+  const now = Date.now();
+  if (cachedHeaderMenu && cachedHeaderMenuExpiresAt > now) return Promise.resolve(cachedHeaderMenu);
+  if (headerMenuRequest) return headerMenuRequest;
+
+  headerMenuRequest = fetch(`${API_URL}/api/menu/header`)
+    .then((response) => response.json())
+    .then((payload) => {
+      if (!payload?.success || !payload.data) throw new Error('Invalid header menu response');
+      const nextMenu = normalizeHeaderMenuPayload(payload.data);
+      cachedHeaderMenu = nextMenu;
+      cachedHeaderMenuExpiresAt = Date.now() + (nextMenu.meta?.fallback ? HEADER_MENU_FALLBACK_CACHE_MS : HEADER_MENU_CLIENT_CACHE_MS);
+      return nextMenu;
+    })
+    .catch(() => {
+      cachedHeaderMenu = fallbackHeaderMenu;
+      cachedHeaderMenuExpiresAt = Date.now() + HEADER_MENU_FALLBACK_CACHE_MS;
+      return fallbackHeaderMenu;
+    })
+    .finally(() => {
+      headerMenuRequest = null;
+    });
+
+  return headerMenuRequest;
 }
 
 function linkLabel(item: MenuLinkItem | MenuCategory) {
@@ -170,29 +214,13 @@ export default function Header() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${API_URL}/api/menu/header`, { cache: 'no-store' })
-      .then((response) => response.json())
-      .then((payload) => {
-        if (cancelled || !payload?.success || !payload.data) return;
-        const nextMenu = {
-          zones: payload.data.zones?.length ? payload.data.zones : fallbackHeaderMenu.zones,
-          faves: payload.data.faves || [],
-          topNav: payload.data.topNav || [],
-          utilityLinks: payload.data.utilityLinks || [],
-          circleStory: [],
-          shopByCategory: [],
-          labels: {
-            zones: cleanHeaderText(payload.data.labels?.zones || payload.data.settings?.zonesLabel || fallbackHeaderMenu.labels.zones),
-            faves: cleanHeaderText(payload.data.labels?.faves || payload.data.settings?.favesLabel || fallbackHeaderMenu.labels.faves),
-          },
-          meta: payload.data.meta,
-        };
+    loadHeaderMenu()
+      .then((nextMenu) => {
+        if (cancelled) return;
         setHeaderMenu(nextMenu);
         setActiveDesktopMenuId(nextMenu.zones[0]?.id || '');
       })
-      .catch(() => {
-        if (!cancelled) setHeaderMenu(fallbackHeaderMenu);
-      });
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

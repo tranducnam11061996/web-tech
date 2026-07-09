@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { MouseEvent } from "react";
 import { addCartItem } from "@/lib/cart";
 import ProgressiveImage from "./ProgressiveImage";
+import ProductCardAttributeBadges, { type ProductCardAttributeBadge } from "./ProductCardAttributeBadges";
 
 export interface ProductGridCardData {
   id: number;
@@ -15,6 +16,7 @@ export interface ProductGridCardData {
   price?: number;
   marketPrice?: number;
   brand?: string;
+  cardBadges?: ProductCardAttributeBadge[];
 }
 
 interface ProductGridCardProps {
@@ -77,7 +79,7 @@ export default function ProductGridCard({ product }: ProductGridCardProps) {
   return (
     <article className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-[#27272a] bg-gradient-to-b from-[#1a1a1d] to-[#111113] shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-1.5 hover:border-[#3f3f46] hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
       {hasDiscount && (
-        <div className="absolute left-3 top-3 z-20 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-orange-500 px-3.5 py-1.5 text-[12px] font-black tracking-wide text-white shadow-[0_10px_26px_rgba(239,68,68,0.3)] ring-1 ring-white/10">
+        <div className="absolute right-3 top-3 z-30 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-orange-500 px-3.5 py-1.5 text-[12px] font-black tracking-wide text-white shadow-[0_10px_26px_rgba(239,68,68,0.3)] ring-1 ring-white/10">
           Giảm {discountPercent}%
         </div>
       )}
@@ -89,6 +91,7 @@ export default function ProductGridCard({ product }: ProductGridCardProps) {
             alt={product.name}
             className="h-full w-full object-cover"
           />
+          <ProductCardAttributeBadges badges={product.cardBadges} />
         </div>
 
         <div className="relative z-10 flex flex-1 flex-col p-4">

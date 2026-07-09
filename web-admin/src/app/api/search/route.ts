@@ -17,6 +17,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+const publicCacheHeaders = {
+  ...corsHeaders,
+  'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
+};
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -71,7 +76,7 @@ export async function GET(request: Request) {
         priceBounds,
         pagination: { page: safePage, limit, total, totalPages },
       },
-      { headers: corsHeaders },
+      { headers: publicCacheHeaders },
     );
   } catch (error) {
     console.error('[Search API] Error:', error);

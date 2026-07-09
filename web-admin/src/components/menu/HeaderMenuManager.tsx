@@ -99,6 +99,7 @@ const AREAS: Array<{ id: AreaId; label: string; description: string }> = [
   { id: 'circleStory', label: 'Circle Story', description: 'Dải story vòng tròn phía dưới header' },
   { id: 'shopByCategory', label: 'Shop by Category', description: 'Dải danh mục sản phẩm ở trang chủ' },
 ];
+const ALL_AREA_IDS = AREAS.map((area) => area.id);
 
 const STATUS_UNPUBLISHED = 'Có thay đổi chưa xuất bản';
 const STATUS_SYNCED = 'Đã đồng bộ bản live';
@@ -367,8 +368,8 @@ function collectPublicLinks(data: any) {
   return links;
 }
 
-function assertPublishedMenuMetadata(menu: MenuDraft, publicData: any) {
-  const expected = AREAS.flatMap((area) => collectDraftMetadataLinks(menu[area.id]));
+function assertPublishedMenuMetadata(menu: MenuDraft, publicData: any, areas: AreaId[]) {
+  const expected = areas.flatMap((area) => collectDraftMetadataLinks(menu[area]));
   if (expected.length === 0) return;
 
   const publicLinks = collectPublicLinks(publicData);
@@ -400,11 +401,28 @@ function previewItems(nodes: MenuNode[], selectedId: string | null | undefined, 
   return [...sliced.slice(0, Math.max(0, limit - 1)), selected];
 }
 
-export function HeaderMenuManager({ initialData }: { initialData: InitialData }) {
+type HeaderMenuManagerProps = {
+  initialData: InitialData;
+  allowedAreas?: readonly AreaId[];
+  title?: string;
+  sectionLabel?: string;
+  verifyEndpoint?: string;
+};
+
+export function HeaderMenuManager({
+  initialData,
+  allowedAreas = ALL_AREA_IDS,
+  title = 'Quản lý nội dung menu',
+  sectionLabel = 'Khu vực menu',
+  verifyEndpoint = '/api/menu/header',
+}: HeaderMenuManagerProps) {
   const [menu, setMenu] = useState<MenuDraft>(() => normalizeMenu(initialData.menu));
   const [settings, setSettings] = useState<MenuSettings>(() => normalizeSettings(initialData.settings));
-  const [activeArea, setActiveArea] = useState<AreaId>('zones');
-  const [selectedId, setSelectedId] = useState<string | null>(menu.zones[0]?.id || null);
+  const allowedAreaDefs = useMemo(() => AREAS.filter((area) => allowedAreas.includes(area.id)), [allowedAreas]);
+  const allowedAreaIds = useMemo(() => allowedAreaDefs.map((area) => area.id), [allowedAreaDefs]);
+  const firstArea = allowedAreaDefs[0]?.id || 'zones';
+  const [activeArea, setActiveArea] = useState<AreaId>(firstArea);
+  const [selectedId, setSelectedId] = useState<string | null>(menu[firstArea]?.[0]?.id || null);
   const [statusText, setStatusText] = useState(initialData.hasUnpublishedChanges ? STATUS_UNPUBLISHED : STATUS_SYNCED);
   const [errorText, setErrorText] = useState('');
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -416,7 +434,7 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
   const [isPending, startTransition] = useTransition();
 
   const selectedNode = findNodeInMenu(menu, selectedId);
-  const itemCount = useMemo(() => AREAS.reduce((total, area) => total + countNodes(menu[area.id]), 0), [menu]);
+  const itemCount = useMemo(() => allowedAreaDefs.reduce((total, area) => total + countNodes(menu[area.id]), 0), [allowedAreaDefs, menu]);
   const previewContext = useMemo(() => getPreviewContext(menu, activeArea, selectedId), [menu, activeArea, selectedId]);
   const iconPathByKey = useMemo(() => {
     const map = new Map<string, string>();
@@ -521,10 +539,10 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
         const response = await fetch('/api/admin/menus/header/publish', { method: 'POST' });
         const payload = await response.json();
         if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xuất bản');
-        const publicResponse = await fetch('/api/menu/header', { cache: 'no-store' });
+        const publicResponse = await fetch(verifyEndpoint, { cache: 'no-store' });
         const publicPayload = await publicResponse.json();
         if (!publicResponse.ok || !publicPayload.success) throw new Error('Khong the kiem tra menu public sau khi xuat ban');
-        assertPublishedMenuMetadata(menu, publicPayload.data);
+        assertPublishedMenuMetadata(menu, publicPayload.data, allowedAreaIds);
         setStatusText(STATUS_PUBLISHED);
       } catch (error: any) {
         setErrorText(error.message || 'Không thể xuất bản');
@@ -542,7 +560,7 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
         setMenu(normalizeMenu(payload.data.menu));
         setSettings(normalizeSettings(payload.data.settings));
         setExpandedIds({});
-        setSelectedId(payload.data.menu.zones?.[0]?.id ? String(payload.data.menu.zones[0].id) : null);
+        setSelectedId(payload.data.menu[firstArea]?.[0]?.id ? String(payload.data.menu[firstArea][0].id) : null);
         setStatusText(payload.data.hasUnpublishedChanges ? STATUS_UNPUBLISHED : STATUS_SYNCED);
       } catch (error: any) {
         setErrorText(error.message || 'Không thể tải lại');
@@ -595,7 +613,7 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
     <div className="flex h-full min-h-0 flex-col gap-3 p-3 text-gray-100">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-800 bg-gray-950/70 px-4 py-3">
         <div>
-          <h1 className="text-lg font-bold text-white">Quản lý nội dung menu</h1>
+          <h1 className="text-lg font-bold text-white">{title}</h1>
           <p className="mt-1 text-sm text-gray-400">
             Nháp v{initialData.draft.versionNumber} · {itemCount} mục · {statusText}
           </p>
@@ -617,9 +635,9 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
 
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[280px_minmax(0,1fr)_360px]">
         <aside className="rounded-lg border border-gray-800 bg-gray-950/70 p-3">
-          <div className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">Khu vực header</div>
+          <div className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">{sectionLabel}</div>
           <div className="space-y-2">
-            {AREAS.map((area) => (
+            {allowedAreaDefs.map((area) => (
               <button
                 key={area.id}
                 type="button"

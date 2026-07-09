@@ -1,9 +1,7 @@
-import { HeaderMenuManager } from '@/components/menu/HeaderMenuManager';
-import { getHeaderMenuAdmin } from '@/lib/admin/menus';
+import { redirect } from 'next/navigation';
 
 export const revalidate = 0;
 
 export default async function HeaderMenuPage() {
-  const initialData = await getHeaderMenuAdmin();
-  return <HeaderMenuManager initialData={initialData} />;
+  redirect('/content/menu/header');
 }

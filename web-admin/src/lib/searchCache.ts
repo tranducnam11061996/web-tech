@@ -1,6 +1,7 @@
 import Fuse from 'fuse.js';
 import type { RowDataPacket } from 'mysql2/promise';
 import pool from './db';
+import { getProductCardBadgesForProductIds, type ProductCardBadge } from './productCardAttributes';
 
 const CACHE_TTL_MS = 60_000;
 const unsafeFilterTextPattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
@@ -57,6 +58,7 @@ export interface SearchProduct {
   thumbnail: string;
   slug: string;
   brand: string;
+  cardBadges: ProductCardBadge[];
   filterValues: Map<string, Set<string>>;
 }
 
@@ -221,6 +223,7 @@ function createSearchProduct(row: ProductRow, override?: SearchWebhookProduct): 
       : 'https://via.placeholder.com/300',
     slug: row.slug ? row.slug.replace(/^\/+/, '') : `product-${row.id}`,
     brand: brandName,
+    cardBadges: [],
     filterValues: new Map(),
   };
 
@@ -351,6 +354,11 @@ async function refreshSearchCache() {
     if (product) registerAttribute(product, row, filters);
   }
 
+  const badgesByProduct = await getProductCardBadgesForProductIds(products.map((product) => product.id));
+  for (const product of products) {
+    product.cardBadges = badgesByProduct.get(product.id) || [];
+  }
+
   searchCache.cachedProducts = products;
   searchCache.filters = filters;
   rebuildFuseIndexes();
@@ -374,6 +382,14 @@ export async function ensureSearchCacheFresh(): Promise<void> {
     });
 
   return searchCache.warmPromise;
+}
+
+export function invalidateSearchCache() {
+  searchCache.cachedProducts = null;
+  searchCache.filters = new Map();
+  searchCache.shortFuse = null;
+  searchCache.longFuse = null;
+  searchCache.expiresAt = 0;
 }
 
 async function loadProductForCache(id: number) {
@@ -445,6 +461,8 @@ export function mutateSearchCache(
       for (const attribute of attributes) {
         registerAttribute(nextProduct, attribute, searchCache.filters);
       }
+      const badgesByProduct = await getProductCardBadgesForProductIds([nextProduct.id]);
+      nextProduct.cardBadges = badgesByProduct.get(nextProduct.id) || [];
     } else if (existing) {
       const storeSKU = decodeHtmlEntities(webhookProduct?.SKU ?? existing.storeSKU);
       const proName = decodeHtmlEntities(webhookProduct?.ten_san_pham ?? existing.proName);
@@ -471,6 +489,7 @@ export function mutateSearchCache(
         thumbnail: 'https://via.placeholder.com/300',
         slug: `product-${id}`,
         brand: 'Khác',
+        cardBadges: [],
         filterValues: new Map(),
       };
     }

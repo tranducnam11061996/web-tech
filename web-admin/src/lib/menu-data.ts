@@ -37,6 +37,7 @@ export const menuGroups = [
       { name: 'Quản lý khung sản phẩm', path: '/product/collection/product-frame' },
       { name: 'Biến thể sản phẩm', path: '/product/product-group' },
       { name: 'Quản lý thuộc tính', path: '/product/attribute-list' },
+      { name: 'Thông số trên card', path: '/product/card-attributes' },
       { name: 'Danh sách thương hiệu', path: '/product/brand' }
     ]
   },
@@ -82,7 +83,7 @@ export const menuGroups = [
     icon: Megaphone,
     items: [
       { name: 'Danh sách banner', path: '/banner/banner-list' },
-      { name: 'Danh sách vị trí banner', path: '#' },
+      { name: 'Danh sách vị trí banner', path: '/banner/locations' },
       { name: 'Facebook Product Ads', path: '#' },
       { name: 'Update Excel SEO sản phẩm', path: '#' },
       { name: 'Quản lý chi nhánh', path: '#' }
@@ -95,7 +96,8 @@ export const menuGroups = [
       { name: 'Danh sách nội dung cố định', path: '#' },
       { name: 'Danh sách ảnh khách hàng', path: '#' },
       { name: 'Danh sách media', path: '#' },
-      { name: 'Quản lý nội dung menu', path: '/content/menu' }
+      { name: 'Menu header', path: '/content/menu/header' },
+      { name: 'Kh\u1ed1i menu trang ch\u1ee7', path: '/content/menu/homepage' }
     ]
   },
   {

@@ -1,6 +1,7 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { mutateSearchCache } from '@/lib/searchCache';
+import { invalidateProductCardAttributeCaches } from '@/lib/productCardAttributes';
 import {
   AdminApiError,
   AdminEntityType,
@@ -554,6 +555,7 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
   });
 
   try {
+    invalidateProductCardAttributeCaches();
     await mutateSearchCache(saved.id, saved.isUpdate ? 'UPDATE' : 'ADD', {
       SKU: saved.sku,
       ten_san_pham: saved.name,
@@ -705,12 +707,19 @@ export async function updateProductSection(productId: number, section: ProductSe
     return { id: productId, section, attributeValueIds: attrValueIds };
   });
 
-  if (section === 'basic') {
+  if (['basic', 'category', 'attributes'].includes(section)) {
     try {
-      await mutateSearchCache(saved.id, 'UPDATE', {
-        SKU: saved.sku,
-        ten_san_pham: saved.name,
-      });
+      invalidateProductCardAttributeCaches();
+      await mutateSearchCache(
+        saved.id,
+        'UPDATE',
+        section === 'basic'
+          ? {
+              SKU: (saved as { sku?: string }).sku,
+              ten_san_pham: (saved as { name?: string }).name,
+            }
+          : undefined,
+      );
     } catch (error) {
       console.error('[SearchCache] Failed to sync product section:', error);
     }
@@ -761,6 +770,7 @@ export async function deleteProduct(id: number, mode: string) {
 
   if (result.deleted) {
     try {
+      invalidateProductCardAttributeCaches();
       await mutateSearchCache(id, 'DELETE');
     } catch (error) {
       console.error('[SearchCache] Failed to remove deleted product:', error);
@@ -775,11 +785,13 @@ export async function bulkProducts(ids: number[], action: string) {
     for (const id of ids) await deleteProduct(id, 'permanent');
     return { ids, action };
   }
-  return withTransaction(async (connection) => {
+  const result = await withTransaction(async (connection) => {
     const status = action === 'restore' ? 1 : 0;
     await connection.query(`UPDATE idv_sell_product_price SET isOn = ? WHERE id IN (${ids.map(() => '?').join(',')})`, [status, ...ids]);
     return { ids, action: action === 'restore' ? 'restore' : 'hide' };
   });
+  invalidateProductCardAttributeCaches();
+  return result;
 }
 
 async function hasDescendant(connection: PoolConnection, table: string, id: number, parentId: number) {
@@ -1068,6 +1080,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
     const affectedProductIds = Array.isArray((result as { affectedProductIds?: number[] }).affectedProductIds)
       ? (result as { affectedProductIds: number[] }).affectedProductIds
       : [];
+    invalidateProductCardAttributeCaches();
     await Promise.all(affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
   }
 
@@ -1304,6 +1317,7 @@ export async function deleteBrand(id: number, mode: string) {
     return { id, deleted: true, affectedProductIds };
   });
 
+  invalidateProductCardAttributeCaches();
   if (mode === 'permanent') {
     await Promise.all(result.affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
   }
@@ -1333,6 +1347,7 @@ export async function deleteAttribute(id: number, mode: string) {
     return { id, deleted: true, affectedProductIds };
   });
 
+  invalidateProductCardAttributeCaches();
   if (mode === 'permanent') {
     await Promise.all(result.affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
   }

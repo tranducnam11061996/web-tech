@@ -1,23 +1,19 @@
 import { Fragment, type CSSProperties } from 'react';
 import { type MenuLinkObject } from '../menuData';
+import { cleanMenuTextTrimmed, resolveMenuHexColor, resolveMenuMediaUrl } from '@/lib/menuUtils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 function cleanStoryText(value: unknown) {
-  return String(value || '').trim();
+  return cleanMenuTextTrimmed(value);
 }
 
 function resolveStoryImageUrl(value?: string) {
-  const url = cleanStoryText(value);
-  if (!url) return '';
-  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
-  if (url.startsWith('/api/media/')) return `${API_URL}${url}`;
-  return url;
+  return resolveMenuMediaUrl(value);
 }
 
 function resolveStoryColor(value?: string) {
-  const color = cleanStoryText(value).replace(/^#/, '').toLowerCase();
-  return /^[0-9a-f]{3}([0-9a-f]{3})?$/.test(color) ? `#${color}` : '';
+  return resolveMenuHexColor(value);
 }
 
 function storyBackgroundStyle(item: MenuLinkObject): CSSProperties | undefined {
@@ -42,7 +38,7 @@ function renderStoryText(text: string) {
 
 async function getCircleStoryItems(): Promise<MenuLinkObject[]> {
   try {
-    const response = await fetch(`${API_URL}/api/menu/header`, { cache: 'no-store' });
+    const response = await fetch(`${API_URL}/api/menu/homepage`, { next: { revalidate: 60 } });
     if (!response.ok) return [];
 
     const payload = await response.json();

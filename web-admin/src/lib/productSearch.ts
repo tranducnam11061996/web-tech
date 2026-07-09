@@ -299,5 +299,6 @@ export function formatSearchProduct(product: SearchProduct) {
     thumbnail: product.thumbnail,
     slug: product.slug,
     brand: product.brand,
+    cardBadges: product.cardBadges,
   };
 }

@@ -75,10 +75,27 @@ type MenuItemRow = RowDataPacket & {
 
 const HEADER_MENU_CODE = 'header';
 const HEADER_MENU_AREAS: HeaderMenuArea[] = ['zones', 'faves', 'topNav', 'utilityLinks', 'circleStory', 'shopByCategory'];
+const HEADER_RUNTIME_AREAS: HeaderMenuArea[] = ['zones', 'faves', 'topNav', 'utilityLinks'];
+const HOMEPAGE_RUNTIME_AREAS: HeaderMenuArea[] = ['circleStory', 'shopByCategory'];
 const DEFAULT_HEADER_MENU_SETTINGS: HeaderMenuSettings = {
   zonesLabel: 'Danh Mục',
   favesLabel: 'Nổi bật',
 };
+const PUBLIC_MENU_CACHE_TTL_MS = 5 * 60 * 1000;
+const PUBLIC_MENU_FALLBACK_CACHE_TTL_MS = 10 * 1000;
+
+type PublicMenuCacheKey = 'header' | 'homepage';
+type PublicMenuPayload = Record<string, unknown> & {
+  meta?: Record<string, unknown> & { fallback?: boolean };
+};
+type PublicMenuCacheEntry = {
+  value: PublicMenuPayload;
+  expiresAt: number;
+};
+
+const publicMenuCache = new Map<PublicMenuCacheKey, PublicMenuCacheEntry>();
+const publicMenuInflight = new Map<PublicMenuCacheKey, Promise<PublicMenuPayload>>();
+let publicMenuCacheGeneration = 0;
 
 const MENU_TEXT_REPAIRS: Array<[RegExp, string]> = [
   [/Danh M\u00e1\u00bb\u00a5c/g, 'Danh Mục'],
@@ -605,6 +622,7 @@ export async function publishHeaderMenuDraft() {
     await connection.query(`UPDATE web_admin_menu_versions SET status = 'archived' WHERE menu_id = ? AND status = 'published'`, [menuId]);
     const publishedId = await createVersion(connection, menuId, 'published', normalizeHeaderMenuSettings(draftVersion.settings_json));
     await copyItemsToVersion(connection, draftVersion.id, publishedId);
+    clearPublicMenuCache();
     return { id: publishedId };
   });
 }
@@ -684,7 +702,49 @@ function rowToPublicLink(row: MenuItemRow, maps: UrlMaps) {
   };
 }
 
-export async function getPublishedHeaderMenu() {
+async function getCachedPublicMenu(key: PublicMenuCacheKey, loader: () => Promise<PublicMenuPayload>) {
+  const now = Date.now();
+  const cached = publicMenuCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.value;
+
+  const inflight = publicMenuInflight.get(key);
+  if (inflight) return inflight;
+
+  const generation = publicMenuCacheGeneration;
+  const promise = loader()
+    .then((payload) => {
+      const cachedAt = new Date().toISOString();
+      const value = {
+        ...payload,
+        meta: {
+          ...(payload.meta || {}),
+          cacheKey: key,
+          cacheCreatedAt: cachedAt,
+        },
+      };
+      const ttl = value.meta?.fallback ? PUBLIC_MENU_FALLBACK_CACHE_TTL_MS : PUBLIC_MENU_CACHE_TTL_MS;
+      if (generation === publicMenuCacheGeneration) {
+        publicMenuCache.set(key, { value, expiresAt: Date.now() + ttl });
+      }
+      return value;
+    })
+    .finally(() => {
+      if (generation === publicMenuCacheGeneration) {
+        publicMenuInflight.delete(key);
+      }
+    });
+
+  publicMenuInflight.set(key, promise);
+  return promise;
+}
+
+export function clearPublicMenuCache() {
+  publicMenuCacheGeneration += 1;
+  publicMenuCache.clear();
+  publicMenuInflight.clear();
+}
+
+async function buildPublishedPublicMenu() {
   try {
     const version = await getVersion(pool, 'published');
     if (!version) return buildPublicMenuFromSeed();
@@ -700,6 +760,40 @@ export async function getPublishedHeaderMenu() {
     console.error('[HeaderMenu] Falling back to seed:', error);
     return buildPublicMenuFromSeed();
   }
+}
+
+function pickHeaderMenu(menu: ReturnType<typeof buildPublicMenu>) {
+  return {
+    zones: menu.zones,
+    faves: menu.faves,
+    topNav: menu.topNav,
+    utilityLinks: menu.utilityLinks,
+    labels: menu.labels,
+    settings: menu.settings,
+    meta: {
+      ...(menu.meta || {}),
+      areas: HEADER_RUNTIME_AREAS,
+    },
+  };
+}
+
+function pickHomepageMenu(menu: ReturnType<typeof buildPublicMenu>) {
+  return {
+    circleStory: menu.circleStory,
+    shopByCategory: menu.shopByCategory,
+    meta: {
+      ...(menu.meta || {}),
+      areas: HOMEPAGE_RUNTIME_AREAS,
+    },
+  };
+}
+
+export async function getPublishedHeaderMenu() {
+  return getCachedPublicMenu('header', async () => pickHeaderMenu(await buildPublishedPublicMenu()));
+}
+
+export async function getPublishedHomepageMenu() {
+  return getCachedPublicMenu('homepage', async () => pickHomepageMenu(await buildPublishedPublicMenu()));
 }
 
 function buildPublicMenu(rows: MenuItemRow[], maps: UrlMaps, meta: Record<string, unknown>) {

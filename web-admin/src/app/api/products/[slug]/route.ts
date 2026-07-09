@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { groupProductImages, listProductImages } from '@/lib/admin/images';
+import { getPublicCategoryFeatureBox } from '@/lib/categoryFeatureBoxes';
+
+const publicCacheHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
+};
 
 export async function GET(
   request: NextRequest,
@@ -40,7 +46,12 @@ export async function GET(
           staticHtml = catData[0].static_html;
         }
 
-        return NextResponse.json({ success: true, type: 'category', data: { id: categoryId, type: 'category', name, summary, imgBig, metaTitle, staticHtml } });
+        const featureBox = await getPublicCategoryFeatureBox(Number(categoryId), 'category');
+        return NextResponse.json({
+          success: true,
+          type: 'category',
+          data: { id: categoryId, type: 'category', name, summary, imgBig, metaTitle, staticHtml, featureBox },
+        }, { headers: publicCacheHeaders });
       }
     }
 

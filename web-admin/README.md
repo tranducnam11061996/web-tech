@@ -1,6 +1,6 @@
 # HACOM Backend API and Admin Dashboard
 
-Last audited: 2026-07-07
+Last audited: 2026-07-09
 
 `web-admin` is the only app that connects directly to MySQL. It serves internal admin screens and public API routes consumed by the storefront.
 
@@ -61,8 +61,8 @@ npm.cmd run build
 
 Known checks:
 
-- Typecheck passed on 2026-07-07.
-- Build passed on 2026-07-07 with increased Node memory.
+- Typecheck passed on 2026-07-09.
+- Build passed on 2026-07-09 with increased Node memory.
 - Lint is not clean because of legacy issues.
 
 ## Storefront APIs
@@ -72,8 +72,14 @@ Known checks:
 | `/api/products/[slug]` | `GET` | Resolve product or category slug |
 | `/api/products` | `GET` | Product list, pagination, filters, sorting |
 | `/api/categories` | `GET` | Category tree/subcategories |
+| `/api/categories/homepage-feature-sections` | `GET` | Homepage category sections with configured first boxes |
 | `/api/categories/price-bounds` | `GET` | Category min/max price |
 | `/api/categories/attributes` | `GET` | Attribute and brand filters |
+| `/api/menu/header` | `GET` | All-site header menu data |
+| `/api/menu/homepage` | `GET` | Homepage-only Circle Story and Shop by Category menu blocks |
+| `/api/banners/homepage` | `GET` | Homepage banner groups |
+| `/api/banners/global` | `GET` | Global banner groups |
+| `/api/banners/location/[locationKey]` | `GET` | One banner location |
 | `/api/search` | `GET` | Search products using `product_data_search` |
 | `/api/cart/quote` | `GET`, `POST`, `OPTIONS` | Validate cart items against DB |
 | `/api/orders` | `GET`, `POST`, `OPTIONS` | Create order transaction |
@@ -98,6 +104,15 @@ Admin write endpoints are same-origin and require `ADMIN_WRITE_ENABLED=true`.
 | `/api/admin/articles/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete article |
 | `/api/admin/article-categories` | `GET`, `POST` | List/create article categories |
 | `/api/admin/article-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete article category |
+| `/api/admin/menus/header` | `GET`, `PATCH` | Header menu draft data |
+| `/api/admin/menus/header/publish` | `POST` | Publish menu draft |
+| `/api/admin/menus/header/images/upload` | `POST` | Upload menu images |
+| `/api/admin/banners` | `GET`, `POST` | List/create banners |
+| `/api/admin/banners/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/delete banner |
+| `/api/admin/banners/images/upload` | `POST` | Upload banner image |
+| `/api/admin/banner-locations` | `GET`, `POST` | List/create banner locations |
+| `/api/admin/banner-locations/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/delete banner location |
+| `/api/admin/product-card-attribute-rules` | `GET`, `POST` | Configure product-card attribute badges |
 | `/api/admin/migrate` | `POST` | Create admin helper tables when writes are enabled |
 
 ## Search
@@ -148,6 +163,20 @@ $env:ADMIN_WRITE_ENABLED='true'
 $env:ADMIN_DRY_RUN='false'
 npm.cmd run admin:migrate
 ```
+
+Current admin migration creates/updates:
+
+- `web_admin_sequence`
+- `web_admin_entity_registry`
+- `web_admin_product_images`
+- `web_admin_menus`
+- `web_admin_menu_versions`
+- `web_admin_menu_items`
+- `web_admin_banner_meta`
+- `web_admin_product_card_attribute_rules`
+- `web_admin_category_feature_boxes`
+
+No legacy table column is added for menu/banner/product-card/category first-box features.
 
 Uploaded files are stored under:
 

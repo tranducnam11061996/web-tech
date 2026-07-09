@@ -1,6 +1,6 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-07`  
+Verified: `2026-07-09`  
 Database: `hanoi23_db`  
 Source: live `information_schema` inspection
 
@@ -14,9 +14,27 @@ Source: live `information_schema` inspection
 | `latin1_swedish_ci` tables | 243 |
 | `utf8mb4_unicode_ci` tables | 1 |
 
-The only audited `utf8mb4_unicode_ci` table is `product_data_search`.
+The only audited `utf8mb4_unicode_ci` table in the live snapshot was `product_data_search`. New `web_admin_*` helper tables created by current migrations also use `utf8mb4`.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
+
+## Latest Migration Note
+
+The latest feature work intentionally avoids adding columns to legacy tables such as `idv_seller_category`, `idv_seller_ad`, or attribute tables. New runtime/admin metadata is stored in helper tables:
+
+- `web_admin_menus`
+- `web_admin_menu_versions`
+- `web_admin_menu_items`
+- `web_admin_banner_meta`
+- `web_admin_product_card_attribute_rules`
+- `web_admin_category_feature_boxes`
+
+On older installs where menu tables were created before the latest menu fields, `admin:migrate` may add helper-table columns:
+
+- `web_admin_menu_versions.settings_json`
+- `web_admin_menu_items.background_color`
+- `web_admin_menu_items.image_url`
+- `web_admin_menu_items.sub_text`
 
 ## Core Product Tables
 
@@ -230,6 +248,172 @@ Expected indexes:
 
 The image upload feature syncs this metadata back to legacy `proThum`, `image_collection`, and `image_count`.
 
+## Menu, Banner, Product Card, and Category Feature Tables
+
+These tables are created or updated by:
+
+```powershell
+cd D:\web-tech\web-admin
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run admin:migrate
+```
+
+### `web_admin_menus`
+
+Draft/publish root table for managed menus.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | `int unsigned` auto increment | Menu id |
+| `code` | `varchar(64)` | Stable menu code, unique |
+| `name` | `varchar(255)` | Admin label |
+| `created_at` | `timestamp` | Created time |
+| `updated_at` | `timestamp` | Last update |
+
+Indexes:
+
+- Primary key: `id`.
+- Unique key: `uk_web_admin_menus_code(code)`.
+
+### `web_admin_menu_versions`
+
+Stores draft, published, and archived versions for each menu.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | `int unsigned` auto increment | Version id |
+| `menu_id` | `int unsigned` | FK to `web_admin_menus.id` |
+| `version_number` | `int unsigned` | Incrementing version number |
+| `status` | `varchar(24)` | `draft`, `published`, or `archived` |
+| `settings_json` | `text` | Version settings such as header labels |
+| `created_at` | `timestamp` | Created time |
+| `updated_at` | `timestamp` | Last update |
+| `published_at` | `timestamp null` | Publish time |
+
+Indexes/FK:
+
+- Primary key: `id`.
+- `idx_web_admin_menu_versions_menu_status(menu_id, status)`.
+- `idx_web_admin_menu_versions_published(menu_id, published_at)`.
+- FK `menu_id -> web_admin_menus.id` with cascade.
+
+Migration note: `settings_json` may be added by `admin:migrate` if the table already exists from an older build.
+
+### `web_admin_menu_items`
+
+Stores tree/list items for header and homepage menu areas.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | `int unsigned` auto increment | Item id |
+| `version_id` | `int unsigned` | FK to `web_admin_menu_versions.id` |
+| `area` | `varchar(32)` | Runtime area such as zones, faves, topNav, utilityLinks, circleStory, shopByCategory |
+| `parent_id` | `int unsigned null` | Optional parent item |
+| `node_type` | `varchar(24)` | Group/link/card style |
+| `label` | `varchar(255)` | Display text |
+| `icon_key` | `varchar(64)` | Icon key |
+| `badge_text` | `varchar(64)` | Optional badge |
+| `suffix_text` | `varchar(64)` | Optional suffix |
+| `background_color` | `varchar(6)` | Optional hex color without `#` |
+| `image_url` | `varchar(512)` | Optional image/media URL |
+| `sub_text` | `varchar(255)` | Optional secondary text |
+| `link_mode` | `varchar(24)` | `custom` or entity-driven mode |
+| `entity_type` | `varchar(64)` | Optional entity type |
+| `entity_id` | `int unsigned null` | Optional entity id |
+| `custom_url` | `varchar(512)` | Custom target URL |
+| `url_override` | `varchar(512)` | Forced target URL |
+| `ordering` | `int` | Sort order |
+| `is_active` | `tinyint(1)` | Active flag |
+| `desktop_visible` | `tinyint(1)` | Desktop visibility |
+| `mobile_visible` | `tinyint(1)` | Mobile visibility |
+| `created_at` | `timestamp` | Created time |
+| `updated_at` | `timestamp` | Last update |
+
+Indexes/FK:
+
+- Primary key: `id`.
+- `idx_web_admin_menu_items_version_area(version_id, area, parent_id, ordering)`.
+- `idx_web_admin_menu_items_parent(parent_id)`.
+- `idx_web_admin_menu_items_entity(entity_type, entity_id)`.
+- FK `version_id -> web_admin_menu_versions.id` with cascade.
+- FK `parent_id -> web_admin_menu_items.id` with cascade.
+
+Migration note: `background_color`, `image_url`, and `sub_text` may be added by `admin:migrate` if missing.
+
+### `web_admin_banner_meta`
+
+Optional modern display metadata for legacy banner rows in `idv_seller_ad`. No physical FK is created.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `ad_id` | `int unsigned` PK | Logical reference to `idv_seller_ad.id` |
+| `mobile_file_url` | `varchar(512)` | Optional mobile image URL |
+| `alt_text` | `varchar(255)` | Image alt text |
+| `headline` | `varchar(255)` | Hybrid banner headline |
+| `subheading` | `varchar(512)` | Hybrid banner subheading |
+| `cta_label` | `varchar(120)` | CTA text |
+| `background_color` | `varchar(16)` | Optional background color |
+| `text_color` | `varchar(16)` | Optional text color |
+| `render_mode` | `varchar(24)` | `image` or `hybrid` |
+| `style_json` | `text null` | Extra style metadata |
+| `updated_at` | `timestamp` | Last update |
+
+### `web_admin_product_card_attribute_rules`
+
+Rules that decide which attribute values appear as badges on product cards.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `id` | `int unsigned` auto increment | Rule id |
+| `category_id` | `int` | Logical reference to `idv_seller_category.id` |
+| `attr_id` | `int` | Logical reference to `idv_attribute.id` |
+| `slot` | `varchar(32)` | `image_top_left` or `image_bottom_center` |
+| `color_variant` | `varchar(24)` | Badge color variant |
+| `label_template` | `varchar(120)` | Optional display template |
+| `value_mode` | `varchar(24)` | `value` or `attribute_value` |
+| `max_values` | `tinyint unsigned` | Max values to render |
+| `ordering` | `smallint` | Sort order |
+| `status` | `tinyint(1)` | Active flag |
+| `inherit_to_children` | `tinyint(1)` | Apply to child categories |
+| `updated_at` | `timestamp` | Last update |
+
+Indexes:
+
+- Primary key: `id`.
+- Unique key: `uniq_category_attr_slot(category_id, attr_id, slot)`.
+- `idx_category_status(category_id, status)`.
+- `idx_attr(attr_id)`.
+
+Migration seeds default laptop badge rules when matching laptop categories and attributes exist.
+
+### `web_admin_category_feature_boxes`
+
+Category-scoped first-box metadata for homepage category sections and the top of category pages. No column is added to `idv_seller_category`.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `category_id` | `int unsigned` PK | Logical reference to `idv_seller_category.id` |
+| `homepage_enabled` | `tinyint(1)` | Show in homepage category section |
+| `category_page_enabled` | `tinyint(1)` | Show on category page |
+| `box_position` | `varchar(16)` | `left` or `right` |
+| `render_mode` | `varchar(24)` | `image` or `hybrid` |
+| `background_image_url` | `varchar(512)` | Desktop background image |
+| `mobile_background_image_url` | `varchar(512)` | Optional mobile background image |
+| `target_url` | `varchar(512)` | Link target; storefront opens new tab |
+| `headline` | `varchar(255)` | Hybrid headline |
+| `subheading` | `varchar(512)` | Hybrid subheading |
+| `cta_label` | `varchar(120)` | Hybrid CTA label |
+| `text_color` | `varchar(16)` | Text color |
+| `overlay_color` | `varchar(16)` | Background/overlay color |
+| `button_style_json` | `text null` | CTA button style JSON |
+| `updated_at` | `timestamp` | Last update |
+
+Indexes:
+
+- Primary key: `category_id`.
+- `idx_homepage_enabled(homepage_enabled)`.
+- `idx_category_page_enabled(category_page_enabled)`.
+
 ## Admin Helper Tables
 
 ### `web_admin_sequence`
@@ -289,4 +473,3 @@ SELECT
     WHERE s.product_id IS NULL
   ) AS missing_count;
 ```
-

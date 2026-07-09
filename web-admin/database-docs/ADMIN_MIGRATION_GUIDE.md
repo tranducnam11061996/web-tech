@@ -1,6 +1,6 @@
 # Admin and Search Migration Guide
 
-Last audited: 2026-07-07
+Last audited: 2026-07-09
 
 This guide is for database-changing scripts in `web-admin`. Read it before running migrations on any shared or production-like database.
 
@@ -26,6 +26,10 @@ Verified against the configured database on 2026-07-07:
 | `web_admin_sequence` | Present, row `product -> 90788` |
 | `web_admin_entity_registry` | Present, empty |
 | `web_admin_product_images` | Not present in live DB at audit time; implemented in code and created by admin migration when writes are enabled |
+| `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items` | Implemented in code and created/updated by admin migration |
+| `web_admin_banner_meta` | Implemented in code and created by admin migration |
+| `web_admin_product_card_attribute_rules` | Implemented in code, created and seeded by admin migration |
+| `web_admin_category_feature_boxes` | Implemented in code and created by admin migration |
 
 ## Environment
 
@@ -59,7 +63,9 @@ Purpose:
 
 - Create helper tables used by admin write flows.
 - Seed `web_admin_sequence`.
-- Create the new product image album metadata table.
+- Create/update the product image album metadata table.
+- Create/seed the menu draft-publish tables.
+- Create banner metadata, product-card attribute rule, and category feature-box tables.
 
 Command:
 
@@ -146,6 +152,35 @@ SHOW CREATE TABLE web_admin_product_images;
 SHOW INDEX FROM web_admin_product_images;
 ```
 
+Check new content/helper tables after admin migration:
+
+```sql
+SHOW CREATE TABLE web_admin_menus;
+SHOW CREATE TABLE web_admin_menu_versions;
+SHOW CREATE TABLE web_admin_menu_items;
+SHOW CREATE TABLE web_admin_banner_meta;
+SHOW CREATE TABLE web_admin_product_card_attribute_rules;
+SHOW CREATE TABLE web_admin_category_feature_boxes;
+```
+
+Fast existence check:
+
+```sql
+SELECT TABLE_NAME
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+  AND TABLE_NAME IN (
+    'web_admin_product_images',
+    'web_admin_menus',
+    'web_admin_menu_versions',
+    'web_admin_menu_items',
+    'web_admin_banner_meta',
+    'web_admin_product_card_attribute_rules',
+    'web_admin_category_feature_boxes'
+  )
+ORDER BY TABLE_NAME;
+```
+
 ## Product Image Migration Status
 
 The code now supports album-based product images:
@@ -164,9 +199,32 @@ Legacy image fields remain important:
 
 After admin image writes, the code syncs metadata back to those legacy fields so existing list pages and APIs keep working.
 
+## Menu, Banner, Product Card Badge, and Category Feature Migration Status
+
+`admin:migrate` currently calls:
+
+- `ensureAdminTables()`
+- `ensureProductImageTable()`
+- `ensureHeaderMenuSeeded()`
+- `ensureBannerMetaTable()`
+- `ensureProductCardAttributeRulesTable()`
+- `ensureCategoryFeatureBoxTable()`
+
+New helper tables and columns:
+
+- `web_admin_menus`: `id`, `code`, `name`, `created_at`, `updated_at`.
+- `web_admin_menu_versions`: `id`, `menu_id`, `version_number`, `status`, `settings_json`, `created_at`, `updated_at`, `published_at`.
+- `web_admin_menu_items`: `id`, `version_id`, `area`, `parent_id`, `node_type`, `label`, `icon_key`, `badge_text`, `suffix_text`, `background_color`, `image_url`, `sub_text`, `link_mode`, `entity_type`, `entity_id`, `custom_url`, `url_override`, `ordering`, `is_active`, `desktop_visible`, `mobile_visible`, `created_at`, `updated_at`.
+- `web_admin_banner_meta`: `ad_id`, `mobile_file_url`, `alt_text`, `headline`, `subheading`, `cta_label`, `background_color`, `text_color`, `render_mode`, `style_json`, `updated_at`.
+- `web_admin_product_card_attribute_rules`: `id`, `category_id`, `attr_id`, `slot`, `color_variant`, `label_template`, `value_mode`, `max_values`, `ordering`, `status`, `inherit_to_children`, `updated_at`.
+- `web_admin_category_feature_boxes`: `category_id`, `homepage_enabled`, `category_page_enabled`, `box_position`, `render_mode`, `background_image_url`, `mobile_background_image_url`, `target_url`, `headline`, `subheading`, `cta_label`, `text_color`, `overlay_color`, `button_style_json`, `updated_at`.
+
+No legacy table column is added for these features. `idv_seller_category`, `idv_seller_ad`, and attribute tables remain canonical for their legacy data.
+
 ## Rollback Notes
 
 - Do not drop `product_data_search` without also changing `/api/search` and webhook/rebuild paths.
 - Do not remove search triggers unless a replacement sync path is ready.
 - Do not delete uploaded files outside `MEDIA_ROOT`.
 - If product image migration needs rollback, keep legacy fields populated before disabling the new table/code path.
+- If menu/banner/badge/category feature rollback is needed, disable the corresponding UI/API code before dropping `web_admin_*` helper tables. Legacy catalog/banner/category data should remain untouched.

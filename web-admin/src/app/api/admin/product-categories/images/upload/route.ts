@@ -7,7 +7,7 @@ import { getMediaRoot, isPathInside } from '@/lib/admin/media-storage';
 export const runtime = 'nodejs';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_FIELDS = new Set(['imgUrl', 'img_big']);
+const ALLOWED_FIELDS = new Set(['imgUrl', 'img_big', 'feature_background', 'feature_mobile_background']);
 const ALLOWED_MIME = new Map([
   ['image/jpeg', '.jpg'],
   ['image/png', '.png'],

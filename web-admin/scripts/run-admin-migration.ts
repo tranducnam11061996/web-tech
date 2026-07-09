@@ -4,6 +4,7 @@ import { ensureProductImageTable } from '../src/lib/admin/images';
 import { ensureHeaderMenuSeeded } from '../src/lib/admin/menus';
 import { ensureBannerMetaTable } from '../src/lib/admin/banners';
 import { ensureProductCardAttributeRulesTable } from '../src/lib/productCardAttributes';
+import { ensureCategoryFeatureBoxTable } from '../src/lib/categoryFeatureBoxes';
 
 async function main() {
   requireAdminWrite();
@@ -12,6 +13,7 @@ async function main() {
   await ensureHeaderMenuSeeded();
   await ensureBannerMetaTable();
   await ensureProductCardAttributeRulesTable();
+  await ensureCategoryFeatureBoxTable();
   console.log('Admin migration completed.');
 }
 

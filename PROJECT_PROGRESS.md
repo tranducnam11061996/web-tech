@@ -13,8 +13,11 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | Admin CRUD | Implemented first pass | Writes are gated by `ADMIN_WRITE_ENABLED=true`; auth/authorization is still missing |
 | Search infrastructure | Implemented and present in live DB | `product_data_search` has 28,763 rows and 0 missing products at audit time |
 | Product image albums | Implemented in code, DB migration pending | `web_admin_product_images` code exists; table was not present in live DB at audit time |
-| Header menu management | Implemented, needs live smoke test | Admin menu manager, draft/publish API, storefront fetch, labels, preview, collapse tree, mojibake/icon fixes, and Circle Story data binding are in code |
-| Documentation audit | Updated | Core handoff docs refreshed on 2026-07-07 |
+| Header/homepage menu management | Implemented, needs live smoke test | Admin is split into `/content/menu/header` and `/content/menu/homepage`; public APIs are split into `/api/menu/header` and `/api/menu/homepage` |
+| Banner carousel management | Implemented, DB migration pending | Uses legacy banner tables plus `web_admin_banner_meta`; public banner APIs and cache are in code |
+| Product card attribute badges | Implemented, DB migration pending | Admin `/product/card-attributes`, public `cardBadges`, cache, and storefront badge renderer are in code |
+| Category first box layout | Implemented, DB migration pending | Admin category edit adds first-box settings without removing legacy fields; homepage/category rendering and cache are in code |
+| Documentation audit | Updated | Core handoff docs refreshed on 2026-07-09 with new menu/banner/badge/category metadata notes |
 
 ## Completed Work
 
@@ -30,14 +33,18 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | Header menu admin UI | `/content/menu` supports live preview, editable `Danh Mục`/`Nổi bật` labels, expand/collapse tree, area switching, quick custom links, save draft, and publish |
 | Header storefront integration | `font-end` header loads public menu data, falls back locally, renders `Danh Mục`/`Nổi bật`, and repairs known mojibake values |
 | Header icon/text cleanup | Header chrome icons now use `lucide-react`; Vietnamese labels/placeholders render with encoded strings or repair helpers |
-| Circle Story section binding | Circle Story no longer renders from `Header`; `Section2.tsx` reads `/api/menu/header` and binds `circleStory` into the existing `.story-*` markup without CSS changes |
+| Circle Story section binding | Circle Story no longer renders from `Header`; `Section2.tsx` reads `/api/menu/homepage` and binds `circleStory` into the existing `.story-*` markup without CSS changes |
+| Circle Story / Shop by Category API split | Homepage-only menu blocks are served by `/api/menu/homepage`; non-home pages should only load `/api/menu/header` |
+| Banner carousel | Admin banner list/edit/location screens use legacy `idv_seller_ad*` tables plus `web_admin_banner_meta`; public APIs are `/api/banners/homepage`, `/api/banners/global`, and `/api/banners/location/[locationKey]` |
+| Product card badges | Attribute badge rules are stored in `web_admin_product_card_attribute_rules`; `/api/products` and `/api/search` return `cardBadges` per product |
+| Category first box | Product category edit saves `featureBox` into `web_admin_category_feature_boxes`; `/api/products/[slug]`, `/api/products`, and `/api/categories/homepage-feature-sections` expose it |
 | Build verification | `web-admin` and `font-end` builds passed with increased Node memory |
 
 ## Important Pending Work
 
-1. Run the admin migration with writes enabled on the intended database to create `web_admin_product_images`.
-2. Run admin migrations for header menu tables/settings on the intended database, then smoke-test `/content/menu` save draft, publish, and storefront header at `localhost:3001`.
-3. Verify image upload end to end: upload each type, reload admin edit page, check storefront tabs, check legacy `proThum/image_collection/image_count`.
+1. Run the admin migration with writes enabled on the intended database to create all helper tables: `web_admin_product_images`, menu tables, `web_admin_banner_meta`, `web_admin_product_card_attribute_rules`, and `web_admin_category_feature_boxes`.
+2. Smoke-test `/content/menu/header`, `/content/menu/homepage`, `/banner/banner-list`, `/product/card-attributes`, and `/product/categories-edit?id=1106`.
+3. Verify image/banner/category upload end to end: upload each type, reload admin edit page, check storefront tabs/sections, and check legacy fields where sync is expected.
 4. Add authentication and authorization before enabling admin write routes outside a trusted environment.
 5. Harden checkout before production: rate limit, CORS allowlist, request validation, backend quantity rules, idempotency, and safer error responses.
 6. Add integration tests around order transaction rollback and search/image/menu migration behavior.
@@ -54,6 +61,7 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | Header menu frontend/admin typecheck | Pass | Rechecked on 2026-07-09 with `npx tsc --noEmit` in both apps |
 | Header menu frontend/admin build | Pass | Rechecked on 2026-07-09 with `npm run build` in both apps; `web-admin` still shows the known multi-lockfile Next warning |
 | Circle Story Section2 binding | Pass | Rechecked on 2026-07-09 with `npx tsc --noEmit` and `npm run build` in `font-end` after moving story render out of `Header` |
+| Menu/banner/product-card/category feature work | Pass | Rechecked on 2026-07-09 with typecheck/build in both apps after cache/API/admin/storefront changes |
 | `web-admin` admin migration without write flag | Expected failure | Safety gate rejects when `ADMIN_WRITE_ENABLED` is not `true` |
 | Search DB health | Pass | Product rows = search rows = 28,763; missing = 0 |
 | `web-admin` lint | Not clean | Legacy lint errors remain |
@@ -105,9 +113,9 @@ Header navigation is now managed from `web-admin` instead of only from hardcoded
 
 Owners:
 
-- Admin UI: `web-admin/src/app/content/menu/page.tsx` and `web-admin/src/components/menu/HeaderMenuManager.tsx`
+- Admin UI: `web-admin/src/app/content/menu/header/page.tsx`, `web-admin/src/app/content/menu/homepage/page.tsx`, and `web-admin/src/components/menu/HeaderMenuManager.tsx`
 - Admin API: `web-admin/src/app/api/admin/menus/header/*`
-- Public API: `web-admin/src/app/api/menu/header/route.ts`
+- Public API: `web-admin/src/app/api/menu/header/route.ts` and `web-admin/src/app/api/menu/homepage/route.ts`
 - Backend service: `web-admin/src/lib/admin/menus.ts`
 - Seed data: `web-admin/src/lib/header-menu-seed.ts`
 - Storefront renderer: `font-end/src/components/Header.tsx`
@@ -120,8 +128,8 @@ Current behavior:
 - `Danh Mục` and `Nổi bật` labels are editable in draft/published settings.
 - Admin preview updates from local draft state and supports area switching.
 - Menu tree is expandable/collapsible so large zone/group/link lists stay manageable.
-- Storefront fetches `/api/menu/header`, uses fallback data if the API fails, and repairs known mojibake labels/suffixes before rendering.
-- Circle Story data is published with the header menu but renders only in `Section2.tsx`, using the existing `.story-*` HTML structure. Do not render the same story strip from `Header`.
+- Storefront header fetches `/api/menu/header`, uses fallback data if the API fails, and repairs known mojibake labels/suffixes before rendering.
+- Circle Story and Shop by Category data are homepage-only and served by `/api/menu/homepage`; Circle Story renders only in `Section2.tsx`, using the existing `.story-*` HTML structure. Do not render the same story strip from `Header`.
 
 ## Storefront Section Binding Rule
 

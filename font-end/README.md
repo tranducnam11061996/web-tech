@@ -1,6 +1,6 @@
 # HACOM Storefront
 
-Last audited: 2026-07-07
+Last audited: 2026-07-09
 
 `font-end` is the customer-facing storefront. It must not connect directly to MySQL. All dynamic data should come from `web-admin` APIs.
 
@@ -11,6 +11,7 @@ Last audited: 2026-07-07
 - Call backend APIs through `NEXT_PUBLIC_API_URL` or configured rewrites.
 - Keep UI behavior in React state instead of legacy global scripts.
 - Display product detail images using backend `imageGroups` when available.
+- Render managed header, homepage blocks, banners, product-card badges, and category first boxes from `web-admin` APIs.
 
 ## Environment
 
@@ -32,8 +33,8 @@ npm.cmd run build
 
 Known checks:
 
-- Typecheck passed on 2026-07-07.
-- Build passed on 2026-07-07 with increased Node memory.
+- Typecheck passed on 2026-07-09.
+- Build passed on 2026-07-09 with increased Node memory.
 - Lint is not configured; Next.js prompts for setup.
 
 ## Main Routes
@@ -121,9 +122,17 @@ Local cart price is not trusted. Cart and checkout call `POST /api/cart/quote`; 
 
 `Header`:
 
-- Uses `src/components/menuData.ts`.
+- Loads `/api/menu/header` and falls back to `src/components/menuData.ts`.
 - Desktop/mobile menu are React-driven.
 - Does not depend on `public/main.js`.
+
+Homepage and listing components:
+
+- `Section2` and `Section4` use `/api/menu/homepage` for homepage-only menu blocks.
+- `Section3` uses `/api/banners/homepage` for the hero carousel.
+- `Section11` uses `/api/categories/homepage-feature-sections` for category sections with first boxes.
+- `ProductGridCard` renders `cardBadges` supplied by `/api/products` or `/api/search`.
+- `CategoryFeatureBox` renders category first-box links with `target="_blank"` and `rel="noopener noreferrer"`.
 
 ## Section Data Binding Rules
 
@@ -137,7 +146,11 @@ Local cart price is not trusted. Cart and checkout call `POST /api/cart/quote`; 
 - Nếu API lỗi hoặc dữ liệu rỗng, không render lại dữ liệu hardcode cũ gây sai nguồn; chỉ giữ section shell khi cần giữ khu vực layout.
 - Chuẩn hóa dữ liệu trước khi in: trim text, validate mã màu hex, và prefix media URL tương đối bằng `NEXT_PUBLIC_API_URL`.
 
-Ví dụ hiện tại: `Circle Story` thuộc `Section2.tsx`, lấy dữ liệu từ `/api/menu/header` và render vào các thẻ `.story-*` có sẵn. Không render dải story này trong `Header`.
+Current examples:
+
+- `Circle Story` belongs to `Section2.tsx`, uses `/api/menu/homepage`, and must not render from `Header`.
+- Hero banner carousel belongs to `Section3.tsx`, uses `/api/banners/homepage`, and should keep carousel controls in the section.
+- Category first box belongs to `CategoryFeatureBox` / `CategoryFeatureProductGrid`; category pages get it from `layoutMeta.featureBox`.
 
 ## Minimum Manual Checks
 

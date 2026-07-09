@@ -4,10 +4,34 @@ Notable workspace changes are grouped by implementation/audit date.
 
 ## 2026-07-09
 
+### Added
+
+- Split managed menu data into all-site header data and homepage-only blocks:
+  - Admin pages: `/content/menu/header`, `/content/menu/homepage`.
+  - Public APIs: `/api/menu/header`, `/api/menu/homepage`.
+- Added banner carousel management backed by legacy `idv_seller_ad_location` and `idv_seller_ad`, with extra metadata in `web_admin_banner_meta`.
+- Added homepage banner APIs and cache:
+  - `/api/banners/homepage`
+  - `/api/banners/global`
+  - `/api/banners/location/[locationKey]`
+- Added product-card attribute badge rules using existing attribute tables plus `web_admin_product_card_attribute_rules`.
+- Added category first-box metadata using `web_admin_category_feature_boxes`, exposed through category/product APIs and rendered on homepage/category layouts.
+- Added docs for the new DB helper tables and migration handoff requirements.
+
 ### Changed
 
 - Enabled vertical resize for the article category detail editor in `web-admin`.
 - Documented the admin UI rule that long-form `RichTextEditor` fields should use the `resizable` prop and vertical-only TinyMCE resizing.
+- `Section3` hero carousel is data-driven and includes hover/focus prev-next controls.
+- Product listing/search payloads can include `cardBadges` without extra storefront attribute requests.
+- Category edit keeps every existing legacy field and adds a separate first-box configuration panel.
+
+### Verified
+
+- `web-admin`: typecheck passed.
+- `font-end`: typecheck passed.
+- `web-admin`: build passed with `NODE_OPTIONS=--max-old-space-size=4096`.
+- `font-end`: build passed with `NODE_OPTIONS=--max-old-space-size=4096`.
 
 ## 2026-07-07
 

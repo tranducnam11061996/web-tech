@@ -1,6 +1,6 @@
 # HACOM E-commerce Workspace
 
-Last audited: `2026-07-07`
+Last audited: `2026-07-09`
 
 This workspace contains the storefront, admin dashboard, REST backend, search prototype, and runtime database documentation for the HACOM e-commerce rebuild.
 
@@ -62,6 +62,18 @@ Writes are intentionally gated. Do not set `ADMIN_WRITE_ENABLED=true` unless you
 - Admin CRUD for products, product categories, articles, and article categories.
 - In-memory product search API backed by `product_data_search`, Fuse.js, synonyms, and dynamic facets.
 - Product image upload/album code is implemented, but the new image metadata table is not present in the live DB until admin migration runs.
+- Managed header/homepage menu data is implemented with split public APIs: `/api/menu/header` and `/api/menu/homepage`.
+- Banner carousel management is implemented with legacy banner tables plus `web_admin_banner_meta`.
+- Product card attribute badges are implemented with `web_admin_product_card_attribute_rules` and public `cardBadges`.
+- Category first-box layout is implemented with `web_admin_category_feature_boxes` and renders on homepage/category pages when enabled.
+
+Run admin migration on a safe DB before using the newest admin screens:
+
+```powershell
+cd D:\web-tech\web-admin
+$env:ADMIN_WRITE_ENABLED="true"
+npm.cmd run admin:migrate
+```
 
 ## Verification Notes
 
@@ -86,4 +98,3 @@ Most recent code checks:
 - `web-admin/database-docs/QUICK_REFERENCE.md`: query snippets and table relationships.
 - `web-admin/database-docs/ADMIN_MIGRATION_GUIDE.md`: safe migration instructions.
 - `web-admin/database-docs/STATISTICS.md`: live table counts and observations.
-

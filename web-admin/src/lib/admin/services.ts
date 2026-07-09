@@ -3,6 +3,13 @@ import pool from '@/lib/db';
 import { mutateSearchCache } from '@/lib/searchCache';
 import { invalidateProductCardAttributeCaches } from '@/lib/productCardAttributes';
 import {
+  deleteCategoryFeatureBox,
+  ensureCategoryFeatureBoxTable,
+  getAdminCategoryFeatureBox,
+  invalidateCategoryFeatureBoxCaches,
+  saveCategoryFeatureBox,
+} from '@/lib/categoryFeatureBoxes';
+import {
   AdminApiError,
   AdminEntityType,
   allocateProductId,
@@ -979,6 +986,7 @@ async function saveCategory(options: {
       await rebuildNewsCategoryCache(connection);
     } else {
       await upsertUrl(connection, `${slugPrefix}${id}`, slug);
+      await saveCategoryFeatureBox(Number(id), payload.featureBox, connection);
     }
     return { id, slug };
   });
@@ -994,10 +1002,16 @@ export async function listProductCategories() {
 export async function getProductCategory(id: number) {
   const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM idv_seller_category WHERE id = ?', [id]);
   if (!rows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay danh muc san pham');
-  return rows[0];
+  return {
+    ...rows[0],
+    featureBox: await getAdminCategoryFeatureBox(id),
+  };
 }
 
-export function saveProductCategory(payload: Record<string, unknown>, id?: number) {
+export async function saveProductCategory(payload: Record<string, unknown>, id?: number) {
+  if (payload.featureBox && typeof payload.featureBox === 'object') {
+    await ensureCategoryFeatureBoxTable();
+  }
   return saveCategory({ table: 'idv_seller_category', entityType: 'product-category', slugPrefix: 'module:product/view:category/view_id:', payload, id });
 }
 
@@ -1044,6 +1058,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
 
       await connection.query('DELETE FROM idv_product_category WHERE category_id = ?', [id]);
       await connection.query('DELETE FROM idv_attribute_category WHERE category_id = ?', [id]);
+      await deleteCategoryFeatureBox(id, connection);
       await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:product/view:category/view_id:${id}`]);
       await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', [entityType, id]);
       await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
@@ -1081,7 +1096,10 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
       ? (result as { affectedProductIds: number[] }).affectedProductIds
       : [];
     invalidateProductCardAttributeCaches();
+    invalidateCategoryFeatureBoxCaches(id);
     await Promise.all(affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
+  } else if (table === 'idv_seller_category') {
+    invalidateCategoryFeatureBoxCaches(id);
   }
 
   return result;
@@ -1089,10 +1107,12 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
 
 export async function bulkCategoryStatus(table: string, ids: number[], action: string) {
   const status = action === 'restore' ? 1 : 0;
-  return withTransaction(async (connection) => {
+  const result = await withTransaction(async (connection) => {
     await connection.query(`UPDATE ${table} SET status = ? WHERE id IN (${ids.map(() => '?').join(',')})`, [status, ...ids]);
     return { ids, action: action === 'restore' ? 'restore' : 'hide' };
   });
+  if (table === 'idv_seller_category') invalidateCategoryFeatureBoxCaches();
+  return result;
 }
 
 export async function listArticlesFromRequest(url: string) {

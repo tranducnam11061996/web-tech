@@ -41,6 +41,12 @@ Important custom/runtime tables:
 - `web_admin_sequence`: exists, one row `product -> next_id 90788`.
 - `web_admin_entity_registry`: exists, currently empty.
 - `web_admin_product_images`: code exists but live table was not present during audit because admin migration is gated by `ADMIN_WRITE_ENABLED`.
+- `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`: header/homepage menu draft-publish storage; created/seeded by `admin:migrate`.
+- `web_admin_banner_meta`: optional metadata for legacy `idv_seller_ad` banners; created by `admin:migrate`.
+- `web_admin_product_card_attribute_rules`: product-card attribute badge display rules; created and seeded by `admin:migrate`.
+- `web_admin_category_feature_boxes`: category homepage/category-page first-box metadata; created by `admin:migrate`.
+
+No legacy table column is intentionally added by the latest feature work. New data is stored in `web_admin_*` helper tables. The header menu migration may add missing helper-table columns on older installs: `web_admin_menu_versions.settings_json` and `web_admin_menu_items.background_color`, `image_url`, `sub_text`.
 
 Search infrastructure also has:
 
@@ -59,7 +65,11 @@ Search infrastructure also has:
 - Checkout calls backend quote and order APIs; client prices are display cache only.
 - Product detail carousel now supports image tabs from `productData.imageGroups`.
 - Header navigation now loads menu data from `web-admin /api/menu/header` with a local fallback.
-- Homepage sections should bind dynamic data into their existing markup instead of creating duplicate display areas. Current example: `Circle Story` data comes from `/api/menu/header` and renders only in `font-end/src/components/sections/Section2.tsx`, not in `Header`.
+- Header public data is split by runtime need: `GET /api/menu/header` for all-site header data, and `GET /api/menu/homepage` for homepage-only Circle Story / Shop by Category blocks.
+- Homepage sections should bind dynamic data into their existing markup instead of creating duplicate display areas. Current example: `Circle Story` data comes from `/api/menu/homepage` and renders only in `font-end/src/components/sections/Section2.tsx`, not in `Header`.
+- Homepage hero carousel loads from `GET /api/banners/homepage`; `Section3` renders cached banner data with overlay prev/next controls.
+- Product cards render `cardBadges` supplied by public product/search APIs. The storefront does not fetch attributes per card.
+- Category pages and homepage category sections can render a configured first box from category metadata. Box links always open in a new tab.
 - Header menu labels default to Vietnamese `Danh Mục` and `Nổi bật`; the frontend repairs known mojibake strings and renders header chrome icons with `lucide-react` SVG icons.
 
 ### Backend/Admin
@@ -71,9 +81,13 @@ Search infrastructure also has:
 - Product image albums/types are `product`, `self`, `customer`.
 - Storefront should show `product + self` as product images and `customer` as customer images.
 - Header menu manager exists at `/content/menu` in `web-admin`.
+- Header menu admin is split into `/content/menu/header` for all-site header data and `/content/menu/homepage` for Circle Story / Shop by Category.
 - Header menu data uses draft/published versions with `web_admin_menus`, `web_admin_menu_versions`, and `web_admin_menu_items`; version settings store editable frontend labels for `Danh Mục` and `Nổi bật`.
 - Admin menu UI supports area switching, live preview, expanded/collapsed tree management, quick custom-link input, draft save, publish, and link target search.
 - Public header menu output repairs known mojibake suffix/label values before returning data to the storefront.
+- Banner admin uses legacy `idv_seller_ad_location` and `idv_seller_ad` as canonical data, with extra display metadata in `web_admin_banner_meta`.
+- Product-card attribute badge admin is at `/product/card-attributes`; rules come from existing attribute/category tables plus `web_admin_product_card_attribute_rules`.
+- Product category edit `/product/categories-edit?id=...` now has a first-box section. It preserves all existing category fields and saves extra metadata into `web_admin_category_feature_boxes`.
 
 ### Search
 
@@ -95,6 +109,8 @@ cd D:\web-tech\web-admin
 $env:ADMIN_WRITE_ENABLED="true"
 npm.cmd run admin:migrate
 ```
+
+This creates/updates admin helper tables including `web_admin_sequence`, `web_admin_entity_registry`, `web_admin_product_images`, header menu tables, `web_admin_banner_meta`, `web_admin_product_card_attribute_rules`, and `web_admin_category_feature_boxes`.
 
 Run search infrastructure migration:
 
@@ -143,10 +159,10 @@ Known verification caveats:
 
 ## High-Priority Next Work
 
-- Smoke-test `/content/menu` against the live dev DB after running admin migrations with `ADMIN_WRITE_ENABLED=true`, then publish a menu and verify `font-end` at `localhost:3001`.
+- Smoke-test `/content/menu/header`, `/content/menu/homepage`, `/banner/banner-list`, `/product/card-attributes`, and `/product/categories-edit?id=1106` against the live dev DB after running admin migrations with `ADMIN_WRITE_ENABLED=true`.
 - Add auth/authorization for admin write APIs.
 - Add production CORS allowlist and rate limiting for public write endpoints.
-- Run `admin:migrate` with writes enabled to create `web_admin_product_images`, then smoke-test image upload UI.
+- Run `admin:migrate` with writes enabled to create all `web_admin_*` helper tables, then smoke-test image, banner, category feature-box upload, and public API cache invalidation.
 - Add filters in admin product list for missing `self` images and missing `customer` images.
 - Add integration tests for quote/order and image upload/delete metadata sync.
 - Decide whether to keep or delete legacy scratch files at repo root.

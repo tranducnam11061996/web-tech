@@ -28,7 +28,9 @@ Before major changes, read:
 - Admin writes require `ADMIN_WRITE_ENABLED=true`.
 - Do not bypass the admin write gate for UI/API mutations.
 - `product_data_search` is live and synced by DB function/triggers plus rebuild scripts.
-- `web_admin_product_images` is implemented in code but was not present in live DB at the 2026-07-07 audit; run `admin:migrate` with writes enabled before relying on it.
+- `admin:migrate` now creates/updates helper tables for product images, menu drafts, banner metadata, product-card badge rules, and category first boxes.
+- Required helper tables for current admin features: `web_admin_product_images`, `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`, `web_admin_banner_meta`, `web_admin_product_card_attribute_rules`, `web_admin_category_feature_boxes`.
+- No latest feature intentionally adds columns to legacy tables; new metadata should live in `web_admin_*` helper tables unless explicitly planned otherwise.
 - Keep legacy product image fields synced until all consumers stop reading `proThum`, `image_collection`, and `image_count`.
 
 ## API Safety

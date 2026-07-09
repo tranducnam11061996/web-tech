@@ -1,6 +1,6 @@
 # HACOM Architecture
 
-Last audited: `2026-07-07`
+Last audited: `2026-07-09`
 
 ## Boundaries
 
@@ -52,6 +52,55 @@ For category slugs, `font-end/src/app/[slug]/page.tsx` fetches initial data in p
 - `GET /api/categories/attributes?categoryId=...`
 
 After hydration, `CategoryClient` fetches product list again when URL filters, sort, or page changes. Attribute/value data is sanitized on backend and defensively filtered again on frontend.
+
+Category first-box metadata is category-scoped and stored outside the legacy category table:
+
+```mermaid
+flowchart LR
+  AdminCategory["web-admin /product/categories-edit"] --> FeatureTable["web_admin_category_feature_boxes"]
+  ProductListAPI["GET /api/products?category_id"] --> FeatureCache["category feature cache\nsingle-flight TTL 5m"]
+  SlugAPI["GET /api/products/[slug]"] --> FeatureCache
+  HomepageAPI["GET /api/categories/homepage-feature-sections"] --> FeatureCache
+  FeatureCache --> StorefrontBox["font-end CategoryFeatureBox"]
+```
+
+No column is added to `idv_seller_category` for this feature. The category edit page preserves all existing legacy fields and saves the extra first-box payload as `featureBox`.
+
+## Menu, Banner, and Homepage Content Flow
+
+```mermaid
+flowchart LR
+  MenuAdmin["/content/menu/header\n/content/menu/homepage"] --> MenuTables["web_admin_menus\nweb_admin_menu_versions\nweb_admin_menu_items"]
+  MenuTables --> HeaderAPI["GET /api/menu/header"]
+  MenuTables --> HomeMenuAPI["GET /api/menu/homepage"]
+  HeaderAPI --> Header["font-end Header"]
+  HomeMenuAPI --> HomeBlocks["Section2 / Section4"]
+
+  BannerAdmin["/banner/banner-list\n/banner/edit\n/banner/locations"] --> LegacyBanner["idv_seller_ad_location\nidv_seller_ad"]
+  BannerAdmin --> BannerMeta["web_admin_banner_meta"]
+  LegacyBanner --> BannerAPI["GET /api/banners/homepage"]
+  BannerMeta --> BannerAPI
+  BannerAPI --> Hero["font-end Section3 hero carousel"]
+```
+
+- Header menu data is all-site runtime data; homepage-only blocks are not required on every page.
+- Public menu and banner APIs use in-memory cache plus single-flight to reduce DB load during bursts.
+- Banner canonical data remains in the legacy banner tables; `web_admin_banner_meta` only stores modern optional display metadata.
+
+## Product Card Badge Flow
+
+```mermaid
+flowchart LR
+  BadgeAdmin["/product/card-attributes"] --> RuleTable["web_admin_product_card_attribute_rules"]
+  AttrTables["idv_attribute*\nidv_product_attribute"] --> BadgeBuilder["product-card badge builder"]
+  RuleTable --> BadgeBuilder
+  BadgeBuilder --> ProductsAPI["GET /api/products"]
+  BadgeBuilder --> SearchAPI["GET /api/search"]
+  ProductsAPI --> ProductCard["font-end ProductGridCard"]
+  SearchAPI --> ProductCard
+```
+
+Badge rules are category based. Attribute values stay canonical in legacy attribute tables; public product/search payloads include `cardBadges` so storefront pages do not request attributes per product card.
 
 ## Search Flow
 
@@ -121,6 +170,10 @@ Admin helper tables:
 - `web_admin_sequence`: allocates new product ids.
 - `web_admin_entity_registry`: marks entities created by the new Admin API and protects legacy rows from permanent delete.
 - `web_admin_product_images`: image metadata table created by current code when admin migration/write path runs.
+- `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`: header/homepage menu draft-publish storage.
+- `web_admin_banner_meta`: optional metadata for legacy banner rows.
+- `web_admin_product_card_attribute_rules`: category/attribute display rules for product-card badges.
+- `web_admin_category_feature_boxes`: category-scoped first-box metadata for homepage/category layouts.
 
 Important rule: hide/restore legacy entities; permanent delete only for API-created entities in the registry.
 
@@ -146,4 +199,3 @@ Legacy DB has partial/no physical FK coverage. Always validate and use transacti
 - Do not return raw DB errors from public APIs.
 - Keep TinyMCE loaded only through `RichTextEditor`.
 - Use `NODE_OPTIONS=--max-old-space-size=4096` for reliable local builds on this workspace.
-

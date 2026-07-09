@@ -19,6 +19,27 @@ type FlattenedCategoryOption = CategoryOption & {
 };
 
 type CategoryImageField = 'imgUrl' | 'imgBig';
+type FeatureBoxImageField = 'backgroundImageUrl' | 'mobileBackgroundImageUrl';
+type ImageUploadField = CategoryImageField | FeatureBoxImageField;
+
+type CategoryFeatureBoxForm = {
+  homepageEnabled: string;
+  categoryPageEnabled: string;
+  boxPosition: 'left' | 'right';
+  renderMode: 'image' | 'hybrid';
+  backgroundImageUrl: string;
+  mobileBackgroundImageUrl: string;
+  targetUrl: string;
+  headline: string;
+  subheading: string;
+  ctaLabel: string;
+  textColor: string;
+  overlayColor: string;
+  buttonStyle: {
+    backgroundColor: string;
+    textColor: string;
+  };
+};
 
 const DISPLAY_OPTIONS = [
   { value: 'child_only', label: 'Chỉ hiển thị danh mục con' },
@@ -29,6 +50,25 @@ const DISPLAY_OPTIONS = [
 const controlLabelClass = 'flex flex-col text-base text-gray-100';
 const requiredClass = 'text-red-500';
 const largeControlClass = 'mt-2 h-12 w-full rounded-md border border-gray-700 bg-gray-900 px-5 text-lg text-gray-100 outline-none transition-all focus:border-red-500/50';
+
+const DEFAULT_FEATURE_BOX: CategoryFeatureBoxForm = {
+  homepageEnabled: '0',
+  categoryPageEnabled: '0',
+  boxPosition: 'left',
+  renderMode: 'hybrid',
+  backgroundImageUrl: '',
+  mobileBackgroundImageUrl: '',
+  targetUrl: '',
+  headline: 'Upgrade bundles',
+  subheading: '',
+  ctaLabel: 'Shop now',
+  textColor: '#ffffff',
+  overlayColor: '#07111f',
+  buttonStyle: {
+    backgroundColor: '#ffffff',
+    textColor: '#0f172a',
+  },
+};
 
 function normalizeText(value: string) {
   return value
@@ -59,6 +99,29 @@ function buildCategoryImagePreviewUrl(value: string) {
   return `https://hacom.vn/media/category/${encodeURIComponent(trimmed)}`;
 }
 
+function normalizeFeatureBoxForForm(value: any): CategoryFeatureBoxForm {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_FEATURE_BOX, buttonStyle: { ...DEFAULT_FEATURE_BOX.buttonStyle } };
+  const buttonStyle = value.buttonStyle && typeof value.buttonStyle === 'object' ? value.buttonStyle : {};
+  return {
+    homepageEnabled: value.homepageEnabled ? '1' : '0',
+    categoryPageEnabled: value.categoryPageEnabled ? '1' : '0',
+    boxPosition: value.boxPosition === 'right' ? 'right' : 'left',
+    renderMode: value.renderMode === 'image' ? 'image' : 'hybrid',
+    backgroundImageUrl: String(value.backgroundImageUrl || ''),
+    mobileBackgroundImageUrl: String(value.mobileBackgroundImageUrl || ''),
+    targetUrl: String(value.targetUrl || ''),
+    headline: String(value.headline || DEFAULT_FEATURE_BOX.headline),
+    subheading: String(value.subheading || ''),
+    ctaLabel: String(value.ctaLabel || DEFAULT_FEATURE_BOX.ctaLabel),
+    textColor: String(value.textColor || DEFAULT_FEATURE_BOX.textColor),
+    overlayColor: String(value.overlayColor || DEFAULT_FEATURE_BOX.overlayColor),
+    buttonStyle: {
+      backgroundColor: String(buttonStyle.backgroundColor || DEFAULT_FEATURE_BOX.buttonStyle.backgroundColor),
+      textColor: String(buttonStyle.textColor || DEFAULT_FEATURE_BOX.buttonStyle.textColor),
+    },
+  };
+}
+
 function CategoryEditInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -82,6 +145,7 @@ function CategoryEditInner() {
     metaTitle: '',
     metaKeyword: '',
     metaDescription: '',
+    featureBox: { ...DEFAULT_FEATURE_BOX, buttonStyle: { ...DEFAULT_FEATURE_BOX.buttonStyle } },
   });
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
@@ -93,7 +157,7 @@ function CategoryEditInner() {
   const [categoriesError, setCategoriesError] = useState('');
   const [parentOpen, setParentOpen] = useState(false);
   const [parentQuery, setParentQuery] = useState('');
-  const [uploadingImage, setUploadingImage] = useState<CategoryImageField | ''>('');
+  const [uploadingImage, setUploadingImage] = useState<ImageUploadField | ''>('');
   const [imageError, setImageError] = useState('');
 
   useEffect(() => {
@@ -121,6 +185,7 @@ function CategoryEditInner() {
           metaTitle: row.meta_title || '',
           metaKeyword: row.meta_keyword || '',
           metaDescription: row.meta_description || '',
+          featureBox: normalizeFeatureBoxForForm(row.featureBox),
         });
       })
       .catch((loadError) => setError(loadError.message || 'Không thể tải danh mục'))
@@ -258,6 +323,33 @@ function CategoryEditInner() {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
+  const updateFeatureBox = (field: keyof CategoryFeatureBoxForm) => (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      featureBox: {
+        ...current.featureBox,
+        [field]: event.target.value,
+      },
+    }));
+  };
+
+  const updateFeatureButtonStyle = (field: keyof CategoryFeatureBoxForm['buttonStyle']) => (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      featureBox: {
+        ...current.featureBox,
+        buttonStyle: {
+          ...current.featureBox.buttonStyle,
+          [field]: event.target.value,
+        },
+      },
+    }));
+  };
+
   const uploadCategoryImage = async (field: CategoryImageField, file: File | null) => {
     if (!file || uploadingImage) return;
     setUploadingImage(field);
@@ -276,6 +368,35 @@ function CategoryEditInner() {
       setForm((current) => ({ ...current, [field]: relativePath }));
     } catch (uploadError: any) {
       setImageError(uploadError.message || 'Không thể tải ảnh');
+    } finally {
+      setUploadingImage('');
+    }
+  };
+
+  const uploadFeatureBoxImage = async (field: FeatureBoxImageField, file: File | null) => {
+    if (!file || uploadingImage) return;
+    setUploadingImage(field);
+    setImageError('');
+    try {
+      const formData = new FormData();
+      formData.append('field', field === 'backgroundImageUrl' ? 'feature_background' : 'feature_mobile_background');
+      formData.append('file', file);
+      const response = await fetch('/api/admin/product-categories/images/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the tai anh box dau tien');
+      const relativePath = String(payload.data?.relativePath || '');
+      setForm((current) => ({
+        ...current,
+        featureBox: {
+          ...current.featureBox,
+          [field]: relativePath,
+        },
+      }));
+    } catch (uploadError: any) {
+      setImageError(uploadError.message || 'Khong the tai anh box dau tien');
     } finally {
       setUploadingImage('');
     }
@@ -323,11 +444,123 @@ function CategoryEditInner() {
     );
   };
 
+  const renderFeatureBoxImageUpload = (field: FeatureBoxImageField, label: string, hint: string) => {
+    const value = form.featureBox[field];
+    const previewUrl = buildCategoryImagePreviewUrl(value);
+    const isUploading = uploadingImage === field;
+
+    return (
+      <div className="rounded-xl border border-gray-800/70 bg-gray-950/40 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-gray-100">{label}</p>
+            <p className="mt-1 text-xs text-gray-500">{hint}</p>
+          </div>
+          <label className={`inline-flex cursor-pointer items-center gap-2 rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-xs font-bold text-gray-300 transition-all hover:border-cyan-400/60 hover:text-cyan-100 ${isUploading ? 'pointer-events-none opacity-60' : ''}`}>
+            {isUploading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+            {isUploading ? 'Dang tai...' : 'Chon tep...'}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="sr-only"
+              disabled={Boolean(uploadingImage)}
+              onChange={(event) => {
+                uploadFeatureBoxImage(field, event.target.files?.[0] || null);
+                event.target.value = '';
+              }}
+            />
+          </label>
+        </div>
+        <div className="flex h-40 items-center justify-center overflow-hidden rounded-lg border border-dashed border-gray-700/80 bg-gray-900/70">
+          {previewUrl ? (
+            <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-gray-600">
+              <ImageIcon className="h-8 w-8" aria-hidden="true" />
+              <span className="text-xs">Chua co anh</span>
+            </div>
+          )}
+        </div>
+        {value && <p className="mt-2 truncate text-xs text-gray-500">{value}</p>}
+      </div>
+    );
+  };
+
+  const renderFeaturePreviewCard = () => {
+    const feature = form.featureBox;
+    const previewUrl = buildCategoryImagePreviewUrl(feature.backgroundImageUrl);
+    const buttonBackground = feature.buttonStyle.backgroundColor || '#ffffff';
+    const buttonTextColor = feature.buttonStyle.textColor || '#0f172a';
+
+    return (
+      <div className="rounded-2xl border border-cyan-400/20 bg-[#090d16] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">Preview</span>
+          <span className="rounded-full border border-gray-700 px-3 py-1 text-[11px] text-gray-400">
+            Box {feature.boxPosition === 'left' ? 'ben trai' : 'ben phai'}
+          </span>
+        </div>
+        <div className={`grid gap-3 ${feature.boxPosition === 'left' ? 'grid-cols-[1.35fr_0.7fr_0.7fr]' : 'grid-cols-[0.7fr_0.7fr_1.35fr]'}`}>
+          {feature.boxPosition === 'left' && (
+            <div
+              className="relative col-span-1 flex min-h-52 overflow-hidden rounded-xl border border-white/10 bg-slate-900"
+              style={{ backgroundColor: feature.overlayColor }}
+            >
+              {previewUrl && <img src={previewUrl} alt="Feature box preview" className="absolute inset-0 h-full w-full object-cover opacity-65" />}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent" />
+              {feature.renderMode === 'hybrid' && (
+                <div className="relative z-10 flex max-w-[60%] flex-col justify-center p-5" style={{ color: feature.textColor }}>
+                  <strong className="text-2xl font-black uppercase leading-none">{feature.headline || 'Upgrade bundles'}</strong>
+                  {feature.subheading && <span className="mt-2 text-xs font-semibold opacity-80">{feature.subheading}</span>}
+                  <span className="mt-4 w-fit rounded-md px-3 py-2 text-[11px] font-black uppercase tracking-wide" style={{ backgroundColor: buttonBackground, color: buttonTextColor }}>
+                    {feature.ctaLabel || 'Shop now'} →
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+          {[0, 1].map((item) => (
+            <div key={item} className="min-h-52 rounded-xl border border-gray-800 bg-[#17171b] p-3">
+              <div className="mb-3 h-28 rounded-lg border border-dashed border-gray-700 bg-gray-900/80" />
+              <div className="h-3 w-2/3 rounded bg-gray-700" />
+              <div className="mt-3 h-4 w-1/3 rounded bg-orange-500/80" />
+            </div>
+          ))}
+          {feature.boxPosition === 'right' && (
+            <div
+              className="relative col-span-1 flex min-h-52 overflow-hidden rounded-xl border border-white/10 bg-slate-900"
+              style={{ backgroundColor: feature.overlayColor }}
+            >
+              {previewUrl && <img src={previewUrl} alt="Feature box preview" className="absolute inset-0 h-full w-full object-cover opacity-65" />}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent" />
+              {feature.renderMode === 'hybrid' && (
+                <div className="relative z-10 flex max-w-[60%] flex-col justify-center p-5" style={{ color: feature.textColor }}>
+                  <strong className="text-2xl font-black uppercase leading-none">{feature.headline || 'Upgrade bundles'}</strong>
+                  {feature.subheading && <span className="mt-2 text-xs font-semibold opacity-80">{feature.subheading}</span>}
+                  <span className="mt-4 w-fit rounded-md px-3 py-2 text-[11px] font-black uppercase tracking-wide" style={{ backgroundColor: buttonBackground, color: buttonTextColor }}>
+                    {feature.ctaLabel || 'Shop now'} →
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const save = async () => {
     setSaving(true);
     setMessage('');
     setError('');
     try {
+      const featureEnabled = form.featureBox.homepageEnabled === '1' || form.featureBox.categoryPageEnabled === '1';
+      if (featureEnabled && !form.featureBox.backgroundImageUrl.trim()) {
+        throw new Error('Can chon anh background cho box dau tien');
+      }
+      if (featureEnabled && !form.featureBox.targetUrl.trim()) {
+        throw new Error('Can nhap URL dich cho box dau tien');
+      }
       const response = await fetch(id ? `/api/admin/product-categories/${id}` : '/api/admin/product-categories', {
         method: id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -496,6 +729,111 @@ function CategoryEditInner() {
             Nhập từng giá cách nhau dấu ; ví dụ: 300000;800000;1500000 có nghĩa là tạo ra 4 khoảng giá cho khách hàng lọc sản phẩm.
             Đó là: Dưới 300000, Từ 300000 đến 800000, Từ 800000 đến 1500000 và Trên 1500000.
           </p>
+        </div>
+
+        <div className="glass-panel overflow-hidden rounded-2xl border border-cyan-500/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_34%),linear-gradient(135deg,#0d1320,#0a0d14)] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.25)]">
+          <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300">Layout homepage va category</p>
+              <h2 className="mt-2 text-xl font-black text-white">Box dau tien tren trang</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-400">
+                Cau hinh o noi bat dung chung cho homepage va phan dau trang danh muc. Link luon mo sang tab moi o storefront.
+              </p>
+            </div>
+            <div className="flex gap-2 rounded-full border border-gray-800 bg-black/25 p-1">
+              <button
+                type="button"
+                onClick={() => setForm((current) => ({ ...current, featureBox: { ...current.featureBox, boxPosition: 'left' } }))}
+                className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide transition ${form.featureBox.boxPosition === 'left' ? 'bg-cyan-400 text-slate-950' : 'text-gray-400 hover:text-white'}`}
+              >
+                Ben trai
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((current) => ({ ...current, featureBox: { ...current.featureBox, boxPosition: 'right' } }))}
+                className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide transition ${form.featureBox.boxPosition === 'right' ? 'bg-cyan-400 text-slate-950' : 'text-gray-400 hover:text-white'}`}
+              >
+                Ben phai
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.05fr)]">
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="rounded-xl border border-gray-800 bg-black/20 p-4">
+                  <span className="text-sm font-bold text-gray-200">Hien thi o homepage</span>
+                  <select value={form.featureBox.homepageEnabled} onChange={updateFeatureBox('homepageEnabled')} className="mt-3 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60">
+                    <option value="0">Tat</option>
+                    <option value="1">Bat</option>
+                  </select>
+                </label>
+                <label className="rounded-xl border border-gray-800 bg-black/20 p-4">
+                  <span className="text-sm font-bold text-gray-200">Hien thi o trang danh muc</span>
+                  <select value={form.featureBox.categoryPageEnabled} onChange={updateFeatureBox('categoryPageEnabled')} className="mt-3 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60">
+                    <option value="0">Tat</option>
+                    <option value="1">Bat</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block text-sm font-bold text-gray-200">
+                  Kieu hien thi
+                  <select value={form.featureBox.renderMode} onChange={updateFeatureBox('renderMode')} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60">
+                    <option value="image">Anh nen + link</option>
+                    <option value="hybrid">Hybrid: anh + text + button</option>
+                  </select>
+                </label>
+                <label className="block text-sm font-bold text-gray-200">
+                  URL dich
+                  <input value={form.featureBox.targetUrl} onChange={updateFeatureBox('targetUrl')} placeholder="/khuyen-mai hoac https://..." className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60" />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                {renderFeatureBoxImageUpload('backgroundImageUrl', 'Anh background desktop', 'Bat buoc khi hien thi box')}
+                {renderFeatureBoxImageUpload('mobileBackgroundImageUrl', 'Anh background mobile', 'Tuy chon, mobile fallback ve desktop')}
+              </div>
+
+              <div className={`grid grid-cols-1 gap-3 ${form.featureBox.renderMode === 'hybrid' ? '' : 'opacity-45'}`}>
+                <label className="block text-sm font-bold text-gray-200">
+                  Headline
+                  <input value={form.featureBox.headline} onChange={updateFeatureBox('headline')} disabled={form.featureBox.renderMode !== 'hybrid'} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60 disabled:cursor-not-allowed" />
+                </label>
+                <label className="block text-sm font-bold text-gray-200">
+                  Subheading
+                  <textarea rows={3} value={form.featureBox.subheading} onChange={updateFeatureBox('subheading')} disabled={form.featureBox.renderMode !== 'hybrid'} className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-100 outline-none focus:border-cyan-400/60 disabled:cursor-not-allowed" />
+                </label>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label className="block text-sm font-bold text-gray-200">
+                    Button label
+                    <input value={form.featureBox.ctaLabel} onChange={updateFeatureBox('ctaLabel')} disabled={form.featureBox.renderMode !== 'hybrid'} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60 disabled:cursor-not-allowed" />
+                  </label>
+                  <label className="block text-sm font-bold text-gray-200">
+                    Mau chu
+                    <input type="color" value={form.featureBox.textColor} onChange={updateFeatureBox('textColor')} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 p-1" />
+                  </label>
+                  <label className="block text-sm font-bold text-gray-200">
+                    Mau nen/overlay
+                    <input type="color" value={form.featureBox.overlayColor} onChange={updateFeatureBox('overlayColor')} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 p-1" />
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block text-sm font-bold text-gray-200">
+                    Mau button
+                    <input type="color" value={form.featureBox.buttonStyle.backgroundColor} onChange={updateFeatureButtonStyle('backgroundColor')} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 p-1" />
+                  </label>
+                  <label className="block text-sm font-bold text-gray-200">
+                    Mau chu button
+                    <input type="color" value={form.featureBox.buttonStyle.textColor} onChange={updateFeatureButtonStyle('textColor')} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 p-1" />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {renderFeaturePreviewCard()}
+          </div>
         </div>
 
         <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-6">

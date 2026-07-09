@@ -1,6 +1,6 @@
 # Database Quick Reference
 
-Verified: `2026-07-07`  
+Verified: `2026-07-09`  
 Database: `hanoi23_db`
 
 ## Core Product Read Model
@@ -174,6 +174,92 @@ imageGroups.customer = customer
 
 Live audit did not find `web_admin_product_images`; run `admin:migrate` with writes enabled before relying on it.
 
+## Managed Menu Tables
+
+```text
+web_admin_menus
+  -> web_admin_menu_versions
+  -> web_admin_menu_items
+```
+
+Runtime split:
+
+- `/api/menu/header`: all-site header data.
+- `/api/menu/homepage`: homepage-only Circle Story and Shop by Category.
+
+Important menu item columns:
+
+```text
+area, parent_id, node_type, label, icon_key, badge_text, suffix_text,
+background_color, image_url, sub_text, link_mode, entity_type, entity_id,
+custom_url, url_override, ordering, is_active, desktop_visible, mobile_visible
+```
+
+## Banner Metadata
+
+Canonical banner data remains in legacy tables:
+
+```text
+idv_seller_ad_location
+idv_seller_ad
+idv_seller_ad_category
+```
+
+Modern optional metadata lives in:
+
+```text
+web_admin_banner_meta(ad_id, mobile_file_url, alt_text, headline, subheading,
+cta_label, background_color, text_color, render_mode, style_json, updated_at)
+```
+
+Public APIs:
+
+- `/api/banners/homepage`
+- `/api/banners/global`
+- `/api/banners/location/[locationKey]`
+
+## Product Card Attribute Badges
+
+Rules table:
+
+```text
+web_admin_product_card_attribute_rules(
+  category_id, attr_id, slot, color_variant, label_template,
+  value_mode, max_values, ordering, status, inherit_to_children
+)
+```
+
+Canonical values remain in:
+
+```text
+idv_attribute
+idv_attribute_value
+idv_attribute_category
+idv_product_attribute
+```
+
+Public product/search payloads include `cardBadges`; storefront should not fetch attributes per card.
+
+## Category First Box
+
+Feature table:
+
+```text
+web_admin_category_feature_boxes(
+  category_id, homepage_enabled, category_page_enabled, box_position,
+  render_mode, background_image_url, mobile_background_image_url, target_url,
+  headline, subheading, cta_label, text_color, overlay_color, button_style_json
+)
+```
+
+No column is added to `idv_seller_category`.
+
+Public access:
+
+- `/api/products/[slug]`: category payload includes `featureBox`.
+- `/api/products?category_id=...`: response includes `layoutMeta.featureBox`.
+- `/api/categories/homepage-feature-sections`: homepage category sections with feature boxes and products.
+
 ## Admin Helper Tables
 
 ```text
@@ -218,4 +304,3 @@ Audit values:
 - Most legacy tables use `latin1_swedish_ci`; `product_data_search` uses `utf8mb4_unicode_ci`.
 - Attribute/icon/filter data can contain URL/script-like legacy values.
 - Do not add indexes or migrations without measuring query plans and having backup/rollback.
-

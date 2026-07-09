@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { getProductCardBadgesForProductIds } from '@/lib/productCardAttributes';
 import { withPublicProductResponseCache } from '@/lib/publicProductCache';
+import { getPublicCategoryFeatureBox } from '@/lib/categoryFeatureBoxes';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,7 +15,7 @@ const publicCacheHeaders = {
   'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
 };
 
-const reservedFilterKeys = new Set(['category_id', 'limit', 'page', 'id', 'min-price', 'max-price', 'brand', 'sort']);
+const reservedFilterKeys = new Set(['category_id', 'limit', 'page', 'id', 'min-price', 'max-price', 'brand', 'sort', 'feature_scope']);
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -44,6 +45,7 @@ function buildProductsCacheKey(searchParams: URLSearchParams) {
 async function loadProductsPayload(searchParams: URLSearchParams) {
   const categoryIdParam = searchParams.get('category_id');
   const categoryId = categoryIdParam ? Number(categoryIdParam) : null;
+  const featureScope = searchParams.get('feature_scope') === 'homepage' ? 'homepage' : 'category';
   const limit = Math.min(96, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24));
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
   const offset = (page - 1) * limit;
@@ -190,6 +192,10 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const badgesByProduct = await getProductCardBadgesForProductIds(rows.map((row) => Number(row.id)));
 
+  const [featureBox] = await Promise.all([
+    categoryId ? getPublicCategoryFeatureBox(Number(categoryId), featureScope) : Promise.resolve(null),
+  ]);
+
   const products = rows.map((row) => ({
     id: row.id,
     name: row.proName,
@@ -206,6 +212,9 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   return {
     success: true,
     data: products,
+    layoutMeta: {
+      featureBox,
+    },
     pagination: {
       total,
       page,

@@ -5,8 +5,8 @@ import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import SimilarProducts from "../../components/SimilarProducts";
 import WhyBuyFaq from "../../components/WhyBuyFaq";
-import ProductGridCard from "../../components/ProductGridCard";
 import ProgressiveImage from "../../components/ProgressiveImage";
+import CategoryFeatureProductGrid from "../../components/CategoryFeatureProductGrid";
 import Link from "next/link";
 import {
   buildSidebarSectionVisibility,
@@ -211,6 +211,9 @@ function AttributeFilterBlock({
 
 export default function CategoryContent({ categoryId, params, searchParams, initialData, categoryInfo }: any) {
   const [products, setProducts] = useState<any[]>(initialData?.products?.data || []);
+  const [featureBox, setFeatureBox] = useState<any>(
+    categoryInfo?.featureBox || initialData?.products?.layoutMeta?.featureBox || null,
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(initialData?.products?.pagination?.totalPages || 1);
   const [totalProducts, setTotalProducts] = useState(initialData?.products?.pagination?.total || 0);
@@ -453,6 +456,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
       .then((res) => {
         if (res.success) {
           setProducts(res.data);
+          setFeatureBox(res.layoutMeta?.featureBox || null);
           if (res.pagination) {
             setTotalPages(res.pagination.totalPages);
             setTotalProducts(res.pagination.total);
@@ -1062,10 +1066,12 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                   Đang tải sản phẩm...
                 </p>
               </div>
-            ) : products.length > 0 ? (
-              products.map((product: any) => (
-                <ProductGridCard key={product.id} product={product} />
-              ))
+            ) : products.length > 0 || featureBox ? (
+              <CategoryFeatureProductGrid
+                products={products}
+                featureBox={featureBox}
+                emptyState={null}
+              />
             ) : (
               <div className="col-span-1 sm:col-span-2 xl:col-span-4 flex flex-col items-center justify-center py-20 text-center bg-[#111115] rounded-2xl border border-[#1a1a1e] my-4">
                 <div className="w-20 h-20 mb-5 rounded-full bg-[#1a1a1e] border border-[#27272a] flex items-center justify-center text-3xl">

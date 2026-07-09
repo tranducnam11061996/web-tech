@@ -13,7 +13,7 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | Admin CRUD | Implemented first pass | Writes are gated by `ADMIN_WRITE_ENABLED=true`; auth/authorization is still missing |
 | Search infrastructure | Implemented and present in live DB | `product_data_search` has 28,763 rows and 0 missing products at audit time |
 | Product image albums | Implemented in code, DB migration pending | `web_admin_product_images` code exists; table was not present in live DB at audit time |
-| Header menu management | Implemented, needs live smoke test | Admin menu manager, draft/publish API, storefront fetch, labels, preview, collapse tree, and mojibake/icon fixes are in code |
+| Header menu management | Implemented, needs live smoke test | Admin menu manager, draft/publish API, storefront fetch, labels, preview, collapse tree, mojibake/icon fixes, and Circle Story data binding are in code |
 | Documentation audit | Updated | Core handoff docs refreshed on 2026-07-07 |
 
 ## Completed Work
@@ -30,6 +30,7 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | Header menu admin UI | `/content/menu` supports live preview, editable `Danh Mục`/`Nổi bật` labels, expand/collapse tree, area switching, quick custom links, save draft, and publish |
 | Header storefront integration | `font-end` header loads public menu data, falls back locally, renders `Danh Mục`/`Nổi bật`, and repairs known mojibake values |
 | Header icon/text cleanup | Header chrome icons now use `lucide-react`; Vietnamese labels/placeholders render with encoded strings or repair helpers |
+| Circle Story section binding | Circle Story no longer renders from `Header`; `Section2.tsx` reads `/api/menu/header` and binds `circleStory` into the existing `.story-*` markup without CSS changes |
 | Build verification | `web-admin` and `font-end` builds passed with increased Node memory |
 
 ## Important Pending Work
@@ -52,6 +53,7 @@ This file tracks implementation status for the HACOM workspace. For the shortest
 | `font-end` build | Pass | Use `NODE_OPTIONS=--max-old-space-size=4096` |
 | Header menu frontend/admin typecheck | Pass | Rechecked on 2026-07-09 with `npx tsc --noEmit` in both apps |
 | Header menu frontend/admin build | Pass | Rechecked on 2026-07-09 with `npm run build` in both apps; `web-admin` still shows the known multi-lockfile Next warning |
+| Circle Story Section2 binding | Pass | Rechecked on 2026-07-09 with `npx tsc --noEmit` and `npm run build` in `font-end` after moving story render out of `Header` |
 | `web-admin` admin migration without write flag | Expected failure | Safety gate rejects when `ADMIN_WRITE_ENABLED` is not `true` |
 | Search DB health | Pass | Product rows = search rows = 28,763; missing = 0 |
 | `web-admin` lint | Not clean | Legacy lint errors remain |
@@ -109,6 +111,7 @@ Owners:
 - Backend service: `web-admin/src/lib/admin/menus.ts`
 - Seed data: `web-admin/src/lib/header-menu-seed.ts`
 - Storefront renderer: `font-end/src/components/Header.tsx`
+- Circle Story section renderer: `font-end/src/components/sections/Section2.tsx`
 - Storefront fallback data: `font-end/src/components/menuData.ts`
 
 Current behavior:
@@ -118,6 +121,18 @@ Current behavior:
 - Admin preview updates from local draft state and supports area switching.
 - Menu tree is expandable/collapsible so large zone/group/link lists stay manageable.
 - Storefront fetches `/api/menu/header`, uses fallback data if the API fails, and repairs known mojibake labels/suffixes before rendering.
+- Circle Story data is published with the header menu but renders only in `Section2.tsx`, using the existing `.story-*` HTML structure. Do not render the same story strip from `Header`.
+
+## Storefront Section Binding Rule
+
+For future work in `font-end/src/components/sections/Section*.tsx`:
+
+- Keep existing section markup, classes, IDs, and layout unless a task explicitly asks for new UI.
+- Replace hardcoded repeated content with a data loop, then bind values into existing text nodes, attributes, or inline style values.
+- Do not add wrappers, new CSS classes, or duplicate render locations just to consume dynamic data.
+- URL values should only be bound when an existing link element is already part of the markup.
+- If dynamic data is empty or the API fails, avoid falling back to stale hardcoded content unless the task explicitly asks for a local fallback.
+- Normalize values before printing them: trim text, validate hex colors, and prefix relative media URLs with `NEXT_PUBLIC_API_URL`.
 
 ## Known Risks
 

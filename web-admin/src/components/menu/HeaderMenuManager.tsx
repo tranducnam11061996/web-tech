@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 
-type AreaId = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory';
+type AreaId = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory' | 'shopByCategory';
 type NodeType = 'zone' | 'group' | 'link';
 type LinkMode = 'custom' | 'entity' | 'system';
 type EntityType = 'product-category' | 'article-category';
@@ -97,6 +97,7 @@ const AREAS: Array<{ id: AreaId; label: string; description: string }> = [
   { id: 'topNav', label: 'Thanh điều hướng', description: 'Dải link ngang phía dưới header' },
   { id: 'utilityLinks', label: 'Link tiện ích', description: 'Các link/icon phụ trong header' },
   { id: 'circleStory', label: 'Circle Story', description: 'Dải story vòng tròn phía dưới header' },
+  { id: 'shopByCategory', label: 'Shop by Category', description: 'Dải danh mục sản phẩm ở trang chủ' },
 ];
 
 const STATUS_UNPUBLISHED = 'Có thay đổi chưa xuất bản';
@@ -149,6 +150,7 @@ function normalizeMenu(menu: MenuDraft): MenuDraft {
     topNav: withStringIds(menu.topNav),
     utilityLinks: withStringIds(menu.utilityLinks),
     circleStory: withStringIds(menu.circleStory || []),
+    shopByCategory: withStringIds(menu.shopByCategory || []),
   };
 }
 
@@ -321,6 +323,14 @@ function newNode(type: NodeType): MenuNode {
   };
 }
 
+function newRootNode(area: AreaId, type: NodeType): MenuNode {
+  const node = newNode(type);
+  if (area === 'shopByCategory' && type === 'link') {
+    return { ...node, customUrl: '#', backgroundColor: '16161a', imageUrl: '' };
+  }
+  return node;
+}
+
 function flattenForSave(nodes: MenuNode[]): MenuNode[] {
   return nodes.map((node, index) => ({
     ...node,
@@ -336,6 +346,7 @@ function menuForSave(menu: MenuDraft): MenuDraft {
     topNav: flattenForSave(menu.topNav),
     utilityLinks: flattenForSave(menu.utilityLinks),
     circleStory: flattenForSave(menu.circleStory),
+    shopByCategory: flattenForSave(menu.shopByCategory),
   };
 }
 
@@ -352,7 +363,7 @@ function collectPublicLinks(data: any) {
   for (const zone of data?.zones || []) {
     for (const column of zone?.cols || []) links.push(...(column?.items || []));
   }
-  for (const area of ['faves', 'topNav', 'utilityLinks', 'circleStory']) links.push(...(data?.[area] || []));
+  for (const area of ['faves', 'topNav', 'utilityLinks', 'circleStory', 'shopByCategory']) links.push(...(data?.[area] || []));
   return links;
 }
 
@@ -441,7 +452,7 @@ export function HeaderMenuManager({ initialData }: { initialData: InitialData })
   };
 
   const addRoot = (type: NodeType) => {
-    const node = newNode(type);
+    const node = newRootNode(activeArea, type);
     setMenu((current) => ({ ...current, [activeArea]: [...current[activeArea], node] }));
     setSelectedId(node.id);
     setStatusText(STATUS_UNPUBLISHED);
@@ -856,8 +867,8 @@ function EditorPanel({
 
   const setField = (field: keyof MenuNode, value: any) => onUpdate((current) => ({ ...current, [field]: value }));
   const isLink = node.nodeType === 'link';
-  const showCircleStorySettings = activeArea === 'circleStory' && isLink;
-  const advancedPanelId = `circle-story-settings-${node.id}`;
+  const showAdvancedStyleSettings = (activeArea === 'circleStory' || activeArea === 'shopByCategory') && isLink;
+  const advancedPanelId = `${activeArea}-settings-${node.id}`;
 
   const uploadStoryImage = async (file: File | null) => {
     if (!file) return;
@@ -954,7 +965,7 @@ function EditorPanel({
           </div>
         )}
 
-        {showCircleStorySettings && (
+        {showAdvancedStyleSettings && (
           <details className="rounded-md border border-gray-800 bg-gray-900/40 p-3">
             <summary
               className="cursor-pointer select-none rounded-md text-sm font-semibold text-emerald-200 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60"
@@ -995,15 +1006,17 @@ function EditorPanel({
                   </label>
                 </div>
               </div>
-              <Field label="Text phụ" id="circle-story-sub-text">
-                <input
-                  id="circle-story-sub-text"
-                  value={node.subText || ''}
-                  onChange={(event) => setField('subText', event.target.value)}
-                  className="field-input"
-                  placeholder="NEW ARRIVALS"
-                />
-              </Field>
+              {activeArea === 'circleStory' ? (
+                <Field label="Text phụ" id="circle-story-sub-text">
+                  <input
+                    id="circle-story-sub-text"
+                    value={node.subText || ''}
+                    onChange={(event) => setField('subText', event.target.value)}
+                    className="field-input"
+                    placeholder="NEW ARRIVALS"
+                  />
+                </Field>
+              ) : null}
             </div>
           </details>
         )}
@@ -1118,6 +1131,39 @@ function CircleStoryPreview({ items, selectedId, mode = 'desktop' }: { items: Me
   );
 }
 
+function ShopByCategoryItemPreview({ item, selected }: { item: MenuNode; selected?: boolean }) {
+  const imageUrl = String(item.imageUrl || '').trim();
+  const cardStyle = { backgroundColor: storyColor(item.backgroundColor || '16161a') };
+  const iconStyle = imageUrl ? { backgroundImage: `url("${imageUrl}")` } : undefined;
+
+  return (
+    <div className={clsx('w-24 shrink-0 text-center', selected && 'text-emerald-200')}>
+      <div className={clsx('relative mb-2 flex h-24 items-center justify-center rounded-xl border border-gray-800', selected && 'border-emerald-600 ring-2 ring-emerald-500/30')} style={cardStyle}>
+        {item.badgeText ? <span className="absolute left-2 top-2 text-[8px] font-bold uppercase text-white">{item.badgeText}</span> : null}
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-black/40 bg-cover bg-center text-[9px] font-bold text-white" style={iconStyle}>
+          {imageUrl ? null : item.label.slice(0, 10)}
+        </div>
+      </div>
+      <div className="line-clamp-2 text-[10px] font-semibold leading-tight text-gray-200">{item.label}</div>
+    </div>
+  );
+}
+
+function ShopByCategoryPreview({ items, selectedId, mode = 'desktop' }: { items: MenuNode[]; selectedId: string | null; mode?: 'desktop' | 'mobile' }) {
+  if (items.length === 0) return <PreviewEmpty />;
+  const limit = mode === 'mobile' ? 6 : 9;
+  return (
+    <div className="overflow-hidden rounded-md border border-gray-800 bg-[#111113] p-4 text-[11px]">
+      <div className="mb-3 text-xs font-bold text-white">Shop by Category</div>
+      <div className="flex gap-4 overflow-x-auto pb-2 custom-scrollbar">
+        {previewItems(items, selectedId, limit).map((item) => (
+          <ShopByCategoryItemPreview key={item.id} item={item} selected={selectedId === item.id} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function PreviewEmpty({ label = 'Chưa có mục để xem trước' }: { label?: string }) {
   return (
     <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-gray-800 bg-gray-950/60 px-4 text-center text-xs text-gray-500">
@@ -1201,6 +1247,7 @@ function DesktopAreaPreview({
 }) {
   if (items.length === 0) return <PreviewEmpty />;
   if (area === 'circleStory') return <CircleStoryPreview items={items} selectedId={selectedId} mode="desktop" />;
+  if (area === 'shopByCategory') return <ShopByCategoryPreview items={items} selectedId={selectedId} mode="desktop" />;
   const title = areaLabel(area, settings);
 
   if (area === 'topNav') {
@@ -1299,6 +1346,7 @@ function MobileAreaPreview({
 }) {
   if (items.length === 0) return <PreviewEmpty />;
   if (area === 'circleStory') return <CircleStoryPreview items={items} selectedId={selectedId} mode="mobile" />;
+  if (area === 'shopByCategory') return <ShopByCategoryPreview items={items} selectedId={selectedId} mode="mobile" />;
   const title = areaLabel(area, settings);
   return (
     <div className="mx-auto max-w-[260px] rounded-2xl border border-gray-800 bg-black p-3 text-[11px]">

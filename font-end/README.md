@@ -125,6 +125,20 @@ Local cart price is not trusted. Cart and checkout call `POST /api/cart/quote`; 
 - Desktop/mobile menu are React-driven.
 - Does not depend on `public/main.js`.
 
+## Section Data Binding Rules
+
+Áp dụng cho các file `src/components/sections/Section*.tsx` khi chuyển nội dung tĩnh sang dữ liệu động.
+
+- Storefront không đọc database trực tiếp; mọi dữ liệu động phải đi qua API của `web-admin`.
+- Giữ nguyên cấu trúc HTML sẵn có của section: thẻ, `className`, `id`, layout và thứ tự hiển thị.
+- Chỉ thay danh sách hardcode bằng vòng lặp dữ liệu và bind giá trị vào đúng vị trí HTML hiện có.
+- Không tự thêm wrapper, class CSS, component hiển thị mới hoặc khu vực render mới nếu task không yêu cầu rõ.
+- URL chỉ bind vào thẻ link nếu markup hiện tại đã có thẻ link; không tự bọc thêm link chỉ để dùng URL.
+- Nếu API lỗi hoặc dữ liệu rỗng, không render lại dữ liệu hardcode cũ gây sai nguồn; chỉ giữ section shell khi cần giữ khu vực layout.
+- Chuẩn hóa dữ liệu trước khi in: trim text, validate mã màu hex, và prefix media URL tương đối bằng `NEXT_PUBLIC_API_URL`.
+
+Ví dụ hiện tại: `Circle Story` thuộc `Section2.tsx`, lấy dữ liệu từ `/api/menu/header` và render vào các thẻ `.story-*` có sẵn. Không render dải story này trong `Header`.
+
 ## Minimum Manual Checks
 
 - `/laptop`: load, filter, sort, pagination, quick filter search.

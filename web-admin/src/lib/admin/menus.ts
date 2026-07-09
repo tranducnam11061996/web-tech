@@ -3,7 +3,7 @@ import pool from '@/lib/db';
 import { AdminApiError, maybeText, requireText, toBoolInt, toInt, withTransaction } from '@/lib/admin/common';
 import { HEADER_MENU_ICON_PATHS, HEADER_MENU_SEED, type HeaderMenuSeed, type HeaderMenuSeedNode } from '@/lib/header-menu-seed';
 
-export type HeaderMenuArea = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory';
+export type HeaderMenuArea = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory' | 'shopByCategory';
 export type HeaderMenuNodeType = 'zone' | 'group' | 'link';
 export type HeaderMenuLinkMode = 'custom' | 'entity' | 'system';
 export type HeaderMenuEntityType = 'product-category' | 'article-category';
@@ -74,7 +74,7 @@ type MenuItemRow = RowDataPacket & {
 };
 
 const HEADER_MENU_CODE = 'header';
-const HEADER_MENU_AREAS: HeaderMenuArea[] = ['zones', 'faves', 'topNav', 'utilityLinks', 'circleStory'];
+const HEADER_MENU_AREAS: HeaderMenuArea[] = ['zones', 'faves', 'topNav', 'utilityLinks', 'circleStory', 'shopByCategory'];
 const DEFAULT_HEADER_MENU_SETTINGS: HeaderMenuSettings = {
   zonesLabel: 'Danh Mục',
   favesLabel: 'Nổi bật',
@@ -334,6 +334,58 @@ async function populateVersion(connection: PoolConnection, versionId: number, da
   }
 }
 
+async function backfillSeedArea(connection: PoolConnection, versionId: number, area: HeaderMenuArea) {
+  const seedNodes = HEADER_MENU_SEED[area] || [];
+  if (seedNodes.length === 0) return;
+
+  const [rows] = await connection.query<RowDataPacket[]>(
+    'SELECT COUNT(*) AS total FROM web_admin_menu_items WHERE version_id = ? AND area = ?',
+    [versionId, area],
+  );
+  if (Number(rows[0]?.total || 0) > 0) {
+    if (area === 'shopByCategory') {
+      for (const node of seedNodes) {
+        await connection.query(
+          `
+            UPDATE web_admin_menu_items
+            SET
+              icon_key = CASE WHEN icon_key = '' THEN ? ELSE icon_key END,
+              badge_text = CASE WHEN badge_text = '' THEN ? ELSE badge_text END,
+              background_color = CASE WHEN background_color = '' THEN ? ELSE background_color END,
+              image_url = CASE WHEN image_url = '' THEN ? ELSE image_url END,
+              custom_url = CASE WHEN custom_url = '' THEN ? ELSE custom_url END
+            WHERE version_id = ?
+              AND area = ?
+              AND parent_id IS NULL
+              AND node_type = 'link'
+              AND label = ?
+          `,
+          [
+            node.iconKey || '',
+            node.badgeText || '',
+            node.backgroundColor || '',
+            node.imageUrl || '',
+            node.customUrl || '#',
+            versionId,
+            area,
+            node.label,
+          ],
+        );
+      }
+    }
+    return;
+  }
+
+  await insertNodeTree(connection, versionId, area, null, seedNodes, area === 'zones' ? 'zone' : 'link');
+}
+
+async function backfillNewSeedAreas(connection: PoolConnection, menuId: number) {
+  const [versions] = await connection.query<RowDataPacket[]>('SELECT id FROM web_admin_menu_versions WHERE menu_id = ?', [menuId]);
+  for (const version of versions) {
+    await backfillSeedArea(connection, Number(version.id), 'shopByCategory');
+  }
+}
+
 async function copyItemsToVersion(connection: PoolConnection, sourceVersionId: number, targetVersionId: number) {
   const [rows] = await connection.query<MenuItemRow[]>(
     'SELECT * FROM web_admin_menu_items WHERE version_id = ? ORDER BY parent_id ASC, ordering ASC, id ASC',
@@ -417,6 +469,8 @@ export async function ensureHeaderMenuSeeded(connection?: PoolConnection) {
       }
     }
 
+    await backfillNewSeedAreas(conn, menuId);
+
     return { menuId };
   };
 
@@ -474,7 +528,7 @@ function rowToDraftNode(row: MenuItemRow): HeaderMenuDraftNode {
 
 function buildDraftTree(rows: MenuItemRow[]): HeaderMenuDraft {
   const nodeMap = new Map<number, HeaderMenuDraftNode>();
-  const draft: HeaderMenuDraft = { zones: [], faves: [], topNav: [], utilityLinks: [], circleStory: [] };
+  const draft: HeaderMenuDraft = { zones: [], faves: [], topNav: [], utilityLinks: [], circleStory: [], shopByCategory: [] };
 
   for (const row of rows) nodeMap.set(Number(row.id), rowToDraftNode(row));
   for (const row of rows) {
@@ -688,6 +742,7 @@ function buildPublicMenu(rows: MenuItemRow[], maps: UrlMaps, meta: Record<string
     topNav: rootLinks('topNav'),
     utilityLinks: rootLinks('utilityLinks'),
     circleStory: rootLinks('circleStory'),
+    shopByCategory: rootLinks('shopByCategory'),
     labels,
     settings,
     meta: { ...meta, labels, settings },

@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useCartSummary } from '@/lib/cart';
-import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem, type MenuLinkObject } from './menuData';
+import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem } from './menuData';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -134,52 +134,6 @@ function MenuLinkIcon({ item, className = 'h-3.5 w-3.5 shrink-0 text-gray-500' }
   );
 }
 
-function storyImageUrl(value?: string) {
-  const url = String(value || '').trim();
-  if (!url) return '';
-  if (/^https?:\/\//i.test(url) || url.startsWith('data:')) return url;
-  if (url.startsWith('/api/media/')) return `${API_URL}${url}`;
-  return url;
-}
-
-function storyColor(value?: string) {
-  const color = String(value || '').trim().replace(/^#/, '').toLowerCase();
-  return /^[0-9a-f]{3}([0-9a-f]{3})?$/.test(color) ? `#${color}` : '#26272d';
-}
-
-function CircleStoryItem({ item }: { item: MenuLinkObject }) {
-  const imageUrl = storyImageUrl(item.imageUrl);
-  const innerStyle = imageUrl
-    ? { backgroundImage: `url("${imageUrl}")` }
-    : { backgroundColor: storyColor(item.backgroundColor) };
-  const label = linkLabel(item);
-  const subText = cleanHeaderText(item.subText || '');
-
-  return (
-    <a href={item.url || '#'} className="circle-story-item" aria-label={label}>
-      <span className="circle-story-ring" aria-hidden="true">
-        <span className="circle-story-inner" style={innerStyle}>
-          {subText ? <span className="circle-story-subtext">{subText}</span> : null}
-        </span>
-      </span>
-      <span className="circle-story-label">{label}</span>
-    </a>
-  );
-}
-
-function CircleStoryStrip({ items }: { items: MenuLinkObject[] }) {
-  if (items.length === 0) return null;
-  return (
-    <div className="circle-story-strip" aria-label="Circle Story">
-      <div className="circle-story-scroll no-scrollbar">
-        {items.map((item) => (
-          <CircleStoryItem key={item.id || item.label || item.name} item={item} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export default function Header() {
   const router = useRouter();
   const [showSubMenu, setShowSubMenu] = useState(true);
@@ -225,7 +179,8 @@ export default function Header() {
           faves: payload.data.faves || [],
           topNav: payload.data.topNav || [],
           utilityLinks: payload.data.utilityLinks || [],
-          circleStory: payload.data.circleStory || [],
+          circleStory: [],
+          shopByCategory: [],
           labels: {
             zones: cleanHeaderText(payload.data.labels?.zones || payload.data.settings?.zonesLabel || fallbackHeaderMenu.labels.zones),
             faves: cleanHeaderText(payload.data.labels?.faves || payload.data.settings?.favesLabel || fallbackHeaderMenu.labels.faves),
@@ -343,7 +298,6 @@ export default function Header() {
     zones: cleanHeaderText(headerMenu.labels?.zones || fallbackHeaderMenu.labels.zones),
     faves: cleanHeaderText(headerMenu.labels?.faves || fallbackHeaderMenu.labels.faves),
   };
-  const circleStoryItems = headerMenu.circleStory || [];
 
   return (
     <>
@@ -716,8 +670,6 @@ export default function Header() {
         </div>
       </div>
       </div>
-
-      <CircleStoryStrip items={circleStoryItems} />
 
       {/* MOBILE BOTTOM NAV BAR (< 768px) */}
       <div className="md:hidden fixed bottom-0 left-0 w-full h-[60px] bg-dark border-t border-dark-border flex items-center justify-between px-6 z-50">

@@ -24,6 +24,7 @@ export type HeaderMenuSeed = {
   topNav: HeaderMenuSeedNode[];
   utilityLinks: HeaderMenuSeedNode[];
   circleStory: HeaderMenuSeedNode[];
+  shopByCategory: HeaderMenuSeedNode[];
 };
 
 function link(label: string, customUrl = '#', extra: Partial<HeaderMenuSeedNode> = {}): HeaderMenuSeedNode {
@@ -34,6 +35,14 @@ function link(label: string, customUrl = '#', extra: Partial<HeaderMenuSeedNode>
     customUrl,
     ...extra,
   };
+}
+
+function shopCategory(label: string, extra: Partial<HeaderMenuSeedNode> = {}): HeaderMenuSeedNode {
+  return link(label, '#', {
+    backgroundColor: '16161a',
+    imageUrl: '',
+    ...extra,
+  });
 }
 
 function group(label: string, items: HeaderMenuSeedNode[]): HeaderMenuSeedNode {
@@ -298,4 +307,15 @@ export const HEADER_MENU_SEED: HeaderMenuSeed = {
     link('Assistant', '#', { iconKey: 'cpu', linkMode: 'system', customUrl: 'assistant' }),
   ],
   circleStory: [],
+  shopByCategory: [
+    shopCategory('ASUS', { badgeText: 'NEW' }),
+    shopCategory('MacBook', { iconKey: 'laptop' }),
+    shopCategory('Gaming Setups', { iconKey: 'desktop' }),
+    shopCategory('Mini PCs', { iconKey: 'case' }),
+    shopCategory('Graphics Cards', { iconKey: 'gpu' }),
+    shopCategory('Collectables', { iconKey: 'gift' }),
+    shopCategory("SSD's", { iconKey: 'storage' }),
+    shopCategory('PC Monitors', { iconKey: 'desktop' }),
+    shopCategory('Handhelds', { iconKey: 'more' }),
+  ],
 };

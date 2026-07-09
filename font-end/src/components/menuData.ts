@@ -47,6 +47,7 @@ export type HeaderMenuData = {
   topNav: MenuLinkObject[];
   utilityLinks: MenuLinkObject[];
   circleStory: MenuLinkObject[];
+  shopByCategory: MenuLinkObject[];
   labels: HeaderMenuLabels;
   meta?: Record<string, unknown>;
 };
@@ -285,4 +286,5 @@ export const fallbackHeaderMenu: HeaderMenuData = {
     { id: 'assistant', label: 'Assistant', url: '#' },
   ],
   circleStory: [],
+  shopByCategory: [],
 };

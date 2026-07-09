@@ -59,6 +59,7 @@ Search infrastructure also has:
 - Checkout calls backend quote and order APIs; client prices are display cache only.
 - Product detail carousel now supports image tabs from `productData.imageGroups`.
 - Header navigation now loads menu data from `web-admin /api/menu/header` with a local fallback.
+- Homepage sections should bind dynamic data into their existing markup instead of creating duplicate display areas. Current example: `Circle Story` data comes from `/api/menu/header` and renders only in `font-end/src/components/sections/Section2.tsx`, not in `Header`.
 - Header menu labels default to Vietnamese `Danh Mục` and `Nổi bật`; the frontend repairs known mojibake strings and renders header chrome icons with `lucide-react` SVG icons.
 
 ### Backend/Admin
@@ -138,6 +139,7 @@ Known verification caveats:
 - Do not assume physical foreign keys exist across legacy tables.
 - Do not commit `.env` or local generated caches.
 - Do not treat `tmp/` as source; it is currently untracked workspace output.
+- Do not render homepage section data in a second component when the section already owns the markup. For `Section*.tsx`, keep existing HTML/class/id structure and only loop/bind data into existing tags unless a task explicitly requests new markup or CSS.
 
 ## High-Priority Next Work
 

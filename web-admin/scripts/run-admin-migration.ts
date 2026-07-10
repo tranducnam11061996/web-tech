@@ -5,6 +5,8 @@ import { ensureHeaderMenuSeeded } from '../src/lib/admin/menus';
 import { ensureBannerMetaTable } from '../src/lib/admin/banners';
 import { ensureProductCardAttributeRulesTable } from '../src/lib/productCardAttributes';
 import { ensureCategoryFeatureBoxTable } from '../src/lib/categoryFeatureBoxes';
+import { ensureVoucherTables } from '../src/lib/vouchers';
+import { ensureStorefrontOrderTables } from '../src/lib/storefrontOrders';
 
 async function main() {
   await ensureAdminTables();
@@ -13,6 +15,8 @@ async function main() {
   await ensureBannerMetaTable();
   await ensureProductCardAttributeRulesTable();
   await ensureCategoryFeatureBoxTable();
+  await ensureVoucherTables();
+  await ensureStorefrontOrderTables();
   console.log('Admin migration completed.');
 }
 

@@ -66,6 +66,7 @@ Purpose:
 - Create/update the product image album metadata table.
 - Create/seed the menu draft-publish tables.
 - Create banner metadata, product-card attribute rule, and category feature-box tables.
+- Create transactional storefront voucher tables: `web_admin_vouchers`, `web_admin_voucher_categories`, and `web_admin_voucher_redemptions`.
 
 Command:
 

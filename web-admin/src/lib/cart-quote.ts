@@ -1,4 +1,8 @@
+import type { Pool, PoolConnection } from 'mysql2/promise';
 import pool from '@/lib/db';
+import { quoteVoucher, type VoucherQuote } from '@/lib/vouchers';
+
+type DbExecutor = Pool | PoolConnection;
 
 export type CartQuoteInputItem = {
   productId: number;
@@ -26,10 +30,12 @@ export type CartQuote = {
     subtotal: number;
     marketSubtotal: number;
     savings: number;
+    voucherDiscount: number;
     total: number;
     itemCount: number;
     availableItemCount: number;
   };
+  voucher: VoucherQuote;
 };
 
 function clampQuantity(quantity: unknown) {
@@ -58,7 +64,11 @@ function normalizeInputItems(items: unknown): CartQuoteInputItem[] {
   return Array.from(byProduct.values());
 }
 
-export async function buildCartQuote(rawItems: unknown): Promise<CartQuote> {
+export async function buildCartQuote(
+  rawItems: unknown,
+  options?: { voucherCode?: unknown; db?: DbExecutor; lockVoucher?: boolean },
+): Promise<CartQuote> {
+  const db = options?.db || pool;
   const inputItems = normalizeInputItems(rawItems);
   if (inputItems.length === 0) {
     return {
@@ -67,15 +77,17 @@ export async function buildCartQuote(rawItems: unknown): Promise<CartQuote> {
         subtotal: 0,
         marketSubtotal: 0,
         savings: 0,
+        voucherDiscount: 0,
         total: 0,
         itemCount: 0,
         availableItemCount: 0,
       },
+      voucher: await quoteVoucher(options?.voucherCode, [], 0, db, Boolean(options?.lockVoucher)),
     };
   }
 
   const productIds = inputItems.map((item) => item.productId);
-  const [rows] = await pool.query(
+  const [rows] = await db.query(
     `
       SELECT
         p.id, p.storeSKU, p.proName, p.proThum,
@@ -154,17 +166,27 @@ export async function buildCartQuote(rawItems: unknown): Promise<CartQuote> {
       subtotal: 0,
       marketSubtotal: 0,
       savings: 0,
+      voucherDiscount: 0,
       total: 0,
       itemCount: 0,
       availableItemCount: 0,
     },
   );
 
-  totals.total = totals.subtotal;
+  const voucher = await quoteVoucher(
+    options?.voucherCode,
+    quotedItems.map((item) => ({ productId: item.productId, quantity: item.quantity, price: item.price, available: item.available })),
+    totals.subtotal,
+    db,
+    Boolean(options?.lockVoucher),
+  );
+  totals.voucherDiscount = voucher.discount;
+  totals.total = Math.max(0, totals.subtotal - voucher.discount);
   totals.savings = Math.max(0, totals.marketSubtotal - totals.subtotal);
 
   return {
     items: quotedItems,
     totals,
+    voucher,
   };
 }

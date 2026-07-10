@@ -154,14 +154,14 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   }
 
   const sortParam = searchParams.get('sort');
-  let orderBy = categoryId ? 'ORDER BY pc.pro_id DESC' : 'ORDER BY p.id DESC';
+  let orderBy = 'ORDER BY p.id DESC';
 
   if (sortParam === 'price_asc') {
     orderBy = 'ORDER BY pr.price = 0, pr.price ASC';
   } else if (sortParam === 'price_desc') {
     orderBy = 'ORDER BY pr.price = 0, pr.price DESC';
   } else if (sortParam === 'newest') {
-    orderBy = categoryId ? 'ORDER BY pc.pro_id DESC' : 'ORDER BY p.id DESC';
+    orderBy = 'ORDER BY p.id DESC';
   }
 
   const countFrom = `${joins.join('\n')} WHERE ${whereParts.join(' AND ')}`;

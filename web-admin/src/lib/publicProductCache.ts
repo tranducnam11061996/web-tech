@@ -7,6 +7,7 @@ type CacheEntry<T> = {
 const MAX_CACHE_ITEMS = 200;
 const productResponseCache = new Map<string, CacheEntry<unknown>>();
 const productResponseFlights = new Map<string, Promise<unknown>>();
+const metrics = { hits: 0, misses: 0, coalesced: 0, staleFallbacks: 0 };
 
 function touchCacheKey(key: string, entry: CacheEntry<unknown>) {
   productResponseCache.delete(key);
@@ -26,6 +27,10 @@ export function clearPublicProductResponseCache() {
   productResponseFlights.clear();
 }
 
+export function getPublicProductCacheStats() {
+  return { items: productResponseCache.size, flights: productResponseFlights.size, ...metrics };
+}
+
 export async function withPublicProductResponseCache<T>(
   key: string,
   loader: () => Promise<T>,
@@ -35,12 +40,18 @@ export async function withPublicProductResponseCache<T>(
   const now = Date.now();
   const cached = productResponseCache.get(key) as CacheEntry<T> | undefined;
   if (cached && cached.expiresAt > now) {
+    metrics.hits += 1;
     touchCacheKey(key, cached as CacheEntry<unknown>);
     return cached.value;
   }
 
   const existingFlight = productResponseFlights.get(key) as Promise<T> | undefined;
-  if (existingFlight) return existingFlight;
+  if (existingFlight) {
+    metrics.coalesced += 1;
+    return existingFlight;
+  }
+
+  metrics.misses += 1;
 
   const flight = loader()
     .then((value) => {
@@ -53,7 +64,10 @@ export async function withPublicProductResponseCache<T>(
       return value;
     })
     .catch((error) => {
-      if (cached && cached.staleUntil > Date.now()) return cached.value;
+      if (cached && cached.staleUntil > Date.now()) {
+        metrics.staleFallbacks += 1;
+        return cached.value;
+      }
       throw error;
     })
     .finally(() => {

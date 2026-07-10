@@ -1,137 +1,84 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
+import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
-import { groupProductImages, listProductImages } from '@/lib/admin/images';
+import { groupProductImages, listProductImagesReadOnly } from '@/lib/admin/images';
 import { getPublicCategoryFeatureBox } from '@/lib/categoryFeatureBoxes';
+import { withPublicProductResponseCache } from '@/lib/publicProductCache';
 
 const publicCacheHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
 };
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> } // In Next.js 15, params is a Promise
-) {
+async function loadProductPayload(slug: string) {
+  const requestPath = `/${slug}`;
+  const requestPathIndex = createHash('md5').update(requestPath).digest('hex');
+  const [urlRows] = await pool.query<any[]>(
+    'SELECT id_path, url_type FROM idv_url WHERE request_path_index = ? AND request_path = ? LIMIT 1',
+    [requestPathIndex, requestPath],
+  );
+  const url = urlRows[0];
+  if (!url) return { success: false, message: 'Not found', status: 404 };
+
+  const match = String(url.id_path || '').match(/view_id:(\d+)/);
+  const entityId = match ? Number(match[1]) : 0;
+  if (!entityId) return { success: false, message: 'Invalid URL mapping', status: 400 };
+
+  if (url.url_type === 'product:category') {
+    const [rows] = await pool.query<any[]>(
+      'SELECT name, summary, img_big, meta_title, static_html FROM idv_seller_category WHERE id = ? LIMIT 1',
+      [entityId],
+    );
+    const category = rows[0] || {};
+    const featureBox = await getPublicCategoryFeatureBox(entityId, 'category');
+    return {
+      success: true,
+      type: 'category',
+      data: {
+        id: entityId, type: 'category', name: category.name || 'Danh muc', summary: category.summary || '',
+        imgBig: category.img_big || '', metaTitle: category.meta_title || '', staticHtml: category.static_html || '', featureBox,
+      },
+    };
+  }
+  if (url.url_type !== 'product:product-detail') return { success: false, message: 'Invalid URL type', status: 400 };
+
+  const [productRows] = await pool.query<any[]>(`
+    SELECT p.id, p.proName, p.storeSKU, p.warranty, p.image_collection, p.proSummary,
+      pr.price, pr.market_price, pr.isOn, b.name AS brandName, i.spec, i.description
+    FROM idv_sell_product_store p
+    LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
+    LEFT JOIN idv_brand b ON p.brandId = b.id
+    LEFT JOIN idv_sell_product_info i ON p.id = i.id
+    WHERE p.id = ? LIMIT 1
+  `, [entityId]);
+  const product = productRows[0];
+  if (!product) return { success: false, message: 'Product not found', status: 404 };
+
+  const productImages = await listProductImagesReadOnly(Number(product.id), product.image_collection || '');
+  const imageGroups = groupProductImages(productImages);
+  const images = productImages.map((image) => image.url).filter(Boolean);
+  if (images.length === 0) images.push('https://placehold.co/800x800/1f2937/a1a1aa?text=No+Image');
+  return {
+    success: true,
+    data: {
+      id: product.id, name: product.proName, sku: product.storeSKU, brand: product.brandName || 'Dang cap nhat',
+      warranty: product.warranty || 'Dang cap nhat', price: product.price || 0, marketPrice: product.market_price || 0,
+      savings: Math.max(0, Number(product.market_price || 0) - Number(product.price || 0)), images, imageItems: productImages,
+      imageGroups, specs: product.spec || '', description: product.description || '', proSummary: product.proSummary || '',
+      status: product.isOn === 1 ? 'active' : 'inactive', type: 'product',
+    },
+  };
+}
+
+export async function GET(_request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   try {
     const { slug } = await params;
-    const requestPath = `/${slug}`;
-    const requestPathIndex = createHash('md5').update(requestPath).digest('hex');
-
-    // Resolve through the legacy hash index, then verify the full path for safety.
-    const [urlRows] = await pool.query(
-      'SELECT id_path, url_type FROM idv_url WHERE request_path_index = ? AND request_path = ? LIMIT 1',
-      [requestPathIndex, requestPath]
-    );
-
-    const urlData = urlRows as any[];
-    if (urlData.length === 0) {
-      return NextResponse.json({ success: false, message: "Sản phẩm hoặc danh mục không tồn tại", error: "Not Found" }, { status: 404 });
-    }
-
-    if (urlData[0].url_type === 'product:category') {
-      const match = urlData[0].id_path.match(/view_id:(\d+)/);
-      const categoryId = match ? match[1] : null;
-      if (categoryId) {
-        const [catRows] = await pool.query('SELECT name, summary, img_big, meta_title, static_html FROM idv_seller_category WHERE id = ? LIMIT 1', [Number(categoryId)]);
-        const catData = catRows as any[];
-        let name = 'Danh mục';
-        let summary = '';
-        let imgBig = '';
-        let metaTitle = '';
-        let staticHtml = '';
-        if (catData.length > 0) {
-          name = catData[0].name;
-          summary = catData[0].summary;
-          imgBig = catData[0].img_big;
-          metaTitle = catData[0].meta_title;
-          staticHtml = catData[0].static_html;
-        }
-
-        const featureBox = await getPublicCategoryFeatureBox(Number(categoryId), 'category');
-        return NextResponse.json({
-          success: true,
-          type: 'category',
-          data: { id: categoryId, type: 'category', name, summary, imgBig, metaTitle, staticHtml, featureBox },
-        }, { headers: publicCacheHeaders });
-      }
-    }
-
-    if (urlData[0].url_type !== 'product:product-detail') {
-      return NextResponse.json({ success: false, message: "Loại đường dẫn không được hỗ trợ", error: "Invalid Type" }, { status: 400 });
-    }
-
-    // Extract product ID from id_path (e.g., "module:product/view:product-detail/view_id:70977")
-    const match = urlData[0].id_path.match(/view_id:(\d+)/);
-    const productId = match ? match[1] : null;
-
-    if (!productId) {
-      return NextResponse.json({ success: false, message: "Lỗi cấu trúc đường dẫn", error: "Invalid URL mapping" }, { status: 400 });
-    }
-
-    // 2. Fetch product details
-    const [productRows] = await pool.query(`
-      SELECT 
-        p.id, p.proName, p.storeSKU, p.warranty, p.image_collection, p.proSummary,
-        pr.price, pr.market_price, pr.isOn,
-        b.name as brandName,
-        i.spec, i.description
-      FROM idv_sell_product_store p
-      LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
-      LEFT JOIN idv_brand b ON p.brandId = b.id
-      LEFT JOIN idv_sell_product_info i ON p.id = i.id
-      WHERE p.id = ?
-    `, [Number(productId)]);
-
-    const products = productRows as any[];
-    if (products.length === 0) {
-      return NextResponse.json({ success: false, message: "Dữ liệu sản phẩm không tồn tại", error: "Not Found" }, { status: 404 });
-    }
-
-    const product = products[0];
-
-    // 3. Load product images. This lazily seeds legacy image_collection into
-    // metadata rows, then keeps legacy URL array for older storefront code.
-    const productImages = await listProductImages(Number(product.id), product.image_collection || '');
-    const imageGroups = groupProductImages(productImages);
-    const flatImageUrls = productImages.map((image) => image.url).filter(Boolean);
-    if (flatImageUrls.length === 0) {
-      flatImageUrls.push('https://placehold.co/800x800/1f2937/a1a1aa?text=No+Image');
-    }
-
-    // 4. Format Output Data
-    const outputData = {
-      id: product.id,
-      name: product.proName,
-      sku: product.storeSKU,
-      brand: product.brandName || 'Đang cập nhật',
-      warranty: product.warranty || 'Đang cập nhật',
-      price: product.price || 0,
-      marketPrice: product.market_price || 0,
-      savings: Math.max(0, (product.market_price || 0) - (product.price || 0)),
-      images: flatImageUrls,
-      imageItems: productImages,
-      imageGroups,
-      specs: product.spec || '',
-      description: product.description || '',
-      proSummary: product.proSummary || '',
-      status: product.isOn === 1 ? 'active' : 'inactive',
-      views: Math.floor(Math.random() * 10000) + 1000, // Mock view count
-      type: 'product'
-    };
-
-    return NextResponse.json({
-      success: true,
-      data: outputData,
-      message: "Lấy dữ liệu thành công"
-    }, { headers: publicCacheHeaders });
-
-  } catch (error: any) {
-    console.error("API /products/[slug] Error:", error);
-    return NextResponse.json({
-      success: false,
-      message: "Đã xảy ra lỗi hệ thống",
-      error: error.message
-    }, { status: 500 });
+    const payload = await withPublicProductResponseCache(`product-detail:${slug}`, () => loadProductPayload(slug));
+    const status = 'status' in payload ? Number(payload.status || 200) : 200;
+    const { status: _status, ...body } = payload as Record<string, unknown>;
+    return NextResponse.json(body, { status, headers: publicCacheHeaders });
+  } catch (error) {
+    console.error('API /products/[slug] Error:', error);
+    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500, headers: publicCacheHeaders });
   }
 }

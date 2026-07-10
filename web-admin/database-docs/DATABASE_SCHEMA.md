@@ -167,6 +167,16 @@ Current order API writes:
 
 `build_buy_item.order_id` had no documented secondary index in the previous audit. Benchmark before adding an index.
 
+## Storefront Vouchers
+
+Voucher runtime data is intentionally separate from legacy MyISAM `idv_coupon` tables so quota changes can share the InnoDB order transaction.
+
+- `web_admin_vouchers`: canonical code, active state, quota, discount rule, minimum order value, and optional UTC validity range.
+- `web_admin_voucher_categories`: selected category roots; application includes descendants at quote time.
+- `web_admin_voucher_redemptions`: immutable order snapshot plus `redeemed` / `released` state. `order_id` is unique to enforce one voucher per storefront order.
+
+For limited vouchers, `remaining_quantity` is decremented only while creating the order and is incremented only when a pending order becomes failed or cancelled.
+
 ## Search Infrastructure
 
 ### `product_data_search`

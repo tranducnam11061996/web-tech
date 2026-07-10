@@ -178,7 +178,7 @@ function MenuLinkIcon({ item, className = 'h-3.5 w-3.5 shrink-0 text-gray-500' }
   );
 }
 
-export default function Header() {
+export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }) {
   const router = useRouter();
   const [showSubMenu, setShowSubMenu] = useState(true);
   const lastScrollY = useRef(0);
@@ -192,7 +192,7 @@ export default function Header() {
   const desktopSearchRef = useRef<HTMLInputElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
 
-  const [headerMenu, setHeaderMenu] = useState<HeaderMenuData>(fallbackHeaderMenu);
+  const [headerMenu, setHeaderMenu] = useState<HeaderMenuData>(initialMenu || fallbackHeaderMenu);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeDesktopTab, setActiveDesktopTab] = useState<'zones' | 'faves'>('zones');
   const [activeMobileTab, setActiveMobileTab] = useState<'zones' | 'faves'>('zones');
@@ -213,6 +213,11 @@ export default function Header() {
   );
 
   useEffect(() => {
+    if (initialMenu) {
+      cachedHeaderMenu = initialMenu;
+      cachedHeaderMenuExpiresAt = Date.now() + HEADER_MENU_CLIENT_CACHE_MS;
+      return;
+    }
     let cancelled = false;
     loadHeaderMenu()
       .then((nextMenu) => {
@@ -224,7 +229,7 @@ export default function Header() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialMenu]);
 
   // Search navigation: lấy giá trị từ input và chuyển trang.
   const navigateToSearch = useCallback((inputRef: React.RefObject<HTMLInputElement | null>) => {

@@ -323,6 +323,38 @@ export async function listProductImages(productId: number, rawImageCollection?: 
   return rows.map(rowToRecord);
 }
 
+/** Public reads must never seed legacy rows or acquire a write transaction. */
+export async function listProductImagesReadOnly(productId: number, rawImageCollection?: unknown, rawThumbnail?: unknown) {
+  try {
+    const [rows] = await pool.query<ProductImageRow[]>(
+      `SELECT * FROM web_admin_product_images WHERE product_id = ? ORDER BY is_main DESC, ordering ASC, id ASC`,
+      [productId],
+    );
+    if (rows.length > 0) return rows.map(rowToRecord);
+  } catch (error: any) {
+    // A fresh local database may not have the admin metadata table yet. Fall
+    // back to the legacy image column without turning a storefront GET into DDL.
+    if (error?.code !== 'ER_NO_SUCH_TABLE') throw error;
+  }
+
+  return parseLegacyProductImages(rawImageCollection, rawThumbnail).map((image, index) => ({
+    id: -(index + 1),
+    productId,
+    type: 'product' as const,
+    fileName: image.fileName,
+    folder: 'legacy',
+    relativePath: image.fileName,
+    alt: image.alt || '',
+    ordering: Number(image.ordering || 0),
+    isMain: Boolean(image.isPrimary),
+    sizeBytes: 0,
+    mimeType: '',
+    width: 0,
+    height: 0,
+    url: legacyProductUrl(image.fileName),
+  }));
+}
+
 export function groupProductImages(images: ProductImageRecord[]) {
   return {
     product: images.filter((image) => image.type === 'product' || image.type === 'self'),

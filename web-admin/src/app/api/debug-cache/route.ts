@@ -1,23 +1,12 @@
 import { NextResponse } from 'next/server';
-import { ensureSearchCacheFresh, searchCache } from '@/lib/searchCache';
+import { getPublicProductCacheStats } from '@/lib/publicProductCache';
 
 export async function GET() {
   try {
-    await ensureSearchCacheFresh();
-    const sample = searchCache.cachedProducts?.[0];
-
     return NextResponse.json({
       success: true,
-      totalProducts: searchCache.cachedProducts?.length || 0,
-      expiresAt: searchCache.expiresAt,
-      sampleProduct: sample
-        ? {
-            id: sample.id,
-            SKU: sample.storeSKU,
-            name: sample.proName.substring(0, 60),
-            searchText: sample.searchText.substring(0, 100),
-          }
-        : null,
+      cache: getPublicProductCacheStats(),
+      rssMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
     });
   } catch (error) {
     return NextResponse.json({

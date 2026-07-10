@@ -32,8 +32,8 @@ function normalizeSlug(value: string) {
   return String(value || "").replace(/^\/+/, "");
 }
 
-export default async function Section11() {
-  const sections = await fetchHomepageFeatureSections();
+export default async function Section11({ initialSections }: { initialSections?: HomepageFeatureSection[] }) {
+  const sections = initialSections || await fetchHomepageFeatureSections();
   if (sections.length === 0) return null;
 
   return (

@@ -23,7 +23,8 @@ export const menuGroups = [
     title: 'Quản lý bán hàng',
     icon: ShoppingCart,
     items: [
-      { name: 'Danh sách đơn hàng', path: '#' }
+      { name: 'Danh sách đơn hàng', path: '/sales/orders' },
+      { name: 'Voucher', path: '/sales/vouchers' }
     ]
   },
   {

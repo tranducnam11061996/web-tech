@@ -40,8 +40,8 @@ async function getHeroBanners(): Promise<HeroBanner[]> {
   }
 }
 
-export default async function Section3() {
-  const banners = await getHeroBanners();
+export default async function Section3({ initialBanners }: { initialBanners?: HeroBanner[] }) {
+  const banners = initialBanners || await getHeroBanners();
 
   return (
     <>

@@ -2,6 +2,10 @@ import Fuse from 'fuse.js';
 import type { RowDataPacket } from 'mysql2/promise';
 import pool from './db';
 import { getProductCardBadgesForProductIds, type ProductCardBadge } from './productCardAttributes';
+import { invalidateSearchLexicalCache } from './searchLexicalCache';
+import { injectSearchSynonyms, normalizeSearchText } from './searchRules';
+
+export { SYNONYM_GROUPS } from './searchRules';
 
 const configuredCacheTtl = Number(process.env.SEARCH_CACHE_TTL_MS || 300_000);
 const CACHE_TTL_MS = Number.isFinite(configuredCacheTtl) && configuredCacheTtl >= 30_000
@@ -9,24 +13,6 @@ const CACHE_TTL_MS = Number.isFinite(configuredCacheTtl) && configuredCacheTtl >
   : 300_000;
 const unsafeFilterTextPattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
 const htmlEntityPattern = /&(?:amp|lt|gt|quot|apos|#39|#x27|#60|#x3c|#62|#x3e);/gi;
-
-export const SYNONYM_GROUPS: string[][] = [
-  ['laptop', 'may tinh xach tay'],
-  ['vga', 'card do hoa', 'card man hinh'],
-  ['chuot', 'mouse'],
-  ['ban phim', 'keyboard'],
-  ['man hinh', 'monitor', 'lcd', 'display'],
-  ['cpu', 'chip', 'bo vi xu ly', 'vi xu ly'],
-  ['ram', 'bo nho trong', 'bo nho ram'],
-  ['ssd', 'o cung', 'hdd', 'o cung the ran'],
-];
-
-const SYNONYM_REGEXES = SYNONYM_GROUPS.map((group) =>
-  group.map((word) => ({
-    word,
-    regex: new RegExp(`(^|\\s)${word}($|\\s)`),
-  })),
-);
 
 export interface SearchWebhookProduct {
   SKU?: string;
@@ -111,17 +97,7 @@ export const searchCache: SearchCacheState = {
 let cacheMutationQueue: Promise<void> = Promise.resolve();
 
 export function removeVietnameseTones(value: string): string {
-  if (!value) return '';
-
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return normalizeSearchText(value);
 }
 
 export function decodeHtmlEntities(value: unknown): string {
@@ -154,25 +130,7 @@ export function decodeHtmlEntities(value: unknown): string {
 }
 
 export function injectSynonyms(text: string): string {
-  if (!text) return text;
-  const appendedSynonyms: string[] = [];
-
-  for (const group of SYNONYM_REGEXES) {
-    let hasMatch = false;
-    for (const item of group) {
-      if (item.regex.test(text)) {
-        hasMatch = true;
-        break;
-      }
-    }
-
-    if (!hasMatch) continue;
-    for (const item of group) {
-      if (!item.regex.test(text)) appendedSynonyms.push(item.word);
-    }
-  }
-
-  return appendedSynonyms.length > 0 ? `${text} ${appendedSynonyms.join(' ')}` : text;
+  return injectSearchSynonyms(text);
 }
 
 export function slugifySearchFilter(value: string): string {
@@ -373,24 +331,13 @@ async function refreshSearchCache() {
 }
 
 export async function ensureSearchCacheFresh(): Promise<void> {
-  await cacheMutationQueue;
-  if (searchCache.cachedProducts && Date.now() < searchCache.expiresAt) return;
-  if (searchCache.warmPromise) return searchCache.warmPromise;
-
-  searchCache.warmPromise = refreshSearchCache()
-    .catch((error) => {
-      if (!searchCache.cachedProducts) throw error;
-      searchCache.expiresAt = Date.now() + CACHE_TTL_MS;
-      console.error('[SearchCache] Refresh failed; serving stale data:', error);
-    })
-    .finally(() => {
-      searchCache.warmPromise = null;
-    });
-
-  return searchCache.warmPromise;
+  // Search runs directly in MySQL now. Do not rebuild the whole catalogue for
+  // legacy diagnostics or webhook imports, which previously caused OOM on boot.
+  return;
 }
 
 export function invalidateSearchCache() {
+  invalidateSearchLexicalCache();
   searchCache.cachedProducts = null;
   searchCache.filters = new Map();
   searchCache.shortFuse = null;
@@ -447,6 +394,7 @@ export function mutateSearchCache(
   webhookProduct?: SearchWebhookProduct,
 ) {
   const operation = cacheMutationQueue.then(async () => {
+    invalidateSearchLexicalCache();
     if (searchCache.warmPromise) await searchCache.warmPromise;
     if (!searchCache.cachedProducts) return { skipped: true };
 
@@ -517,18 +465,4 @@ export function getSearchFuse(queryLength: number): Fuse<SearchProduct> {
   const fuse = queryLength <= 4 ? searchCache.shortFuse : searchCache.longFuse;
   if (!fuse) throw new Error('Search cache is not ready');
   return fuse;
-}
-
-function shouldPrewarmSearchCache() {
-  return (
-    typeof window === 'undefined' &&
-    process.env.NEXT_PHASE !== 'phase-production-build' &&
-    process.env.npm_lifecycle_event !== 'build'
-  );
-}
-
-if (shouldPrewarmSearchCache()) {
-  ensureSearchCacheFresh().catch((error) => {
-    console.error('[SearchCache] Initial warm failed:', error);
-  });
 }

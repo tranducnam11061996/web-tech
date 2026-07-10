@@ -50,8 +50,8 @@ async function getCircleStoryItems(): Promise<MenuLinkObject[]> {
   }
 }
 
-export default async function Section2() {
-  const circleStoryItems = await getCircleStoryItems();
+export default async function Section2({ initialItems }: { initialItems?: MenuLinkObject[] }) {
+  const circleStoryItems = initialItems || await getCircleStoryItems();
 
   return (
     <>

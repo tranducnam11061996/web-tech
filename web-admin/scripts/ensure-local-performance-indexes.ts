@@ -5,6 +5,7 @@ type IndexDefinition = {
   table: string;
   name: string;
   columns: string;
+  kind?: 'FULLTEXT';
 };
 
 // All index names are application-owned and safe to re-run on a local database.
@@ -15,6 +16,7 @@ const indexes: IndexDefinition[] = [
   { table: 'idv_product_attribute', name: 'idx_webtech_attr_value_product', columns: '`attr_id`, `attr_value_id`, `pro_id`' },
   { table: 'idv_sell_product_price', name: 'idx_webtech_ison_price_id', columns: '`isOn`, `price`, `id`' },
   { table: 'idv_category_special_product', name: 'idx_webtech_special_order_product', columns: '`special_cat_id`, `ordering`, `id`, `product_id`' },
+  { table: 'product_data_search', name: 'idx_webtech_data_search_fulltext', columns: '`data_search`', kind: 'FULLTEXT' },
   { table: 'build_buy_item', name: 'idx_webtech_order_id', columns: '`order_id`' },
 ];
 
@@ -51,7 +53,8 @@ async function main() {
         continue;
       }
 
-      await connection.query(`ALTER TABLE \`${index.table}\` ADD INDEX \`${index.name}\` (${index.columns})`);
+      const indexType = index.kind === 'FULLTEXT' ? 'ADD FULLTEXT INDEX' : 'ADD INDEX';
+      await connection.query(`ALTER TABLE \`${index.table}\` ${indexType} \`${index.name}\` (${index.columns})`);
       console.log(`[db:indexes] Created: ${index.table}.${index.name}`);
     }
   } finally {

@@ -8,22 +8,23 @@ async function getCategories(page: number, limit: number) {
   try {
     const offset = (page - 1) * limit;
 
-    // Count root categories
-    const [countResult] = await pool.query(
-      'SELECT COUNT(*) as total FROM idv_seller_category WHERE parentId = 0'
-    );
+    // Fetch the page data and its total independently to avoid a request waterfall.
+    const [countQuery, rootQuery] = await Promise.all([
+      pool.query('SELECT COUNT(*) as total FROM idv_seller_category WHERE parentId = 0'),
+      pool.query(`
+        SELECT
+          c.id, c.name, c.is_featured, c.status, c.ordering, c.url
+        FROM idv_seller_category c
+        WHERE c.parentId = 0
+        ORDER BY c.ordering DESC, c.id DESC
+        LIMIT ? OFFSET ?
+      `, [Number(limit), Number(offset)]),
+    ]);
+    const [countResult] = countQuery;
     const totalItems = Number((countResult as any[])[0]?.total || 0);
     const pagination = buildPagination(totalItems, page, limit);
 
-    // Fetch root categories
-    const [rootRows] = await pool.query(`
-      SELECT 
-        c.id, c.name, c.is_featured, c.status, c.proCount, c.ordering, c.url
-      FROM idv_seller_category c
-      WHERE c.parentId = 0
-      ORDER BY c.ordering DESC, c.id DESC
-      LIMIT ? OFFSET ?
-    `, [Number(limit), Number(offset)]);
+    const [rootRows] = rootQuery;
 
     const rootCategories = rootRows as any[];
 
@@ -40,7 +41,7 @@ async function getCategories(page: number, limit: number) {
     // Fetch direct children
     const [childRows] = await pool.query(`
       SELECT 
-        c.id, c.name, c.is_featured, c.status, c.proCount, c.ordering, c.parentId, c.url
+        c.id, c.name, c.is_featured, c.status, c.ordering, c.parentId, c.url
       FROM idv_seller_category c
       WHERE c.parentId IN (${placeholders})
       ORDER BY c.ordering DESC, c.id DESC
@@ -52,13 +53,25 @@ async function getCategories(page: number, limit: number) {
       childrenByParent[child.parentId].push(child);
     }
 
+    const categoryIds = [...rootCategories, ...(childRows as any[])].map((category) => Number(category.id));
+    const categoryPlaceholders = categoryIds.map(() => '?').join(',');
+    const [productCountRows] = await pool.query(`
+      SELECT pc.category_id, COUNT(DISTINCT pc.pro_id) AS productCount
+      FROM idv_product_category pc
+      WHERE pc.category_id IN (${categoryPlaceholders})
+      GROUP BY pc.category_id
+    `, categoryIds);
+    const productCountByCategory = new Map(
+      (productCountRows as any[]).map((row) => [Number(row.category_id), Number(row.productCount || 0)]),
+    );
+
     const mapToNode = (row: any, isChild = false): CategoryNode => {
       const node: CategoryNode = {
         id: row.id.toString(),
         name: row.name,
         isFeatured: row.is_featured === 1,
         isVisible: row.status === 1,
-        productCount: row.proCount || 0,
+        productCount: productCountByCategory.get(Number(row.id)) || 0,
         sequence: row.ordering || 0,
         frontEndUrl: row.url ? `http://localhost:3001/${row.url}` : '#',
       };

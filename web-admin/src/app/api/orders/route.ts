@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { buildCartQuote } from '@/lib/cart-quote';
+import { reserveVoucherForOrder } from '@/lib/vouchers';
+import { createOrderMeta } from '@/lib/storefrontOrders';
 import { sendOrderEmail, type EmailCustomer, type EmailDelivery, type EmailOrderItem, type EmailOrderTotals } from '@/lib/email';
 
 const corsHeaders = {
@@ -44,12 +46,14 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const quote = await buildCartQuote((body as any).items);
-    const invalidItems = quote.items.filter((item) => !item.available);
-    const orderItems = quote.items.filter((item) => item.available);
     const customer = (body as any).customer || {};
     const delivery = (body as any).delivery || {};
     const rawPayment = (body as any).paymentMethod || 'bank_transfer';
+    let quote = await buildCartQuote((body as any).items, {
+      voucherCode: (body as any).voucherCode,
+    });
+    let invalidItems = quote.items.filter((item) => !item.available);
+    let orderItems = quote.items.filter((item) => item.available);
 
     if (orderItems.length === 0) {
       return NextResponse.json(
@@ -76,6 +80,20 @@ export async function POST(request: Request) {
       );
     }
 
+    await connection.beginTransaction();
+    quote = await buildCartQuote((body as any).items, {
+      voucherCode: (body as any).voucherCode,
+      db: connection,
+      lockVoucher: true,
+    });
+    invalidItems = quote.items.filter((item) => !item.available);
+    orderItems = quote.items.filter((item) => item.available);
+    if (orderItems.length === 0 || invalidItems.length > 0 || (String((body as any).voucherCode || '').trim() && quote.voucher.status !== 'applied')) {
+      const validationError = new Error(quote.voucher.message || 'Giỏ hàng hoặc voucher không còn hợp lệ.');
+      (validationError as any).statusCode = 400;
+      throw validationError;
+    }
+
     const now = Math.floor(Date.now() / 1000);
     const productTitle =
       orderItems.length === 1
@@ -96,12 +114,11 @@ export async function POST(request: Request) {
     const config = JSON.stringify({
       items: orderItems,
       totals: quote.totals,
+      voucher: quote.voucher,
       note: (body as any).note || '',
     });
     const safeBuyerInfo = toDbSafeText(buyerInfo);
     const safeConfig = toDbSafeText(config);
-
-    await connection.beginTransaction();
 
     const [orderResult] = await connection.query(
       `
@@ -121,6 +138,10 @@ export async function POST(request: Request) {
     );
 
     const orderId = Number((orderResult as any).insertId);
+
+    await createOrderMeta(connection, orderId, JSON.parse(buyerInfo));
+
+    await reserveVoucherForOrder(connection, quote.voucher, orderId, quote.totals.subtotal);
 
     for (const item of orderItems) {
       await connection.query(
@@ -196,7 +217,7 @@ export async function POST(request: Request) {
         message: 'Không thể tạo đơn hàng',
         error: error.message,
       },
-      { status: 500, headers: corsHeaders },
+      { status: error?.statusCode || 500, headers: corsHeaders },
     );
   } finally {
     connection.release();

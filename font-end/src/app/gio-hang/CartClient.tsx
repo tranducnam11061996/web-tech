@@ -17,6 +17,7 @@ import {
   updateCartQuantity,
   useCartItems,
 } from "@/lib/cart";
+import { getAppliedVoucherCode, setAppliedVoucherCode } from "@/lib/voucher";
 
 type QuoteItem = {
   productId: number;
@@ -31,6 +32,19 @@ type QuoteItem = {
   reason: string | null;
   lineTotal: number;
   lineMarketTotal: number;
+};
+
+type VoucherQuote = {
+  code: string | null;
+  status: "none" | "applied" | "invalid";
+  message: string | null;
+  discount: number;
+  note: string | null;
+};
+
+type VoucherQuoteResponse = {
+  totals: { voucherDiscount: number };
+  voucher: VoucherQuote;
 };
 
 type DisplayCartItem = CartItem & {
@@ -201,6 +215,10 @@ export default function CartClient() {
   const [quoteMap, setQuoteMap] = useState<Record<number, QuoteItem>>({});
   const [isQuoting, setIsQuoting] = useState(false);
   const [message, setMessage] = useState("");
+  const [voucherInput, setVoucherInput] = useState(() => getAppliedVoucherCode());
+  const [appliedVoucherCode, setAppliedVoucherCodeState] = useState(() => getAppliedVoucherCode());
+  const [voucherQuote, setVoucherQuote] = useState<VoucherQuoteResponse | null>(null);
+  const [isVoucherQuoting, setIsVoucherQuoting] = useState(false);
 
   const quoteRequestItems = useMemo(
     () => cartItems.map((item) => ({ productId: item.productId, quantity: item.quantity })),
@@ -249,6 +267,38 @@ export default function CartClient() {
     return () => controller.abort();
   }, [quoteKey, quoteRequestItems]);
 
+  const voucherRequestItems = useMemo(
+    () => cartItems
+      .filter((item) => item.selected && !item.savedForLater)
+      .map((item) => ({ productId: item.productId, quantity: item.quantity })),
+    [cartItems],
+  );
+  const voucherQuoteKey = useMemo(
+    () => `${appliedVoucherCode}|${voucherRequestItems.map((item) => `${item.productId}:${item.quantity}`).join('|')}`,
+    [appliedVoucherCode, voucherRequestItems],
+  );
+
+  useEffect(() => {
+    if (!appliedVoucherCode || voucherRequestItems.length === 0) {
+      setVoucherQuote(null);
+      setIsVoucherQuoting(false);
+      return;
+    }
+    const controller = new AbortController();
+    setIsVoucherQuoting(true);
+    fetch('/api/cart/quote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: voucherRequestItems, voucherCode: appliedVoucherCode }),
+      signal: controller.signal,
+    })
+      .then((response) => response.json())
+      .then((json) => { if (json.success) setVoucherQuote(json.data as VoucherQuoteResponse); })
+      .catch((error) => { if (error.name !== 'AbortError') setMessage('Không thể kiểm tra voucher. Vui lòng thử lại.'); })
+      .finally(() => { if (!controller.signal.aborted) setIsVoucherQuoting(false); });
+    return () => controller.abort();
+  }, [voucherQuoteKey, voucherRequestItems]);
+
   const activeItems = useMemo(
     () => cartItems.filter((item) => !item.savedForLater).map((item) => mergeQuote(item, quoteMap[item.productId])),
     [cartItems, quoteMap],
@@ -264,6 +314,8 @@ export default function CartClient() {
   const subtotal = selectedAvailableItems.reduce((total, item) => total + item.lineTotal, 0);
   const marketSubtotal = selectedAvailableItems.reduce((total, item) => total + item.lineMarketTotal, 0);
   const savings = Math.max(0, marketSubtotal - subtotal);
+  const voucherDiscount = voucherQuote?.voucher.status === 'applied' ? Number(voucherQuote.totals.voucherDiscount || 0) : 0;
+  const totalAfterVoucher = Math.max(0, subtotal - voucherDiscount);
   const allSelected = activeItems.length > 0 && activeItems.every((item) => item.selected);
   const selectedCount = activeItems.filter((item) => item.selected).length;
 
@@ -273,6 +325,19 @@ export default function CartClient() {
       return;
     }
     router.push("/thanh-toan");
+  };
+
+  const applyVoucher = () => {
+    const code = voucherInput.trim().toUpperCase();
+    setAppliedVoucherCodeState(code);
+    setAppliedVoucherCode(code);
+  };
+
+  const clearVoucher = () => {
+    setVoucherInput('');
+    setAppliedVoucherCodeState('');
+    setAppliedVoucherCode('');
+    setVoucherQuote(null);
   };
 
   return (
@@ -348,17 +413,10 @@ export default function CartClient() {
             </div>
 
             <div className="lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-4">
-              <div className="bg-[#111115] border border-[#1a1a1e] rounded-xl p-4 flex justify-between items-center bg-gradient-to-r from-[#111115] to-[#16161a]">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center text-xl">%</div>
-                  <div>
-                    <p className="font-bold text-sm text-white">Voucher giảm giá</p>
-                    <p className="text-[11px] text-gray-500">Sẽ được xử lý ở phiên bản tiếp theo</p>
-                  </div>
-                </div>
-                <button className="bg-[#1a1a1e] text-gray-500 text-xs font-bold px-3 py-2 rounded cursor-not-allowed">
-                  Chọn mã
-                </button>
+              <div className="bg-[#111115] border border-[#1a1a1e] rounded-xl p-4 bg-gradient-to-r from-[#111115] to-[#16161a]">
+                <div className="flex items-center gap-3"><div className="w-10 h-10 bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center text-xl">%</div><div><p className="font-bold text-sm text-white">Voucher giảm giá</p><p className="text-[11px] text-gray-500">Áp dụng cho sản phẩm đang chọn</p></div></div>
+                <div className="mt-3 flex gap-2"><input value={voucherInput} onChange={(event) => setVoucherInput(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); applyVoucher(); } }} placeholder="Nhập mã voucher" className="min-w-0 flex-1 rounded-lg border border-[#303036] bg-[#0d0d10] px-3 py-2 text-sm font-mono text-white outline-none focus:border-red-500" /><button onClick={applyVoucher} disabled={!voucherInput.trim() || isVoucherQuoting} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-500 disabled:opacity-50">{isVoucherQuoting ? 'Đang kiểm tra' : 'Áp dụng'}</button></div>
+                {appliedVoucherCode && <div className={`mt-3 rounded-lg border p-3 text-xs ${voucherQuote?.voucher.status === 'applied' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-red-500/30 bg-red-500/10 text-red-200'}`}><div className="flex items-start justify-between gap-3"><span>{voucherQuote?.voucher.message || 'Đang kiểm tra voucher...'}</span><button onClick={clearVoucher} className="shrink-0 underline">Bỏ mã</button></div>{voucherQuote?.voucher.status === 'applied' && voucherQuote.voucher.note && <p className="mt-1 text-emerald-300">{voucherQuote.voucher.note}</p>}</div>}
               </div>
 
               <div className="bg-[#111115] border border-[#1a1a1e] rounded-xl p-5">
@@ -377,13 +435,14 @@ export default function CartClient() {
                     <span>Tiết kiệm theo giá niêm yết</span>
                     <span className="font-bold text-red-500">-{formatCurrency(savings)}</span>
                   </div>
+                  {voucherDiscount > 0 && <div className="flex justify-between text-gray-400"><span>Giảm giá voucher</span><span className="font-bold text-emerald-400">-{formatCurrency(voucherDiscount)}</span></div>}
                 </div>
 
                 <div className="flex justify-between items-start mb-6">
                   <span className="font-bold text-white text-sm mt-1">Cần thanh toán</span>
                   <div className="text-right">
                     <span className="font-black text-[22px] text-red-500 leading-none block mb-1">
-                      {formatCurrency(subtotal)}
+                      {formatCurrency(totalAfterVoucher)}
                     </span>
                     <span className="text-[10px] text-gray-500">(Đã bao gồm VAT)</span>
                   </div>

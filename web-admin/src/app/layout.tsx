@@ -12,7 +12,6 @@ export default async function RootLayout({
 }: {
  children: React.ReactNode;
 }) {
- // Search cache is pre-warmed by searchCache.ts module-level initialization
  return (
  <html lang="vi" className="dark">
  <body className="bg-[#0a0a0f] text-gray-300 overflow-hidden selection:bg-red-500/30 selection:text-red-200" style={{ fontFamily: 'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>

@@ -21,6 +21,9 @@ import type {
   HomepageProductSectionData,
   HomepageProductSectionsPromise,
 } from "../components/sections/HomepageProductSection";
+import type { HeaderMenuData } from "../components/menuData";
+import type { MenuLinkObject } from "../components/menuData";
+import type { HeroBanner } from "../components/sections/HeroBannerCarousel";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const HOMEPAGE_PRODUCT_SECTION_CONFIGS: HomepageProductSectionConfig[] = [
@@ -59,23 +62,49 @@ async function fetchHomepageProductSections(configs: HomepageProductSectionConfi
   }
 }
 
-export default function Page() {
-  const homepageProductSectionsPromise = fetchHomepageProductSections(HOMEPAGE_PRODUCT_SECTION_CONFIGS);
+type HomepageBootstrap = {
+  headerMenu: HeaderMenuData;
+  homepageMenu: { circleStory?: MenuLinkObject[]; shopByCategory?: MenuLinkObject[] };
+  banners: { locations?: Array<{ key: string; banners?: HeroBanner[] }> };
+  productSections: { sections?: HomepageProductSectionData[] };
+  featureSections: { sections?: any[] };
+};
+
+async function fetchHomepageBootstrap(): Promise<HomepageBootstrap | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/homepage/bootstrap`, { next: { revalidate: 60 } });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return payload?.success && payload.data ? payload.data as HomepageBootstrap : null;
+  } catch {
+    return null;
+  }
+}
+
+export default async function Page() {
+  const bootstrap = await fetchHomepageBootstrap();
+  const homepageProductSectionsPromise = bootstrap?.productSections?.sections
+    ? Promise.resolve(bootstrap.productSections.sections)
+    : fetchHomepageProductSections(HOMEPAGE_PRODUCT_SECTION_CONFIGS);
+  const locations = bootstrap?.banners?.locations || [];
+  const primary = locations.find((location) => location.key === 'banner_slider_homepage_temp2019');
+  const fallback = locations.find((location) => location.key === 'fake_slide_trang_chu');
+  const heroBanners = (primary?.banners?.length ? primary.banners : fallback?.banners) || undefined;
 
   return (
     <>
-      <Header />
+      <Header initialMenu={bootstrap?.headerMenu} />
 
-      <Section2 />
-      <Section3 />
-      <Section4 />
+      <Section2 initialItems={bootstrap?.homepageMenu?.circleStory} />
+      <Section3 initialBanners={heroBanners} />
+      <Section4 initialItems={bootstrap?.homepageMenu?.shopByCategory} />
       <Section5 />
       <Section6 sectionDataPromise={homepageProductSectionsPromise} />
       <Section7 />
       <Section8 />
       <Section9 />
       <Section10 sectionDataPromise={homepageProductSectionsPromise} />
-      <Section11 />
+      <Section11 initialSections={bootstrap?.featureSections?.sections} />
       <Section12 />
       <Section13 />
       <Section14 />

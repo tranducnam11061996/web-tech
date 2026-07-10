@@ -61,7 +61,7 @@ function normalizeSlug(value: unknown) {
   return String(value || '').replace(/^\/+/, '');
 }
 
-async function loadHomepageProductSections(categoryIds: number[], productLimit: number) {
+export async function loadHomepageProductSections(categoryIds: number[], productLimit: number) {
   if (categoryIds.length === 0) {
     return { sections: [], meta: { generatedAt: new Date().toISOString() } };
   }

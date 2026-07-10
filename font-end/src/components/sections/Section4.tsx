@@ -43,8 +43,8 @@ async function getShopByCategoryItems(): Promise<MenuLinkObject[]> {
   }
 }
 
-export default async function Section4() {
-  const items = await getShopByCategoryItems();
+export default async function Section4({ initialItems }: { initialItems?: MenuLinkObject[] }) {
+  const items = initialItems || await getShopByCategoryItems();
 
   return (
     <>

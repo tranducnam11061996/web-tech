@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const quote = await buildCartQuote((body as any).items);
+    const quote = await buildCartQuote((body as any).items, { voucherCode: (body as any).voucherCode });
 
     return NextResponse.json(
       {

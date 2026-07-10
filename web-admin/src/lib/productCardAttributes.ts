@@ -138,6 +138,7 @@ const badgeCache: BadgeCacheState = {
   warmPromise: null,
   ruleTableExists: null,
 };
+const MAX_PRODUCT_BADGE_CACHE_ITEMS = 5_000;
 
 const laptopRuleSeeds = [
   { attributeCode: 'thong_so_cpu_laptop', slot: 'image_top_left', colorVariant: 'red', ordering: 10 },
@@ -310,6 +311,14 @@ export function invalidateProductCardAttributeCaches() {
   badgeCache.byProductId = null;
   badgeCache.expiresAt = 0;
   clearPublicProductResponseCache();
+}
+
+function trimProductBadgeCache(cache: Map<number, ProductCardBadge[]>) {
+  while (cache.size > MAX_PRODUCT_BADGE_CACHE_ITEMS) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) return;
+    cache.delete(oldest);
+  }
 }
 
 function buildCategoryMap(categories: Array<{ id: number; parentId: number }>) {
@@ -514,8 +523,85 @@ export async function getProductCardBadgesForProductIds(productIds: number[]) {
   const result = new Map<number, ProductCardBadge[]>();
   if (ids.length === 0) return result;
 
-  const byProductId = await ensureBadgeCacheFresh();
-  for (const id of ids) result.set(id, byProductId.get(id) || []);
+  // The old implementation warmed every product/category/attribute mapping in
+  // the catalogue. A product card request only needs the visible page IDs.
+  const cache = badgeCache.byProductId || new Map<number, ProductCardBadge[]>();
+  badgeCache.byProductId = cache;
+  const missingIds = ids.filter((id) => !cache.has(id));
+
+  if (missingIds.length > 0) {
+    const rules = await loadActiveAndBlockingRules();
+    if (rules.length === 0) {
+      for (const id of missingIds) cache.set(id, []);
+    } else {
+      const activeAttrIds = Array.from(new Set(rules.filter((rule) => rule.status).map((rule) => rule.attrId)));
+      const [categoryRows, productCategoryRows, attributeValueRows] = await Promise.all([
+        pool.query<CategoryRow[]>('SELECT id, parentId FROM idv_seller_category'),
+        pool.query<ProductCategoryRow[]>('SELECT pro_id, category_id FROM idv_product_category WHERE pro_id IN (?) AND status = 1', [missingIds]),
+        pool.query<AttributeValueRow[]>(`
+          SELECT pa.pro_id, pa.attr_id, pa.attr_value_id, a.attribute_code, a.name AS attribute_name,
+            v.value AS value_name, v.ordering AS value_ordering
+          FROM idv_product_attribute pa
+          JOIN idv_attribute a ON a.id = pa.attr_id
+          JOIN idv_attribute_value v ON v.id = pa.attr_value_id AND v.attributeId = a.id
+          WHERE pa.pro_id IN (?) AND pa.attr_id IN (?)
+        `, [missingIds, activeAttrIds]),
+      ]);
+      const parentById = buildCategoryMap(categoryRows[0].map((row) => ({ id: Number(row.id), parentId: Number(row.parentId || 0) })));
+      const rulesByCategory = new Map<number, ProductCardAttributeRule[]>();
+      for (const rule of rules) {
+        const categoryRules = rulesByCategory.get(rule.categoryId) || [];
+        categoryRules.push(rule);
+        rulesByCategory.set(rule.categoryId, categoryRules);
+      }
+      const categoriesByProduct = new Map<number, number[]>();
+      for (const row of productCategoryRows[0]) {
+        const productId = Number(row.pro_id);
+        const categories = categoriesByProduct.get(productId) || [];
+        categories.push(Number(row.category_id));
+        categoriesByProduct.set(productId, categories);
+      }
+      const valuesByProductAndAttr = new Map<string, AttributeValueRow[]>();
+      for (const row of attributeValueRows[0]) {
+        const key = `${Number(row.pro_id)}:${Number(row.attr_id)}`;
+        const values = valuesByProductAndAttr.get(key) || [];
+        values.push(row);
+        valuesByProductAndAttr.set(key, values);
+      }
+      for (const values of valuesByProductAndAttr.values()) {
+        values.sort((left, right) => Number(left.value_ordering || 0) - Number(right.value_ordering || 0));
+      }
+      for (const productId of missingIds) {
+        const badges: ProductCardBadge[] = [];
+        const effectiveRules = resolveEffectiveRulesForCategories(categoriesByProduct.get(productId) || [], parentById, rulesByCategory);
+        for (const rule of effectiveRules) {
+          const values = valuesByProductAndAttr.get(`${productId}:${rule.attrId}`) || [];
+          for (const value of values.slice(0, rule.maxValues)) {
+            const text = formatBadgeText(rule, value);
+            if (text) badges.push({
+              id: `${rule.id}:${Number(value.attr_value_id)}`,
+              attributeId: rule.attrId,
+              attributeCode: rule.attributeCode,
+              valueId: Number(value.attr_value_id),
+              text,
+              slot: rule.slot,
+              colorVariant: rule.colorVariant,
+              ordering: rule.ordering,
+            });
+          }
+        }
+        cache.set(productId, badges.sort((left, right) => left.ordering - right.ordering || left.text.localeCompare(right.text, 'vi')));
+      }
+    }
+    badgeCache.expiresAt = Date.now() + BADGE_CACHE_TTL_MS;
+    trimProductBadgeCache(cache);
+  }
+  for (const id of ids) {
+    const badges = cache.get(id) || [];
+    cache.delete(id);
+    cache.set(id, badges);
+    result.set(id, badges);
+  }
   return result;
 }
 

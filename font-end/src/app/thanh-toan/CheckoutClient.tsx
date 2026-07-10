@@ -11,6 +11,7 @@ import {
   removePurchasedCartItems,
   useCartItems,
 } from "@/lib/cart";
+import { getAppliedVoucherCode, setAppliedVoucherCode } from "@/lib/voucher";
 
 type QuoteItem = {
   productId: number;
@@ -28,6 +29,9 @@ type QuoteItem = {
 };
 
 type CheckoutItem = CartItem & QuoteItem;
+
+type VoucherQuote = { code: string | null; status: "none" | "applied" | "invalid"; message: string | null; discount: number; note: string | null; };
+type QuoteTotals = { voucherDiscount: number; total: number };
 
 type CheckoutForm = {
   customerName: string;
@@ -128,6 +132,9 @@ export default function CheckoutClient() {
   );
 
   const [quoteMap, setQuoteMap] = useState<Record<number, QuoteItem>>({});
+  const [quoteTotals, setQuoteTotals] = useState<QuoteTotals>({ voucherDiscount: 0, total: 0 });
+  const [voucher, setVoucher] = useState<VoucherQuote | null>(null);
+  const [voucherCode] = useState(() => getAppliedVoucherCode());
   const [isQuoting, setIsQuoting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<CheckoutForm>(initialForm);
@@ -147,6 +154,8 @@ export default function CheckoutClient() {
   useEffect(() => {
     if (quoteRequestItems.length === 0) {
       setQuoteMap({});
+      setQuoteTotals({ voucherDiscount: 0, total: 0 });
+      setVoucher(null);
       setIsQuoting(false);
       return;
     }
@@ -157,7 +166,7 @@ export default function CheckoutClient() {
     fetch("/api/cart/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: quoteRequestItems }),
+      body: JSON.stringify({ items: quoteRequestItems, voucherCode }),
       signal: controller.signal,
     })
       .then((response) => response.json())
@@ -168,6 +177,8 @@ export default function CheckoutClient() {
           nextQuoteMap[item.productId] = item;
         }
         setQuoteMap(nextQuoteMap);
+        setQuoteTotals(json.data.totals || { voucherDiscount: 0, total: 0 });
+        setVoucher(json.data.voucher || null);
       })
       .catch((requestError) => {
         if (requestError.name !== "AbortError") {
@@ -179,7 +190,7 @@ export default function CheckoutClient() {
       });
 
     return () => controller.abort();
-  }, [quoteKey, quoteRequestItems]);
+  }, [quoteKey, quoteRequestItems, voucherCode]);
 
   const checkoutItems = useMemo(
     () => selectedCartItems.map((item) => mergeQuote(item, quoteMap[item.productId])),
@@ -191,8 +202,10 @@ export default function CheckoutClient() {
   const subtotal = availableItems.reduce((total, item) => total + item.lineTotal, 0);
   const marketSubtotal = availableItems.reduce((total, item) => total + item.lineMarketTotal, 0);
   const savings = Math.max(0, marketSubtotal - subtotal);
+  const voucherDiscount = voucher?.status === 'applied' ? Number(quoteTotals.voucherDiscount || 0) : 0;
+  const totalAfterVoucher = Math.max(0, subtotal - voucherDiscount);
   const itemCount = availableItems.reduce((total, item) => total + item.quantity, 0);
-  const canSubmit = availableItems.length > 0 && invalidItems.length === 0 && !isSubmitting && !isQuoting;
+  const canSubmit = availableItems.length > 0 && invalidItems.length === 0 && !isSubmitting && !isQuoting && (!voucherCode || voucher?.status === 'applied');
 
   const updateForm = <K extends keyof CheckoutForm>(key: K, value: CheckoutForm[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -241,6 +254,7 @@ export default function CheckoutClient() {
             note: form.note.trim(),
           },
           paymentMethod: form.paymentMethod,
+          voucherCode,
           invoice: {
             enabled: form.invoiceEnabled,
             companyName: form.companyName.trim(),
@@ -257,6 +271,7 @@ export default function CheckoutClient() {
       }
 
       removePurchasedCartItems(availableItems.map((item) => item.productId));
+      setAppliedVoucherCode('');
       setSuccess({ orderId: json.data.orderId, total: json.data.total });
     } catch (submitError: any) {
       setError(submitError.message || "Không thể tạo đơn hàng. Vui lòng thử lại.");
@@ -405,10 +420,13 @@ export default function CheckoutClient() {
                     <span className="text-gray-400">Tiết kiệm theo giá niêm yết</span>
                     <span className="font-bold text-red-500">-{formatCurrency(savings)}</span>
                   </div>
+                  {voucherDiscount > 0 && <div className="flex justify-between text-[13px]"><span className="text-gray-400">Giảm giá voucher {voucherCode ? `(${voucherCode})` : ''}</span><span className="font-bold text-emerald-400">-{formatCurrency(voucherDiscount)}</span></div>}
+                  {voucher?.status === 'applied' && voucher.note && <p className="text-xs leading-5 text-emerald-300">{voucher.note}</p>}
+                  {voucherCode && voucher?.status === 'invalid' && <p className="text-xs leading-5 text-red-300">{voucher.message}</p>}
                   <div className="border-t border-[#1a1a1e] pt-4 flex justify-between items-start">
                     <span className="font-bold text-white text-sm">Cần thanh toán</span>
                     <div className="text-right">
-                      <span className="font-black text-xl text-red-500 block leading-none">{formatCurrency(subtotal)}</span>
+                      <span className="font-black text-xl text-red-500 block leading-none">{formatCurrency(totalAfterVoucher)}</span>
                       <span className="text-[10px] text-gray-500">(Đã bao gồm VAT)</span>
                     </div>
                   </div>

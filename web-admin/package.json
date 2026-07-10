@@ -12,10 +12,13 @@
     "search:rebuild": "tsx scripts/rebuild-search-data.ts",
     "local:healthcheck": "tsx scripts/local-healthcheck.ts",
     "db:indexes": "tsx scripts/ensure-local-performance-indexes.ts",
-    "db:explain-hot": "tsx scripts/explain-hot-queries.ts"
+    "db:explain-hot": "tsx scripts/explain-hot-queries.ts",
+    "admin:access-migrate": "tsx scripts/run-admin-access-migration.ts",
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "fuse.js": "^7.4.2",
     "lucide-react": "^1.21.0",

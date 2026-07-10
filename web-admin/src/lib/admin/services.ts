@@ -2,6 +2,7 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { mutateSearchCache } from '@/lib/searchCache';
 import { invalidateProductCardAttributeCaches } from '@/lib/productCardAttributes';
+import { ensureAdminAccessTables } from './auth';
 import {
   deleteCategoryFeatureBox,
   ensureCategoryFeatureBoxTable,
@@ -1461,6 +1462,7 @@ export function saveArticleCategory(payload: Record<string, unknown>, id?: numbe
 }
 
 export async function runAdminMigration() {
+  await ensureAdminAccessTables();
   await ensureAdminTables();
   const { ensureHeaderMenuSeeded } = await import('@/lib/admin/menus');
   await ensureHeaderMenuSeeded();

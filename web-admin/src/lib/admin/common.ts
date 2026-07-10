@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { AdminAuthError, assertSameOrigin, requireAdminPermission, writeAdminAudit } from './auth';
+import { getApiPermission } from './permissions';
 
 export type AdminEntityType =
   | 'product'
@@ -40,6 +42,12 @@ export function ok(data: unknown, message?: string, status = 200) {
 }
 
 export function fail(error: unknown) {
+  if (error instanceof AdminAuthError) {
+    return NextResponse.json(
+      { success: false, error: { code: error.code, message: error.message } },
+      { status: error.status },
+    );
+  }
   if (error instanceof AdminApiError) {
     return NextResponse.json(
       { success: false, error: { code: error.code, message: error.message, ...(error.fields ? { fields: error.fields } : {}) } },
@@ -54,7 +62,7 @@ export function fail(error: unknown) {
   );
 }
 
-export function requireAdminWrite() {
+export async function requireAdminWrite(request: Request) {
   if (process.env.ADMIN_WRITE_ENABLED !== 'true') {
     throw new AdminApiError(403, 'WRITE_DISABLED', 'Admin write API dang bi khoa. Dat ADMIN_WRITE_ENABLED=true de cho phep ghi.');
   }
@@ -62,6 +70,16 @@ export function requireAdminWrite() {
   if (!databaseUrl || databaseUrl.includes('username:password') || databaseUrl.includes('database_name')) {
     throw new AdminApiError(403, 'WRITE_DISABLED', 'Can cau hinh DATABASE_URL that truoc khi cho phep Admin write API.');
   }
+  assertSameOrigin(request);
+  const permission = getApiPermission(new URL(request.url).pathname, request.method);
+  if (!permission) throw new AdminApiError(403, 'WRITE_DISABLED', 'Chuc nang ghi chua co policy phan quyen.');
+  const user = await requireAdminPermission(request, permission);
+  await writeAdminAudit({
+    actorUserId: user.id,
+    action: 'admin.api_write_authorized',
+    resource: permission,
+    request,
+  });
 }
 
 export function normalizeSlug(input: unknown) {

@@ -165,5 +165,14 @@ export const menuGroups = [
     items: [
       { name: 'Upload Image', path: '#' }
     ]
+  },
+  {
+    title: 'Quan tri truy cap',
+    icon: UserCog,
+    items: [
+      { name: 'Tai khoan admin', path: '/system/users' },
+      { name: 'Vai tro va quyen', path: '/system/roles' },
+      { name: 'Nhat ky admin', path: '/system/audit-logs' }
+    ]
   }
 ];

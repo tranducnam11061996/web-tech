@@ -11,7 +11,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const body = await request.json().catch(() => ({}));
     if (body?.action) {
       const ids = parseIdList(body.ids);

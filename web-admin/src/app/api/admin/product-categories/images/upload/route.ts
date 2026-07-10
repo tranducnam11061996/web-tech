@@ -56,7 +56,7 @@ function mediaUrl(relativePath: string) {
 
 export async function POST(request: Request) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const formData = await request.formData();
     const field = String(formData.get('field') || '').trim();
     if (!ALLOWED_FIELDS.has(field)) throw new AdminApiError(400, 'BAD_REQUEST', 'Trường ảnh không hợp lệ');

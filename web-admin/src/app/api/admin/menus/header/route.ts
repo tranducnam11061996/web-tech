@@ -11,7 +11,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const body = await request.json().catch(() => ({}));
     return ok(await saveHeaderMenuDraft(body?.menu || body, body?.settings), 'Da luu ban nhap menu');
   } catch (error) {

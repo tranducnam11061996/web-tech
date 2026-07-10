@@ -41,6 +41,7 @@ async function main() {
   }
 
   const sharedChecks = [
+    ['Admin login page', `${apiBase}/login`],
     ['API search', `${apiBase}/api/search?q=ban%20phim&limit=1&page=1`],
     ['API collection', `${apiBase}/api/collections/${encodeURIComponent(collectionSlug)}?limit=1&page=1`],
     ['API categories', `${apiBase}/api/categories?parentId=${categoryId}`],
@@ -55,6 +56,9 @@ async function main() {
     const result = await check(name, url);
     results.push(result.result);
   }
+
+  const protectedAdminApi = await check('Admin API requires session', `${apiBase}/api/admin/products`, undefined, [401]);
+  results.push(protectedAdminApi.result);
 
   if (sampleProduct?.slug && !String(sampleProduct.slug).startsWith('product-')) {
     const detail = await check('API product detail', `${apiBase}/api/products/${encodeURIComponent(sampleProduct.slug)}`);

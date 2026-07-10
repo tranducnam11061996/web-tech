@@ -34,7 +34,7 @@ export async function GET(_request: Request, context: RouteContext<'/api/admin/p
 
 export async function PATCH(request: Request, context: RouteContext<'/api/admin/products/[id]/images'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     const patches = Array.isArray(body?.images) ? body.images : [];

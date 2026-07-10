@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const body = await request.json().catch(() => ({}));
     if (body?.action) {
       return ok(await bulkProducts(parseIdList(body.ids), String(body.action)), 'Bulk action thanh cong');

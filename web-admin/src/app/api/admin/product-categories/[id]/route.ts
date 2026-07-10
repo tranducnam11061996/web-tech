@@ -12,7 +12,7 @@ export async function GET(_request: Request, context: RouteContext<'/api/admin/p
 
 export async function PATCH(request: Request, context: RouteContext<'/api/admin/product-categories/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     return ok(await saveProductCategory(await request.json().catch(() => ({})), toInt(id)), 'Cap nhat danh muc thanh cong');
   } catch (error) {
@@ -22,7 +22,7 @@ export async function PATCH(request: Request, context: RouteContext<'/api/admin/
 
 export async function DELETE(request: Request, context: RouteContext<'/api/admin/product-categories/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const mode = new URL(request.url).searchParams.get('mode') || 'hide';
     return ok(await deleteCategory('product-category', 'idv_seller_category', toInt(id), mode), mode === 'permanent' ? 'Da xoa vinh vien' : 'Da an danh muc');

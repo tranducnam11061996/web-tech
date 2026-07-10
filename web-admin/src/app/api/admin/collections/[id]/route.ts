@@ -12,7 +12,7 @@ export async function GET(_request: Request, context: RouteContext<'/api/admin/c
 
 export async function PATCH(request: Request, context: RouteContext<'/api/admin/collections/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     return ok(await saveSpecialCollection(body, toInt(id)), 'Da cap nhat bo suu tap');
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, context: RouteContext<'/api/admin/
 
 export async function DELETE(request: Request, context: RouteContext<'/api/admin/collections/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     return ok(await deleteSpecialCollection(toInt(id)), 'Da xoa vinh vien bo suu tap');
   } catch (error) {

@@ -12,7 +12,7 @@ export async function GET(request: Request, context: RouteContext<'/api/admin/co
 
 export async function POST(request: Request, context: RouteContext<'/api/admin/collections/[id]/products'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     return ok(await addProductToSpecialCollection(toInt(id), body), 'Da them san pham vao bo suu tap', 201);

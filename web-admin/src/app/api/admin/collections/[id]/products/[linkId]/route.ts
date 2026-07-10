@@ -3,7 +3,7 @@ import { deleteSpecialCollectionProduct, updateSpecialCollectionProduct } from '
 
 export async function PATCH(request: Request, context: RouteContext<'/api/admin/collections/[id]/products/[linkId]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id, linkId } = await context.params;
     const body = await request.json().catch(() => ({}));
     return ok(await updateSpecialCollectionProduct(toInt(id), toInt(linkId), body), 'Da cap nhat thu tu san pham');
@@ -14,7 +14,7 @@ export async function PATCH(request: Request, context: RouteContext<'/api/admin/
 
 export async function DELETE(_request: Request, context: RouteContext<'/api/admin/collections/[id]/products/[linkId]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(_request);
     const { id, linkId } = await context.params;
     return ok(await deleteSpecialCollectionProduct(toInt(id), toInt(linkId)), 'Da xoa san pham khoi bo suu tap');
   } catch (error) {

@@ -55,7 +55,7 @@ function mediaUrl(relativePath: string) {
 
 export async function POST(request: Request) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const formData = await request.formData();
     const file = formData.get('file');
     if (typeof file !== 'object' || file === null || !('arrayBuffer' in file)) {

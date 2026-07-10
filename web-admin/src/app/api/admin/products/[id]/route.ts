@@ -12,7 +12,7 @@ export async function GET(_request: Request, context: RouteContext<'/api/admin/p
 
 export async function PATCH(request: Request, context: RouteContext<'/api/admin/products/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     if (body?.section) {
@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: RouteContext<'/api/admin/
 
 export async function DELETE(request: Request, context: RouteContext<'/api/admin/products/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const mode = new URL(request.url).searchParams.get('mode') || 'hide';
     return ok(await deleteProduct(toInt(id), mode), mode === 'permanent' ? 'Da xoa vinh vien' : 'Da an san pham');

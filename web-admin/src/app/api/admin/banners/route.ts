@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const body = await request.json().catch(() => ({}));
     return ok(await saveAdminBanner(body), 'Đã tạo banner');
   } catch (error) {

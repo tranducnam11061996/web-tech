@@ -12,7 +12,7 @@ export async function GET(request: Request, context: RouteContext<'/api/admin/ba
 
 export async function PATCH(request: Request, context: RouteContext<'/api/admin/banners/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     return ok(await saveAdminBanner(body, toInt(id)), 'Đã lưu banner');
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, context: RouteContext<'/api/admin/
 
 export async function DELETE(request: Request, context: RouteContext<'/api/admin/banners/[id]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const mode = new URL(request.url).searchParams.get('mode') || 'hide';
     return ok(await deleteBanner(toInt(id), mode), mode === 'permanent' ? 'Đã xóa vĩnh viễn banner' : 'Đã ẩn banner');

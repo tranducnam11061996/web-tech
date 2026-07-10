@@ -14,7 +14,7 @@ export async function GET(_request: Request, context: ProductComboRouteContext) 
 
 export async function POST(request: Request, context: ProductComboRouteContext) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     return ok(await addProductToComboSet(toInt(id), toInt(body?.setId)), 'Da them san pham vao combo set');

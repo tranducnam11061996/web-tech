@@ -17,7 +17,7 @@ function formatImagePayload(images: Awaited<ReturnType<typeof listProductImages>
 
 export async function DELETE(_request: Request, context: RouteContext<'/api/admin/products/[id]/images/[imageId]'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(_request);
     const { id, imageId } = await context.params;
     const result = await deleteProductImage(toInt(id), toInt(imageId));
     if (result.deletedImage.folder !== 'legacy' && result.deletedImage.relativePath) {

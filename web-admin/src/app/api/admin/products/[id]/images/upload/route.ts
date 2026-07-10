@@ -102,7 +102,7 @@ function formatImagePayload(images: Awaited<ReturnType<typeof listProductImages>
 
 export async function POST(request: Request, context: RouteContext<'/api/admin/products/[id]/images/upload'>) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const { id } = await context.params;
     const productId = toInt(id);
     if (!productId) throw new AdminApiError(400, 'BAD_REQUEST', 'Product id khong hop le');

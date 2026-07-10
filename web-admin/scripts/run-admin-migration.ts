@@ -1,5 +1,5 @@
 import pool from '../src/lib/db';
-import { ensureAdminTables, requireAdminWrite } from '../src/lib/admin/common';
+import { ensureAdminTables } from '../src/lib/admin/common';
 import { ensureProductImageTable } from '../src/lib/admin/images';
 import { ensureHeaderMenuSeeded } from '../src/lib/admin/menus';
 import { ensureBannerMetaTable } from '../src/lib/admin/banners';
@@ -7,7 +7,6 @@ import { ensureProductCardAttributeRulesTable } from '../src/lib/productCardAttr
 import { ensureCategoryFeatureBoxTable } from '../src/lib/categoryFeatureBoxes';
 
 async function main() {
-  requireAdminWrite();
   await ensureAdminTables();
   await ensureProductImageTable();
   await ensureHeaderMenuSeeded();

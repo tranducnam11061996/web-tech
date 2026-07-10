@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    requireAdminWrite();
+    await requireAdminWrite(request);
     const payload = await request.json();
     const categoryId = Number(payload?.categoryId || request.nextUrl.searchParams.get('categoryId') || 0);
     if (!Number.isInteger(categoryId) || categoryId <= 0) {

@@ -2,10 +2,11 @@
 
 import { Edit, Trash2, ArrowUpDown, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import ProgressiveImage from '@/components/shared/ProgressiveImage';
 import { useState } from 'react';
 import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
+import { Pagination } from '@/components/shared/Pagination';
 
 export type ArticleNode = {
   id: string;
@@ -36,24 +37,9 @@ export function ArticleListTable({
   limit = 20 
 }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pendingDeleteArticle, setPendingDeleteArticle] = useState<ArticleNode | null>(null);
   const [deleteError, setDeleteError] = useState('');
-
-  const createPageURL = (pageNumber: number | string, limitValue?: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', pageNumber.toString());
-    if (limitValue) {
-      params.set('limit', limitValue.toString());
-    }
-    return `${pathname}?${params.toString()}`;
-  };
-
-  const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    router.push(createPageURL(1, Number(e.target.value)));
-  };
 
   const closeDeleteModal = () => {
     if (busyId !== null) return;
@@ -77,37 +63,6 @@ export function ArticleListTable({
     } finally {
       setBusyId(null);
     }
-  };
-
-  // Generate page numbers for pagination
-  const renderPaginationButtons = () => {
-    const buttons = [];
-    const maxVisiblePages = 5;
-    
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-    
-    if (endPage - startPage + 1 < maxVisiblePages) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-
-    for (let i = startPage; i <= endPage; i++) {
-      buttons.push(
-        <Link 
-          key={i} 
-          href={createPageURL(i)}
-          className={`w-8 h-8 flex items-center justify-center border rounded-sm font-medium transition-colors ${
-            currentPage === i 
-              ? 'border-blue-500 bg-blue-500/20 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]' 
-              : 'border-gray-800 bg-gray-900 text-gray-400 hover:text-white hover:border-gray-600'
-          }`}
-        >
-          {i}
-        </Link>
-      );
-    }
-
-    return buttons;
   };
 
   return (
@@ -202,55 +157,7 @@ export function ArticleListTable({
         </table>
       </div>
 
-      {/* Pagination Footer */}
-      <div className="p-4 bg-gray-950/50 border-t border-gray-800 flex flex-wrap items-center justify-between gap-4 text-sm mt-auto">
-        <div className="flex items-center gap-2">
-          <span className="text-gray-500 font-mono text-xs uppercase tracking-wider">Số hàng hiển thị</span>
-          <select 
-            value={limit} 
-            onChange={handleLimitChange}
-            className="bg-gray-900 border border-gray-700 rounded-sm px-2 py-1 text-gray-300 focus:outline-none focus:border-blue-500/50"
-          >
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-          <span className="text-gray-500 ml-2">Tổng số: {totalItems}</span>
-        </div>
-        
-        {totalPages > 1 && (
-          <div className="flex items-center gap-1">
-            <Link 
-              href={createPageURL(1)}
-              className={`w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm transition-colors ${currentPage <= 1 ? 'text-gray-700 pointer-events-none' : 'text-gray-500 hover:text-white hover:border-gray-600'}`}
-            >
-              |&lt;
-            </Link>
-            <Link 
-              href={createPageURL(currentPage - 1)}
-              className={`w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm transition-colors ${currentPage <= 1 ? 'text-gray-700 pointer-events-none' : 'text-gray-500 hover:text-white hover:border-gray-600'}`}
-            >
-              &lt;
-            </Link>
-            
-            {renderPaginationButtons()}
-            
-            <Link 
-              href={createPageURL(currentPage + 1)}
-              className={`w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm transition-colors ${currentPage >= totalPages ? 'text-gray-700 pointer-events-none' : 'text-gray-500 hover:text-white hover:border-gray-600'}`}
-            >
-              &gt;
-            </Link>
-            <Link 
-              href={createPageURL(totalPages)}
-              className={`w-8 h-8 flex items-center justify-center border border-gray-800 bg-gray-900 rounded-sm transition-colors ${currentPage >= totalPages ? 'text-gray-700 pointer-events-none' : 'text-gray-500 hover:text-white hover:border-gray-600'}`}
-            >
-              &gt;|
-            </Link>
-          </div>
-        )}
-      </div>
-
+      <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={limit} />
       <ConfirmDeleteModal
         open={!!pendingDeleteArticle}
         title="Xóa vĩnh viễn bài viết?"

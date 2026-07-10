@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { ComboSetFilter } from '@/components/products/combo-set/ComboSetFilter';
 import { ComboSetTable } from '@/components/products/combo-set/ComboSetTable';
+import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 
 async function getComboSets(page: number, limit: number, search: string, status: string) {
   try {
@@ -44,16 +45,11 @@ async function getComboSets(page: number, limit: number, search: string, status:
     
     return {
       data: rows as any[],
-      pagination: {
-        currentPage: page,
-        totalPages: Math.ceil(total / limit) || 1,
-        totalItems: total,
-        pageSize: limit
-      }
+      pagination: buildPagination(Number(total || 0), page, limit),
     };
   } catch (error) {
     console.error("Failed to fetch combo sets:", error);
-    return { data: [], pagination: { currentPage: 1, totalPages: 1, totalItems: 0, pageSize: limit } };
+    return { data: [], pagination: buildPagination(0, 1, limit) };
   }
 }
 
@@ -61,9 +57,7 @@ export default async function ComboSetListPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const searchParams = await props.searchParams;
-  
-  const page = parseInt(searchParams?.page as string) || 1;
-  const limit = parseInt(searchParams?.limit as string) || 20;
+  const { page, limit } = parsePaginationParams(searchParams);
   const search = (searchParams?.search as string) || '';
   const status = (searchParams?.status as string) || 'all';
 

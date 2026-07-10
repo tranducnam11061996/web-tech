@@ -3,6 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback } from 'react';
 import clsx from 'clsx';
+import { PAGE_SIZE_OPTIONS, normalizePageSize } from '@/lib/admin/pagination';
 
 type PaginationProps = {
   currentPage: number;
@@ -15,19 +16,21 @@ export function Pagination({ currentPage, totalPages, totalItems, pageSize }: Pa
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const normalizedPageSize = normalizePageSize(pageSize);
 
-  const createQueryString = useCallback(
-    (name: string, value: string) => {
+  const createPageQueryString = useCallback(
+    (page: number) => {
       const params = new URLSearchParams(searchParams.toString());
-      params.set(name, value);
+      params.set('page', page.toString());
+      params.set('limit', normalizedPageSize.toString());
       return params.toString();
     },
-    [searchParams]
+    [normalizedPageSize, searchParams]
   );
 
   const handlePageChange = (page: number) => {
     if (page < 1 || page > totalPages) return;
-    router.push(pathname + '?' + createQueryString('page', page.toString()));
+    router.push(pathname + '?' + createPageQueryString(page));
   };
 
   const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -68,13 +71,15 @@ export function Pagination({ currentPage, totalPages, totalItems, pageSize }: Pa
       <div className="flex items-center gap-2">
         <span className="text-gray-500 font-mono text-xs uppercase tracking-wider">Hiển thị</span>
         <select 
-          value={pageSize}
+          value={normalizedPageSize}
           onChange={handleLimitChange}
           className="bg-gray-900 border border-gray-700 rounded-sm px-2 py-1 text-gray-300 focus:outline-none focus:border-red-500/50 cursor-pointer"
         >
-          <option value="20">20</option>
-          <option value="50">50</option>
-          <option value="100">100</option>
+          {PAGE_SIZE_OPTIONS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
         </select>
         <span className="text-gray-500 font-mono text-xs ml-2">Tổng số: {totalItems}</span>
       </div>

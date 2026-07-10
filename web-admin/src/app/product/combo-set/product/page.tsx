@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { ComboSetProductTable } from '@/components/products/combo-set/ComboSetProductTable';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 
 async function getComboSetInfo(id: number) {
   const [rows] = await pool.query('SELECT title FROM combo_set WHERE id = ?', [id]);
@@ -20,8 +21,7 @@ async function getComboProducts(comboId: number, page: number, limit: number) {
       WHERE csp.set_id = ?
     `;
     const [countResult] = await pool.query(countQuery, [comboId]);
-    const totalItems = (countResult as any[])[0].total;
-    const totalPages = Math.ceil(totalItems / limit) || 1;
+    const totalItems = Number((countResult as any[])[0]?.total || 0);
 
     const query = `
       SELECT p.id, p.storeSKU, p.proName, p.proThum, 
@@ -48,16 +48,11 @@ async function getComboProducts(comboId: number, page: number, limit: number) {
 
     return {
       products,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalItems,
-        pageSize: limit
-      }
+      pagination: buildPagination(totalItems, page, limit),
     };
   } catch (error) {
     console.error('Failed to fetch combo products:', error);
-    return { products: [], pagination: { currentPage: 1, totalPages: 1, totalItems: 0, pageSize: limit } };
+    return { products: [], pagination: buildPagination(0, 1, limit) };
   }
 }
 
@@ -66,8 +61,7 @@ export default async function ComboSetProductPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const comboId = Number(searchParams?.id);
-  const page = Number(searchParams?.page) || 1;
-  const limit = 20;
+  const { page, limit } = parsePaginationParams(searchParams);
 
   if (!comboId) {
     return (

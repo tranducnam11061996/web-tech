@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { CategoryFilter } from '@/components/categories/CategoryFilter';
 import { CategoryTable, CategoryNode } from '@/components/categories/CategoryTable';
 import pool from '@/lib/db';
+import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 
 async function getCategories(page: number, limit: number) {
   try {
@@ -11,8 +12,8 @@ async function getCategories(page: number, limit: number) {
     const [countResult] = await pool.query(
       'SELECT COUNT(*) as total FROM idv_seller_category WHERE parentId = 0'
     );
-    const totalItems = (countResult as any[])[0].total;
-    const totalPages = Math.ceil(totalItems / limit);
+    const totalItems = Number((countResult as any[])[0]?.total || 0);
+    const pagination = buildPagination(totalItems, page, limit);
 
     // Fetch root categories
     const [rootRows] = await pool.query(`
@@ -29,7 +30,7 @@ async function getCategories(page: number, limit: number) {
     if (rootCategories.length === 0) {
       return {
         categories: [],
-        pagination: { currentPage: page, totalPages, totalItems, pageSize: limit }
+        pagination,
       };
     }
 
@@ -73,18 +74,13 @@ async function getCategories(page: number, limit: number) {
 
     return {
       categories,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalItems,
-        pageSize: limit
-      }
+      pagination,
     };
   } catch (error) {
     console.error("Failed to fetch categories:", error);
     return {
       categories: [],
-      pagination: { currentPage: 1, totalPages: 1, totalItems: 0, pageSize: limit }
+      pagination: buildPagination(0, 1, limit),
     };
   }
 }
@@ -93,11 +89,7 @@ export default async function CategoriesPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const searchParams = await props.searchParams;
-  const pageStr = searchParams?.page;
-  const limitStr = searchParams?.limit;
-  
-  const page = typeof pageStr === 'string' ? parseInt(pageStr, 10) || 1 : 1;
-  const limit = typeof limitStr === 'string' ? parseInt(limitStr, 10) || 20 : 20;
+  const { page, limit } = parsePaginationParams(searchParams);
 
   const { categories, pagination } = await getCategories(page, limit);
 

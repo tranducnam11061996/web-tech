@@ -1,6 +1,7 @@
 import { ArticleListFilter } from '@/components/article-list/ArticleListFilter';
 import { ArticleListTable } from '@/components/article-list/ArticleListTable';
 import pool from '@/lib/db';
+import { parsePaginationParams } from '@/lib/admin/pagination';
 
 export const revalidate = 0;
 const storefrontUrl = process.env.STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || 'http://localhost:3001';
@@ -17,9 +18,7 @@ export default async function ArticleListPage({
   // Assuming standard Next.js 14 behavior, searchParams is an object.
   // Wait, Next.js 15 requires awaiting searchParams! Let's handle both.
   const resolvedParams = await searchParams;
-  const page = Math.max(1, Number(resolvedParams?.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(resolvedParams?.limit) || 20));
-  const offset = (page - 1) * limit;
+  const { page, limit, offset } = parsePaginationParams(resolvedParams);
 
   try {
     const [countQueryResult, listQueryResult] = await Promise.all([

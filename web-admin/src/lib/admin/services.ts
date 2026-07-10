@@ -29,18 +29,20 @@ import {
   withTransaction,
 } from './common';
 import { normalizeImages, serializeProductImages } from './images';
+import { buildPagination, parsePaginationParams } from './pagination';
 
 type ListParams = {
   page: number;
   limit: number;
+  offset: number;
   search?: string;
   status?: string;
 };
 
 function clampListParams(searchParams: URLSearchParams): ListParams {
+  const pagination = parsePaginationParams(searchParams);
   return {
-    page: Math.max(1, toInt(searchParams.get('page'), 1)),
-    limit: Math.min(100, Math.max(1, toInt(searchParams.get('limit'), 20))),
+    ...pagination,
     search: String(searchParams.get('search') || searchParams.get('q') || '').trim(),
     status: String(searchParams.get('status') || '').trim(),
   };
@@ -244,7 +246,6 @@ function normalizeArticleCategoryDisplayOption(value: unknown) {
 
 export async function listProductsFromRequest(url: string) {
   const params = clampListParams(new URL(url).searchParams);
-  const offset = (params.page - 1) * params.limit;
   const filters: string[] = [];
   const values: unknown[] = [];
 
@@ -273,14 +274,14 @@ export async function listProductsFromRequest(url: string) {
         ORDER BY p.id DESC
         LIMIT ? OFFSET ?
       `,
-      [...values, params.limit, offset],
+      [...values, params.limit, params.offset],
     ),
   ]);
 
   const total = Number(countResult[0][0]?.total || 0);
   return {
     items: listResult[0],
-    pagination: { total, page: params.page, limit: params.limit, totalPages: Math.max(1, Math.ceil(total / params.limit)) },
+    pagination: buildPagination(total, params.page, params.limit),
   };
 }
 
@@ -329,7 +330,6 @@ export async function listComboSetCatalogFromRequest(url: string) {
   const params = clampListParams(new URL(url).searchParams);
   const searchParams = new URL(url).searchParams;
   const productId = toInt(searchParams.get('productId'));
-  const offset = (params.page - 1) * params.limit;
   const filters: string[] = [];
   const values: unknown[] = [];
 
@@ -360,7 +360,7 @@ export async function listComboSetCatalogFromRequest(url: string) {
         ORDER BY cs.id DESC
         LIMIT ? OFFSET ?
       `,
-      [...selectedValues, ...values, params.limit, offset],
+      [...selectedValues, ...values, params.limit, params.offset],
     ),
   ]);
 
@@ -375,12 +375,7 @@ export async function listComboSetCatalogFromRequest(url: string) {
       to_time: Number(row.to_time || 0),
       isSelected: Boolean(row.isSelected),
     })),
-    pagination: {
-      currentPage: params.page,
-      totalPages: Math.max(1, Math.ceil(total / params.limit)),
-      totalItems: total,
-      pageSize: params.limit,
-    },
+    pagination: buildPagination(total, params.page, params.limit),
   };
 }
 
@@ -1117,7 +1112,6 @@ export async function bulkCategoryStatus(table: string, ids: number[], action: s
 
 export async function listArticlesFromRequest(url: string) {
   const params = clampListParams(new URL(url).searchParams);
-  const offset = (params.page - 1) * params.limit;
   const filters: string[] = [];
   const values: unknown[] = [];
   if (params.search) {
@@ -1140,13 +1134,13 @@ export async function listArticlesFromRequest(url: string) {
         ORDER BY n.createDate DESC
         LIMIT ? OFFSET ?
       `,
-      [...values, params.limit, offset],
+      [...values, params.limit, params.offset],
     ),
   ]);
   const total = Number(countResult[0][0]?.total || 0);
   return {
     items: listResult[0],
-    pagination: { total, page: params.page, limit: params.limit, totalPages: Math.max(1, Math.ceil(total / params.limit)) },
+    pagination: buildPagination(total, params.page, params.limit),
   };
 }
 

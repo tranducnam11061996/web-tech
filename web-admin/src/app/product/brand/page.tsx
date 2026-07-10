@@ -1,14 +1,13 @@
 import { BrandFilter } from '@/components/brand/BrandFilter';
 import { BrandTable } from '@/components/brand/BrandTable';
 import pool from '@/lib/db';
+import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
 export default async function BrandPage(props: { searchParams: SearchParams }) {
   const searchParams = await props.searchParams;
-  const page = Math.max(1, Number(searchParams.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(searchParams.limit) || 20));
-  const offset = (page - 1) * limit;
+  const { page, limit, offset } = parsePaginationParams(searchParams);
 
   const [listQueryResult, countQueryResult] = await Promise.all([
     pool.query(
@@ -23,7 +22,6 @@ export default async function BrandPage(props: { searchParams: SearchParams }) {
   const rows = listQueryResult[0] as any[];
   const countRows = countQueryResult[0] as any[];
   const totalItems = Number(countRows[0]?.total || 0);
-  const totalPages = Math.max(1, Math.ceil(totalItems / limit));
 
   // Map to BrandNode format
   const brands = rows.map((row: any) => ({
@@ -38,12 +36,7 @@ export default async function BrandPage(props: { searchParams: SearchParams }) {
     featured: row.is_featured === 1
   }));
 
-  const pagination = {
-    currentPage: page,
-    totalPages,
-    totalItems,
-    pageSize: limit
-  };
+  const pagination = buildPagination(totalItems, page, limit);
 
   return (
     <div className="flex flex-col h-full w-full p-2 animate-in fade-in duration-300">

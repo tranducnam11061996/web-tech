@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { AttributeFilter } from '@/components/attribute/AttributeFilter';
 import { AttributeListTable, AttributeNode } from '@/components/attribute/AttributeListTable';
 import pool from '@/lib/db';
+import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 
 async function getAttributes(page: number, limit: number) {
   try {
@@ -11,8 +12,7 @@ async function getAttributes(page: number, limit: number) {
     const [countResult] = await pool.query(
       'SELECT COUNT(*) as total FROM idv_attribute'
     );
-    const totalItems = (countResult as any[])[0].total;
-    const totalPages = Math.ceil(totalItems / limit);
+    const totalItems = Number((countResult as any[])[0]?.total || 0);
 
     // Fetch attributes
     const [rows] = await pool.query(`
@@ -35,18 +35,13 @@ async function getAttributes(page: number, limit: number) {
 
     return {
       attributes,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalItems,
-        pageSize: limit
-      }
+      pagination: buildPagination(totalItems, page, limit),
     };
   } catch (error) {
     console.error("Failed to fetch attributes:", error);
     return {
       attributes: [],
-      pagination: { currentPage: 1, totalPages: 1, totalItems: 0, pageSize: limit }
+      pagination: buildPagination(0, 1, limit),
     };
   }
 }
@@ -55,11 +50,7 @@ export default async function AttributeListPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const searchParams = await props.searchParams;
-  const pageStr = searchParams?.page;
-  const limitStr = searchParams?.limit;
-  
-  const page = typeof pageStr === 'string' ? parseInt(pageStr, 10) || 1 : 1;
-  const limit = typeof limitStr === 'string' ? parseInt(limitStr, 10) || 20 : 20;
+  const { page, limit } = parsePaginationParams(searchParams);
 
   const { attributes, pagination } = await getAttributes(page, limit);
 

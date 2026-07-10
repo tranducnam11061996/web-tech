@@ -1,12 +1,31 @@
 import { fail, ok, requireAdminWrite, toInt } from '@/lib/admin/common';
-import { deleteCollection } from '@/lib/admin/services';
+import { deleteSpecialCollection, getSpecialCollection, saveSpecialCollection } from '@/lib/admin/special-collections';
+
+export async function GET(_request: Request, context: RouteContext<'/api/admin/collections/[id]'>) {
+  try {
+    const { id } = await context.params;
+    return ok(await getSpecialCollection(toInt(id)));
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function PATCH(request: Request, context: RouteContext<'/api/admin/collections/[id]'>) {
+  try {
+    requireAdminWrite();
+    const { id } = await context.params;
+    const body = await request.json().catch(() => ({}));
+    return ok(await saveSpecialCollection(body, toInt(id)), 'Da cap nhat bo suu tap');
+  } catch (error) {
+    return fail(error);
+  }
+}
 
 export async function DELETE(request: Request, context: RouteContext<'/api/admin/collections/[id]'>) {
   try {
     requireAdminWrite();
     const { id } = await context.params;
-    const mode = new URL(request.url).searchParams.get('mode') || 'hide';
-    return ok(await deleteCollection(toInt(id), mode), mode === 'permanent' ? 'Đã xóa vĩnh viễn bộ sưu tập' : 'Đã ẩn bộ sưu tập');
+    return ok(await deleteSpecialCollection(toInt(id)), 'Da xoa vinh vien bo suu tap');
   } catch (error) {
     return fail(error);
   }

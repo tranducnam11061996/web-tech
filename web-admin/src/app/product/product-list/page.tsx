@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { ProductFilter, ProductTopActions } from '@/components/products/ProductFilter';
 import { ProductTable, ProductSkeleton } from '@/components/products/ProductTable';
 import pool from '@/lib/db';
+import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 
 const storefrontUrl = process.env.STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || 'http://localhost:3001';
 
@@ -43,7 +44,6 @@ async function getProducts(page: number, limit: number, search?: string) {
     const countResult = countQueryResult[0] as any[];
     const rows = listQueryResult[0] as any[];
     const totalItems = Number(countResult[0]?.total || 0);
-    const totalPages = Math.max(1, Math.ceil(totalItems / limit));
 
     const products = (rows as any[]).map((row: any) => ({
       id: row.id,
@@ -65,18 +65,13 @@ async function getProducts(page: number, limit: number, search?: string) {
 
     return {
       products,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalItems,
-        pageSize: limit
-      }
+      pagination: buildPagination(totalItems, page, limit),
     };
   } catch (error) {
     console.error("Failed to fetch products:", error);
     return {
       products: [],
-      pagination: { currentPage: 1, totalPages: 1, totalItems: 0, pageSize: limit }
+      pagination: buildPagination(0, 1, limit),
     };
   }
 }
@@ -85,12 +80,8 @@ export default async function ProductListPage(props: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const searchParams = await props.searchParams;
-  const pageStr = searchParams?.page;
-  const limitStr = searchParams?.limit;
   const searchStr = searchParams?.search;
-  
-  const page = Math.max(1, typeof pageStr === 'string' ? parseInt(pageStr, 10) || 1 : 1);
-  const limit = Math.min(100, Math.max(1, typeof limitStr === 'string' ? parseInt(limitStr, 10) || 20 : 20));
+  const { page, limit } = parsePaginationParams(searchParams);
   const search = typeof searchStr === 'string' ? searchStr : undefined;
 
   const { products, pagination } = await getProducts(page, limit, search);

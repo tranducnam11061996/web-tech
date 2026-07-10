@@ -9,6 +9,7 @@ import {
   toInt,
   withTransaction,
 } from '@/lib/admin/common';
+import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 
 export type BannerScope = 'homepage' | 'global';
 
@@ -394,9 +395,7 @@ export async function saveBannerLocation(payload: Record<string, unknown>, id?: 
 
 export async function listAdminBanners(searchParams = new URLSearchParams()) {
   const metaExists = await bannerMetaTableExists();
-  const page = Math.max(1, toInt(searchParams.get('page'), 1));
-  const limit = Math.min(100, Math.max(1, toInt(searchParams.get('limit'), 20)));
-  const offset = (page - 1) * limit;
+  const { page, limit, offset } = parsePaginationParams(searchParams);
   const templatePage = String(searchParams.get('templatePage') || '').trim();
   const locationKey = String(searchParams.get('locationKey') || '').trim();
   const status = String(searchParams.get('status') || '').trim();
@@ -446,11 +445,10 @@ export async function listAdminBanners(searchParams = new URLSearchParams()) {
     `,
     [...params, limit, offset],
   );
+  const total = Number(countRows[0]?.total || 0);
   return {
     items: rows.map((row) => formatAdminBanner(row)),
-    page,
-    limit,
-    total: Number(countRows[0]?.total || 0),
+    ...buildPagination(total, page, limit),
   };
 }
 

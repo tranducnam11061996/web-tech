@@ -16,7 +16,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 async function fetchSlugData(slug: string) {
   try {
     const res = await fetch(`${API_URL}/api/products/${encodeURIComponent(slug)}`, {
-      cache: "no-store",
+      next: { revalidate: 60 },
     });
     const json = await res.json();
     return json.success ? { data: json.data, error: null } : { data: null, error: json.message || "Product not found" };
@@ -49,10 +49,10 @@ async function fetchCategoryInitialData(categoryId: number | string, searchParam
 
   try {
     const [productsRes, categoriesRes, priceBoundsRes, attributesRes] = await Promise.all([
-      fetch(productUrl.toString(), { cache: "no-store" }),
-      fetch(`${API_URL}/api/categories?parentId=${categoryId}`, { cache: "no-store" }),
-      fetch(`${API_URL}/api/categories/price-bounds?categoryId=${categoryId}`, { cache: "no-store" }),
-      fetch(`${API_URL}/api/categories/attributes?categoryId=${categoryId}`, { cache: "no-store" }),
+      fetch(productUrl.toString(), { next: { revalidate: 60 } }),
+      fetch(`${API_URL}/api/categories?parentId=${categoryId}`, { next: { revalidate: 300 } }),
+      fetch(`${API_URL}/api/categories/price-bounds?categoryId=${categoryId}`, { next: { revalidate: 300 } }),
+      fetch(`${API_URL}/api/categories/attributes?categoryId=${categoryId}`, { next: { revalidate: 300 } }),
     ]);
 
     if (productsRes.ok) products = await productsRes.json();

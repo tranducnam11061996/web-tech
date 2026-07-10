@@ -12,6 +12,7 @@ import {
   buildSidebarSectionVisibility,
   type SidebarSectionVisibility,
 } from "../../lib/sidebarFilterVisibility";
+import { sanitizeLegacyHtml } from "../../lib/sanitizeHtml";
 
 const slugify = (str: string) => {
   if (!str) return "";
@@ -559,15 +560,15 @@ export default function CategoryContent({ categoryId, params, searchParams, init
             <h1 className="text-2xl md:text-[28px] font-extrabold text-white mb-4 tracking-tight">
               {categoryInfo?.name || "Danh mục sản phẩm"}
             </h1>
-            {isValidHtmlContent(categoryInfo?.summary) ? (
+            {isValidHtmlContent(sanitizeLegacyHtml(categoryInfo?.summary)) ? (
               <div 
                 className="text-[15px] text-gray-400 leading-relaxed space-y-3"
-                dangerouslySetInnerHTML={{ __html: categoryInfo.summary }}
+                dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(categoryInfo.summary) }}
               />
-            ) : isValidHtmlContent(categoryInfo?.meta_description) ? (
+            ) : isValidHtmlContent(sanitizeLegacyHtml(categoryInfo?.meta_description)) ? (
               <div 
                 className="text-[15px] text-gray-400 leading-relaxed space-y-3"
-                dangerouslySetInnerHTML={{ __html: categoryInfo.meta_description }}
+                dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(categoryInfo.meta_description) }}
               />
             ) : (
               <div className="text-[15px] text-gray-400 leading-relaxed space-y-3">
@@ -1211,7 +1212,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                 [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-4
                 [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:mb-4
                 ${isStaticHtmlExpanded ? '' : 'max-h-[300px] overflow-hidden'}`}
-              dangerouslySetInnerHTML={{ __html: categoryInfo.staticHtml }}
+              dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(categoryInfo.staticHtml) }}
             />
             
             {!isStaticHtmlExpanded && (

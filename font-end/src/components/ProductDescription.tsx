@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { sanitizeLegacyHtml } from '@/lib/sanitizeHtml';
 
 interface ProductDescriptionProps {
   productName: string;
@@ -41,7 +42,7 @@ export default function ProductDescription({ productName, description }: Product
             [&>p]:mb-4 [&>img]:max-w-full [&>img]:rounded-lg [&>img]:my-4
             [&>ul]:list-disc [&>ul]:pl-5 [&>ul]:mb-4
             [&>ol]:list-decimal [&>ol]:pl-5 [&>ol]:mb-4`}
-          dangerouslySetInnerHTML={{ __html: description }}
+          dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(description) }}
         />
 
         {/* Fade overlay + expand button */}

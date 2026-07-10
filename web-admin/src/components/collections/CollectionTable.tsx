@@ -16,6 +16,7 @@ export type CollectionNode = {
   createdAt: string;
   status: number;
   ordering: number;
+  frontEndUrl?: string;
 };
 
 type PaginationData = {
@@ -87,9 +88,13 @@ export function CollectionTable({ collections, pagination }: { collections: Coll
                   <td className="p-3 text-center font-mono text-blue-400">{row.id}</td>
                   <td className="p-3 font-medium text-gray-200 group-hover:text-blue-400 transition-colors">{row.name}</td>
                   <td className="p-3 text-center">
-                    <a href={`/${row.url}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400 hover:underline font-mono text-xs">
-                      /{row.url}
-                    </a>
+                    {row.url && row.frontEndUrl ? (
+                      <a href={row.frontEndUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400 hover:underline font-mono text-xs">
+                        /collection/{row.url.replace(/^\/+|\/+$/g, '')}
+                      </a>
+                    ) : (
+                      <span className="font-mono text-xs text-gray-600">Chưa có link</span>
+                    )}
                   </td>
                   <td className="p-3 text-center">
                     <span className="font-mono text-gray-300">{row.productCount} sp </span>

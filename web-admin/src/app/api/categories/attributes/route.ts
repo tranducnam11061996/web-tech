@@ -7,6 +7,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+const publicCacheHeaders = {
+  ...corsHeaders,
+  'Cache-Control': 'public, max-age=0, s-maxage=300, stale-while-revalidate=600',
+};
+
 const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
 
 function normalizeAttributeIcon(value: unknown) {
@@ -113,7 +118,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       data: attributes
-    }, { headers: corsHeaders });
+    }, { headers: publicCacheHeaders });
 
   } catch (error) {
     console.error('Failed to fetch category attributes:', error);

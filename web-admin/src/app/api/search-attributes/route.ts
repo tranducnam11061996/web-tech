@@ -147,7 +147,7 @@ export async function GET(request: Request) {
       }
     }
 
-    let attributes = Array.from(attributesMap.values()).filter(attr => attr.values.length > 0);
+    const attributes = Array.from(attributesMap.values()).filter(attr => attr.values.length > 0);
 
     // Thêm brand vào đầu nếu có
     if (brandRows.length > 0) {

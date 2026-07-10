@@ -3,6 +3,7 @@ import Link from "next/link";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
 import ProgressiveImage from "../../../components/ProgressiveImage";
+import { sanitizeLegacyHtml } from "../../../lib/sanitizeHtml";
 
 export default function ArticleView({ article, formatDate }: { article: any, formatDate: (d: string) => string }) {
   return (
@@ -81,7 +82,7 @@ export default function ArticleView({ article, formatDate }: { article: any, for
             [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4
             [&_strong]:text-white [&_strong]:font-bold
             [&_a]:text-blue-400 hover:[&_a]:text-blue-300 [&_a]:transition-colors"
-          dangerouslySetInnerHTML={{ __html: (article.content || "").replace(/src=["']\.\.\/media\//g, 'src="https://hacom.vn/media/') }} 
+          dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml((article.content || "").replace(/src=["']\.\.\/media\//g, 'src="https://hacom.vn/media/')) }}
         />
       </article>
 

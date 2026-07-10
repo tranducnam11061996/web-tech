@@ -3,7 +3,10 @@ import type { RowDataPacket } from 'mysql2/promise';
 import pool from './db';
 import { getProductCardBadgesForProductIds, type ProductCardBadge } from './productCardAttributes';
 
-const CACHE_TTL_MS = 60_000;
+const configuredCacheTtl = Number(process.env.SEARCH_CACHE_TTL_MS || 300_000);
+const CACHE_TTL_MS = Number.isFinite(configuredCacheTtl) && configuredCacheTtl >= 30_000
+  ? configuredCacheTtl
+  : 300_000;
 const unsafeFilterTextPattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
 const htmlEntityPattern = /&(?:amp|lt|gt|quot|apos|#39|#x27|#60|#x3c|#62|#x3e);/gi;
 
@@ -300,6 +303,7 @@ function rebuildFuseIndexes() {
 }
 
 async function refreshSearchCache() {
+  const startedAt = Date.now();
   const [productRowsResult, attributeRowsResult] = await Promise.all([
     pool.query<ProductRow[]>(`
       SELECT
@@ -363,7 +367,9 @@ async function refreshSearchCache() {
   searchCache.filters = filters;
   rebuildFuseIndexes();
   searchCache.expiresAt = Date.now() + CACHE_TTL_MS;
-  console.log(`[SearchCache] Loaded ${products.length} products for 60 seconds`);
+  console.log(
+    `[SearchCache] Loaded ${products.length} products and ${attributeRows.length} attributes in ${Date.now() - startedAt}ms; TTL ${Math.round(CACHE_TTL_MS / 1000)}s`,
+  );
 }
 
 export async function ensureSearchCacheFresh(): Promise<void> {

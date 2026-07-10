@@ -16,6 +16,7 @@ const eslintConfig = defineConfig([
     "scratchpad.js",
     "update_attributes_count.js",
     "update_products_api.js",
+    "*.cjs",
     "next-env.d.ts",
   ]),
   {

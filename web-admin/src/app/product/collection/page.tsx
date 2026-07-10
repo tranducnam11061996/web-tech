@@ -5,8 +5,16 @@ import { listSpecialCollections } from '@/lib/admin/special-collections';
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
+const storefrontUrl = process.env.STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || 'http://localhost:3001';
+
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function buildCollectionFrontEndUrl(slug: string) {
+  const cleanSlug = String(slug || '').trim().replace(/^\/+|\/+$/g, '');
+  if (!cleanSlug) return '';
+  return `${storefrontUrl.replace(/\/+$/g, '')}/collection/${cleanSlug}`;
 }
 
 export default async function CollectionPage(props: { searchParams?: SearchParams }) {
@@ -19,6 +27,10 @@ export default async function CollectionPage(props: { searchParams?: SearchParam
   if (search) params.set('search', search);
 
   const data = await listSpecialCollections(params);
+  const collections = data.items.map((collection) => ({
+    ...collection,
+    frontEndUrl: buildCollectionFrontEndUrl(collection.url),
+  }));
 
   return (
     <div className="flex flex-col h-full w-full p-2 animate-in fade-in duration-300">
@@ -26,7 +38,7 @@ export default async function CollectionPage(props: { searchParams?: SearchParam
         <CollectionFilter initialSearch={search || ''} />
 
         <div className="flex-1 min-h-0 mt-2">
-          <CollectionTable collections={data.items} pagination={data.pagination} />
+          <CollectionTable collections={collections} pagination={data.pagination} />
         </div>
       </div>
     </div>

@@ -4,6 +4,16 @@ dist/
 build/
 tmp/
 
+# Local secrets. Keep only sanitized examples in version control.
+.env
+.env.local
+.env.*.local
+*/.env
+*/.env.local
+*/.env.*.local
+!.env.example
+!*/.env.example
+
 
 
 # Editor and generated output

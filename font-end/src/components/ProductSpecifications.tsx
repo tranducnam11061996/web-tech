@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
+import { sanitizeLegacyHtml } from '@/lib/sanitizeHtml';
 
 interface ProductSpecificationsProps {
   productName: string;
@@ -215,7 +216,7 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
               <h3 className="font-bold text-lg text-white">Thông số kỹ thuật</h3>
             </div>
 
-            <div className="px-2 product-spec-list" dangerouslySetInnerHTML={{ __html: specs }}>
+            <div className="px-2 product-spec-list" dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(specs) }}>
             </div>
 
             {/* Fade overlay + expand button */}
@@ -296,7 +297,7 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
           {/* Full Spec Table */}
           <div className="flex-1 overflow-y-auto" ref={modalScrollRef} onScroll={handleScroll}>
             <div className="px-3 pb-5 pt-3">
-              <div className="product-spec-list" dangerouslySetInnerHTML={{ __html: specs }}>
+              <div className="product-spec-list" dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(specs) }}>
               </div>
             </div>
           </div>

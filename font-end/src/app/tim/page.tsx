@@ -38,7 +38,7 @@ export default async function SearchPage(props: {
       productUrl.searchParams.set("page", "1");
       productUrl.searchParams.set("limit", "24");
 
-      const productsRes = await fetch(productUrl.toString(), { cache: "no-store" });
+      const productsRes = await fetch(productUrl.toString(), { next: { revalidate: 30 } });
 
       if (productsRes.ok) {
         products = await productsRes.json();

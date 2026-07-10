@@ -32,10 +32,10 @@ export default async function CategoryPage(props: any) {
 
   try {
     const responses = await Promise.all([
-      fetch(productUrl, { cache: "no-store" }),
-      categoryId ? fetch(`${API_URL}/api/categories?parentId=${categoryId}`, { cache: "no-store" }) : Promise.resolve(null),
-      categoryId ? fetch(`${API_URL}/api/categories/price-bounds?categoryId=${categoryId}`, { cache: "no-store" }) : Promise.resolve(null),
-      categoryId ? fetch(`${API_URL}/api/categories/attributes?categoryId=${categoryId}`, { cache: "no-store" }) : Promise.resolve(null),
+      fetch(productUrl, { next: { revalidate: 60 } }),
+      categoryId ? fetch(`${API_URL}/api/categories?parentId=${categoryId}`, { next: { revalidate: 300 } }) : Promise.resolve(null),
+      categoryId ? fetch(`${API_URL}/api/categories/price-bounds?categoryId=${categoryId}`, { next: { revalidate: 300 } }) : Promise.resolve(null),
+      categoryId ? fetch(`${API_URL}/api/categories/attributes?categoryId=${categoryId}`, { next: { revalidate: 300 } }) : Promise.resolve(null),
     ]);
 
     const [productsRes, categoriesRes, priceBoundsRes, attributesRes] = responses;

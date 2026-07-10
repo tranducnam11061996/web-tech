@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addCartItem } from '@/lib/cart';
+import { sanitizeLegacyHtml } from '@/lib/sanitizeHtml';
 
 interface ProductSidebarProps {
   productData: any;
@@ -82,7 +83,7 @@ export default function ProductSidebar({ productData }: ProductSidebarProps) {
                     <circle cx="12" cy="12" r="10" fill="#f97316" />
                     <path d="M7 12.5l3 3 7-7" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <span dangerouslySetInnerHTML={{ __html: line }} />
+                  <span dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(line) }} />
                 </div>
               ))}
               {lines.length > 4 && (

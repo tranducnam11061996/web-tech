@@ -9,7 +9,10 @@
     "lint": "eslint",
     "admin:migrate": "tsx scripts/run-admin-migration.ts",
     "search:migrate": "tsx scripts/run-search-migration.ts",
-    "search:rebuild": "tsx scripts/rebuild-search-data.ts"
+    "search:rebuild": "tsx scripts/rebuild-search-data.ts",
+    "local:healthcheck": "tsx scripts/local-healthcheck.ts",
+    "db:indexes": "tsx scripts/ensure-local-performance-indexes.ts",
+    "db:explain-hot": "tsx scripts/explain-hot-queries.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

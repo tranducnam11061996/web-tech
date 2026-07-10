@@ -7,6 +7,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+const publicCacheHeaders = {
+  ...corsHeaders,
+  'Cache-Control': 'public, max-age=0, s-maxage=300, stale-while-revalidate=600',
+};
+
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
@@ -44,7 +49,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       data: subcategories
-    }, { headers: corsHeaders });
+    }, { headers: publicCacheHeaders });
 
   } catch (error) {
     console.error('Failed to fetch categories:', error);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import pool from '@/lib/db';
 import { groupProductImages, listProductImages } from '@/lib/admin/images';
 import { getPublicCategoryFeatureBox } from '@/lib/categoryFeatureBoxes';
@@ -15,11 +16,12 @@ export async function GET(
   try {
     const { slug } = await params;
     const requestPath = `/${slug}`;
+    const requestPathIndex = createHash('md5').update(requestPath).digest('hex');
 
-    // 1. Resolve slug to product ID using idv_url
+    // Resolve through the legacy hash index, then verify the full path for safety.
     const [urlRows] = await pool.query(
-      'SELECT id_path, url_type FROM idv_url WHERE request_path = ? LIMIT 1',
-      [requestPath]
+      'SELECT id_path, url_type FROM idv_url WHERE request_path_index = ? AND request_path = ? LIMIT 1',
+      [requestPathIndex, requestPath]
     );
 
     const urlData = urlRows as any[];
@@ -122,7 +124,7 @@ export async function GET(
       success: true,
       data: outputData,
       message: "Lấy dữ liệu thành công"
-    });
+    }, { headers: publicCacheHeaders });
 
   } catch (error: any) {
     console.error("API /products/[slug] Error:", error);

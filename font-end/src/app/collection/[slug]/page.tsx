@@ -25,7 +25,7 @@ async function getCollection(slug: string, searchParams: Awaited<SearchParams> |
   const url = new URL(`${API_URL}/api/collections/${encodeURIComponent(slug)}`);
   appendSearchParams(url, searchParams);
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await fetch(url.toString(), { next: { revalidate: 60 } });
   if (response.status === 404) return null;
   if (!response.ok) throw new Error("Failed to fetch collection");
   return (await response.json()) as CollectionApiResponse;

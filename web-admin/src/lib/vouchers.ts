@@ -1,6 +1,7 @@
 import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { AdminApiError, maybeText, requireText, toBoolInt, toInt } from '@/lib/admin/common';
+import { clearPublicCatalogDetailCache } from '@/lib/publicProductCache';
 
 type DbExecutor = Pool | PoolConnection;
 type VoucherRow = RowDataPacket & {
@@ -41,10 +42,28 @@ export type VoucherQuote = {
   note: string | null;
 };
 
+export type PublicProductVoucher = {
+  id: number;
+  code: string;
+  title: string;
+  description: string;
+  discountType: 'fixed' | 'percent';
+  discountValue: number;
+  maxDiscount: number | null;
+  minimumOrderValue: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  categoryNames: string[];
+};
+
 const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const CATEGORY_TREE_TTL_MS = 5 * 60_000;
-let categoryTreeCache: { expiresAt: number; children: Map<number, number[]> } | null = null;
-let categoryTreeFlight: Promise<Map<number, number[]>> | null = null;
+type VoucherCategoryTree = {
+  children: Map<number, number[]>;
+  parentById: Map<number, number>;
+};
+let categoryTreeCache: { expiresAt: number; tree: VoucherCategoryTree } | null = null;
+let categoryTreeFlight: Promise<VoucherCategoryTree> | null = null;
 
 function normalizeVoucherCode(value: unknown) {
   return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -161,20 +180,24 @@ async function getVoucherCategories(db: DbExecutor, voucherId: number) {
   return rows.map((row) => ({ id: Number(row.category_id), name: String(row.name || '').trim() })).filter((row) => row.id > 0);
 }
 
-async function getCategoryChildren() {
-  if (categoryTreeCache && categoryTreeCache.expiresAt > Date.now()) return categoryTreeCache.children;
+async function getCategoryTree() {
+  if (categoryTreeCache && categoryTreeCache.expiresAt > Date.now()) return categoryTreeCache.tree;
   if (categoryTreeFlight) return categoryTreeFlight;
   categoryTreeFlight = pool.query<RowDataPacket[]>('SELECT id, parentId FROM idv_seller_category')
     .then(([categories]) => {
       const children = new Map<number, number[]>();
+      const parentById = new Map<number, number>();
       for (const category of categories) {
+        const categoryId = Number(category.id);
         const parentId = Number(category.parentId || 0);
         const list = children.get(parentId) || [];
-        list.push(Number(category.id));
+        list.push(categoryId);
         children.set(parentId, list);
+        parentById.set(categoryId, parentId);
       }
-      categoryTreeCache = { children, expiresAt: Date.now() + CATEGORY_TREE_TTL_MS };
-      return children;
+      const tree = { children, parentById };
+      categoryTreeCache = { tree, expiresAt: Date.now() + CATEGORY_TREE_TTL_MS };
+      return tree;
     })
     .finally(() => { categoryTreeFlight = null; });
   return categoryTreeFlight;
@@ -184,7 +207,7 @@ export function invalidateVoucherCategoryCache() { categoryTreeCache = null; }
 
 async function getEligibleProductIds(db: DbExecutor, productIds: number[], rootCategoryIds: number[]) {
   if (rootCategoryIds.length === 0) return new Set(productIds);
-  const children = await getCategoryChildren();
+  const { children } = await getCategoryTree();
   const targetCategories = new Set<number>(rootCategoryIds);
   const queue = [...rootCategoryIds];
   while (queue.length > 0) {
@@ -201,6 +224,96 @@ async function getEligibleProductIds(db: DbExecutor, productIds: number[], rootC
     [productIds, Array.from(targetCategories)],
   );
   return new Set(links.map((row) => Number(row.pro_id)));
+}
+
+export function productMatchesVoucherCategories(
+  productCategoryIds: number[],
+  voucherCategoryIds: number[],
+  parentById: Map<number, number>,
+) {
+  if (voucherCategoryIds.length === 0) return true;
+  const voucherCategories = new Set(voucherCategoryIds);
+  for (const categoryId of productCategoryIds) {
+    let current = categoryId;
+    const visited = new Set<number>();
+    while (current > 0 && !visited.has(current)) {
+      if (voucherCategories.has(current)) return true;
+      visited.add(current);
+      current = Number(parentById.get(current) || 0);
+    }
+  }
+  return false;
+}
+
+export async function getPublicProductVouchers(productId: number): Promise<PublicProductVoucher[]> {
+  if (!Number.isInteger(productId) || productId <= 0) return [];
+  const [productCategoryRows, tree] = await Promise.all([
+    pool.query<RowDataPacket[]>('SELECT DISTINCT category_id FROM idv_product_category WHERE pro_id = ?', [productId]),
+    getCategoryTree(),
+  ]);
+  const productCategoryIds = productCategoryRows[0]
+    .map((row) => Number(row.category_id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+  const ancestorIds = new Set<number>();
+  for (const categoryId of productCategoryIds) {
+    let current = categoryId;
+    const visited = new Set<number>();
+    while (current > 0 && !visited.has(current)) {
+      ancestorIds.add(current);
+      visited.add(current);
+      current = Number(tree.parentById.get(current) || 0);
+    }
+  }
+  const categoryScope = ancestorIds.size > 0
+    ? `(NOT EXISTS (SELECT 1 FROM web_admin_voucher_categories unrestricted WHERE unrestricted.voucher_id = v.id)
+       OR EXISTS (SELECT 1 FROM web_admin_voucher_categories scoped WHERE scoped.voucher_id = v.id AND scoped.category_id IN (?)))`
+    : `NOT EXISTS (SELECT 1 FROM web_admin_voucher_categories unrestricted WHERE unrestricted.voucher_id = v.id)`;
+  const bindings = ancestorIds.size > 0 ? [Array.from(ancestorIds)] : [];
+  const [voucherRows] = await pool.query<RowDataPacket[]>(`
+      SELECT candidates.id, candidates.code, candidates.title, candidates.description,
+        candidates.discount_type, candidates.discount_value, candidates.max_discount,
+        candidates.minimum_order_value,
+        DATE_FORMAT(candidates.starts_at, '%Y-%m-%dT%H:%i:%sZ') AS starts_at,
+        DATE_FORMAT(candidates.ends_at, '%Y-%m-%dT%H:%i:%sZ') AS ends_at,
+        vc.category_id, c.name AS category_name
+      FROM (
+        SELECT v.id, v.code, v.title, v.description, v.discount_type, v.discount_value, v.max_discount,
+          v.minimum_order_value, v.starts_at, v.ends_at
+        FROM web_admin_vouchers v
+        WHERE v.status = 1
+          AND (v.starts_at IS NULL OR v.starts_at <= UTC_TIMESTAMP())
+          AND (v.ends_at IS NULL OR v.ends_at > UTC_TIMESTAMP())
+          AND (v.quantity_mode = 'unlimited' OR v.remaining_quantity > 0)
+          AND ${categoryScope}
+        ORDER BY (v.ends_at IS NULL) ASC, v.ends_at ASC, v.id DESC
+        LIMIT 50
+      ) candidates
+      LEFT JOIN web_admin_voucher_categories vc ON vc.voucher_id = candidates.id
+      LEFT JOIN idv_seller_category c ON c.id = vc.category_id
+      ORDER BY (candidates.ends_at IS NULL) ASC, candidates.ends_at ASC, candidates.id DESC, c.name ASC
+    `, bindings);
+  const grouped = new Map<number, { row: RowDataPacket; categoryIds: number[]; categoryNames: string[] }>();
+  for (const row of voucherRows) {
+    const voucherId = Number(row.id);
+    const current = grouped.get(voucherId) || { row, categoryIds: [], categoryNames: [] };
+    const categoryId = Number(row.category_id || 0);
+    if (categoryId > 0) {
+      current.categoryIds.push(categoryId);
+      const categoryName = String(row.category_name || '').trim();
+      if (categoryName) current.categoryNames.push(categoryName);
+    }
+    grouped.set(voucherId, current);
+  }
+  return Array.from(grouped.values()).flatMap(({ row, categoryIds, categoryNames }) => {
+    if (!productMatchesVoucherCategories(productCategoryIds, categoryIds, tree.parentById)) return [];
+    return [{
+      id: Number(row.id), code: String(row.code || ''), title: String(row.title || ''),
+      description: String(row.description || '').slice(0, 4000), discountType: row.discount_type,
+      discountValue: Number(row.discount_value || 0), maxDiscount: row.max_discount === null ? null : Number(row.max_discount),
+      minimumOrderValue: Number(row.minimum_order_value || 0), startsAt: row.starts_at ? String(row.starts_at) : null,
+      endsAt: row.ends_at ? String(row.ends_at) : null, categoryNames,
+    }];
+  });
 }
 
 export async function quoteVoucher(
@@ -276,7 +389,7 @@ export async function reserveVoucherForOrder(
   orderId: number,
   orderSubtotal: number,
 ) {
-  if (quote.status !== 'applied' || !quote.voucherId) return;
+  if (quote.status !== 'applied' || !quote.voucherId) return false;
   const [result] = await connection.query<ResultSetHeader>(`
     UPDATE web_admin_vouchers
     SET remaining_quantity = CASE WHEN quantity_mode='limited' THEN remaining_quantity - 1 ELSE remaining_quantity END
@@ -299,17 +412,24 @@ export async function reserveVoucherForOrder(
     Math.round(quote.eligibleSubtotal),
     JSON.stringify(quote.categoryNames),
   ]);
+  const [availabilityRows] = await connection.query<RowDataPacket[]>(
+    'SELECT quantity_mode, remaining_quantity FROM web_admin_vouchers WHERE id = ? LIMIT 1',
+    [quote.voucherId],
+  );
+  return availabilityRows[0]?.quantity_mode === 'limited' && Number(availabilityRows[0]?.remaining_quantity || 0) === 0;
 }
 
 export async function releaseVoucherForOrder(connection: PoolConnection, orderId: number) {
   const [rows] = await connection.query<RowDataPacket[]>(`
-    SELECT id, voucher_id
-    FROM web_admin_voucher_redemptions
-    WHERE order_id = ? AND status = 'redeemed'
+    SELECT r.id, r.voucher_id, v.quantity_mode, v.remaining_quantity
+    FROM web_admin_voucher_redemptions r
+    JOIN web_admin_vouchers v ON v.id = r.voucher_id
+    WHERE r.order_id = ? AND r.status = 'redeemed'
     LIMIT 1 FOR UPDATE
   `, [orderId]);
   const redemption = rows[0];
   if (!redemption) return false;
+  const availabilityChanged = redemption.quantity_mode === 'limited' && Number(redemption.remaining_quantity || 0) === 0;
   await connection.query(`
     UPDATE web_admin_vouchers
     SET remaining_quantity = CASE WHEN quantity_mode = 'limited' THEN remaining_quantity + 1 ELSE remaining_quantity END
@@ -319,7 +439,7 @@ export async function releaseVoucherForOrder(connection: PoolConnection, orderId
     "UPDATE web_admin_voucher_redemptions SET status = 'released', released_at = UTC_TIMESTAMP() WHERE id = ?",
     [Number(redemption.id)],
   );
-  return true;
+  return availabilityChanged;
 }
 
 function parseVietnamDateTime(value: unknown) {
@@ -353,11 +473,14 @@ function validateVoucherPayload(payload: any) {
     throw new AdminApiError(400, 'BAD_REQUEST', 'Thời gian bắt đầu và kết thúc phải đầy đủ, hợp lệ.');
   }
   const categoryIds = Array.from(new Set((Array.isArray(payload?.categoryIds) ? payload.categoryIds : []).map((id: unknown) => toInt(id)).filter((id: number) => id > 0)));
-  return { code, title, description: maybeText(payload?.description), status: toBoolInt(payload?.status, 1), quantityMode, totalQuantity, discountType, discountValue, maxDiscount, minimumOrderValue: Math.max(0, toInt(payload?.minimumOrderValue)), startsAt, endsAt, categoryIds };
+  const rawDescription = String(payload?.description || '').trim();
+  if (rawDescription.length > 4000) throw new AdminApiError(400, 'BAD_REQUEST', 'Mô tả voucher vượt quá 4.000 ký tự.', { description: 'max_length' });
+  return { code, title, description: maybeText(rawDescription, 4000), status: toBoolInt(payload?.status, 1), quantityMode, totalQuantity, discountType, discountValue, maxDiscount, minimumOrderValue: Math.max(0, toInt(payload?.minimumOrderValue)), startsAt, endsAt, categoryIds };
 }
 
 export async function listAdminVouchers() {
-  const [rows] = await pool.query<RowDataPacket[]>(`
+  const [[rows], [categoryRows]] = await Promise.all([
+    pool.query<RowDataPacket[]>(`
     SELECT v.id, v.code, v.title, v.description, v.status, v.quantity_mode, v.total_quantity, v.remaining_quantity,
       v.discount_type, v.discount_value, v.max_discount, v.minimum_order_value,
       DATE_FORMAT(DATE_ADD(v.starts_at, INTERVAL 7 HOUR), '%Y-%m-%dT%H:%i') AS startsAt,
@@ -369,12 +492,27 @@ export async function listAdminVouchers() {
     LEFT JOIN build_buy o ON o.id = r.order_id
     GROUP BY v.id
     ORDER BY v.id DESC
-  `);
+  `),
+    pool.query<RowDataPacket[]>(`
+      SELECT vc.voucher_id, vc.category_id, c.name
+      FROM web_admin_voucher_categories vc
+      JOIN idv_seller_category c ON c.id = vc.category_id
+      ORDER BY vc.voucher_id DESC, c.name ASC
+    `),
+  ]);
+  const categoriesByVoucher = new Map<number, Array<{ id: number; name: string }>>();
+  for (const category of categoryRows) {
+    const voucherId = Number(category.voucher_id);
+    const list = categoriesByVoucher.get(voucherId) || [];
+    list.push({ id: Number(category.category_id), name: String(category.name || '').trim() });
+    categoriesByVoucher.set(voucherId, list);
+  }
   return rows.map((row) => ({
     id: Number(row.id), code: String(row.code), title: String(row.title), description: row.description ? String(row.description) : '', status: Number(row.status),
     quantityMode: row.quantity_mode, totalQuantity: row.total_quantity === null ? null : Number(row.total_quantity), remainingQuantity: row.remaining_quantity === null ? null : Number(row.remaining_quantity),
     discountType: row.discount_type, discountValue: Number(row.discount_value), maxDiscount: row.max_discount === null ? null : Number(row.max_discount), minimumOrderValue: Number(row.minimum_order_value),
     startsAt: row.startsAt || null, endsAt: row.endsAt || null, usedCount: Number(row.usedCount), pendingCount: Number(row.pendingCount),
+    categories: categoriesByVoucher.get(Number(row.id)) || [],
   }));
 }
 
@@ -452,6 +590,7 @@ export async function saveAdminVoucher(payload: any, voucherId?: number) {
     await connection.query('DELETE FROM web_admin_voucher_categories WHERE voucher_id = ?', [id]);
     if (value.categoryIds.length > 0) await connection.query('INSERT INTO web_admin_voucher_categories (voucher_id, category_id) VALUES ?', [value.categoryIds.map((categoryId) => [id, categoryId])]);
     await connection.commit();
+    clearPublicCatalogDetailCache();
     return getAdminVoucher(id);
   } catch (error) {
     await connection.rollback();
@@ -475,6 +614,7 @@ export async function listStorefrontOrders() {
 export async function updateStorefrontOrderStatus(orderId: number, status: number) {
   if (![1, 2, 3, 4, 5].includes(status)) throw new AdminApiError(400, 'BAD_REQUEST', 'Trạng thái đơn hàng không hợp lệ.');
   const connection = await pool.getConnection();
+  let voucherReleased = false;
   try {
     await connection.beginTransaction();
     const [rows] = await connection.query<RowDataPacket[]>('SELECT id, status FROM build_buy WHERE id = ? FOR UPDATE', [orderId]);
@@ -482,9 +622,10 @@ export async function updateStorefrontOrderStatus(orderId: number, status: numbe
     if (!order) throw new AdminApiError(404, 'NOT_FOUND', 'Không tìm thấy đơn hàng.');
     const currentStatus = Number(order.status);
     if ([3, 4, 5].includes(currentStatus) && currentStatus !== status) throw new AdminApiError(409, 'CONFLICT', 'Đơn hàng đã ở trạng thái kết thúc.');
-    if ([4, 5].includes(status)) await releaseVoucherForOrder(connection, orderId);
+    if ([4, 5].includes(status)) voucherReleased = await releaseVoucherForOrder(connection, orderId);
     await connection.query('UPDATE build_buy SET status = ?, last_update = ? WHERE id = ?', [status, Math.floor(Date.now() / 1000), orderId]);
     await connection.commit();
+    if (voucherReleased) clearPublicCatalogDetailCache();
     return { orderId, status };
   } catch (error) {
     await connection.rollback();

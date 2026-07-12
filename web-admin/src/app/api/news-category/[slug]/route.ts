@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { getCategoryTrail } from '@/lib/publicBreadcrumbs';
 
 export async function GET(
   request: NextRequest,
@@ -28,28 +29,31 @@ export async function GET(
     const category = (catRows as any[])[0];
 
     // 2. Fetch total count
-    const [countRows] = await pool.query(
+    const [countResult, newsResult, categoryTrail] = await Promise.all([
+      pool.query(
       `SELECT COUNT(DISTINCT n.id) as total
        FROM idv_seller_news n
-       LEFT JOIN idv_article_category ac ON ac.news_id = n.id
+       LEFT JOIN idv_article_category ac ON ac.article_id = n.id
        WHERE n.catId = ? OR ac.category_id = ?`,
       [category.id, category.id]
-    );
-    const totalNews = (countRows as any[])[0].total;
-
-    // 3. Fetch articles for this category
-    const [newsRows] = await pool.query(
+      ),
+      pool.query(
       `SELECT DISTINCT n.id, n.title, n.url, n.thumnail, n.summary, n.createDate, n.visit, n.createBy
        FROM idv_seller_news n
-       LEFT JOIN idv_article_category ac ON ac.news_id = n.id
+       LEFT JOIN idv_article_category ac ON ac.article_id = n.id
        WHERE n.catId = ? OR ac.category_id = ?
        ORDER BY n.createDate DESC
        LIMIT ? OFFSET ?`,
       [category.id, category.id, limit, offset]
-    );
+      ),
+      getCategoryTrail('news', Number(category.id)),
+    ]);
+    const [countRows] = countResult as any;
+    const [newsRows] = newsResult as any;
+    const totalNews = (countRows as any[])[0].total;
 
     const response = NextResponse.json({ 
-      data: category,
+      data: { ...category, categoryTrail },
       news: newsRows,
       totalNews: totalNews
     });

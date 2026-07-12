@@ -9,7 +9,7 @@ type ProductConfig = {
   title: string;
   real_id: string;
   discount: string;
-  discount_type: 'percent' | 'cash';
+  discount_type: 'percent' | 'fixed';
 };
 
 type GroupConfig = {
@@ -46,6 +46,9 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeGroupIndex, setActiveGroupIndex] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saveMessage, setSaveMessage] = useState('');
 
   const toggleGroup = (idx: number) => {
     const newExpanded = [...expandedGroups];
@@ -83,7 +86,7 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
       title: p.proName,
       real_id: p.id.toString(),
       discount: '0',
-      discount_type: 'cash' // Default changed to cash
+      discount_type: 'fixed'
     }));
 
     newGroups[activeGroupIndex].suggest_list.push(...newConfigs);
@@ -186,6 +189,46 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
     e.preventDefault();
   };
 
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError('');
+    setSaveMessage('');
+    try {
+      const toUnix = (value: string) => value ? Math.floor(new Date(value).getTime() / 1000) : 0;
+      const payload = {
+        title: formData.title,
+        description: initialData.description || '',
+        status: Number(formData.status),
+        fromTime: toUnix(formData.from_time),
+        toTime: toUnix(formData.to_time),
+        groups: configGroups.map((group) => ({
+          title: group.title,
+          products: group.suggest_list.map((product) => ({
+            title: product.title,
+            productId: Number(product.real_id),
+            discount: Number(product.discount || 0),
+            discountType: product.discount_type,
+          })),
+        })),
+      };
+      const response = await fetch(isNew ? '/api/admin/combo-sets' : `/api/admin/combo-sets/${initialData.id}`, {
+        method: isNew ? 'POST' : 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) throw new Error(result?.error?.message || 'Không thể lưu combo set.');
+      const warnings = Array.isArray(result.data?.warnings) ? ` ${result.data.warnings.join(' ')}` : '';
+      setSaveMessage(`${isNew ? 'Đã tạo combo set.' : 'Đã cập nhật combo set.'}${warnings}`);
+      if (isNew && result.data?.id) router.replace(`/product/combo-set/edit?id=${result.data.id}`);
+      router.refresh();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Không thể lưu combo set.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full w-full">
       {/* Header */}
@@ -202,14 +245,19 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
           >
             <X className="w-4 h-4" /> Đóng
           </button>
-          <button className="px-6 py-2 bg-blue-600 text-white font-bold uppercase tracking-wider text-sm rounded-sm border border-blue-500 hover:bg-blue-500 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(37,99,235,0.4)]">
-            <Save className="w-4 h-4" /> Lưu Combo
+          <button type="button" onClick={handleSave} disabled={saving} className="px-6 py-2 bg-blue-600 text-white font-bold uppercase tracking-wider text-sm rounded-sm border border-blue-500 hover:bg-blue-500 transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(37,99,235,0.4)] disabled:cursor-not-allowed disabled:opacity-60">
+            <Save className="w-4 h-4" /> {saving ? 'Đang lưu...' : 'Lưu Combo'}
           </button>
         </div>
       </div>
 
       {/* Main Layout */}
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-[#0a0a0f] p-6 relative">
+        {(saveError || saveMessage) && (
+          <div role="status" className={`mx-auto mb-4 max-w-5xl rounded border px-4 py-3 text-sm ${saveError ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-green-500/40 bg-green-500/10 text-green-300'}`}>
+            {saveError || saveMessage}
+          </div>
+        )}
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-red-500/20 to-transparent"></div>
         
         <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-300 pb-10">
@@ -391,7 +439,7 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
                                       className="w-full bg-gray-900 border border-gray-800 rounded px-3 py-2 text-sm text-gray-400 focus:outline-none focus:border-blue-500/50 transition-all cursor-pointer"
                                     >
                                       <option value="percent">% Phần trăm</option>
-                                      <option value="cash">Tiền mặt</option>
+                                      <option value="fixed">Tiền cố định</option>
                                     </select>
                                   </td>
                                   <td className="py-2 text-center">

@@ -3,8 +3,9 @@
 import { Suspense } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Check, ChevronDown, ImageIcon, Loader2, Save, Search, Upload, X } from 'lucide-react';
+import { BookOpen, Check, ChevronDown, ChevronRight, ImageIcon, Loader2, Save, Search, Upload, X } from 'lucide-react';
 import { RichTextEditor } from '@/components/products/edit/RichTextEditor';
+import { BuyingGuideEditor } from '@/components/products/edit/BuyingGuideEditor';
 
 type CategoryOption = {
   id: number;
@@ -159,6 +160,8 @@ function CategoryEditInner() {
   const [parentQuery, setParentQuery] = useState('');
   const [uploadingImage, setUploadingImage] = useState<ImageUploadField | ''>('');
   const [imageError, setImageError] = useState('');
+  const [buyingGuideOpen, setBuyingGuideOpen] = useState(false);
+  const [buyingGuideOpened, setBuyingGuideOpened] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -855,6 +858,36 @@ function CategoryEditInner() {
             {renderFeaturePreviewCard()}
           </div>
         </div>
+
+        <section className="glass-panel overflow-hidden rounded-lg border border-gray-800/70 bg-[#101521]/90">
+          <button
+            type="button"
+            aria-expanded={buyingGuideOpen}
+            aria-controls="category-buying-guide-editor"
+            onClick={() => {
+              setBuyingGuideOpen((open) => !open);
+              setBuyingGuideOpened(true);
+            }}
+            className="flex min-h-16 w-full items-center justify-between gap-4 px-6 py-4 text-left hover:bg-gray-900/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-500"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-300"><BookOpen className="h-5 w-5" aria-hidden="true" /></span>
+              <span>
+                <span className="block text-base font-black text-white">Lý do nên mua</span>
+                <span className="mt-0.5 block text-xs text-gray-500">Quản lý nội dung riêng cho danh mục này</span>
+              </span>
+            </span>
+            <ChevronRight className={`h-5 w-5 text-gray-500 transition-transform ${buyingGuideOpen ? 'rotate-90' : ''}`} aria-hidden="true" />
+          </button>
+          {buyingGuideOpened ? (
+            <div id="category-buying-guide-editor" className={buyingGuideOpen ? 'border-t border-gray-800 p-6' : 'hidden'}>
+              <BuyingGuideEditor
+                entityId={id ? Number(id) : undefined}
+                endpoint={id ? `/api/admin/product-categories/${id}/buying-guide` : ''}
+              />
+            </div>
+          ) : null}
+        </section>
 
         <div className="glass-panel p-6 rounded-lg border border-gray-800/50 space-y-5">
           <h2 className="text-md font-bold text-gray-300">SEO</h2>

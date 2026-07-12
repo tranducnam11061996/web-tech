@@ -1,8 +1,14 @@
 # HACOM Storefront
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
 `font-end` is the customer-facing Next.js 16.2.9/React 19.2.4 storefront. It consumes `web-admin` APIs and must never access MySQL or backend secrets directly.
+
+## Combo storefront
+
+Product detail renders active combo summaries returned by web-admin, chunks more than four combo groups into four-card slides, and uses the first sellable SKU thumbnail already embedded for each group. It lazy-loads group products and re-quotes on every selection/quantity change. The separate pages `/gio-hang-combo` and `/thanh-toan-combo` use `hacom.combo-cart.v1`; this storage contains IDs and quantities only and never acts as a trusted price source. Voucher state and the standard cart remain isolated.
+
+The combo cart and checkout use the same dark commerce frame, Header, Footer, responsive card grid, form fields, payment cards, and footer spacing as `/gio-hang` and `/thanh-toan`. Their “Ưu đãi combo” card is display-only: it never reads or applies a voucher and the Header badge remains the standard-cart badge.
 
 ## Environment and commands
 
@@ -26,8 +32,15 @@ The default port is 3001. Production routing should expose backend APIs through 
 
 ## Main journeys
 
+- Product detail renders the API-provided Product Group only when at least two valid sellable SKUs include the current product. It shows four SKU cards per slide, uses each SKU's real thumbnail plus prices/slugs, and issues no extra group request.
+- Product-detail gallery utilities are conditional: normalized YouTube videos open in a lazy modal that mounts only the active player, and meaningful API-provided specification HTML opens the existing technical-specification modal. Invalid legacy video data is omitted by `web-admin` and never becomes a browser iframe source.
 - Homepage bootstrap, managed header/homepage content, banners, product sections, and category feature boxes.
 - Product/category dynamic slug pages, category filters/sort/pagination, search, and collections.
+- Shared dynamic breadcrumbs on product, product-category, article, and news-category pages. `/` and `/tin-tuc` intentionally omit them; narrow viewports scroll the trail locally without widening the document.
+- Product detail ends with independent “Sản phẩm tương tự”, “Sản phẩm đã xem”, and “Bài viết liên quan” sections. Recently viewed history is versioned browser-local data, hides the current product, and revalidates up to 15 prior cards in one bounded request.
+- Product and product-category detail pages render an optional API-provided “Lý do nên mua” accordion. It is absent when no active entity-specific guide exists and is intentionally not rendered on homepage, search, or news pages.
+- Product detail renders only active API-provided vouchers that apply globally or to the product category tree. The voucher card and “Xem tất cả voucher” action are absent when the list is empty; copying a code never bypasses server quote validation.
+- The independent numbered product-promotion block uses the embedded `productPromotions` array, hides when empty, renders at most 50 live items in priority order, and opens internal detail paths in the same tab or HTTPS destinations in a safe new tab. It never changes quote or order values.
 - Guest cart stored under `hacom.cart.v1` and server-validated quote.
 - Checkout with customer/contact/address/invoice fields, voucher quote, CAPTCHA, idempotent order submission, and preserved retry state.
 - Customer registration, verification, login, password recovery/change, profile, addresses, and order history under `/tai-khoan`.

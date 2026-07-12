@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Gift, Loader2, PlusCircle, Search } from 'lucide-react';
+import { ArrowDown, ArrowUp, CheckCircle2, Gift, Loader2, PlusCircle, Search, Trash2 } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
 
 type ComboSetNode = {
@@ -125,6 +125,7 @@ export function TabCombo({
   const [status, setStatus] = useState('all');
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [addingId, setAddingId] = useState<number | null>(null);
+  const [updatingRelations, setUpdatingRelations] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const selectedIds = useMemo(() => new Set(appliedCombos.map((combo) => Number(combo.id))), [appliedCombos]);
@@ -190,6 +191,51 @@ export function TabCombo({
     }
   };
 
+  const removeCombo = async (setId: number) => {
+    if (!productId || !window.confirm('Gỡ combo set này khỏi sản phẩm?')) return;
+    setUpdatingRelations(true);
+    setMessage('');
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/products/${productId}/combo-sets/${setId}`, { method: 'DELETE' });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể gỡ combo set.');
+      setAppliedCombos((current) => current.filter((combo) => combo.id !== setId));
+      setCatalogCombos((current) => current.map((combo) => combo.id === setId ? { ...combo, isSelected: false } : combo));
+      setMessage('Đã gỡ combo set khỏi sản phẩm.');
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : 'Không thể gỡ combo set.');
+    } finally {
+      setUpdatingRelations(false);
+    }
+  };
+
+  const moveCombo = async (index: number, direction: -1 | 1) => {
+    if (!productId) return;
+    const target = index + direction;
+    if (target < 0 || target >= appliedCombos.length) return;
+    const next = [...appliedCombos];
+    [next[index], next[target]] = [next[target], next[index]];
+    setUpdatingRelations(true);
+    setMessage('');
+    setError('');
+    try {
+      const response = await fetch(`/api/admin/products/${productId}/combo-sets`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setIds: next.map((combo) => combo.id) }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể đổi thứ tự combo set.');
+      setAppliedCombos(next);
+      setMessage('Đã cập nhật thứ tự ưu tiên.');
+    } catch (moveError) {
+      setError(moveError instanceof Error ? moveError.message : 'Không thể đổi thứ tự combo set.');
+    } finally {
+      setUpdatingRelations(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       <RichTextEditor
@@ -200,7 +246,7 @@ export function TabCombo({
         resizable
       />
 
-      <section className="space-y-4" aria-busy={loadingCatalog || addingId !== null}>
+      <section className="space-y-4" aria-busy={loadingCatalog || addingId !== null || updatingRelations}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-bold text-gray-200 uppercase tracking-widest flex items-center gap-2">
             <span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
@@ -236,10 +282,11 @@ export function TabCombo({
                   <th className="p-3 font-bold">Tên combo set</th>
                   <th className="p-3 font-bold">Trạng thái</th>
                   <th className="p-3 font-bold">Thời gian áp dụng</th>
+                  <th className="p-3 text-right font-bold">Ưu tiên / Gỡ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/50">
-                {appliedCombos.map((combo) => (
+                {appliedCombos.map((combo, index) => (
                   <tr key={combo.id} className="hover:bg-gray-900/60">
                     <td className="p-3 font-mono text-gray-500">{combo.id}</td>
                     <td className="p-3 font-medium text-gray-200">{combo.title}</td>
@@ -251,6 +298,13 @@ export function TabCombo({
                       )}
                     </td>
                     <td className="p-3 text-xs text-gray-500">{formatUnixTime(combo.from_time)} → {formatUnixTime(combo.to_time)}</td>
+                    <td className="p-3">
+                      <div className="flex justify-end gap-1">
+                        <button type="button" onClick={() => moveCombo(index, -1)} disabled={updatingRelations || index === 0} aria-label={`Đưa ${combo.title} lên`} className="rounded p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-30"><ArrowUp className="h-4 w-4" aria-hidden="true" /></button>
+                        <button type="button" onClick={() => moveCombo(index, 1)} disabled={updatingRelations || index === appliedCombos.length - 1} aria-label={`Đưa ${combo.title} xuống`} className="rounded p-1.5 text-gray-400 hover:bg-gray-800 hover:text-white disabled:opacity-30"><ArrowDown className="h-4 w-4" aria-hidden="true" /></button>
+                        <button type="button" onClick={() => removeCombo(combo.id)} disabled={updatingRelations} aria-label={`Gỡ ${combo.title}`} className="rounded p-1.5 text-red-400 hover:bg-red-500/10 disabled:opacity-30"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

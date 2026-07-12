@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { getNewsCategoryTrailForArticle } from '@/lib/publicBreadcrumbs';
 
 export async function GET(
   request: NextRequest,
@@ -22,7 +23,15 @@ export async function GET(
       return notFoundRes;
     }
 
-    const response = NextResponse.json({ data: (rows as any[])[0] });
+    const article = (rows as any[])[0];
+    const categoryTrail = await getNewsCategoryTrailForArticle(article.id, article.catId, article.article_category);
+    const response = NextResponse.json({
+      data: {
+        ...article,
+        category_name: categoryTrail.at(-1)?.name || article.category_name || null,
+        categoryTrail,
+      },
+    });
     response.headers.set('Access-Control-Allow-Origin', '*');
     response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');

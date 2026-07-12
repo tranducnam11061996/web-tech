@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Header from "../../components/Header";
-import Footer from "../../components/Footer";
 import ProgressiveImage from "../../components/ProgressiveImage";
+import { CommercePageFrame } from "@/components/commerce/CommercePageFrame";
 import {
   CartItem,
   formatCurrency,
@@ -341,8 +340,7 @@ export default function CartClient() {
   };
 
   return (
-    <div className="bg-[#0a0a0c] min-h-screen text-white font-sans">
-      <Header />
+    <CommercePageFrame>
       <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-12">
         {cartItems.length === 0 ? (
           <div className="bg-[#111115] border border-[#1a1a1e] rounded-2xl p-10 text-center">
@@ -463,7 +461,6 @@ export default function CartClient() {
           </div>
         )}
       </section>
-      <Footer />
-    </div>
+    </CommercePageFrame>
   );
 }

@@ -11,7 +11,30 @@ const productResponseCache = new Map<string, CacheEntry<unknown>>();
 const productResponseFlights = new Map<string, Promise<unknown>>();
 const metrics = { hits: 0, misses: 0, coalesced: 0, staleFallbacks: 0 };
 let sharedVersion = 0;
+let sharedCatalogDetailVersion = 0;
 let nextVersionCheckAt = 0;
+let cacheGeneration = 0;
+let catalogDetailGeneration = 0;
+
+function clearCacheKeys(predicate: (key: string) => boolean) {
+  for (const key of productResponseCache.keys()) {
+    if (predicate(key)) productResponseCache.delete(key);
+  }
+  for (const key of productResponseFlights.keys()) {
+    if (predicate(key)) productResponseFlights.delete(key);
+  }
+}
+
+function clearAllLocalCaches() {
+  cacheGeneration += 1;
+  productResponseCache.clear();
+  productResponseFlights.clear();
+}
+
+function clearCatalogDetailLocalCaches() {
+  catalogDetailGeneration += 1;
+  clearCacheKeys((key) => key.startsWith('product-detail:') || key.startsWith('combo-set:'));
+}
 
 function touchCacheKey(key: string, entry: CacheEntry<unknown>) {
   productResponseCache.delete(key);
@@ -27,9 +50,14 @@ function trimCache() {
 }
 
 export function clearPublicProductResponseCache() {
-  productResponseCache.clear();
-  productResponseFlights.clear();
+  clearAllLocalCaches();
   void pool.query(`INSERT INTO web_admin_cache_versions(cache_key,version) VALUES('public_products',2)
+    ON DUPLICATE KEY UPDATE version=version+1`).catch(() => undefined);
+}
+
+export function clearPublicCatalogDetailCache() {
+  clearCatalogDetailLocalCaches();
+  void pool.query(`INSERT INTO web_admin_cache_versions(cache_key,version) VALUES('public_catalog_details',2)
     ON DUPLICATE KEY UPDATE version=version+1`).catch(() => undefined);
 }
 
@@ -46,13 +74,19 @@ export async function withPublicProductResponseCache<T>(
   if (Date.now() >= nextVersionCheckAt) {
     nextVersionCheckAt = Date.now() + 5_000;
     try {
-      const [rows] = await pool.query(`SELECT version FROM web_admin_cache_versions WHERE cache_key='public_products' LIMIT 1`);
-      const version = Number((rows as any[])[0]?.version || 0);
+      const [rows] = await pool.query(`SELECT cache_key, version FROM web_admin_cache_versions
+        WHERE cache_key IN ('public_products','public_catalog_details')`);
+      const versions = new Map((rows as any[]).map((row) => [String(row.cache_key), Number(row.version || 0)]));
+      const version = Number(versions.get('public_products') || 0);
+      const catalogDetailVersion = Number(versions.get('public_catalog_details') || 0);
       if (sharedVersion && version && version !== sharedVersion) {
-        productResponseCache.clear();
-        productResponseFlights.clear();
+        clearAllLocalCaches();
+      }
+      if (catalogDetailVersion && catalogDetailVersion !== sharedCatalogDetailVersion) {
+        clearCatalogDetailLocalCaches();
       }
       sharedVersion = version;
+      sharedCatalogDetailVersion = catalogDetailVersion;
     } catch { /* migration may not have run yet */ }
   }
   const now = Date.now();
@@ -70,15 +104,22 @@ export async function withPublicProductResponseCache<T>(
   }
 
   metrics.misses += 1;
+  const startedGeneration = cacheGeneration;
+  const startedCatalogDetailGeneration = catalogDetailGeneration;
+  const isCatalogDetail = key.startsWith('product-detail:') || key.startsWith('combo-set:');
 
   const flight = loader()
     .then((value) => {
-      productResponseCache.set(key, {
-        value,
-        expiresAt: Date.now() + ttlMs,
-        staleUntil: Date.now() + ttlMs + staleMs,
-      });
-      trimCache();
+      const generationIsCurrent = startedGeneration === cacheGeneration;
+      const detailGenerationIsCurrent = !isCatalogDetail || startedCatalogDetailGeneration === catalogDetailGeneration;
+      if (generationIsCurrent && detailGenerationIsCurrent) {
+        productResponseCache.set(key, {
+          value,
+          expiresAt: Date.now() + ttlMs,
+          staleUntil: Date.now() + ttlMs + staleMs,
+        });
+        trimCache();
+      }
       return value;
     })
     .catch((error) => {
@@ -89,7 +130,7 @@ export async function withPublicProductResponseCache<T>(
       throw error;
     })
     .finally(() => {
-      productResponseFlights.delete(key);
+      if (productResponseFlights.get(key) === flight) productResponseFlights.delete(key);
     });
 
   productResponseFlights.set(key, flight as Promise<unknown>);

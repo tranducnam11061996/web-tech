@@ -1,6 +1,6 @@
 # HACOM E-commerce Workspace
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
 This workspace contains the HACOM storefront, admin dashboard, REST backend, background jobs, legacy MySQL integration, and deployment/load-test assets. AI agents should start with `AGENTS.md` and `AI_HANDOFF.md`.
 
@@ -32,6 +32,7 @@ npm.cmd run dev
 - Storefront: `http://localhost:3001`
 - Liveness: `http://localhost:3000/api/health/live`
 - Readiness: `http://localhost:3000/api/health/ready`
+- `web-admin npm run dev` starts both the Next.js API/admin process and the email/background worker. Use `npm run dev:api` only for an intentional API-only session.
 
 For the one-host production topology, use `Caddyfile` and `ecosystem.config.cjs`: Caddy terminates HTTP, two clustered `web-admin` workers serve APIs/admin, one storefront worker serves the UI, and one worker processes email outbox retries and expired runtime records.
 
@@ -47,18 +48,20 @@ Copy from the committed `.env.example` files into ignored local environment file
 
 ## Current capabilities
 
+- Legacy-backed Product Group management and a detail-only storefront SKU selector with real slugs/prices, defensive orphan filtering, and four cards per slide.
 - Dynamic product/category/collection/search storefront with bounded queries, reduced public payloads, ETag/conditional GET, in-worker cache, and cross-worker cache-version invalidation.
 - Guest cart and hardened checkout with server-side quote, strict cart rules, action CAPTCHA, origin/rate-limit controls, voucher row locking, transactional order creation, idempotency, and email outbox.
 - Storefront customer registration, email verification, login, password reset/change, sessions, addresses, order history, and admin CRM views.
 - Admin authentication/RBAC and management for catalog, content, menus, banners, collections, vouchers, customers, orders, users, and roles.
+- Display-only product-promotion management with union SKU/category scopes, descendant matching, scheduling, manual priority, safe detail links, and live product-detail rendering.
 - Signed search webhook with HMAC, timestamp, nonce, and replay prevention.
 - Product media upload with content-signature validation and legacy metadata synchronization.
 
-The additive admin migration was run against the configured local database on `2026-07-11`. It currently contains 280 tables: 152 InnoDB and 128 MyISAM. See the database docs before running any migration elsewhere.
+The additive admin migration was run twice against the identified local database on `2026-07-13`. It currently contains 285 tables: 157 InnoDB and 128 MyISAM. See the database docs before running any migration elsewhere.
 
 ## Verification status
 
-The most recent local verification passed TypeScript, ESLint, production builds, 5 validation unit tests, the idempotency/rollback integration test, both npm audits with zero known vulnerabilities, readiness/liveness, and 13/13 local health checks.
+The most recent local verification passed TypeScript, ESLint, production builds, 40 unit tests, 4 integration tests, readiness/liveness, and 13/13 local health checks. The earlier dependency audits remained at zero known vulnerabilities and were not rerun for this dependency-neutral change.
 
 The full 1,500-VU k6 test has not been run on a production-like 8 vCPU/16 GB host. Do not claim production capacity until that release gate passes.
 

@@ -1,6 +1,6 @@
 # Project Progress
 
-Last updated: `2026-07-11`
+Last updated: `2026-07-13`
 
 `AI_HANDOFF.md` is the canonical continuation guide. This file records completion evidence, open verification, and the prioritized backlog.
 
@@ -8,19 +8,30 @@ Last updated: `2026-07-11`
 
 | Area | Status | Evidence / qualification |
 |---|---|---|
+| Real combo sets / combo cart / combo orders | Implemented locally; E2E assignment pending | Local migration ran twice successfully; product detail chunks more than four combo groups into four-card thumbnail slides without extra requests, and combo cart/checkout use the standard dark commerce shell while retaining isolated storage/API/voucher behavior; MSI 87409 remains intentionally unassigned |
 | Storefront catalog/search/collections | Implemented and locally verified | Bounded APIs, ETag, reduced payloads, cache/single-flight, responsive image behavior |
+| Dynamic breadcrumbs | Implemented and locally verified | Shared semantic component; bounded product/news hierarchy resolver; no extra storefront request or document overflow |
+| Product related content | Implemented | Similar products with direct-parent fallback, title-ranked/fallback news, and versioned browser-local recently viewed history |
+| Product/category buying guides | Implemented and locally verified | Independent admin-managed content, detail-only API payload, accessible storefront accordion, selective cache invalidation; migration idempotency/schema verified |
+| Product groups / independent SKU variants | Implemented and locally verified | Real legacy-backed admin CRUD, one-group-per-product index, detail-only payload with per-SKU legacy thumbnail resolution, simplified value schema without image/color columns, four-card storefront carousel, orphan-safe reads |
 | Guest cart and checkout | Hardened and locally verified | Strict quote, transactional order, voucher lock, idempotency, outbox, CAPTCHA/rate limit |
+| Product voucher discovery | Implemented and locally verified | Product-detail resolves active global/category-descendant vouchers; storefront hides only an empty voucher card while retaining the independent live product-promotion block, and uses an accessible code/detail dialog; final quote remains authoritative |
+| Product promotion display | Implemented and locally verified | Admin CRUD with SKU/category-union scopes, descendant matching, safe links, scheduling and priority; product detail replaces the former demo list with at most 50 live display-only records |
+| Product video and specification utilities | Implemented locally | Detail payload safely normalizes legacy YouTube video data, utility cards are data-conditional, and the video/specification dialogs support keyboard close, focus containment, and trigger-focus restoration |
 | Customer accounts | Implemented | Registration/OTP/login/reset/profile/address/order flows and admin CRM surfaces exist |
 | Admin auth and RBAC | Implemented | Session, role/permission checks, write gate, audit surfaces, login throttling |
 | Admin content/catalog | Implemented first production-oriented pass | Product/category/article/menu/banner/collection/voucher/customer/order/user/role management |
 | Search | Implemented | Runtime search in `web-admin`, prewarm/single-flight, signed webhook; `search-tool` is reference only |
 | Runtime topology | Implemented as configuration | Caddy, PM2, readiness/liveness, two API workers, storefront, background worker |
-| Database migration | Applied to configured local DB | 280 tables: 152 InnoDB, 128 MyISAM on 2026-07-11 |
+| Database migration | Applied to configured local DB | 282 tables: 154 InnoDB, 128 MyISAM on 2026-07-12 |
 | Functional verification | Passed locally | TypeScript, lint, builds, tests, audits, readiness/liveness, 13/13 health checks |
 | 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
 ## Completed in the latest hardening pass
 
+- Added dynamic product/news category trails to existing API payloads, fixed the legacy news-category join, and replaced four breadcrumb implementations with one accessible responsive component.
+- Split the product-detail related-content placeholder into similar, recently viewed, and related-post sections; added bounded recommendation and batch-card contracts without schema changes.
+- Replaced hardcoded Why Buy content with independent product/category buying guides, a reusable admin editor, bounded transactional APIs, detail-only reads, and selective catalog-detail cache invalidation.
 - Added canonical Zod validation and bounded parsing for high-risk commerce/customer routes.
 - Added request IDs, safe public error envelopes, origin allowlist, `Retry-After`, atomic rate limits, honeypots, and action-specific reCAPTCHA.
 - Reworked order creation around one quote/transaction, bulk item insert, voucher locking, idempotency replay, customer metrics, and email outbox.
@@ -40,8 +51,8 @@ Last updated: `2026-07-11`
 | `font-end` ESLint `--quiet` | Pass |
 | `web-admin` production build | Pass |
 | `font-end` production build | Pass |
-| Validation unit tests | 5/5 pass |
-| Idempotency/rollback integration test | 1/1 pass |
+| Validation, breadcrumb, recommendation, buying-guide, combo, voucher, product-group, product-promotion, and product-video unit tests | 43/43 pass |
+| Idempotency/rollback, product-group, and product-promotion DB integration tests | 4/4 pass |
 | npm audit in both apps | 0 known vulnerabilities |
 | Local healthcheck | 13/13 pass |
 | Liveness/readiness/storefront | HTTP 200 |

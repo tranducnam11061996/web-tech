@@ -10,6 +10,7 @@ import {
   Users,
   Video,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import React, {
   useCallback,
   useEffect,
@@ -22,6 +23,9 @@ import type {
   ProductGalleryImage,
 } from "@/types/product-detail";
 import ProgressiveImage from "./ProgressiveImage";
+import { useProductDetailModal } from "./ProductDetailModalProvider";
+
+const ProductVideoModal = dynamic(() => import("./ProductVideoModal"), { ssr: false });
 
 function normalizeGalleryImages(input: unknown): ProductGalleryImage[] {
   if (!Array.isArray(input)) return [];
@@ -53,6 +57,7 @@ export default function ProductCarousel({
 }: {
   productData: ProductDetailData;
 }) {
+  const { openSpecifications } = useProductDetailModal();
   const productImages = useMemo(() => {
     const grouped = normalizeGalleryImages(productData.imageGroups?.product);
     return grouped.length > 0
@@ -72,10 +77,13 @@ export default function ProductCarousel({
     activeImageTab === "customer" && customerImages.length > 0
       ? customerImages
       : productImages;
+  const videos = productData.videos || [];
+  const hasSpecifications = productData.hasSpecifications === true;
   const totalSlides = currentGallery.length || 1;
   const [curSlide, setCurSlide] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -91,8 +99,7 @@ export default function ProductCarousel({
   const checkRailScroll = useCallback(() => {
     if (railRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = railRef.current;
-      // The first box (video) is 80px wide. Hide left arrow unless it is fully scrolled out of view.
-      setCanScrollRailLeft(scrollLeft >= 80);
+      setCanScrollRailLeft(scrollLeft > 0);
       setCanScrollRailRight(Math.ceil(scrollLeft + clientWidth) < scrollWidth);
     }
   }, []);
@@ -408,18 +415,28 @@ export default function ProductCarousel({
           aria-label="Điều hướng hình ảnh"
           onScroll={checkRailScroll}
         >
-          <button
-            type="button"
-            className="product-gallery-utility"
-            onClick={() => showMessage("Video sản phẩm sẽ được cập nhật ở phase sau")}
-          >
-            <Video aria-hidden="true" />
-            <span>Video</span>
-          </button>
-          <a href="#cot-thongsokythuat" className="product-gallery-utility">
-            <ClipboardList aria-hidden="true" />
-            <span>Thông số</span>
-          </a>
+          {videos.length > 0 ? (
+            <button
+              type="button"
+              className="product-gallery-utility"
+              aria-label="Mở video sản phẩm"
+              onClick={() => setIsVideoModalOpen(true)}
+            >
+              <Video aria-hidden="true" />
+              <span>Video</span>
+            </button>
+          ) : null}
+          {hasSpecifications ? (
+            <button
+              type="button"
+              className="product-gallery-utility"
+              aria-label="Mở thông số kỹ thuật"
+              onClick={openSpecifications}
+            >
+              <ClipboardList aria-hidden="true" />
+              <span>Thông số</span>
+            </button>
+          ) : null}
           {images.map((image, index) => (
             <button
               type="button"
@@ -455,6 +472,14 @@ export default function ProductCarousel({
           </button>
         )}
       </div>
+      {isVideoModalOpen ? (
+        <ProductVideoModal
+          productName={productData.name}
+          videos={videos}
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+        />
+      ) : null}
       <p className="sr-only" role="status" aria-live="polite">
         {actionMessage}
       </p>

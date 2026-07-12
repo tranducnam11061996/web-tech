@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { buildCartQuote } from '@/lib/cart-quote';
 import { reserveVoucherForOrder } from '@/lib/vouchers';
+import { clearPublicCatalogDetailCache } from '@/lib/publicProductCache';
 import { createOrderMeta } from '@/lib/storefrontOrders';
 import { linkOrderToCustomer, resolveCustomerSession } from '@/lib/customerAccounts';
 import { orderSchema } from '@/lib/commerceValidation';
@@ -68,7 +69,7 @@ export async function POST(request: Request) {
         createOrderMeta(connection, orderId, JSON.parse(buyerInfo)),
         linkOrderToCustomer(connection, orderId, sessionCustomer?.id || null),
       ]);
-      await reserveVoucherForOrder(connection, quote.voucher, orderId, quote.totals.subtotal);
+      const voucherAvailabilityChanged = await reserveVoucherForOrder(connection, quote.voucher, orderId, quote.totals.subtotal);
       await connection.query(
         `INSERT INTO build_buy_item(order_id,product_id,title,product_price,quantity) VALUES ?`,
         [orderItems.map((item) => [orderId, item.productId, truncate(toAscii(item.name), 255), Math.round(item.price), item.quantity])],
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
       const responseBody = { success: true, data: { orderId, total: quote.totals.total, itemCount: quote.totals.itemCount }, message: 'Tạo đơn hàng thành công' };
       await completeOrderRequest(connection, claimed.id, orderId, responseBody);
       await connection.commit();
+      if (voucherAvailabilityChanged) clearPublicCatalogDetailCache();
       return NextResponse.json(responseBody, { headers: { ...cors, 'X-Request-ID': id } });
     } catch (error) {
       await connection.rollback();

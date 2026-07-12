@@ -1,38 +1,20 @@
-import pool from '@/lib/db';
 import { ComboSetEditClient } from '@/components/products/combo-set/edit/ComboSetEditClient';
-// @ts-ignore
-import { unserialize } from 'php-serialize';
+import { getAdminComboSet } from '@/lib/comboSets';
 
 async function getComboSetById(id: string) {
   try {
-    const [rows] = await pool.query('SELECT * FROM combo_set WHERE id = ?', [id]);
-    const comboSets = rows as any[];
-    
-    if (comboSets.length === 0) {
-      return null;
-    }
-    
-    const combo = comboSets[0];
-    
-    // Parse PHP serialized config
-    let parsedConfig: any[] = [];
-    if (combo.config) {
-      try {
-        const rawConfig = unserialize(combo.config);
-        // Convert object to array if needed (PHP arrays are objects in JS when unserialized with string keys, but here it has integer keys 0,1,2...)
-        parsedConfig = Object.values(rawConfig).map((group: any) => ({
-          title: group.title || '',
-          suggest_list: group.suggest_list ? Object.values(group.suggest_list) : []
-        }));
-      } catch (err) {
-        console.error("Failed to unserialize config:", err);
-      }
-    }
-    
-    // Remove raw config from data sent to client
-    delete combo.config;
-    
-    return { ...combo, parsedConfig };
+    const combo = await getAdminComboSet(Number(id));
+    return {
+      id: combo.id, title: combo.title, description: combo.description, status: combo.status,
+      from_time: combo.fromTime, to_time: combo.toTime, product_count: combo.productCount,
+      parsedConfig: combo.groups.map((group) => ({
+        title: group.title,
+        suggest_list: group.products.map((product) => ({
+          title: product.title, real_id: String(product.productId), discount: String(product.discount),
+          discount_type: product.discountType,
+        })),
+      })),
+    };
   } catch (error) {
     console.error("Failed to fetch combo set:", error);
     return null;

@@ -1,14 +1,18 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import { sanitizeLegacyHtml } from '@/lib/sanitizeHtml';
+import { useProductDetailModal } from './ProductDetailModalProvider';
+import { useDialogAccessibility } from './useDialogAccessibility';
 
 interface ProductSpecificationsProps {
   productName: string;
   specs: string;
+  hasSpecifications: boolean;
 }
 
-export default function ProductSpecifications({ productName, specs }: ProductSpecificationsProps) {
-  const [specModalOpen, setSpecModalOpen] = useState(false);
+export default function ProductSpecifications({ productName, specs, hasSpecifications }: ProductSpecificationsProps) {
+  const { specificationsOpen: specModalOpen, openSpecifications, closeSpecifications } = useProductDetailModal();
+  const dialogRef = useDialogAccessibility(specModalOpen, closeSpecifications);
   const [showSpecBtn, setShowSpecBtn] = useState(true);
   const [headers, setHeaders] = useState<Array<{ index: number, title: string }>>([]);
   const [activeIndex, setActiveIndex] = useState<number>(0);
@@ -42,44 +46,19 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
   }, [specs]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setSpecModalOpen(false);
-      }
-    };
-
-    if (specModalOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-    } else {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.body.style.overflow = '';
-      window.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [specModalOpen]);
-
-  useEffect(() => {
-    if (specModalOpen && modalScrollRef.current) {
-      // Small timeout ensures DOM is fully painted after modal opens
-      setTimeout(() => {
-        if (!modalScrollRef.current) return;
-        const elements = modalScrollRef.current.querySelectorAll('.product-spec-list td[colspan="2"]');
-        
-        const newHeaders: Array<{ index: number, title: string }> = [];
-        Array.from(elements).forEach((el, index) => {
-          newHeaders.push({ index, title: el.textContent?.trim() || '' });
-        });
-        
-        setHeaders(newHeaders);
-        if (newHeaders.length > 0) {
-          setActiveIndex(0);
-        }
-      }, 50);
-    }
+    if (!specModalOpen) return;
+    // Small timeout ensures DOM is fully painted after modal opens.
+    const timer = window.setTimeout(() => {
+      if (!modalScrollRef.current) return;
+      const elements = modalScrollRef.current.querySelectorAll('.product-spec-list td[colspan="2"]');
+      const newHeaders: Array<{ index: number, title: string }> = [];
+      Array.from(elements).forEach((el, index) => {
+        newHeaders.push({ index, title: el.textContent?.trim() || '' });
+      });
+      setHeaders(newHeaders);
+      if (newHeaders.length > 0) setActiveIndex(0);
+    }, 50);
+    return () => window.clearTimeout(timer);
   }, [specModalOpen, specs]);
 
   const getHeaderElements = () => {
@@ -204,7 +183,7 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
     navScrollRef.current.scrollLeft = dragRef.current.scrollLeft - walk;
   };
 
-  if (!specs) return null;
+  if (!hasSpecifications || !specs) return null;
 
   return (
     <>
@@ -224,7 +203,7 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
               <>
                 <div className="absolute bottom-0 left-0 right-0 h-[150px] bg-gradient-to-t from-[#111115] via-[#111115]/80 to-transparent pointer-events-none" />
                 <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
-                  <button className="px-6 py-2.5 bg-red-600/90 backdrop-blur-md text-white text-sm font-bold rounded-lg hover:bg-red-500 transition flex items-center gap-2 shadow-md shadow-black/20" onClick={() => setSpecModalOpen(true)}>
+                  <button type="button" className="px-6 py-2.5 bg-red-600/90 backdrop-blur-md text-white text-sm font-bold rounded-lg hover:bg-red-500 transition flex items-center gap-2 shadow-md shadow-black/20" onClick={openSpecifications}>
                     Xem thêm cấu hình chi tiết
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                   </button>
@@ -237,14 +216,14 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
       </div>
 
       {/* MODAL: Thông số kỹ thuật chi tiết */}
-      <div id="specModal" className={`modal-backdrop ${specModalOpen ? "active" : ""}`} onClick={() => setSpecModalOpen(false)}>
-        <div className="modal-content flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      {specModalOpen ? <div id="specModal" className="modal-backdrop active" onClick={closeSpecifications}>
+        <div ref={dialogRef} className="modal-content flex flex-col overflow-hidden" role="dialog" aria-modal="true" aria-labelledby="product-specifications-modal-title" tabIndex={-1} onClick={(e) => e.stopPropagation()}>
 
           <div className="flex-none">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-[#1a1a1e] bg-[#111115] rounded-t-2xl">
-              <h3 className="font-bold text-base text-white">Thông số kỹ thuật</h3>
-              <button className="w-8 h-8 rounded-full bg-[#1a1a1e] hover:bg-red-500/20 hover:text-red-500 text-gray-400 flex items-center justify-center transition" onClick={() => setSpecModalOpen(false)}>
+              <h3 id="product-specifications-modal-title" className="font-bold text-base text-white">Thông số kỹ thuật</h3>
+              <button type="button" aria-label="Đóng thông số kỹ thuật" className="w-8 h-8 rounded-full bg-[#1a1a1e] hover:bg-red-500/20 hover:text-red-500 text-gray-400 flex items-center justify-center transition" onClick={closeSpecifications}>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -303,7 +282,7 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
           </div>
 
         </div>
-      </div>
+      </div> : null}
     </>
   );
 }

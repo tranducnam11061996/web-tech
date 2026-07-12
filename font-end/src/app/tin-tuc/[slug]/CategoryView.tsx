@@ -4,6 +4,8 @@ import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
 import ProgressiveImage from "../../../components/ProgressiveImage";
 import CategorySidebar from "../../../components/CategorySidebar";
+import Breadcrumb from "../../../components/Breadcrumb";
+import type { CategoryTrailItem } from "../../../types/breadcrumb";
 
 export default function CategoryView({ category, categoryNews, formatDate, page, totalNews }: { category: any, categoryNews: any[], formatDate: (d: string) => string, page?: number, totalNews?: number }) {
     
@@ -14,23 +16,23 @@ export default function CategoryView({ category, categoryNews, formatDate, page,
 
     const topNews = currentPage === 1 ? currentItems.slice(0, 3) : [];
     const remainingNews = currentPage === 1 ? currentItems.slice(3) : currentItems;
+    const categoryTrail: CategoryTrailItem[] = Array.isArray(category.categoryTrail) ? category.categoryTrail : [];
+    const breadcrumbItems = [
+      { label: "Tin tức", href: "/tin-tuc" },
+      ...(categoryTrail.length > 0
+        ? categoryTrail.map((item, index) => ({
+            label: item.name,
+            href: index < categoryTrail.length - 1 ? `/tin-tuc/${item.slug}` : undefined,
+          }))
+        : [{ label: category.name || "Danh mục" }]),
+    ];
 
     return (
       <>     
         <Header />
         <div className="max-w-[1400px] mx-auto px-4 py-8 space-y-8 bg-[#0a0a0c]">
           
-          {/* Breadcrumb */}
-          <nav className="flex text-[13px] text-gray-400 gap-2 items-center mb-4 overflow-hidden">
-            <Link href="/" className="hover:text-blue-500 transition flex items-center gap-1 shrink-0 whitespace-nowrap">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-              Trang chủ
-            </Link>
-            <span className="text-gray-600 shrink-0">/</span>
-            <Link href="/tin-tuc" className="hover:text-blue-500 transition shrink-0 whitespace-nowrap">Tin tức</Link>
-            <span className="text-gray-600 shrink-0">/</span>
-            <span className="text-white font-bold truncate min-w-0">{category.name || "Danh mục"}</span>
-          </nav>
+          <Breadcrumb items={breadcrumbItems} />
 
           {/* Header Section */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 mb-8 border-b border-[#1a1a1e]">

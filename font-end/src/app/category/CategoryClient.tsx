@@ -3,11 +3,12 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
-import SimilarProducts from "../../components/SimilarProducts";
 import WhyBuyFaq from "../../components/WhyBuyFaq";
 import ProgressiveImage from "../../components/ProgressiveImage";
 import CategoryFeatureProductGrid from "../../components/CategoryFeatureProductGrid";
+import Breadcrumb from "../../components/Breadcrumb";
 import Link from "next/link";
+import type { CategoryTrailItem } from "../../types/breadcrumb";
 import {
   buildSidebarSectionVisibility,
   type SidebarSectionVisibility,
@@ -211,6 +212,15 @@ function AttributeFilterBlock({
 }
 
 export default function CategoryContent({ categoryId, params, searchParams, initialData, categoryInfo }: any) {
+  const rawCategoryTrail = categoryInfo?.categoryTrail || initialData?.products?.layoutMeta?.categoryTrail || [];
+  const categoryTrail: CategoryTrailItem[] = Array.isArray(rawCategoryTrail) ? rawCategoryTrail : [];
+  const categoryBreadcrumbItems = categoryTrail.length > 0
+    ? categoryTrail.map((category, index) => ({
+        label: category.name,
+        href: index < categoryTrail.length - 1 ? `/${category.slug}` : undefined,
+      }))
+    : [{ label: categoryInfo?.name || "Danh mục sản phẩm" }];
+
   const [products, setProducts] = useState<any[]>(initialData?.products?.data || []);
   const [featureBox, setFeatureBox] = useState<any>(
     categoryInfo?.featureBox || initialData?.products?.layoutMeta?.featureBox || null,
@@ -509,20 +519,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
       {/* ===== CATEGORY HERO SECTION ===== */}
       <div className="max-w-[1800px] mx-auto px-6 pt-6">
         
-        {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-xs text-gray-500 mb-6 flex-wrap font-medium">
-          <Link href="/" className="hover:text-white transition flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-          </Link>
-          <span className="text-gray-700">/</span>
-          <Link href="#" className="hover:text-white transition">Specials</Link>
-          <span className="text-gray-700">/</span>
-          <Link href="#" className="hover:text-white transition">Best Graphics Card Deals</Link>
-          <span className="text-gray-700">/</span>
-          <span className="text-gray-300">Graphics Cards</span>
-        </nav>
+        <Breadcrumb items={categoryBreadcrumbItems} />
 
         {/* Banner Area */}
         <div className="flex flex-col lg:flex-row gap-8 mb-8">
@@ -1240,10 +1237,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
       )}
 
       {/*  ==================== ss21.html ====================  */}
-      <WhyBuyFaq />
-
-      {/*  ==================== ss22.html ====================  */}
-      <SimilarProducts />
+      <WhyBuyFaq buyingGuide={categoryInfo?.buyingGuide} />
 
       <Footer />
     </div>

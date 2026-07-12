@@ -4,6 +4,8 @@ import { getProductCardBadgesForProductIds } from '@/lib/productCardAttributes';
 import { withPublicProductResponseCache } from '@/lib/publicProductCache';
 import { getPublicCategoryFeatureBox } from '@/lib/categoryFeatureBoxes';
 import { jsonWithEtag } from '@/lib/httpCache';
+import { getCategoryTrail } from '@/lib/publicBreadcrumbs';
+import { getProductsByIds, parseProductIdsParam } from '@/lib/publicRecommendations';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,7 +18,7 @@ const publicCacheHeaders = {
   'Cache-Control': 'public, max-age=0, s-maxage=60, stale-while-revalidate=300',
 };
 
-const reservedFilterKeys = new Set(['category_id', 'limit', 'page', 'id', 'min-price', 'max-price', 'brand', 'sort', 'feature_scope']);
+const reservedFilterKeys = new Set(['category_id', 'limit', 'page', 'id', 'ids', 'min-price', 'max-price', 'brand', 'sort', 'feature_scope']);
 const attributeRowsCache = new Map<string, { expiresAt: number; rows: any[] }>();
 const attributeRowsFlights = new Map<string, Promise<any[]>>();
 
@@ -207,8 +209,9 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const badgesByProduct = await getProductCardBadgesForProductIds(rows.map((row) => Number(row.id)));
 
-  const [featureBox] = await Promise.all([
+  const [featureBox, categoryTrail] = await Promise.all([
     categoryId ? getPublicCategoryFeatureBox(Number(categoryId), featureScope) : Promise.resolve(null),
+    categoryId ? getCategoryTrail('product', Number(categoryId)) : Promise.resolve([]),
   ]);
 
   const products = rows.map((row) => ({
@@ -229,6 +232,7 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
     data: products,
     layoutMeta: {
       featureBox,
+      categoryTrail,
     },
     pagination: {
       total,
@@ -242,6 +246,25 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    if (searchParams.has('ids')) {
+      const parsedIds = parseProductIdsParam(searchParams.get('ids'));
+      if (!parsedIds.ok) {
+        return NextResponse.json(
+          { success: false, message: parsedIds.message },
+          { status: 400, headers: { ...corsHeaders, 'Cache-Control': 'private, no-store' } },
+        );
+      }
+      const products = await getProductsByIds(parsedIds.ids);
+      return NextResponse.json(
+        {
+          success: true,
+          data: products,
+          layoutMeta: { featureBox: null, categoryTrail: [] },
+          pagination: { total: products.length, page: 1, limit: 15, totalPages: 1 },
+        },
+        { headers: { ...corsHeaders, 'Cache-Control': 'private, max-age=60' } },
+      );
+    }
     const cacheKey = buildProductsCacheKey(searchParams);
     const payload = await withPublicProductResponseCache(`products:${cacheKey}`, () => loadProductsPayload(searchParams));
     const status = 'status' in payload ? Number(payload.status || 200) : 200;

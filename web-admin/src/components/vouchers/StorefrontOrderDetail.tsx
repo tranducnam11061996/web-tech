@@ -54,6 +54,13 @@ export function StorefrontOrderDetail() {
           <span className="font-medium text-blue-300">{order.statusLabel}</span>
         </p>
       </header>
+      {order.orderType === 'combo' && (
+        <section className="rounded-xl border border-fuchsia-500/50 bg-fuchsia-950/30 p-5 text-fuchsia-100">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-fuchsia-300">Đơn hàng combo</p>
+          <h2 className="mt-2 text-xl font-bold">{order.combo?.set?.title || `Combo set #${order.meta.comboSetId}`}</h2>
+          <p className="mt-1 text-sm">Sản phẩm chính: {order.combo?.anchor?.name || `#${order.meta.comboAnchorProductId}`}</p>
+        </section>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_360px]">
         <main className="space-y-4">
@@ -112,6 +119,9 @@ export function StorefrontOrderDetail() {
                 <p className="flex justify-between gap-4 text-emerald-300">
                   <span>Voucher {order.voucher.code}</span><b>-{money(order.voucher.discount)}</b>
                 </p>
+              ) : null}
+              {order.orderType === 'combo' ? (
+                <p className="flex justify-between gap-4 text-fuchsia-300"><span>Giảm combo</span><b>-{money(order.totals.comboDiscount || 0)}</b></p>
               ) : null}
               <p className="flex justify-between gap-4 border-t border-emerald-900/60 pt-3 text-base text-white">
                 <span>Cần thanh toán</span><b>{money(order.totalValue)}</b>

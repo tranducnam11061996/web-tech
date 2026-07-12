@@ -43,6 +43,8 @@ export interface SendOrderEmailParams {
   customer: EmailCustomer;
   delivery: EmailDelivery;
   paymentMethod: string;
+  orderType?: 'standard' | 'combo';
+  comboDiscount?: number;
 }
 
 // ---- Config ----
@@ -114,9 +116,11 @@ function buildOrderHtml({
   customer,
   delivery,
   paymentMethod,
+  orderType,
+  comboDiscount,
 }: Pick<
   SendOrderEmailParams,
-  'orderId' | 'items' | 'totals' | 'customer' | 'delivery' | 'paymentMethod'
+  'orderId' | 'items' | 'totals' | 'customer' | 'delivery' | 'paymentMethod' | 'orderType' | 'comboDiscount'
 >): string {
   const rows = items
     .map(
@@ -160,8 +164,8 @@ function buildOrderHtml({
 <body>
   <div class="wrap">
     <div class="header">
-      <h1>Cảm ơn bạn đã đặt hàng!</h1>
-      <p>Đơn hàng #${orderId} đã được ghi nhận và đang xử lý.</p>
+      <h1>Cảm ơn bạn đã đặt ${orderType === 'combo' ? 'đơn hàng combo' : 'hàng'}!</h1>
+      <p>${orderType === 'combo' ? 'Đơn hàng combo' : 'Đơn hàng'} #${orderId} đã được ghi nhận và đang xử lý.</p>
     </div>
 
     <!-- Order summary -->
@@ -178,6 +182,7 @@ function buildOrderHtml({
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
+          ${orderType === 'combo' ? `<tr><td colspan="3" style="text-align:right;padding-top:12px;font-size:13px;color:#059669;">Giảm combo</td><td style="text-align:right;padding-top:12px;color:#059669;font-weight:600;">-${formatCurrency(comboDiscount || 0)}</td></tr>` : ''}
           <tr class="total-row">
             <td colspan="3" style="text-align:right;padding-top:16px;font-size:13px;color:#666;">Tổng cộng</td>
             <td style="text-align:right;padding-top:16px;">${formatCurrency(totals.total)}</td>
@@ -271,7 +276,7 @@ export async function sendOrderEmail(params: SendOrderEmailParams): Promise<bool
     await transporter.sendMail({
       from,
       to: params.to,
-      subject: `Xác nhận đơn hàng #${params.orderId} — TrucTiepGAME`,
+      subject: `Xác nhận ${params.orderType === 'combo' ? 'đơn hàng combo' : 'đơn hàng'} #${params.orderId} — TrucTiepGAME`,
       html,
     });
 

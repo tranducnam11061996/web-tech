@@ -1,6 +1,6 @@
 # Admin and Search Migration Guide
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
 Read this before any schema-changing command. The configured local database has received the latest additive admin migration; no other environment should be assumed migrated.
 
@@ -15,11 +15,23 @@ Read this before any schema-changing command. The configured local database has 
 
 ## Configured local database state
 
-Read-only verification on `2026-07-11` found 280 tables: 152 InnoDB and 128 MyISAM. The latest admin migration completed successfully and the following groups exist:
+### Combo migration
+
+The combo migration ran twice successfully against identified local database `hanoi23_db` on `2026-07-12`. It verified that `(product_id,set_id)` had no duplicates, then added two `combo_set_product` indexes and three combo-order metadata columns with two indexes. For other environments, retain the same preflight. Roll back application code first; only then, if no combo orders depend on the metadata, drop `idx_web_admin_order_meta_combo`, `idx_web_admin_order_meta_type`, the three metadata columns, `idx_combo_set_product_set_product`, and `uq_combo_set_product_product_set`. Do not remove orphan legacy rows as part of this rollback.
+
+### Product-group migration
+
+The product-group migration ran twice successfully against local `hanoi23_db` on `2026-07-12`. It preflights duplicate `config_group_product.product_id` rows, then adds `uq_config_group_product_product(product_id)` to enforce one group per product and force-removes obsolete `config_group_attribute_value.image`/`color_code` columns after logging their non-empty counts. It does not add foreign keys or remove legacy orphans. Rollback after reverting application writes is `ALTER TABLE config_group_product DROP INDEX uq_config_group_product_product`; restoring removed value columns only restores empty schema, not discarded data.
+
+Read-only verification on `2026-07-13` found 285 tables: 157 InnoDB and 128 MyISAM. The buying-guide and product-promotion migrations completed twice successfully to verify idempotency, and the following groups exist:
+
+Product-promotion migration verification on `2026-07-13` ran twice successfully against identified local `hanoi23_db`. The three UTF-8 InnoDB tables, relation foreign keys, reverse-lookup indexes, mixed-scope resolver and delete cascade were verified; integration fixtures were removed afterward. Current totals are 285 tables: 157 InnoDB and 128 MyISAM.
 
 - Admin sequence/entity registry, access/RBAC/audit infrastructure.
 - Product images, managed menus, banner metadata, product-card rules, and category feature boxes.
+- Product/category buying guides and ordered guide items.
 - Voucher/category/redemption tables.
+- Product-promotion program/product/category tables.
 - Storefront customer registration/password/session/OTP/attempt/address/order-link/metrics tables.
 - `web_admin_order_requests`, `web_admin_request_limits`, `web_admin_email_outbox`, `web_admin_cache_versions`, and `web_admin_webhook_nonces`.
 
@@ -27,13 +39,15 @@ The exact 28,763 product/search counts and zero missing search rows were last ve
 
 ## Admin migration
 
-The script calls the current ensure functions for admin core/access, product images, menus, banners, badges, category feature boxes, vouchers, storefront orders, customer accounts, and performance/security infrastructure.
+The script calls the current ensure functions for admin core/access, product images, menus, banners, badges, category feature boxes, product/category buying guides, vouchers, storefront orders, customer accounts, and performance/security infrastructure.
 
 ```powershell
 cd D:\web-tech\web-admin
 $env:ADMIN_WRITE_ENABLED='true'
 npm.cmd run admin:migrate
 ```
+
+The migration also removes the obsolete `config_group_attribute_value.image` and `color_code` columns when present. It logs the number of non-empty values before its forced drop; restore columns only from a database backup if legacy value visuals are needed again.
 
 Without the flag the expected result is:
 
@@ -81,9 +95,14 @@ WHERE table_schema = DATABASE()
     'web_admin_banner_meta',
     'web_admin_product_card_attribute_rules',
     'web_admin_category_feature_boxes',
+    'web_admin_buying_guides',
+    'web_admin_buying_guide_items',
     'web_admin_vouchers',
     'web_admin_voucher_categories',
     'web_admin_voucher_redemptions',
+    'web_admin_product_promotions',
+    'web_admin_product_promotion_products',
+    'web_admin_product_promotion_categories',
     'web_admin_storefront_customers',
     'web_admin_customer_sessions',
     'web_admin_order_requests',
@@ -101,8 +120,13 @@ SHOW CREATE TABLE web_admin_request_limits;
 SHOW CREATE TABLE web_admin_email_outbox;
 SHOW CREATE TABLE web_admin_cache_versions;
 SHOW CREATE TABLE web_admin_webhook_nonces;
+SHOW CREATE TABLE web_admin_buying_guides;
+SHOW CREATE TABLE web_admin_buying_guide_items;
 SHOW INDEX FROM web_admin_customer_sessions;
 SHOW INDEX FROM web_admin_voucher_redemptions;
+SHOW CREATE TABLE web_admin_product_promotions;
+SHOW CREATE TABLE web_admin_product_promotion_products;
+SHOW CREATE TABLE web_admin_product_promotion_categories;
 ```
 
 Application verification:
@@ -116,6 +140,10 @@ npm.cmd run local:healthcheck
 ```
 
 Confirm `/api/health/ready` returns `200`. Then smoke product images, managed content, voucher/customer/admin flows, order idempotency, outbox processing, and cache invalidation.
+
+Buying-guide rollback is code-first: deploy code that no longer reads/writes the helper tables, take a backup, then drop `web_admin_buying_guide_items` before `web_admin_buying_guides`. Never drop them while a deployed admin can still save this content.
+
+Product-promotion rollback is also code-first: deploy code that no longer reads/writes `productPromotions`, back up the data, then drop `web_admin_product_promotion_products` and `web_admin_product_promotion_categories` before `web_admin_product_promotions`.
 
 ## Operational inspection and cleanup
 

@@ -9,12 +9,15 @@ import ProductReviews from "../../components/ProductReviews";
 import ProductComments from "../../components/ProductComments";
 ==================== */}
 import SimilarProducts from "../../components/SimilarProducts";
+import RecentlyViewedProducts from "../../components/RecentlyViewedProducts";
+import RelatedPosts from "../../components/RelatedPosts";
 import WhyBuyFaq from "../../components/WhyBuyFaq";
 import ProgressiveImage from "../../components/ProgressiveImage";
 import ProductDescription from "../../components/ProductDescription";
 import ProductSpecifications from "../../components/ProductSpecifications";
+import { ProductDetailModalProvider } from "../../components/ProductDetailModalProvider";
 import ProductSidebar from "../../components/ProductSidebar";
-import ProductBreadcrumbHeader from "../../components/ProductBreadcrumbHeader";
+import Breadcrumb from "../../components/Breadcrumb";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
@@ -137,12 +140,34 @@ export default async function ProductPage(props: any) {
     );
   }
 
+  const productBreadcrumbItems = [
+    ...(Array.isArray(productData.categoryTrail) ? productData.categoryTrail : []).map(
+      (category: { name: string; slug: string }) => ({
+        label: category.name,
+        href: `/${category.slug}`,
+      }),
+    ),
+    { label: productData.name },
+  ];
+  const currentProductCard = {
+    id: Number(productData.id),
+    slug: productData.slug || slug,
+    name: productData.name,
+    sku: productData.sku || "",
+    thumbnail: productData.thumbnail || "",
+    price: Number(productData.price || 0),
+    marketPrice: Number(productData.marketPrice || 0),
+    brand: productData.brand || "",
+    cardBadges: [],
+  };
+
   return (
+    <ProductDetailModalProvider>
     <>
       <Header />
 
       <div className="max-w-[1800px] mx-auto px-4 md:px-6 py-6">
-        <ProductBreadcrumbHeader productData={productData} />
+        <Breadcrumb items={productBreadcrumbItems} />
 
         <div className="product-hero-grid">
           <ProductCarousel productData={productData} />
@@ -162,6 +187,7 @@ export default async function ProductPage(props: any) {
           <ProductSpecifications
             productName={productData.name}
             specs={productData.specs}
+            hasSpecifications={productData.hasSpecifications === true}
           />
         </div>
       </section>
@@ -222,9 +248,12 @@ export default async function ProductPage(props: any) {
         </div>
       </section>
 ==================== */}
-      <SimilarProducts />
-      <WhyBuyFaq />      
+      <SimilarProducts products={productData.similarProducts || []} />
+      <RelatedPosts posts={productData.relatedPosts || []} />
+      <RecentlyViewedProducts currentProduct={currentProductCard} />
+      <WhyBuyFaq buyingGuide={productData.buyingGuide} />
       <Footer />
     </>
+    </ProductDetailModalProvider>
   );
 }

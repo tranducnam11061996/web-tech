@@ -1,47 +1,37 @@
 'use client';
 
-import { Search, Plus, Trash2 } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import Link from 'next/link';
 
-export function ProductGroupFilter() {
+export function ProductGroupFilter({ search, onSearchChange }: { search: string; onSearchChange: (value: string) => void }) {
   return (
-    <div className="flex flex-col gap-4 mb-4">
-      {/* Top Actions */}
-      <div className="flex justify-between items-center bg-[#0a0a0f]/90 backdrop-blur-md p-3 rounded-lg border border-gray-800/50 shadow-sm z-20">
-        <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-blue-500 flex items-center gap-3">
-          <span className="w-1.5 h-6 bg-blue-500 rounded-full shadow-[0_0_10px_rgba(59,130,246,0.8)]"></span>
-          Nhóm biến thể sản phẩm
-        </h1>
-        
-        <div className="flex items-center gap-3">
-          <Link href="/product-group/edit">
-            <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-[0_0_10px_rgba(37,99,235,0.3)]">
-              <Plus className="w-4 h-4" /> Thêm mới
-            </button>
-          </Link>
-          <button className="flex items-center gap-2 px-4 py-2 bg-red-950/30 text-red-400 border border-red-900/50 hover:bg-red-900/50 rounded-md transition-all">
-            <Trash2 className="w-4 h-4" /> Xóa (Đã chọn)
-          </button>
+    <div className="mb-4 flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-800/50 bg-[#0a0a0f]/90 p-3 shadow-sm backdrop-blur-md">
+        <div>
+          <h1 className="flex items-center gap-3 text-xl font-bold text-white">
+            <span className="h-6 w-1.5 rounded-full bg-blue-500" aria-hidden="true" />
+            Group sản phẩm
+          </h1>
+          <p className="mt-1 text-sm text-gray-400">Gom các SKU độc lập thành một nhóm phiên bản trên trang chi tiết.</p>
         </div>
+        <Link href="/product/product-group/edit" className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 font-medium text-white transition hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400">
+          <Plus className="h-4 w-4" aria-hidden="true" /> Thêm group
+        </Link>
       </div>
 
-      {/* Filter Bar */}
-      <div className="glass-panel p-4 rounded-lg border border-gray-800/50 flex flex-wrap gap-4 items-end relative z-10">
-        <div className="w-[300px]">
-          <label className="text-xs font-medium text-gray-400 mb-1.5 block uppercase tracking-wider">Từ khoá</label>
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder="Nhập từ khóa tìm kiếm..." 
-              className="w-full bg-gray-900 border border-gray-700 rounded-md pl-3 pr-10 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition-all shadow-inner"
-            />
-          </div>
-        </div>
-
-        <div>
-          <button className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-[0_0_10px_rgba(37,99,235,0.3)] font-medium">
-            <Search className="w-4 h-4" /> Tìm kiếm
-          </button>
+      <div className="glass-panel rounded-lg border border-gray-800/50 p-4">
+        <label htmlFor="product-group-search" className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-gray-400">Tìm kiếm group</label>
+        <div className="relative max-w-xl">
+          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-500" aria-hidden="true" />
+          <input
+            id="product-group-search"
+            type="search"
+            value={search}
+            maxLength={150}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Tên hoặc mô tả group..."
+            className="w-full rounded-md border border-gray-700 bg-gray-900 py-2 pl-9 pr-3 text-sm text-gray-100 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+          />
         </div>
       </div>
     </div>

@@ -81,6 +81,7 @@ export async function requireAdminWrite(request: Request) {
     resource: permission,
     request,
   });
+  return user;
 }
 
 export function normalizeSlug(input: unknown) {

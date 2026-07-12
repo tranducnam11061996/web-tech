@@ -8,6 +8,7 @@ import { TabBasic } from '@/components/products/edit/TabBasic';
 import { TabCombo } from '@/components/products/edit/TabCombo';
 import { TabDescription } from '@/components/products/edit/TabDescription';
 import { TabImages, type TabImagesHandle } from '@/components/products/edit/TabImages';
+import { BuyingGuideEditor } from '@/components/products/edit/BuyingGuideEditor';
 
 const TABS = [
   { id: 'basic', label: 'Cơ bản' },
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'attributes', label: 'Thuộc tính' },
   { id: 'images', label: 'Ảnh sản phẩm' },
   { id: 'combo', label: 'Khuyến Mãi' },
+  { id: 'buying-guide', label: 'Lý do nên mua' },
 ] as const;
 
 type TabId = (typeof TABS)[number]['id'];
@@ -161,6 +163,7 @@ export function EditProductClient({
   const [saving, setSaving] = useState(false);
   const [imagesBusy, setImagesBusy] = useState(false);
   const [imagesDirty, setImagesDirty] = useState(false);
+  const [buyingGuideOpened, setBuyingGuideOpened] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [urlManuallyEdited, setUrlManuallyEdited] = useState(Boolean(product?.id));
@@ -193,7 +196,9 @@ export function EditProductClient({
     (Boolean(form.id) || activeTab === 'basic') &&
     (activeTab === 'images' || isPersistableTab(activeTab));
 
-  const saveTitle = !form.id && activeTab !== 'basic'
+  const saveTitle = activeTab === 'buying-guide'
+    ? 'Phần này có nút Lưu riêng trong nội dung tab'
+    : !form.id && activeTab !== 'basic'
     ? 'Hãy tạo sản phẩm ở tab Cơ bản trước'
     : !activeTabDirty
         ? 'Không có thay đổi cần lưu'
@@ -298,7 +303,10 @@ export function EditProductClient({
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (tab.id === 'buying-guide') setBuyingGuideOpened(true);
+              }}
               className={`px-5 py-3 text-sm font-bold tracking-wider uppercase whitespace-nowrap transition-all border-b-2 ${
                 activeTab === tab.id
                   ? 'border-red-500 text-red-400 bg-red-500/5 drop-shadow-[0_0_5px_rgba(239,68,68,0.8)]'
@@ -334,6 +342,14 @@ export function EditProductClient({
           <div className={activeTab === 'combo' ? 'block' : 'hidden'} aria-hidden={activeTab !== 'combo'}>
             <TabCombo productId={form.id} form={form} onChange={updateField} initialComboSets={productComboSets || []} isActive={activeTab === 'combo'} />
           </div>
+          {buyingGuideOpened ? (
+            <div className={activeTab === 'buying-guide' ? 'block p-5 md:p-8' : 'hidden'} aria-hidden={activeTab !== 'buying-guide'}>
+              <BuyingGuideEditor
+                entityId={Number(form.id) || undefined}
+                endpoint={form.id ? `/api/admin/products/${form.id}/buying-guide` : ''}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 

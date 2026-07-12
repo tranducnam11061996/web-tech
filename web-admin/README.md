@@ -1,8 +1,12 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
+
+## Combo commerce
+
+Admin combo APIs support create/update plus product relation remove/reorder. Public combo endpoints are `GET /api/combo-sets/[setId]/groups/[groupIndex]`, `POST /api/combo-cart/quote`, and `POST /api/combo-orders`. Run `npm run admin:migrate` only with an identified database and explicit `ADMIN_WRITE_ENABLED=true`; it adds required indexes/metadata, force-removes obsolete Product Group value visual columns, but does not clean legacy relation orphans or assign combo data.
 
 ## Responsibilities
 
@@ -37,6 +41,8 @@ npm.cmd run lint -- --quiet
 npx.cmd tsc --noEmit
 ```
 
+`npm run dev` starts Next.js and the background email worker together; both share the terminal and stop together on `Ctrl+C`. Use `npm run dev:api` for an intentional API-only session, or `npm run worker:background` to run only the worker. Inspect pending delivery in `web_admin_email_outbox`; never mark an email as sent manually.
+
 ```powershell
 npm.cmd run admin:migrate
 npm.cmd run admin:access-migrate
@@ -65,11 +71,22 @@ Run `load:k6` only against an approved isolated target. It is not a local smoke 
 
 ### Public reads
 
+- `/api/products/[slug]` optionally embeds a bounded `productGroup` for the current sellable SKU. Group items include each SKU's thumbnail, resolved from `proThum` with a legacy `image_collection` fallback; attribute value visual metadata is not exposed. Product-group data is intentionally absent from lists, search, categories, homepage, and news.
 - `/api/products`, `/api/products/[slug]`, `/api/search`, `/api/search-attributes`.
 - `/api/categories/*`, `/api/collections/[slug]`.
 - `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
 - `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
+
+Product detail/category responses and news detail/category responses include `categoryTrail: Array<{ id, name, slug }>` for storefront breadcrumbs. `/api/products?category_id=...` exposes the same trail under `layoutMeta.categoryTrail`. Trails are resolved from the legacy hierarchy with bounded recursion, cycle protection, partial results for missing parents, and legacy-link fallbacks; no storefront route reads MySQL directly.
+
+Product-detail responses also include up to 15 `similarProducts` (leaf category first, direct-parent fallback only when fewer than five leaf matches) and up to five title-ranked `relatedPosts`. `GET /api/products?ids=1,2,...` accepts at most 15 unique positive IDs and returns active product cards in request order for browser-local recently viewed history; this private-cache branch bypasses the shared product-response LRU.
+
+`GET /api/products/[slug]` also returns an optional `buyingGuide` only for product/product-category detail payloads. The bounded guide is embedded in the existing cached response; list, search, homepage, and news routes do not query or expose it.
+
+Product detail also returns up to 50 active, in-window, non-exhausted voucher summaries whose category roots contain the product; vouchers without category links apply globally. Public summaries omit quota/redemption/admin data, and `POST /api/cart/quote` plus `POST /api/orders` remain authoritative.
+
+Product detail returns `productPromotions` with at most 50 active display-only records. Direct SKU and category-root scopes are combined with OR, category roots include descendants dynamically, duplicates are removed, and ordering is manual priority then end time then id. Promotions never affect quote or order totals.
 
 Public read APIs use bounded inputs, reduced response shapes, local single-flight caches, ETags, and cross-worker invalidation where applicable.
 
@@ -91,6 +108,12 @@ Anonymous high-risk actions use action-specific reCAPTCHA and IP/identifier rate
 ### Admin
 
 Admin API groups live under `/api/admin/*`. Mutations require authenticated session, RBAC permission, same-origin handling, audit behavior where applicable, and `ADMIN_WRITE_ENABLED=true`. Do not add CAPTCHA to ordinary post-login admin forms; use re-authentication or step-up controls only for sensitive/risky actions.
+
+Product and category editors manage independent buying guides through `GET/PUT /api/admin/products/[id]/buying-guide` and `GET/PUT /api/admin/product-categories/[id]/buying-guide`. PUT replaces the bounded ordered item list in one transaction and invalidates only catalog-detail response caches.
+
+Product groups are managed through `GET/POST /api/admin/product-groups`, `GET/PUT/DELETE /api/admin/product-groups/[id]`, and the existing product catalog with assignment filters. Value payloads contain only identity, name, description, and ordering; legacy value image/color fields are rejected. Writes reconcile legacy IDs and PHP-serialized SKU mappings in one transaction; each product may belong to only one group.
+
+Product promotions are managed through `GET/POST /api/admin/product-promotions` and `GET/PUT/DELETE /api/admin/product-promotions/[id]`. Writes require `marketing.product_promotions` permissions and `ADMIN_WRITE_ENABLED=true`, replace SKU/category scopes transactionally, validate internal/HTTPS links and Vietnam-time ranges, and invalidate catalog-detail caches.
 
 ### Health and webhook
 
@@ -141,10 +164,10 @@ Responses include `X-Request-ID`. Rate-limit responses use HTTP `429` plus `Retr
 
 ## Database status
 
-The additive admin migration was run on the configured local database. Read-only verification on `2026-07-11` found 280 tables: 152 InnoDB and 128 MyISAM, including the new customer, voucher, idempotency, rate-limit, outbox, cache-version, webhook-nonce, media, menu, and content helper tables.
+The additive admin migration was run on the configured local database. Read-only verification on `2026-07-13` found 285 tables: 157 InnoDB and 128 MyISAM, including the product-promotion, buying-guide, customer, voucher, idempotency, rate-limit, outbox, cache-version, webhook-nonce, media, menu, and content helper tables.
 
 This does not prove migration state in any other environment. Follow `database-docs/ADMIN_MIGRATION_GUIDE.md`.
 
 ## Verification status
 
-Latest local checks passed TypeScript, ESLint `--quiet`, production build, 5 validation tests, the idempotency/rollback integration test, npm audit with zero known vulnerabilities, readiness/liveness, and 13/13 health checks. Full 1,500-VU target testing remains pending.
+Latest local checks passed TypeScript, ESLint `--quiet`, production build, 40 unit tests, 4 integration tests, readiness/liveness, and 13/13 health checks. The earlier dependency audit remained at zero known vulnerabilities and was not rerun for this dependency-neutral change. Full 1,500-VU target testing remains pending.

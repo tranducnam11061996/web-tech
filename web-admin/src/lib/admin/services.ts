@@ -31,6 +31,11 @@ import {
 } from './common';
 import { normalizeImages, serializeProductImages } from './images';
 import { buildPagination, parsePaginationParams } from './pagination';
+import { deleteBuyingGuideForEntity, ensureBuyingGuideTables } from '@/lib/buyingGuides';
+import { clearPublicCatalogDetailCache } from '@/lib/publicProductCache';
+import { invalidateVoucherCategoryCache } from '@/lib/vouchers';
+import { ensureProductGroupIndexes } from '@/lib/productGroups';
+import { invalidateProductPromotionCategoryCache } from '@/lib/productPromotions';
 
 type ListParams = {
   page: number;
@@ -246,9 +251,13 @@ function normalizeArticleCategoryDisplayOption(value: unknown) {
 }
 
 export async function listProductsFromRequest(url: string) {
-  const params = clampListParams(new URL(url).searchParams);
+  const searchParams = new URL(url).searchParams;
+  const params = clampListParams(searchParams);
   const filters: string[] = [];
   const values: unknown[] = [];
+  const groupId = toInt(searchParams.get('groupId'));
+  const brandId = toInt(searchParams.get('brandId'));
+  const assignment = String(searchParams.get('assignment') || '').trim();
 
   if (params.search) {
     filters.push('(p.id LIKE ? OR p.storeSKU LIKE ? OR p.proName LIKE ?)');
@@ -258,17 +267,30 @@ export async function listProductsFromRequest(url: string) {
     filters.push('pr.isOn = ?');
     values.push(Number(params.status));
   }
+  if (brandId > 0) {
+    filters.push('p.brandId = ?');
+    values.push(brandId);
+  }
+  if (assignment === 'available') {
+    filters.push(groupId > 0 ? '(cgp.group_id IS NULL OR cgp.group_id = ?)' : 'cgp.group_id IS NULL');
+    if (groupId > 0) values.push(groupId);
+  }
 
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  const joins = `
+    LEFT JOIN idv_sell_product_price pr ON pr.id = p.id
+    LEFT JOIN config_group_product cgp ON cgp.product_id = p.id
+    LEFT JOIN config_group cg ON cg.id = cgp.group_id`;
   const [countResult, listResult] = await Promise.all([
-    pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM idv_sell_product_store p LEFT JOIN idv_sell_product_price pr ON pr.id = p.id ${where}`, values),
+    pool.query<RowDataPacket[]>(`SELECT COUNT(DISTINCT p.id) AS total FROM idv_sell_product_store p ${joins} ${where}`, values),
     pool.query<RowDataPacket[]>(
       `
         SELECT p.id, p.storeSKU, p.proName, p.brandId, p.proThum, p.product_cat, p.image_count,
                pr.price, pr.market_price, pr.isOn, pr.ordering,
-               b.name AS brandName, u.request_path AS slug
+               b.name AS brandName, u.request_path AS slug,
+               cgp.group_id AS assignedGroupId, cg.name AS assignedGroupName
         FROM idv_sell_product_store p
-        LEFT JOIN idv_sell_product_price pr ON pr.id = p.id
+        ${joins}
         LEFT JOIN idv_brand b ON b.id = p.brandId
         LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
         ${where}
@@ -311,7 +333,7 @@ export async function listProductComboSets(productId: number) {
       FROM combo_set_product csp
       JOIN combo_set cs ON cs.id = csp.set_id
       WHERE csp.product_id = ?
-      ORDER BY csp.id DESC
+      ORDER BY csp.ordering ASC, csp.id DESC
     `,
     [productId],
   );
@@ -395,9 +417,9 @@ export async function addProductToComboSet(productId: number, setId: number) {
         `
           INSERT INTO combo_set_product
             (product_id, set_id, ordering, create_time, create_by, last_update, last_update_by)
-          VALUES (?, ?, 0, ?, '', ?, '')
+          VALUES (?, ?, (SELECT COALESCE(MAX(existing.ordering),-1)+1 FROM combo_set_product existing WHERE existing.product_id=?), ?, '', ?, '')
         `,
-        [productId, setId, unixTime, unixTime],
+        [productId, setId, productId, unixTime, unixTime],
       );
     }
     await connection.query(
@@ -410,6 +432,8 @@ export async function addProductToComboSet(productId: number, setId: number) {
       [setId, unixTime, setId],
     );
   });
+
+  clearPublicCatalogDetailCache();
 
   return { items: await listProductComboSets(productId) };
 }
@@ -764,6 +788,7 @@ export async function deleteProduct(id: number, mode: string) {
     if (await tableExists(connection, 'web_admin_product_images')) {
       await connection.query('DELETE FROM web_admin_product_images WHERE product_id = ?', [id]);
     }
+    await deleteBuyingGuideForEntity(connection, 'product', id);
     await connection.query('DELETE FROM idv_sell_product_info WHERE id = ?', [id]);
     await connection.query('DELETE FROM idv_sell_product_price WHERE id = ?', [id]);
     await connection.query('DELETE FROM idv_sell_product_store WHERE id = ?', [id]);
@@ -772,6 +797,7 @@ export async function deleteProduct(id: number, mode: string) {
   });
 
   if (result.deleted) {
+    clearPublicCatalogDetailCache();
     try {
       invalidateProductCardAttributeCaches();
       await mutateSearchCache(id, 'DELETE');
@@ -1008,7 +1034,11 @@ export async function saveProductCategory(payload: Record<string, unknown>, id?:
   if (payload.featureBox && typeof payload.featureBox === 'object') {
     await ensureCategoryFeatureBoxTable();
   }
-  return saveCategory({ table: 'idv_seller_category', entityType: 'product-category', slugPrefix: 'module:product/view:category/view_id:', payload, id });
+  const result = await saveCategory({ table: 'idv_seller_category', entityType: 'product-category', slugPrefix: 'module:product/view:category/view_id:', payload, id });
+  invalidateVoucherCategoryCache();
+  invalidateProductPromotionCategoryCache();
+  clearPublicCatalogDetailCache();
+  return result;
 }
 
 export async function deleteCategory(entityType: AdminEntityType, table: string, id: number, mode: string) {
@@ -1055,6 +1085,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
       await connection.query('DELETE FROM idv_product_category WHERE category_id = ?', [id]);
       await connection.query('DELETE FROM idv_attribute_category WHERE category_id = ?', [id]);
       await deleteCategoryFeatureBox(id, connection);
+      await deleteBuyingGuideForEntity(connection, 'product_category', id);
       await connection.query('DELETE FROM idv_url WHERE id_path = ?', [`module:product/view:category/view_id:${id}`]);
       await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', [entityType, id]);
       await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
@@ -1093,9 +1124,15 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
       : [];
     invalidateProductCardAttributeCaches();
     invalidateCategoryFeatureBoxCaches(id);
+    clearPublicCatalogDetailCache();
+    invalidateVoucherCategoryCache();
+    invalidateProductPromotionCategoryCache();
     await Promise.all(affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
   } else if (table === 'idv_seller_category') {
     invalidateCategoryFeatureBoxCaches(id);
+    invalidateVoucherCategoryCache();
+    invalidateProductPromotionCategoryCache();
+    clearPublicCatalogDetailCache();
   }
 
   return result;
@@ -1107,7 +1144,12 @@ export async function bulkCategoryStatus(table: string, ids: number[], action: s
     await connection.query(`UPDATE ${table} SET status = ? WHERE id IN (${ids.map(() => '?').join(',')})`, [status, ...ids]);
     return { ids, action: action === 'restore' ? 'restore' : 'hide' };
   });
-  if (table === 'idv_seller_category') invalidateCategoryFeatureBoxCaches();
+  if (table === 'idv_seller_category') {
+    invalidateCategoryFeatureBoxCaches();
+    invalidateVoucherCategoryCache();
+    invalidateProductPromotionCategoryCache();
+    clearPublicCatalogDetailCache();
+  }
   return result;
 }
 
@@ -1422,28 +1464,6 @@ export async function deleteBanner(id: number, mode: string) {
   });
 }
 
-export async function deleteProductGroup(id: number, mode: string) {
-  return withTransaction(async (connection) => {
-    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM config_group WHERE id = ? LIMIT 1', [id]);
-    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay nhom san pham');
-
-    if (mode !== 'permanent') {
-      return { id, hidden: true };
-    }
-
-    const [attributes] = await connection.query<RowDataPacket[]>('SELECT id FROM config_group_attribute WHERE group_id = ?', [id]);
-    const attributeIds = attributes.map((row) => Number(row.id || 0)).filter((attributeId) => attributeId > 0);
-    await connection.query('DELETE FROM config_group_product WHERE group_id = ?', [id]);
-    if (attributeIds.length > 0) {
-      await connection.query(`DELETE FROM config_group_attribute_value WHERE attr_id IN (${attributeIds.map(() => '?').join(',')})`, attributeIds);
-    }
-    await connection.query('DELETE FROM config_group_attribute WHERE group_id = ?', [id]);
-    await connection.query('DELETE FROM config_group WHERE id = ?', [id]);
-    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['product-group', id]);
-    return { id, deleted: true };
-  });
-}
-
 export async function listArticleCategories() {
   const [rows] = await pool.query<RowDataPacket[]>(
     'SELECT * FROM idv_seller_news_category ORDER BY parentId ASC, ordering DESC, id ASC',
@@ -1464,6 +1484,8 @@ export function saveArticleCategory(payload: Record<string, unknown>, id?: numbe
 export async function runAdminMigration() {
   await ensureAdminAccessTables();
   await ensureAdminTables();
+  await ensureBuyingGuideTables();
+  await ensureProductGroupIndexes();
   const { ensureHeaderMenuSeeded } = await import('@/lib/admin/menus');
   await ensureHeaderMenuSeeded();
   return { migrated: true };

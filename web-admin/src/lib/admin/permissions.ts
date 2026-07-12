@@ -16,6 +16,7 @@ export const ADMIN_RESOURCES = [
   'marketing.banners',
   'marketing.banner_locations',
   'marketing.vouchers',
+  'marketing.product_promotions',
   'sales.orders',
   'crm.customers',
   'admin.users',
@@ -51,6 +52,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { resource: 'marketing.banners', label: 'Banner', actions: ['read', 'create', 'update', 'delete', 'publish'] },
   { resource: 'marketing.banner_locations', label: 'Vi tri banner', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'marketing.vouchers', label: 'Voucher', actions: ['read', 'create', 'update'] },
+  { resource: 'marketing.product_promotions', label: 'Khuyen mai san pham', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'sales.orders', label: 'Don hang storefront', actions: ['read', 'update'] },
   { resource: 'crm.customers', label: 'Khach hang storefront', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'admin.users', label: 'Tai khoan admin', actions: ['read', 'create', 'update', 'delete'], systemOnly: true },
@@ -78,7 +80,7 @@ function permissionsForResources(resources: AdminResource[]) {
 
 const catalogResources = ADMIN_RESOURCES.filter((resource) => resource.startsWith('catalog.'));
 const contentResources = ADMIN_RESOURCES.filter((resource) => resource.startsWith('content.'));
-const marketingResources: AdminResource[] = ['marketing.banners', 'marketing.banner_locations', 'marketing.vouchers', 'catalog.collections'];
+const marketingResources: AdminResource[] = ['marketing.banners', 'marketing.banner_locations', 'marketing.vouchers', 'marketing.product_promotions', 'catalog.collections'];
 const businessResources = ADMIN_RESOURCES.filter((resource) => !resource.startsWith('admin.'));
 
 export const SYSTEM_ROLE_TEMPLATES = [
@@ -145,6 +147,7 @@ export function getPagePermission(pathname: string): AdminPermission | null {
   if (pathname.startsWith('/banner/banner-list') || pathname.startsWith('/banner/edit')) return 'marketing.banners.read';
   if (pathname.startsWith('/banner/locations')) return 'marketing.banner_locations.read';
   if (pathname.startsWith('/sales/vouchers')) return 'marketing.vouchers.read';
+  if (pathname.startsWith('/sales/product-promotions')) return 'marketing.product_promotions.read';
   if (pathname.startsWith('/sales/orders')) return 'sales.orders.read';
   if (pathname.startsWith('/customers')) return 'crm.customers.read';
   return null;
@@ -165,6 +168,7 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
     : pathname.includes('/api/admin/articles') ? 'content.articles'
     : pathname.includes('/api/admin/banner-locations') ? 'marketing.banner_locations'
     : pathname.includes('/api/admin/banners') ? 'marketing.banners'
+    : pathname.includes('/api/admin/product-promotions') ? 'marketing.product_promotions'
     : pathname.includes('/api/admin/vouchers') ? 'marketing.vouchers'
     : pathname.includes('/api/admin/collections') ? 'catalog.collections'
     : pathname.includes('/api/admin/combo-sets') ? 'catalog.combo_sets'

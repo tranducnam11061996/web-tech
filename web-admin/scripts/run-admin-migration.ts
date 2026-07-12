@@ -10,6 +10,10 @@ import { ensureStorefrontOrderTables } from '../src/lib/storefrontOrders';
 import { ensureCustomerAccountTables } from '../src/lib/customerAccounts';
 import { ensureAdminAccessTables } from '../src/lib/admin/auth';
 import { ensurePerformanceInfrastructure } from '../src/lib/performanceInfrastructure';
+import { ensureBuyingGuideTables } from '../src/lib/buyingGuides';
+import { ensureComboIndexes } from '../src/lib/comboSets';
+import { ensureProductGroupIndexes, removeProductGroupValueVisualColumns } from '../src/lib/productGroups';
+import { ensureProductPromotionTables } from '../src/lib/productPromotions';
 
 async function main() {
   if (process.env.ADMIN_WRITE_ENABLED !== 'true') throw new Error('ADMIN_WRITE_ENABLED must be true to run admin migrations.');
@@ -24,6 +28,11 @@ async function main() {
   await ensureStorefrontOrderTables();
   await ensureCustomerAccountTables();
   await ensurePerformanceInfrastructure();
+  await ensureBuyingGuideTables();
+  await ensureComboIndexes();
+  await ensureProductGroupIndexes();
+  await removeProductGroupValueVisualColumns();
+  await ensureProductPromotionTables();
   console.log('Admin migration completed.');
 }
 

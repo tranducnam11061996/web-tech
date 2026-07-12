@@ -1,10 +1,21 @@
 # AI Handoff — HACOM Workspace
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
 This is the canonical handoff for the next AI or engineer. Read `AGENTS.md` first, then this file, `ARCHITECTURE.md`, and `PROJECT_PROGRESS.md`.
 
 ## Current repository state
+
+- Real “Khuyến Mãi Sản Phẩm” support is implemented end to end. Admin CRUD manages display text, safe internal/HTTPS detail links, manual priority, Vietnam-time schedules, and union SKU/category scopes. Product detail embeds at most 50 active summaries, category roots include descendants dynamically, and the former five-item storefront demo has been removed.
+
+- Product groups are now live end to end. The existing `config_group*` tables remain canonical, admin CRUD uses transactional reconciliation, and product detail embeds a bounded `productGroup` without a second storefront request. Each public SKU card carries its own resolved thumbnail (`proThum`, then legacy `image_collection` fallback); value image/color metadata has been removed from the admin contract and schema. Invalid legacy relations are filtered publicly and reported in admin rather than cleaned automatically.
+- Real “Mua kèm giá sốc” support is implemented in the dirty worktree. `combo_set`/`combo_set_product` remain canonical; storefront reads only `web-admin` APIs and keeps a separate `hacom.combo-cart.v1` ID-only cart.
+- The real product-detail combo selector chunks more than four combo groups into four-card slides. It uses the already embedded thumbnail of each group's first sellable SKU, keeps the group modal/quote flow intact, and does not make a new request until a shopper opens a group.
+- `/gio-hang-combo` and `/thanh-toan-combo` now render in the standard dark commerce shell with the shared Header/Footer and checkout-style cards/forms. The combo promotion card is informational only; it does not read voucher state, the standard cart, or alter the Header badge.
+- Product detail now receives bounded active voucher summaries resolved from `web_admin_vouchers` and category descendants. `ProductSidebar` hides only the voucher card when none apply, keeps the independent demo product-promotion list visible, exposes real codes/terms through an accessible lazy dialog, and leaves cart/order quote validation authoritative.
+- Product detail now normalizes legacy `idv_sell_product_info.video_code` into a bounded safe YouTube embed list and exposes `hasSpecifications`. The gallery rail hides Video/Thông số utilities without matching data; video playback is lazy-modal only and the existing specification modal is opened directly from its utility card.
+- Combo migration ran twice successfully on the identified local `hanoi23_db` on `2026-07-12`; the combo relation indexes and combo-order metadata columns/indexes are present. Product `87409` is intentionally not assigned automatically.
+- Verification on 2026-07-13 passed both app typechecks/lints/builds, 43 web-admin unit tests, 4 integration tests, and local healthcheck 13/13.
 
 - Branch at verification: `main`, HEAD `504d36e` (`feat: update storefront search vouchers and order management`).
 - The working tree is intentionally dirty with a large set of user and AI changes spanning customer accounts, checkout, validation/security, public cache performance, runtime configuration, tests, and documentation.
@@ -41,21 +52,28 @@ This is the canonical handoff for the next AI or engineer. Read `AGENTS.md` firs
 
 ### Runtime and frontend
 
-- The storefront product-detail hero now uses a desktop `40/30/30` gallery/information/purchase grid, a two-column tablet reflow, and a single-column mobile flow. Cart and buy-now behavior remain live; bundle, voucher, variant, favorite, and financing additions are frontend-only demos pending backend contracts.
+- The former hardcoded product color selector now renders real independent SKUs from the current product group. It hides below two valid sellable members, shows four cards per slide, uses each SKU's real thumbnail with a neutral missing-image fallback, marks the current SKU, and navigates other cards by their real product slug.
+- Product and product-category editors now manage independent “Lý do nên mua” headings, introductions, and ordered accordion items through bounded admin APIs. The storefront receives this content only in `/api/products/[slug]`, hides empty/disabled guides, and does not render the component on search/homepage/news.
+- Product, product-category, article, and news-category screens use the shared semantic `Breadcrumb` component. Backend payloads include a bounded `categoryTrail`, and `/api/news-category/[slug]` now joins legacy links by the real `article_id` column. `/` and `/tin-tuc` intentionally have no breadcrumb.
+- Product detail now renders three independent related-content sections: category-ranked similar products, browser-local recently viewed products, and title-ranked related posts. Similar/posts ship with the cached product-detail payload; recently viewed cards refresh through one bounded `GET /api/products?ids=...` request and remain non-authoritative for checkout pricing.
+- The storefront product-detail hero now uses a desktop `40/30/30` gallery/information/purchase grid, a two-column tablet reflow, and a single-column mobile flow. Cart, buy-now, combo sets, and product voucher discovery use live contracts; variant, favorite, and financing additions remain frontend-only demos.
 - `Caddyfile` provides compression, security headers, body limits, proxy timeouts, and trusted forwarding behavior.
 - `ecosystem.config.cjs` defines two `web-admin` workers, one storefront worker, and one background worker.
 - The background worker sends transactional email outbox entries with retry/backoff and cleans expired rate-limit, idempotency, nonce, OTP, challenge, and session records in small batches.
+- Local `web-admin npm run dev` starts Next.js and the background worker through `scripts/dev-with-worker.mjs`; `dev:api` remains available for deliberate API-only debugging. Production PM2 ownership is unchanged.
 - Storefront checkout creates a UUID idempotency key per submission, gets CAPTCHA only at submit time, preserves form data on failure, and distinguishes validation, rate-limit, network, and system failures.
 - Selected customer/checkout forms include bounded inputs, browser metadata, field error linkage, alert regions, keyboard focus handling, and double-submit protection.
 
 ## Database state
 
-Read-only verification on `2026-07-11` found:
+Read-only verification, most recently extended on `2026-07-12`, found:
 
-- 280 tables total: 152 InnoDB, 128 MyISAM.
+- 285 tables total: 157 InnoDB, 128 MyISAM after the product-promotion migration on `2026-07-13`.
 - The product image, managed menu, banner metadata, product-card rules, category feature, voucher, customer, idempotency, rate-limit, email outbox, cache-version, and webhook-nonce tables exist.
-- The previous product/search exact count of 28,763 and zero missing search rows was last verified on `2026-07-07`; re-query before presenting it as current.
+- Read-only breadcrumb analysis on `2026-07-12` found 28,764 products, 1,297 product categories, 2,642 articles, and 23 news categories. Product hierarchy depth is at most 6 and 97 product categories reference missing parents, so breadcrumb resolution intentionally returns a valid partial trail.
 - The latest additive admin migration has been applied to the configured local database. Do not assume it has run on another environment.
+- The buying-guide migration ran twice successfully against the identified local `hanoi23_db`; both UTF-8 InnoDB tables, their indexes, and the item-to-guide cascade were verified.
+- The product-group index migration ran twice successfully on `hanoi23_db`; `uq_config_group_product_product(product_id)` enforces one group per product. Counts remained 1,972 groups, 1,813 attributes, 8,289 values, and 7,154 relations; known orphans were not deleted.
 
 Important new infrastructure tables:
 
@@ -66,6 +84,8 @@ Important new infrastructure tables:
 - `web_admin_webhook_nonces`
 - `web_admin_vouchers`, `web_admin_voucher_categories`, `web_admin_voucher_redemptions`
 - `web_admin_storefront_customers` and related password/session/OTP/address/order-link/metrics tables
+- `web_admin_buying_guides`, `web_admin_buying_guide_items`
+- `web_admin_product_promotions`, `web_admin_product_promotion_products`, `web_admin_product_promotion_categories`
 
 ## Code ownership map
 
@@ -80,6 +100,8 @@ Important new infrastructure tables:
 | Voucher transaction rules | `web-admin/src/lib/vouchers.ts` |
 | Customer accounts/sessions | `web-admin/src/lib/customerAccounts.ts`, `/api/customer/*` |
 | Search runtime | `web-admin/src/lib/publicSearch.ts`, `/api/search` |
+| Dynamic category trails | `web-admin/src/lib/publicBreadcrumbs.ts`, `font-end/src/components/Breadcrumb.tsx` |
+| Product related content | `web-admin/src/lib/publicRecommendations.ts`, product-detail API, three storefront related-content components |
 | Checkout UI | `font-end/src/app/thanh-toan/CheckoutClient.tsx` |
 | Runtime jobs | `web-admin/scripts/background-worker.ts` |
 
@@ -118,7 +140,7 @@ npm.cmd run local:healthcheck
 npm.cmd run local:benchmark
 ```
 
-The last run passed 5/5 validation tests, 1/1 idempotency integration test, both typechecks/lints/builds/audits, readiness/liveness, and 13/13 health checks.
+The last run passed 40/40 unit tests, 4/4 integration tests, both typechecks/lints/builds, and 13/13 local health checks. Product-promotion integration covered idempotent migration, union-scope deduplication, priority ordering, rollback and delete cascade; desktop/mobile storefront screenshots verified the live `01` presentation. The earlier audits remained at zero known vulnerabilities but were not rerun for these dependency-neutral changes.
 
 Observed local benchmark after payload reduction:
 

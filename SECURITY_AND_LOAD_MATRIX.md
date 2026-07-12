@@ -9,11 +9,14 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Public catalog/menu/banner/homepage/search reads | Bounded query/page/filter/cache keys | Public read | ETag, cache, single-flight | N/A | Implemented |
 | `POST /api/cart/quote` | Canonical cart schema, 50 items, qty 1–99 | Storefront origin | IP rate limit | No CAPTCHA by default | Implemented |
 | `POST /api/orders` | Canonical bounded order schema | Storefront origin; optional customer session | IP + phone buckets, honeypot | `order_submit`; required `Idempotency-Key` | Implemented |
+| `POST /api/combo-cart/quote` | Canonical set/revision/group/product/qty schema; server prices only | Storefront origin | IP rate limit | No CAPTCHA | Implemented locally |
+| `POST /api/combo-orders` | Bounded combo-order schema; voucher absent/rejected by strict schema; transactional re-quote | Storefront origin; optional customer session | IP + phone buckets, honeypot | `combo_order_submit`; required `Idempotency-Key` | Implemented locally; staging migration/E2E pending |
 | Customer register/login | Canonical identity/password schemas | Anonymous storefront | IP + identifier buckets, honeypot | `customer_register` / `customer_login` | Implemented |
 | Customer verification/resend/reset | Canonical OTP/token/password schemas | Anonymous challenge/token | Cooldown, attempt locks, IP + identifier buckets | Action-specific CAPTCHA | Implemented |
 | Customer profile/address/password | Canonical schemas on hardened routes | Customer session + origin/ownership | Customer/IP route buckets | Step-up only when anomalous | Implemented |
 | Admin login | Bounded schema | Same-origin entry | IP + account throttling | Risk-based CAPTCHA | Implemented |
 | Admin write APIs | Route payload checks vary by legacy module | Admin session, RBAC, write gate, audit | Session/account controls | No post-login CAPTCHA | Partial: shared auth exists; finish field-schema audit |
+| Product-group admin/detail | 4 attributes, 50 values/attribute, 50 products; ownership/config validation | Admin session/RBAC/write gate; public detail read | Transaction locks, unique product assignment, bounded cached read | N/A | Implemented locally |
 | Image uploads | Size, extension, MIME, binary signature, path containment | Admin session/RBAC/write gate | Request/body limits | N/A | Implemented on audited upload routes |
 | Search webhook | Raw-body bound | HMAC secret | Timestamp window + one-use nonce | Signature required | Implemented |
 | Customer/admin form accessibility | Browser metadata and selected field-error linkage | Matches endpoint | Pending state and retry handling | Submit-time token on risky forms | Partial: complete all 15-form E2E audit |

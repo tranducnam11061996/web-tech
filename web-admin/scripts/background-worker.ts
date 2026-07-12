@@ -1,7 +1,12 @@
 import type { RowDataPacket } from 'mysql2/promise';
-import pool from '../src/lib/db';
-import { sendOrderEmail, type SendOrderEmailParams } from '../src/lib/email';
-import { cleanupPerformanceInfrastructure } from '../src/lib/performanceInfrastructure';
+import { loadEnvConfig } from '@next/env';
+import type { SendOrderEmailParams } from '../src/lib/email';
+
+loadEnvConfig(process.cwd());
+
+let pool: typeof import('../src/lib/db').default;
+let sendOrderEmail: typeof import('../src/lib/email').sendOrderEmail;
+let cleanupPerformanceInfrastructure: typeof import('../src/lib/performanceInfrastructure').cleanupPerformanceInfrastructure;
 
 const POLL_MS = Math.max(500, Number(process.env.BACKGROUND_WORKER_POLL_MS || 2000));
 let stopping = false;
@@ -60,6 +65,18 @@ async function main() {
   await pool.end();
 }
 
+async function bootstrap() {
+  const [databaseModule, emailModule, performanceModule] = await Promise.all([
+    import('../src/lib/db'),
+    import('../src/lib/email'),
+    import('../src/lib/performanceInfrastructure'),
+  ]);
+  pool = databaseModule.default;
+  sendOrderEmail = emailModule.sendOrderEmail;
+  cleanupPerformanceInfrastructure = performanceModule.cleanupPerformanceInfrastructure;
+  await main();
+}
+
 process.on('SIGINT', () => { stopping = true; });
 process.on('SIGTERM', () => { stopping = true; });
-void main();
+void bootstrap();

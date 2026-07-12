@@ -55,6 +55,22 @@ export const orderSchema = z.object({
   note: z.string().trim().max(1000).optional().default(''),
 }).strict();
 
+export const comboOrderSchema = orderSchema.omit({ items: true, voucherCode: true }).extend({
+  // The verifier enforces a real token outside the explicit non-production bypass.
+  // Allow an empty browser token here so local bypass can be reached when no site key is configured.
+  recaptchaToken: z.string().trim().max(4096),
+  anchorProductId: z.coerce.number().int().positive(),
+  comboSetId: z.coerce.number().int().positive(),
+  revision: z.string().trim().min(8).max(64),
+  items: z.array(z.object({
+    groupIndex: z.coerce.number().int().min(0).max(19),
+    productId: z.coerce.number().int().positive(),
+    quantity: z.coerce.number().int().min(1).max(99),
+  }).strict()).min(1).max(50),
+}).strict();
+
+export type ComboOrderInput = z.infer<typeof comboOrderSchema>;
+
 export type OrderInput = z.infer<typeof orderSchema>;
 
 export const recaptchaTokenSchema = z.string().trim().min(1, 'Không thể xác minh chống bot.').max(4096);

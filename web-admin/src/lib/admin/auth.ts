@@ -216,6 +216,19 @@ export async function ensureAdminAccessTables() {
       WHERE code = 'viewer' AND JSON_CONTAINS(permissions, JSON_QUOTE('crm.customers.read')) = 0
     `);
 
+    for (const [roleCode, permissions] of [
+      ['marketing_manager', ['marketing.product_promotions.read', 'marketing.product_promotions.create', 'marketing.product_promotions.update', 'marketing.product_promotions.delete']],
+      ['viewer', ['marketing.product_promotions.read']],
+    ] as const) {
+      for (const permission of permissions) {
+        await connection.query(`
+          UPDATE admin_roles
+          SET permissions = JSON_ARRAY_APPEND(permissions, '$', ?)
+          WHERE code = ? AND JSON_CONTAINS(permissions, JSON_QUOTE(?)) = 0
+        `, [permission, roleCode, permission]);
+      }
+    }
+
     await connection.query(`
       UPDATE admin_users
       SET must_change_password = 0, password_changed_at = COALESCE(password_changed_at, NOW())

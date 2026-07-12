@@ -1,18 +1,26 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-11`
+Verified: `2026-07-13`
 Database: `hanoi23_db`
 Source: live `information_schema` inspection
+
+## Combo commerce additions
+
+Migration verification on `2026-07-12`: applied twice successfully to local `hanoi23_db` to confirm idempotency.
+
+- Legacy `combo_set.config` remains PHP-serialized with discount types `number|percent`; application code normalizes `number` to `fixed` and writes legacy values back unchanged.
+- `combo_set_product` migration adds unique index `uq_combo_set_product_product_set(product_id,set_id)` and read/delete index `idx_combo_set_product_set_product(set_id,product_id)` after a duplicate preflight. It does not remove orphan rows.
+- `web_admin_storefront_order_meta` gains `order_type enum('standard','combo')`, `combo_set_id`, `combo_anchor_product_id`, plus `(order_type,order_id)` and `(combo_set_id,order_id)` indexes. Existing rows default to `standard`.
 
 ## Physical Summary
 
 | Metric | Value |
 |---|---:|
-| Total tables | 280 |
-| InnoDB tables | 152 |
+| Total tables | 285 |
+| InnoDB tables | 157 |
 | MyISAM tables | 128 |
 
-Engine totals were re-queried on `2026-07-11` after the additive admin migration. The old collation totals (243 legacy `latin1_swedish_ci`, one `utf8mb4_unicode_ci`) were captured before the helper-table expansion and must be re-queried before being presented as current. New `web_admin_*` helper tables use an explicit modern character set where defined.
+Engine totals were re-queried on `2026-07-12` after the buying-guide migration. The old collation totals (243 legacy `latin1_swedish_ci`, one `utf8mb4_unicode_ci`) were captured before the helper-table expansion and must be re-queried before being presented as current. New `web_admin_*` helper tables use an explicit modern character set where defined.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
@@ -27,6 +35,7 @@ The additive admin migration was applied to the configured local database on `20
 - `web_admin_product_card_attribute_rules`
 - `web_admin_category_feature_boxes`
 - `web_admin_vouchers`, `web_admin_voucher_categories`, `web_admin_voucher_redemptions`
+- `web_admin_product_promotions`, `web_admin_product_promotion_products`, `web_admin_product_promotion_categories`
 - Storefront customer password/session/OTP/address/order-link/metrics tables
 - `web_admin_order_requests`
 - `web_admin_request_limits`
@@ -82,6 +91,17 @@ Storefront considers a product available for cart/order when `isOn = 1` and `pri
 Product detail content, joined by `id = product id`.
 
 Used columns include `video_code`, `spec`, `multipart_spec`, and `description`.
+
+## Product Group Tables
+
+- `config_group`: group name/description plus Unix audit fields.
+- `config_group_attribute`: ordered group-owned attribute headings.
+- `config_group_attribute_value`: ordered values with name, description, ordering, and audit fields. The legacy `image` and `color_code` columns were removed by the idempotent admin migration on `2026-07-12`.
+- `config_group_product`: product-to-group relation; `attribute_config` is a PHP-serialized map of attribute id to value id.
+
+The application treats these as logical relations and validates ownership transactionally. Public reads ignore placeholder `--Lựa chọn--`, malformed serialization, missing attributes/values, orphan products, inactive/zero-price products, and missing slugs. `uq_config_group_product_product(product_id)` enforces one group per product; existing `group_id` supports bounded group-member reads. No FK was added because legacy orphan rows remain intentionally untouched.
+
+Verified after the idempotent migration on `2026-07-12`: 1,972 groups, 1,813 attributes, 8,289 values, and 7,154 product relations.
 
 ## Category and Attribute Tables
 
@@ -180,7 +200,19 @@ Voucher runtime data is intentionally separate from legacy MyISAM `idv_coupon` t
 - `web_admin_voucher_categories`: selected category roots; application includes descendants at quote time.
 - `web_admin_voucher_redemptions`: immutable order snapshot plus `redeemed` / `released` state. `order_id` is unique to enforce one voucher per storefront order.
 
+Product-detail voucher discovery reads the same tables and treats an empty category link set as global. A linked category includes all descendants, matching checkout quote behavior; public payloads do not expose exact remaining quantity or redemption history.
+
 For limited vouchers, `remaining_quantity` is decremented only while creating the order and is incremented only when a pending order becomes failed or cancelled.
+
+## Product Promotions
+
+The additive admin migration defines three UTF-8 InnoDB tables for display-only product-detail promotions:
+
+- `web_admin_product_promotions`: display text, safe detail URL, active flag, manual order, optional UTC start/end, and timestamps. Indexes cover active ordering and schedule filtering.
+- `web_admin_product_promotion_products`: direct product scope, primary key `(promotion_id, product_id)` and reverse lookup `(product_id, promotion_id)`.
+- `web_admin_product_promotion_categories`: selected category roots, primary key `(promotion_id, category_id)` and reverse lookup `(category_id, promotion_id)`.
+
+Both relation tables reference the helper promotion table with `ON DELETE CASCADE`; product and category IDs remain logical references to legacy tables. Category matching walks current ancestors at read time, so descendants are included without materializing product rows.
 
 ## Storefront Customer Accounts
 
@@ -444,6 +476,15 @@ Indexes:
 - `idx_category_page_enabled(category_page_enabled)`.
 
 ## Admin Helper Tables
+
+### Product/category buying guides
+
+The additive admin migration defines two UTF-8 InnoDB tables for the storefront “Lý do nên mua” section. They are not seeded from the former hardcoded component content.
+
+- `web_admin_buying_guides`: one row per `(entity_type, entity_id)`, where `entity_type` is `product` or `product_category`; stores the heading, introduction, active state, and timestamps.
+- `web_admin_buying_guide_items`: ordered questions and plain-text answers, with per-item active and default-expanded flags. `guide_id` has an InnoDB FK to `web_admin_buying_guides.id` with `ON DELETE CASCADE`.
+
+There is intentionally no physical FK from `entity_id` to legacy product/category tables. Permanent deletes remove the helper row explicitly in the owning admin transaction.
 
 ### Performance and abuse-protection tables
 

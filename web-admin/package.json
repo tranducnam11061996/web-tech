@@ -4,8 +4,9 @@
   "private": true,
   "overrides": { "postcss": "8.5.10" },
   "scripts": {
-    "dev": "next dev",
-    "dev:clean": "node scripts/clean-next-dev-cache.mjs && next dev",
+    "dev": "node scripts/dev-with-worker.mjs",
+    "dev:api": "next dev",
+    "dev:clean": "node scripts/clean-next-dev-cache.mjs && node scripts/dev-with-worker.mjs",
     "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",

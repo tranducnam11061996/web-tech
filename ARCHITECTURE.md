@@ -1,8 +1,12 @@
 # HACOM Architecture
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
 ## System boundaries and runtime
+
+### Combo commerce flow
+
+The storefront product-detail payload receives only active combo-set/group summaries. Group products are lazy-loaded from `GET /api/combo-sets/[setId]/groups/[groupIndex]`; all displayed totals and order writes are based on server-side `POST /api/combo-cart/quote` repricing. The browser’s separate `hacom.combo-cart.v1` record contains only anchor/set/revision and product IDs, group indexes, and quantities. `POST /api/combo-orders` locks and re-quotes inside the order transaction, stores an immutable allocation snapshot, and marks metadata as `order_type=combo`.
 
 ```mermaid
 flowchart LR
@@ -48,6 +52,13 @@ sequenceDiagram
 ```
 
 - Menu, banner, homepage, product, category, and search routes return runtime-only fields.
+- Product/news detail and category payloads carry a bounded root-to-leaf `categoryTrail`; the storefront renders it with one shared semantic breadcrumb component and does not issue a follow-up breadcrumb request.
+- Product-detail payloads carry server-resolved similar products and related articles. Recently viewed IDs/snapshots remain in browser `localStorage`; the client performs one bounded batch refresh through `/api/products?ids=...`, while checkout continues to requote all prices server-side.
+- Product-detail payloads carry up to 50 currently active, non-exhausted voucher summaries that apply globally or through a selected category ancestor. These summaries are discovery data only; cart quote and order creation re-check time, quota, minimum order, eligible items, and current prices.
+- Product-detail payloads also carry up to 50 display-only product promotions. A promotion matches a direct SKU or any product category ancestor, is deduplicated with `EXISTS`, and is ordered by manual priority, nearest end time, then newest id. These records never enter cart quote or order logic.
+- Product-detail payloads normalize up to 20 legacy PHP-serialized `video_code` entries into public `{ id, embedUrl, description }` YouTube-only records and expose `hasSpecifications` for meaningful specification HTML. Raw legacy video data never leaves `web-admin`; invalid/off-domain/duplicate entries are omitted, and the storefront mounts only the active modal iframe.
+- Product and product-category slug payloads optionally carry one bounded entity-specific buying guide. It is loaded only on the detail route, never on product lists/search/homepage/news, and uses the dedicated `public_catalog_details` cache version for selective invalidation.
+- Product detail optionally carries one bounded `productGroup` resolved from `config_group`, its ordered attributes/values, and sellable product rows. Each card's thumbnail is resolved in that query path from `idv_sell_product_store.proThum`, then parsed from legacy `image_collection` if needed; Product Group values no longer have image/color columns or API fields. PHP-serialized mappings are normalized defensively; malformed/orphan/inactive/zero-price/slugless rows are omitted. The storefront makes no follow-up variant request, and group mutations invalidate only catalog-detail caches.
 - Search and other expensive refreshes use single-flight behavior so one worker rebuilds once per cache key.
 - Admin mutations bump a DB-backed cache version. Other workers observe it and clear their local cache.
 - Query, filter count, page, limit, product count, and cart cardinality are bounded to protect CPU, memory, and cache-key growth.
@@ -117,9 +128,9 @@ Public write failures use:
 - New transactional/security/runtime state lives in additive InnoDB `web_admin_*` tables.
 - No code should assume a physical FK exists between legacy tables.
 - Search uses `product_data_search` plus the normalize function, insert/update triggers, and FK to products.
-- Customer, voucher, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
+- Customer, voucher, product-promotion, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
 
-The configured database snapshot on `2026-07-11` contains 280 tables: 152 InnoDB and 128 MyISAM. See `web-admin/database-docs/DATABASE_SCHEMA.md` for the current schema handoff.
+The configured database snapshot on `2026-07-12` contains 282 tables: 154 InnoDB and 128 MyISAM after the buying-guide migration. See `web-admin/database-docs/DATABASE_SCHEMA.md` for the current schema handoff.
 
 ## Media security
 

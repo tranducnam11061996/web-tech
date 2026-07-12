@@ -3,27 +3,27 @@ import Link from "next/link";
 import Header from "../../../components/Header";
 import Footer from "../../../components/Footer";
 import ProgressiveImage from "../../../components/ProgressiveImage";
+import Breadcrumb from "../../../components/Breadcrumb";
 import { sanitizeLegacyHtml } from "../../../lib/sanitizeHtml";
+import type { CategoryTrailItem } from "../../../types/breadcrumb";
 
 export default function ArticleView({ article, formatDate }: { article: any, formatDate: (d: string) => string }) {
+  const categoryTrail: CategoryTrailItem[] = Array.isArray(article.categoryTrail) ? article.categoryTrail : [];
+  const breadcrumbItems = [
+    { label: "Tin tức", href: "/tin-tuc" },
+    ...categoryTrail.map((category) => ({
+      label: category.name,
+      href: `/tin-tuc/${category.slug}`,
+    })),
+    { label: article.title || "Bài viết" },
+  ];
+
   return (
     <>     
         <Header />
 <div className="max-w-[1400px] mx-auto px-4 py-8 space-y-8">
   
-  {/* BREADCRUMB */}
-  <nav className="flex text-[13px] text-gray-400 gap-2 items-center mb-6 overflow-hidden">
-    <a href="#" className="hover:text-blue-500 transition flex items-center gap-1 shrink-0 whitespace-nowrap">
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-      Trang chủ
-    </a>
-    <span className="text-gray-600 shrink-0">/</span>
-    <a href="#" className="hover:text-blue-500 transition shrink-0 whitespace-nowrap">Tin tức</a>
-    <span className="text-gray-600 shrink-0">/</span>
-    <a href="#" className="hover:text-blue-500 transition shrink-0 whitespace-nowrap">Công nghệ</a>
-    <span className="text-gray-600 shrink-0">/</span>
-    <span className="text-gray-200 truncate min-w-0">{article.title}</span>
-  </nav>
+  <Breadcrumb items={breadcrumbItems} />
 
   <div className="flex flex-col lg:flex-row gap-8">
     

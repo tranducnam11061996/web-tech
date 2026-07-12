@@ -4,8 +4,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
-import SimilarProducts from "../../components/SimilarProducts";
-import WhyBuyFaq from "../../components/WhyBuyFaq";
 import ProductGridCard from "../../components/ProductGridCard";
 import {
   buildSidebarSectionVisibility,
@@ -878,8 +876,6 @@ export default function SearchClient({ initialData }: SearchClientProps) {
         </main>
       </div>
 
-      <WhyBuyFaq />
-      <SimilarProducts />
       <Footer />
     </div>
   );

@@ -24,7 +24,8 @@ export const menuGroups = [
     icon: ShoppingCart,
     items: [
       { name: 'Danh sách đơn hàng', path: '/sales/orders' },
-      { name: 'Voucher', path: '/sales/vouchers' }
+      { name: 'Voucher', path: '/sales/vouchers' },
+      { name: 'Khuyến mãi sản phẩm', path: '/sales/product-promotions' }
     ]
   },
   {

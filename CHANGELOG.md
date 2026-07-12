@@ -4,6 +4,70 @@ Notable workspace changes are grouped by implementation/audit date.
 
 Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and `PROJECT_PROGRESS.md`, not an older “Known Gaps” section, for current status.
 
+## 2026-07-13
+
+### Added
+
+- Added three additive InnoDB product-promotion tables with safe detail URLs, manual ordering, optional UTC validity ranges, direct SKU scope, category-root scope, and cascading helper-table relations.
+- Added RBAC-protected admin CRUD at `/sales/product-promotions`, including searchable/filterable status views, persistent paginated SKU selection, reusable descendant-aware category selection, storefront preview, and permanent-delete confirmation/audit.
+- Embedded up to 50 active product promotions in the existing product-detail payload and replaced the five hardcoded storefront rows with zero-padded live results and safe internal/external links.
+- Added unit coverage for URL, scope, time, state and cyclic-category behavior plus integration coverage for idempotent migration, mixed-scope deduplication, priority ordering, rollback and delete cascade.
+- Added safe parsing of legacy PHP-serialized product `video_code` into bounded YouTube-nocookie embeds in product-detail payloads. Gallery Video/Thông số utilities now appear only for available data; video playback is a lazy accessible modal with finite previous/next navigation, while the existing specification modal opens directly from its utility card.
+
+### Verified
+
+- Product-promotion migration completed twice on identified local `hanoi23_db`; the database now contains 285 tables (157 InnoDB, 128 MyISAM), relation indexes/FKs and role grants were verified, and integration fixtures were removed.
+- Both applications passed TypeScript, ESLint `--quiet`, and production builds; backend tests passed 43/43 unit and 4/4 integration, local healthcheck passed 13/13, and fresh desktop/mobile storefront screenshots verified the live numbered block.
+
+## 2026-07-12
+
+### Added
+
+- Completed legacy-backed Product Groups: bounded admin list/editor/product picker, transactional attribute/value/SKU reconciliation, PHP config normalization, and detail-cache invalidation.
+- Embedded sellable group SKU cards only in `GET /api/products/[slug]`; the storefront hides incomplete groups and renders an accessible four-items-per-slide selector with real prices and slugs.
+- Changed group-card visuals to use the corresponding SKU thumbnail (`proThum`, then legacy `image_collection`) rather than attribute value images or color swatches; a neutral fallback covers missing/broken SKU media.
+- Removed legacy Product Group value `image` and `color_code` fields from the editor, admin API contract, and `config_group_attribute_value`; the idempotent forced-drop migration reported zero discarded local values.
+- Added the idempotent `uq_config_group_product_product(product_id)` migration with a duplicate preflight and no orphan cleanup.
+- Replaced product-detail voucher demo data with bounded live summaries from the InnoDB voucher tables, including global/category-descendant eligibility, active-time/quota filtering, real discount terms, and product-detail cache invalidation.
+- Added an accessible lazy-loaded voucher list/detail dialog with code copying, and category-scope visibility in the admin voucher list.
+- Implemented real legacy-backed combo sets end to end: bounded admin CRUD and relation ordering/removal, public group/quote APIs, product-detail summaries, a separate combo cart and checkout, transactional combo orders, admin identification, and combo-aware email output.
+- Updated the real product-detail “Mua kèm giá sốc” selector to paginate more than four combo groups into accessible four-card slides using each group's existing first-SKU thumbnail; group product details remain lazy-loaded only on selection.
+- Added safe parsing/serialization for legacy PHP combo config and migration preflight for the two `combo_set_product` indexes; no legacy cleanup or production combo assignment is performed automatically.
+
+### Fixed
+
+- Hid only the voucher card, slider, dialogs, and “Xem tất cả voucher” action when no voucher applies to the current product; the independent product-promotion demo remains visible.
+- Routed browser-side combo group, quote, cart, and order requests through the storefront same-origin `/api/*` rewrite so the strict `connect-src 'self'` CSP no longer blocks modal product loading.
+- Stripped the localStorage-only combo cart `version` field from quote and order requests, preventing strict API validation failures after navigating to the separate combo cart.
+- Allowed an empty combo-order CAPTCHA token to reach the explicit non-production development bypass; production verification remains mandatory in the server verifier.
+- Started the email outbox worker alongside the local web-admin dev server, while retaining API-only and worker-only commands and leaving production PM2 ownership unchanged.
+- Loaded Next environment files before importing the worker's SMTP module, ensuring both local and PM2 workers receive mail configuration before transporter initialization.
+
+### Verified
+
+- Product-group migration ran twice on local `hanoi23_db`; all four legacy table counts remained unchanged. Real group `2133` returned four valid SKU cards with one current item. Unit tests passed 33/33, integration 2/2, both typechecks/lints/builds passed, and local healthcheck passed 13/13.
+- Voucher discovery smoke checks showed `LAPTOP5` on eligible product `90669`, hid the complete section for ineligible product `76158`, applied the expected `50.000đ` cap in cart quote, and passed 28 unit tests, both builds, integration, and 13/13 health checks.
+- Combo migration completed twice against identified local `hanoi23_db`; all three combo-order metadata columns and four relation/metadata indexes were verified present.
+
+- Added independent product/category buying-guide tables, bounded admin APIs, a reusable management editor with preview, and an accessible data-driven storefront accordion.
+- Added detail-only buying-guide loading and a dedicated catalog-detail cache version so guide updates do not evict list, search, or homepage caches.
+- Added a bounded, cycle-safe product/news category-trail resolver with deterministic legacy CSV and junction-table fallbacks.
+- Added a shared semantic storefront breadcrumb for product, product-category, article, and news-category screens; mobile trails scroll internally without horizontal document overflow.
+- Added unit coverage for malformed CSV values, deterministic leaf selection, missing parents, and cycles.
+- Added category-ranked similar products, browser-local recently viewed products with batch revalidation, and title-ranked related posts as three independent product-detail sections.
+
+### Fixed
+
+- Corrected news-category article joins from the nonexistent `news_id` column to `article_id`, restoring category listing and pagination responses.
+
+### Verified
+
+- Buying-guide migration completed twice against identified local `hanoi23_db`; both InnoDB tables, unique/display indexes, and `ON DELETE CASCADE` were verified. The database now has 282 tables: 154 InnoDB and 128 MyISAM.
+- Buying-guide validation raised the backend unit suite to 18/18; integration remained 1/1, both app typechecks/lints/builds passed, and local healthcheck passed 13/13.
+- Both applications passed TypeScript, ESLint `--quiet`, and production builds; backend unit tests passed 18/18, integration tests passed 1/1, and local healthcheck passed 13/13.
+- Product breadcrumb layout reported equal document client/scroll widths at 320, 768, 1024, and 1440 px.
+- Product related-content sections reported equal document client/scroll widths at 320, 768, 1024, and 1440 px; expand/collapse exposed 5/15 cards and recently viewed history excluded the current product.
+
 ## 2026-07-11
 
 ### Added
@@ -160,3 +224,14 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 - Order endpoint still needs rate limiting, CORS allowlist, stronger validation, idempotency, and safer error responses.
 - No automated integration test yet for order transaction commit/rollback.
 - Cart can briefly display cached local prices while quote is loading.
+
+## 2026-07-12 — Combo cart/checkout visual parity
+
+### Changed
+
+- Rebuilt `/gio-hang-combo` and `/thanh-toan-combo` with the storefront dark commerce frame, Header, Footer, responsive cart/checkout grid, shared checkout product presentation, and mobile-safe bottom spacing.
+- Added a display-only “Ưu đãi combo” card in the cart sidebar; combo checkout retains its independent quote, CAPTCHA, idempotency, order API, and local-storage lifecycle without accepting vouchers.
+
+### Verification
+
+- Storefront TypeScript, ESLint, and production build passed.

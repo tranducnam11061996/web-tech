@@ -1,169 +1,146 @@
-# AI Handoff - HACOM Workspace
+# AI Handoff — HACOM Workspace
 
-Last audited: `2026-07-09`
+Last verified: `2026-07-11`
 
-Read this file first. It is written for another AI or engineer who needs to continue coding immediately.
+This is the canonical handoff for the next AI or engineer. Read `AGENTS.md` first, then this file, `ARCHITECTURE.md`, and `PROJECT_PROGRESS.md`.
 
-## What This Repo Is
+## Current repository state
 
-`web-admin` is both the admin UI and the only backend allowed to access MySQL `hanoi23_db`.
+- Branch at verification: `main`, HEAD `504d36e` (`feat: update storefront search vouchers and order management`).
+- The working tree is intentionally dirty with a large set of user and AI changes spanning customer accounts, checkout, validation/security, public cache performance, runtime configuration, tests, and documentation.
+- Do not reset, checkout, clean, or overwrite these changes. Inspect `git status --short` and focused diffs before editing.
+- Both applications now use Next.js `16.2.9` and React `19.2.4`.
+- `web-admin` is the only MySQL owner. `font-end` consumes its APIs.
+- `search-tool` is reference material; production search is under `web-admin/src/lib` and `/api/search`.
 
-`font-end` is the customer storefront. It must call `web-admin` APIs and must not import DB clients or read DB credentials.
+## What was just implemented
 
-`search-tool` is an older standalone search prototype. The production-ish search code now lives in `web-admin/src/lib/searchCache.ts`, `web-admin/src/lib/productSearch.ts`, and `web-admin/src/lib/searchInfrastructure.ts`.
+### Checkout, voucher, and order
 
-## Must-Read Files
+- `POST /api/orders` validates a bounded body before acquiring a DB connection, verifies origin/CAPTCHA/rate limits, and requires `Idempotency-Key`.
+- A single transaction performs final quote, voucher `FOR UPDATE` handling, order header, bulk order items, customer link/metrics, idempotency completion, and email outbox enqueue.
+- Replaying the same key and payload returns the stored response; using the same key with another payload returns `409`.
+- `POST /api/cart/quote` rejects invalid payloads instead of silently clamping. Cart limits are 50 distinct products and quantity 1–99.
 
-1. `README.md`
-2. `ARCHITECTURE.md`
-3. `PROJECT_PROGRESS.md`
-4. `web-admin/AGENTS.md`
-5. `web-admin/README.md`
-6. `font-end/README.md`
-7. `web-admin/database-docs/DATABASE_SCHEMA.md`
-8. `web-admin/database-docs/QUICK_REFERENCE.md`
-9. `web-admin/database-docs/ADMIN_MIGRATION_GUIDE.md`
+### Customer and authentication
 
-## Database Snapshot
+- Customer registration, verification, login, OTP resend, password reset/change, profile, addresses, and orders are implemented.
+- Canonical Zod schemas normalize email, Vietnamese phone numbers, names, dates, passwords, addresses, and cart/order payloads.
+- New password hashes use Argon2id; valid legacy bcrypt hashes are upgraded after login.
+- Customer sessions have sliding idle expiry bounded by absolute expiry. Production cookie names prefer `__Host-*` and use `Secure`, `HttpOnly`, `SameSite=Lax`, path `/`.
+- Action-specific reCAPTCHA v3 and atomic MySQL rate limits protect anonymous high-risk forms. CAPTCHA supports shadow mode for rollout.
 
-Live DB at audit time:
+### Public APIs, cache, and security
 
-- Database: `hanoi23_db`
-- Total tables: `244`
-- InnoDB tables: `116`
-- MyISAM tables: `128`
-- `latin1_swedish_ci` tables: `243`
-- `product_data_search` is `utf8mb4_unicode_ci`
+- Public read routes use reduced payloads, bounded filters/pages, weak ETags, `304` responses, and local single-flight caches.
+- `web_admin_cache_versions` synchronizes invalidation across the two admin/API workers.
+- Search prewarms at worker start and keeps the current index while rebuilding.
+- Search webhook requires HMAC SHA-256 over `timestamp.nonce.rawBody`, a five-minute timestamp window, and a one-use nonce.
+- Public write errors use `{ success:false, error:{ code, message, fields?, requestId } }`; responses carry `X-Request-ID`, and rate-limit responses carry `Retry-After`.
+- Upload routes validate extension, declared MIME, binary image signature, size, randomized name, and containment under `MEDIA_ROOT`.
 
-Important custom/runtime tables:
+### Runtime and frontend
 
-- `product_data_search`: exists, exact count `28,763`, PK `product_id`, FK to `idv_sell_product_store(id)`.
-- `web_admin_sequence`: exists, one row `product -> next_id 90788`.
-- `web_admin_entity_registry`: exists, currently empty.
-- `web_admin_product_images`: code exists but live table was not present during audit because admin migration is gated by `ADMIN_WRITE_ENABLED`.
-- `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`: header/homepage menu draft-publish storage; created/seeded by `admin:migrate`.
-- `web_admin_banner_meta`: optional metadata for legacy `idv_seller_ad` banners; created by `admin:migrate`.
-- `web_admin_product_card_attribute_rules`: product-card attribute badge display rules; created and seeded by `admin:migrate`.
-- `web_admin_category_feature_boxes`: category homepage/category-page first-box metadata; created by `admin:migrate`.
+- The storefront product-detail hero now uses a desktop `40/30/30` gallery/information/purchase grid, a two-column tablet reflow, and a single-column mobile flow. Cart and buy-now behavior remain live; bundle, voucher, variant, favorite, and financing additions are frontend-only demos pending backend contracts.
+- `Caddyfile` provides compression, security headers, body limits, proxy timeouts, and trusted forwarding behavior.
+- `ecosystem.config.cjs` defines two `web-admin` workers, one storefront worker, and one background worker.
+- The background worker sends transactional email outbox entries with retry/backoff and cleans expired rate-limit, idempotency, nonce, OTP, challenge, and session records in small batches.
+- Storefront checkout creates a UUID idempotency key per submission, gets CAPTCHA only at submit time, preserves form data on failure, and distinguishes validation, rate-limit, network, and system failures.
+- Selected customer/checkout forms include bounded inputs, browser metadata, field error linkage, alert regions, keyboard focus handling, and double-submit protection.
 
-No legacy table column is intentionally added by the latest feature work. New data is stored in `web_admin_*` helper tables. The header menu migration may add missing helper-table columns on older installs: `web_admin_menu_versions.settings_json` and `web_admin_menu_items.background_color`, `image_url`, `sub_text`.
+## Database state
 
-Search infrastructure also has:
+Read-only verification on `2026-07-11` found:
 
-- Function `webtech_normalize_product_search`.
-- Trigger `webtech_product_search_after_insert` on `idv_sell_product_store`.
-- Trigger `webtech_product_search_after_update` on `idv_sell_product_store`.
-- FK `fk_product_data_search_product`.
+- 280 tables total: 152 InnoDB, 128 MyISAM.
+- The product image, managed menu, banner metadata, product-card rules, category feature, voucher, customer, idempotency, rate-limit, email outbox, cache-version, and webhook-nonce tables exist.
+- The previous product/search exact count of 28,763 and zero missing search rows was last verified on `2026-07-07`; re-query before presenting it as current.
+- The latest additive admin migration has been applied to the configured local database. Do not assume it has run on another environment.
 
-## Current Major Features
+Important new infrastructure tables:
 
-### Storefront
+- `web_admin_order_requests`
+- `web_admin_request_limits`
+- `web_admin_email_outbox`
+- `web_admin_cache_versions`
+- `web_admin_webhook_nonces`
+- `web_admin_vouchers`, `web_admin_voucher_categories`, `web_admin_voucher_redemptions`
+- `web_admin_storefront_customers` and related password/session/OTP/address/order-link/metrics tables
 
-- `font-end/src/app/[slug]/page.tsx` resolves product/category slugs through `web-admin /api/products/[slug]`.
-- Category pages load initial products, subcategories, price bounds, and attributes server-side.
-- Cart is guest-only and stored under localStorage key `hacom.cart.v1`.
-- Checkout calls backend quote and order APIs; client prices are display cache only.
-- Product detail carousel now supports image tabs from `productData.imageGroups`.
-- Header navigation now loads menu data from `web-admin /api/menu/header` with a local fallback.
-- Header public data is split by runtime need: `GET /api/menu/header` for all-site header data, and `GET /api/menu/homepage` for homepage-only Circle Story / Shop by Category blocks.
-- Homepage sections should bind dynamic data into their existing markup instead of creating duplicate display areas. Current example: `Circle Story` data comes from `/api/menu/homepage` and renders only in `font-end/src/components/sections/Section2.tsx`, not in `Header`.
-- Homepage hero carousel loads from `GET /api/banners/homepage`; `Section3` renders cached banner data with overlay prev/next controls.
-- Product cards render `cardBadges` supplied by public product/search APIs. The storefront does not fetch attributes per card.
-- Category pages and homepage category sections can render a configured first box from category metadata. Box links always open in a new tab.
-- Header menu labels default to Vietnamese `Danh Mục` and `Nổi bật`; the frontend repairs known mojibake strings and renders header chrome icons with `lucide-react` SVG icons.
+## Code ownership map
 
-### Backend/Admin
+| Concern | Primary owner |
+|---|---|
+| DB pool | `web-admin/src/lib/db.ts` |
+| Request parsing/errors/origin | `web-admin/src/lib/publicRequest.ts` |
+| Canonical commerce/customer validation | `web-admin/src/lib/commerceValidation.ts` |
+| Rate limits, cleanup, cache versions, webhook nonces | `web-admin/src/lib/performanceInfrastructure.ts` |
+| Order idempotency and outbox | `web-admin/src/lib/orderInfrastructure.ts` |
+| Quote/order flow | `web-admin/src/lib/cart-quote.ts`, `web-admin/src/app/api/orders/route.ts` |
+| Voucher transaction rules | `web-admin/src/lib/vouchers.ts` |
+| Customer accounts/sessions | `web-admin/src/lib/customerAccounts.ts`, `/api/customer/*` |
+| Search runtime | `web-admin/src/lib/publicSearch.ts`, `/api/search` |
+| Checkout UI | `font-end/src/app/thanh-toan/CheckoutClient.tsx` |
+| Runtime jobs | `web-admin/scripts/background-worker.ts` |
 
-- `web-admin/src/lib/db.ts` is the only DB connector.
-- Admin writes require `ADMIN_WRITE_ENABLED=true`.
-- Admin product save intentionally preserves existing image fields unless `payload.images` is explicitly provided.
-- Admin product image upload code stores files under `MEDIA_ROOT/ddMMyyyy/file.ext`, exposed through `/api/media/[...path]`.
-- Product image albums/types are `product`, `self`, `customer`.
-- Storefront should show `product + self` as product images and `customer` as customer images.
-- Header menu manager exists at `/content/menu` in `web-admin`.
-- Header menu admin is split into `/content/menu/header` for all-site header data and `/content/menu/homepage` for Circle Story / Shop by Category.
-- Header menu data uses draft/published versions with `web_admin_menus`, `web_admin_menu_versions`, and `web_admin_menu_items`; version settings store editable frontend labels for `Danh Mục` and `Nổi bật`.
-- Admin menu UI supports area switching, live preview, expanded/collapsed tree management, quick custom-link input, draft save, publish, and link target search.
-- Public header menu output repairs known mojibake suffix/label values before returning data to the storefront.
-- Banner admin uses legacy `idv_seller_ad_location` and `idv_seller_ad` as canonical data, with extra display metadata in `web_admin_banner_meta`.
-- Product-card attribute badge admin is at `/product/card-attributes`; rules come from existing attribute/category tables plus `web_admin_product_card_attribute_rules`.
-- Product category edit `/product/categories-edit?id=...` now has a first-box section. It preserves all existing category fields and saves extra metadata into `web_admin_category_feature_boxes`.
+## Environment and rollout requirements
 
-### Search
+- Configure production `STOREFRONT_ORIGIN`, CAPTCHA site/secret keys, allowed hostnames, `SEARCH_WEBHOOK_SECRET`, database pool limits, SMTP, and media paths.
+- Keep CAPTCHA in shadow mode first, inspect per-action metrics, then enable enforcement with backend and frontend in the same release.
+- Default target topology is one 8 vCPU/16 GB machine with MySQL on the same host, Caddy, two API workers, storefront, and background worker.
+- Each API worker defaults to 12 MySQL connections. Preserve at least 30% server connections for maintenance/migrations.
 
-- Main endpoint: `GET /api/search?q=&page=&limit=&sort=`.
-- Cache TTL is 60 seconds.
-- Fuse indexes are rebuilt when the cache refreshes or receives a webhook mutation.
-- Search joins `product_data_search`, product price, URL, brand, and product attributes.
-- Synonym groups live in `web-admin/src/lib/searchCache.ts`.
-- Exclusion rules live in `web-admin/src/lib/productSearch.ts`.
-- Rebuild search DB data with `npm.cmd run search:rebuild`.
-- Recreate function/table/triggers with `npm.cmd run search:migrate`.
-
-## Migration Rules
-
-Run admin helper migrations only on safe DBs:
-
-```powershell
-cd D:\web-tech\web-admin
-$env:ADMIN_WRITE_ENABLED="true"
-npm.cmd run admin:migrate
-```
-
-This creates/updates admin helper tables including `web_admin_sequence`, `web_admin_entity_registry`, `web_admin_product_images`, header menu tables, `web_admin_banner_meta`, `web_admin_product_card_attribute_rules`, and `web_admin_category_feature_boxes`.
-
-Run search infrastructure migration:
-
-```powershell
-cd D:\web-tech\web-admin
-npm.cmd run search:migrate
-```
-
-Search migration drops/recreates the search triggers and function, then rebuilds `product_data_search`.
-
-## Verification Commands
-
-Use `npm.cmd`, not bare `npm`, in PowerShell.
+## Verification commands
 
 ```powershell
 cd D:\web-tech\web-admin
 npx.cmd tsc --noEmit
-$env:NODE_OPTIONS="--max-old-space-size=4096"
+npm.cmd run lint -- --quiet
+npm.cmd run test:unit
+npm.cmd run test:integration
 npm.cmd run build
+npm.cmd audit
 ```
 
 ```powershell
 cd D:\web-tech\font-end
 npx.cmd tsc --noEmit
-$env:NODE_OPTIONS="--max-old-space-size=4096"
+npm.cmd run lint -- --quiet
 npm.cmd run build
+npm.cmd audit
 ```
 
-Known verification caveats:
+With both apps running:
 
-- `web-admin` lint currently fails on legacy `.cjs` scripts and a few existing React/lint findings.
-- `font-end` lint prompts to configure ESLint.
-- Build can run out of memory without `NODE_OPTIONS=--max-old-space-size=4096`.
+```powershell
+cd D:\web-tech\web-admin
+npm.cmd run local:healthcheck
+npm.cmd run local:benchmark
+```
 
-## Do Not Break These
+The last run passed 5/5 validation tests, 1/1 idempotency integration test, both typechecks/lints/builds/audits, readiness/liveness, and 13/13 health checks.
 
-- Do not add DB access to `font-end`.
-- Do not load TinyMCE in `web-admin/src/app/layout.tsx`; keep it inside `RichTextEditor`.
-- For admin long-form content fields that use `RichTextEditor`, pass `resizable` so TinyMCE can be resized vertically from the status bar. Keep horizontal resizing disabled.
-- Do not permanently delete legacy entities unless they are recorded in `web_admin_entity_registry`.
-- Do not replace `product_data_search` without preserving triggers/function/FK behavior.
-- Do not assume physical foreign keys exist across legacy tables.
-- Do not commit `.env` or local generated caches.
-- Do not treat `tmp/` as source; it is currently untracked workspace output.
-- Do not render homepage section data in a second component when the section already owns the markup. For `Section*.tsx`, keep existing HTML/class/id structure and only loop/bind data into existing tags unless a task explicitly requests new markup or CSS.
+Observed local benchmark after payload reduction:
 
-## High-Priority Next Work
+| Route/data | Result |
+|---|---:|
+| Products warm | ~3.1 ms |
+| Search cold / warm | ~126 ms / ~2.0 ms |
+| Homepage bootstrap warm | ~4.8 ms |
+| Header payload | 99,097 → 51,415 bytes |
+| Homepage bootstrap payload | 148,256 → 96,610 bytes |
 
-- Smoke-test `/content/menu/header`, `/content/menu/homepage`, `/banner/banner-list`, `/product/card-attributes`, and `/product/categories-edit?id=1106` against the live dev DB after running admin migrations with `ADMIN_WRITE_ENABLED=true`.
-- Add auth/authorization for admin write APIs.
-- Add production CORS allowlist and rate limiting for public write endpoints.
-- Run `admin:migrate` with writes enabled to create all `web_admin_*` helper tables, then smoke-test image, banner, category feature-box upload, and public API cache invalidation.
-- Add filters in admin product list for missing `self` images and missing `customer` images.
-- Add integration tests for quote/order and image upload/delete metadata sync.
-- Decide whether to keep or delete legacy scratch files at repo root.
+These are local observations, not production SLO proof.
 
+## Highest-priority next work
+
+1. Deploy to an isolated production-like 8 vCPU/16 GB staging host and run `npm.cmd run load:k6`; retain k6, CPU, RAM, MySQL pool, slow-query, and error metrics for the full ramp/hold test.
+2. Verify reCAPTCHA hostname/action/score metrics in shadow mode, then explicitly enable enforcement.
+3. Configure and test Caddy/PM2 process restart, graceful rollout, outbox retry, and cleanup behavior on the target OS.
+4. Expand integration/E2E coverage across all write routes and all 15 forms, especially upload, admin RBAC, customer OTP/session revoke, concurrent voucher redemption, `429`, accessibility, and network failures.
+5. Review remaining write routes against `SECURITY_AND_LOAD_MATRIX.md`; shared foundations exist, but do not assume every legacy admin form has canonical field-level Zod coverage.
+6. Decide separately whether root scratch/debug files should be removed. Do not delete them as part of unrelated work.
+
+## Release blocker
+
+The full 1,500-VU, 150-RPS, up-to-10-checkout/s k6 scenario has not been run on a production-like host. Capacity is therefore **not yet certified**. If the target host misses the documented thresholds, record a capacity blocker and separate MySQL or add a second host; do not weaken the acceptance criteria.

@@ -208,7 +208,7 @@ export default function ProductSpecifications({ productName, specs }: ProductSpe
 
   return (
     <>
-      <div className="lg:w-2/5" id="cot-thongsokythuat">
+      <div className="lg:w-[30%]" id="cot-thongsokythuat">
         <div className="lg:sticky lg:top-6">
           <div id="specCol" ref={specRef} className="pt-6 relative" style={{ maxHeight: "66vh", overflow: "hidden" }}>
 

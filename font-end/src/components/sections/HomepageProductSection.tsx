@@ -76,7 +76,7 @@ function renderCtaTitle(lines: HomepageProductSectionTitleLine[]) {
 
 function ProductCard({ product }: { product: HomepageProductSectionProduct }) {
   const priceText = formatPrice(product.price);
-  const brand = product.brand || "HACOM";
+  const brand = product.brand || "TrucTiepGAME";
   const productName = product.name || "Sản phẩm";
 
   return (

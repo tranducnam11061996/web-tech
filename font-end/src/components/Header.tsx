@@ -12,16 +12,22 @@ import {
   Search,
   ShoppingCart,
   Star,
-  User,
   X,
 } from 'lucide-react';
 import { useCartSummary } from '@/lib/cart';
+import CustomerAccountMenu from './CustomerAccountMenu';
 import { cleanMenuText } from '@/lib/menuUtils';
 import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem } from './menuData';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 const HEADER_MENU_FALLBACK_CACHE_MS = 10 * 1000;
 const HEADER_MENU_CLIENT_CACHE_MS = 60 * 1000;
+const SUBMENU_TOP_ZONE_PX = 64;
+const SUBMENU_HIDE_DISTANCE_PX = 72;
+const SUBMENU_SHOW_DISTANCE_PX = 48;
+const SUBMENU_DELTA_DEADBAND_PX = 3;
+const SUBMENU_TRANSITION_COOLDOWN_MS = 450;
+const SUBMENU_SCROLL_IDLE_RESET_MS = 180;
 let cachedHeaderMenu: HeaderMenuData | null = null;
 let cachedHeaderMenuExpiresAt = 0;
 let headerMenuRequest: Promise<HeaderMenuData> | null = null;
@@ -181,9 +187,12 @@ function MenuLinkIcon({ item, className = 'h-3.5 w-3.5 shrink-0 text-gray-500' }
 export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }) {
   const router = useRouter();
   const [showSubMenu, setShowSubMenu] = useState(true);
+  const showSubMenuRef = useRef(true);
   const lastScrollY = useRef(0);
+  const lastScrollAt = useRef(0);
   const scrollDistance = useRef(0);
   const scrollDirection = useRef<'up' | 'down' | null>(null);
+  const transitionLockedUntil = useRef(0);
   const scrollFrame = useRef<number | null>(null);
   const isMenuOpenRef = useRef(false);
   const megaMenuRef = useRef<HTMLDivElement>(null);
@@ -241,21 +250,49 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
 
   useEffect(() => {
     lastScrollY.current = window.scrollY;
+    lastScrollAt.current = performance.now();
+
+    const resetScrollIntent = () => {
+      scrollDistance.current = 0;
+      scrollDirection.current = null;
+    };
+
+    const setSubMenuVisibility = (visible: boolean, now: number, lock = true) => {
+      if (showSubMenuRef.current === visible) {
+        if (!lock) transitionLockedUntil.current = 0;
+        return;
+      }
+      showSubMenuRef.current = visible;
+      setShowSubMenu(visible);
+      transitionLockedUntil.current = lock ? now + SUBMENU_TRANSITION_COOLDOWN_MS : 0;
+      resetScrollIntent();
+    };
 
     const updateFromScroll = () => {
       scrollFrame.current = null;
+      const now = performance.now();
       const currentScrollY = Math.max(0, window.scrollY);
       const delta = currentScrollY - lastScrollY.current;
       lastScrollY.current = currentScrollY;
 
-      if (currentScrollY < 50 || isMenuOpenRef.current) {
-        scrollDistance.current = 0;
-        scrollDirection.current = null;
-        setShowSubMenu(true);
+      if (currentScrollY < SUBMENU_TOP_ZONE_PX || isMenuOpenRef.current) {
+        resetScrollIntent();
+        lastScrollAt.current = now;
+        setSubMenuVisibility(true, now, false);
         return;
       }
 
-      if (Math.abs(delta) <= 2) return;
+      if (Math.abs(delta) <= SUBMENU_DELTA_DEADBAND_PX) return;
+
+      if (now - lastScrollAt.current > SUBMENU_SCROLL_IDLE_RESET_MS) {
+        resetScrollIntent();
+      }
+      lastScrollAt.current = now;
+
+      if (now < transitionLockedUntil.current) {
+        resetScrollIntent();
+        return;
+      }
 
       const nextDirection = delta > 0 ? 'down' : 'up';
       if (scrollDirection.current !== nextDirection) {
@@ -265,12 +302,10 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
 
       scrollDistance.current += Math.abs(delta);
 
-      if (nextDirection === 'down' && scrollDistance.current >= 12) {
-        setShowSubMenu(false);
-        scrollDistance.current = 0;
-      } else if (nextDirection === 'up' && scrollDistance.current >= 8) {
-        setShowSubMenu(true);
-        scrollDistance.current = 0;
+      if (nextDirection === 'down' && scrollDistance.current >= SUBMENU_HIDE_DISTANCE_PX) {
+        setSubMenuVisibility(false, now);
+      } else if (nextDirection === 'up' && scrollDistance.current >= SUBMENU_SHOW_DISTANCE_PX) {
+        setSubMenuVisibility(true, now);
       }
     };
 
@@ -292,9 +327,14 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
   useEffect(() => {
     isMenuOpenRef.current = isMenuOpen;
     lastScrollY.current = Math.max(0, window.scrollY);
+    lastScrollAt.current = performance.now();
     scrollDistance.current = 0;
     scrollDirection.current = null;
-    if (isMenuOpen) setShowSubMenu(true);
+    transitionLockedUntil.current = performance.now() + SUBMENU_TRANSITION_COOLDOWN_MS;
+    if (isMenuOpen && !showSubMenuRef.current) {
+      showSubMenuRef.current = true;
+      setShowSubMenu(true);
+    }
   }, [isMenuOpen]);
 
   useEffect(() => {
@@ -434,9 +474,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
 
             {/* Icons */}
             <div className="flex items-center gap-6 text-gray-400 shrink-0">
-              <button type="button" className="hover:text-white transition-colors" aria-label={'T\u00e0i kho\u1ea3n'}>
-                <User className="h-5 w-5" aria-hidden="true" />
-              </button>
+              <CustomerAccountMenu />
               <Link href="/gio-hang" className="hover:text-white transition-colors relative" aria-label={'Gi\u1ecf h\u00e0ng'}>
                 <ShoppingCart className="h-5 w-5" aria-hidden="true" />
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
@@ -706,11 +744,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
 
       {/* MOBILE BOTTOM NAV BAR (< 768px) */}
       <div className="md:hidden fixed bottom-0 left-0 w-full h-[60px] bg-dark border-t border-dark-border flex items-center justify-between px-6 z-50">
-        <button className="text-gray-400 hover:text-white transition-colors">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-          </svg>
-        </button>
+        <CustomerAccountMenu mobile />
         <Link href="/gio-hang" className="text-gray-400 hover:text-white transition-colors relative">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>

@@ -17,6 +17,7 @@ export const ADMIN_RESOURCES = [
   'marketing.banner_locations',
   'marketing.vouchers',
   'sales.orders',
+  'crm.customers',
   'admin.users',
   'admin.roles',
   'admin.audit_logs',
@@ -51,6 +52,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { resource: 'marketing.banner_locations', label: 'Vi tri banner', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'marketing.vouchers', label: 'Voucher', actions: ['read', 'create', 'update'] },
   { resource: 'sales.orders', label: 'Don hang storefront', actions: ['read', 'update'] },
+  { resource: 'crm.customers', label: 'Khach hang storefront', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'admin.users', label: 'Tai khoan admin', actions: ['read', 'create', 'update', 'delete'], systemOnly: true },
   { resource: 'admin.roles', label: 'Vai tro admin', actions: ['read', 'create', 'update', 'delete'], systemOnly: true },
   { resource: 'admin.audit_logs', label: 'Nhat ky admin', actions: ['read'], systemOnly: true },
@@ -144,6 +146,7 @@ export function getPagePermission(pathname: string): AdminPermission | null {
   if (pathname.startsWith('/banner/locations')) return 'marketing.banner_locations.read';
   if (pathname.startsWith('/sales/vouchers')) return 'marketing.vouchers.read';
   if (pathname.startsWith('/sales/orders')) return 'sales.orders.read';
+  if (pathname.startsWith('/customers')) return 'crm.customers.read';
   return null;
 }
 
@@ -155,6 +158,7 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
   if (pathname.includes('/api/admin/audit-logs')) return 'admin.audit_logs.read';
   if (pathname.includes('/api/admin/migrate')) return 'admin.migrations.execute';
   if (pathname.includes('/api/admin/storefront-orders')) return `sales.orders.${action}` as AdminPermission;
+  if (pathname.includes('/api/admin/storefront-customers')) return `crm.customers.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/menus/header/publish')) return 'content.menus.publish';
 
   const resource = pathname.includes('/api/admin/article-categories') ? 'content.article_categories'

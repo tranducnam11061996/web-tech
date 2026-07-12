@@ -9,7 +9,7 @@ import {
   normalizeImageType,
   type UploadedImageInput,
 } from '@/lib/admin/images';
-import { getMediaRoot, isPathInside } from '@/lib/admin/media-storage';
+import { getMediaRoot, isPathInside, matchesImageSignature } from '@/lib/admin/media-storage';
 
 export const runtime = 'nodejs';
 
@@ -136,6 +136,7 @@ export async function POST(request: Request, context: RouteContext<'/api/admin/p
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
+      if (!matchesImageSignature(buffer, mimeType)) { errors.push(`${file.name || `file ${index + 1}`}: nội dung file không đúng định dạng ảnh`); continue; }
       const baseName = sanitizeName(file.name, `product-${productId}-${Date.now()}-${index + 1}`);
       const { fileName, targetPath } = await uniqueFilePath(folderPath, baseName, extension);
       if (!isPathInside(mediaRoot, targetPath)) {

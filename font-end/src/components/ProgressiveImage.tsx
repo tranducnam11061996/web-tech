@@ -7,6 +7,7 @@ interface ProgressiveImageProps extends React.ImgHTMLAttributes<HTMLImageElement
   alt: string;
   fallbackText?: string;
   className?: string;
+  disableLoadingEffects?: boolean;
 }
 
 const placeholderCache = new Map<string, string>();
@@ -27,8 +28,9 @@ function getPlaceholder(text: string) {
 export default function ProgressiveImage({
   src,
   alt,
-  fallbackText = "HACOM",
+  fallbackText = "TrucTiepGAME",
   className = "",
+  disableLoadingEffects = false,
   loading = "lazy",
   ...props
 }: ProgressiveImageProps) {
@@ -55,7 +57,9 @@ export default function ProgressiveImage({
       };
     };
 
-    if ("IntersectionObserver" in window) {
+    if (loading === "eager") {
+      loadImage();
+    } else if ("IntersectionObserver" in window) {
       observer = new IntersectionObserver(
         ([entry]) => {
           if (!entry.isIntersecting) return;
@@ -74,7 +78,7 @@ export default function ProgressiveImage({
       cancelled = true;
       observer?.disconnect();
     };
-  }, [placeholder, src]);
+  }, [loading, placeholder, src]);
 
   return (
     <img
@@ -82,8 +86,11 @@ export default function ProgressiveImage({
       src={imgSrc}
       alt={alt}
       loading={loading}
+      decoding="async"
       className={`${className} transition-all duration-500 ${
-        isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-60 blur-md scale-95"
+        disableLoadingEffects || isLoaded
+          ? "opacity-100 blur-0 scale-100"
+          : "opacity-60 blur-md scale-95"
       }`}
       {...props}
     />

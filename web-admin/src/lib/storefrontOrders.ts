@@ -1,6 +1,7 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { AdminApiError } from '@/lib/admin/common';
+import { refreshCustomerMetrics } from '@/lib/customerAccounts';
 import { releaseVoucherForOrder } from '@/lib/vouchers';
 
 const ORDER_STATUSES = new Set([1, 2, 3, 4, 5]);
@@ -78,6 +79,8 @@ export async function patchAdminStorefrontOrder(connection: PoolConnection, id:n
   const [rows] = await connection.query<RowDataPacket[]>('SELECT id,status FROM build_buy WHERE id=? FOR UPDATE',[id]); const order=rows[0]; if(!order) throw new AdminApiError(404,'NOT_FOUND','Không tìm thấy đơn hàng.');
   const event = async(type:string,from:any,to:any,note='')=>connection.query(`INSERT INTO web_admin_storefront_order_events (order_id,event_type,from_value,to_value,note,actor_user_id,actor_name) VALUES (?,?,?,?,?,?,?)`,[id,type,from===undefined?null:String(from),to===undefined?null:String(to),String(note||''),actor.id,actor.name]);
   if(payload.orderStatus!==undefined){const next=Number(payload.orderStatus);const current=Number(order.status);if(!ORDER_STATUSES.has(next))throw new AdminApiError(400,'BAD_REQUEST','Trạng thái đơn hàng không hợp lệ.');if([3,4,5].includes(current)&&next!==current)throw new AdminApiError(409,'CONFLICT','Đơn hàng đã kết thúc.');if([4,5].includes(next))await releaseVoucherForOrder(connection,id);if(next!==current){await connection.query('UPDATE build_buy SET status=?,last_update=?,last_update_by=? WHERE id=?',[next,Math.floor(Date.now()/1000),actor.name,id]);await event('order_status',current,next);}}
+  const [linkedCustomers]=await connection.query<RowDataPacket[]>('SELECT customer_id FROM web_admin_storefront_order_customer WHERE order_id=? LIMIT 1',[id]);
+  if (payload.orderStatus !== undefined && linkedCustomers[0] && Number(order.status) !== Number(payload.orderStatus)) await refreshCustomerMetrics(connection, Number(linkedCustomers[0].customer_id));
   const [metas]=await connection.query<RowDataPacket[]>('SELECT * FROM web_admin_storefront_order_meta WHERE order_id=? FOR UPDATE',[id]); const meta=metas[0]||{};
   if(payload.paymentStatus && payload.paymentStatus!==meta.payment_status){await connection.query('UPDATE web_admin_storefront_order_meta SET payment_status=? WHERE order_id=?',[payload.paymentStatus,id]);await event('payment_status',meta.payment_status,payload.paymentStatus);}
   if(payload.shippingStatus && payload.shippingStatus!==meta.shipping_status){await connection.query('UPDATE web_admin_storefront_order_meta SET shipping_status=? WHERE order_id=?',[payload.shippingStatus,id]);await event('shipping_status',meta.shipping_status,payload.shippingStatus);}

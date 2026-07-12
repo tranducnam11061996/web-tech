@@ -1,74 +1,72 @@
 # Database Statistics
 
-Verified: 2026-07-07  
-Database: configured `DB_NAME` for `web-admin`  
-Source: live MySQL audit plus targeted exact counts
+Last verified: `2026-07-11`
 
-## Physical Summary
+Database: configured `DATABASE_URL` for `web-admin`
+Source: read-only `information_schema` query plus previously recorded exact counts
 
-| Metric | Value |
-| --- | ---: |
-| Total tables | 244 |
-| InnoDB tables | 116 |
-| MyISAM tables | 128 |
-| `latin1_swedish_ci` tables | 243 |
-| `utf8mb4_unicode_ci` tables | 1 |
+## Current physical summary
 
-The only audited `utf8mb4_unicode_ci` table is `product_data_search`. Most legacy tables remain `latin1_swedish_ci`, so connection encoding and text normalization still matter.
+| Metric | Value | Verified |
+|---|---:|---|
+| Total tables | 280 | 2026-07-11 |
+| InnoDB tables | 152 | 2026-07-11 |
+| MyISAM tables | 128 | 2026-07-11 |
 
-## Exact Counts Captured
+The 36-table increase from the earlier 244-table snapshot is consistent with applied additive admin/access/customer/voucher/performance infrastructure. Collation totals were not re-queried on `2026-07-11`; do not reuse the old 243/1 collation split as a current total.
 
-| Table | Engine | Exact rows | Notes |
-| --- | --- | ---: | --- |
-| `idv_sell_product_store` | InnoDB | 28,763 | Product source of truth |
-| `product_data_search` | InnoDB | 28,763 | Search cache, fully synced at audit time |
-| `idv_product_image_stock` | InnoDB | 210,998 | Existing image stock/library |
-| `idv_sell_product_image_name` | InnoDB | 212,184 | Existing per-product image table |
-| `product_image_folder_counter` | InnoDB | 48,378 | Existing image folder counter |
-| `idv_customer_product_image` | MyISAM | 0 | Legacy customer image table, currently empty |
-| `web_admin_entity_registry` | InnoDB | 0 | Admin helper table |
-| `web_admin_sequence` | InnoDB | 1 | `product -> 90788` |
+## Confirmed helper tables
 
-`web_admin_product_images` was not present in the live database at audit time. The table is implemented in code and should be created by the admin migration once `ADMIN_WRITE_ENABLED=true`.
+Read-only verification found these InnoDB tables in the configured database:
 
-## Search Health
+- Product/content: `web_admin_product_images`, menu tables, `web_admin_banner_meta`, product-card rules, and category feature boxes.
+- Commerce: `web_admin_vouchers`, category links, redemptions, storefront order/customer links and metrics.
+- Customer: customer profile, password, session, challenge/OTP/attempt, address, and related helper tables.
+- Reliability/security: `web_admin_order_requests`, `web_admin_request_limits`, `web_admin_email_outbox`, `web_admin_cache_versions`, and `web_admin_webhook_nonces`.
 
-| Check | Value |
-| --- | ---: |
-| Product rows | 28,763 |
-| Search rows | 28,763 |
-| Products missing search row | 0 |
+`information_schema.TABLE_ROWS` is approximate for InnoDB and must not be used for business reporting or exact migration assertions.
 
-Search infrastructure present:
+## Historical exact counts
 
-- `product_data_search`
-- `webtech_normalize_product_search`
-- `webtech_product_search_after_insert`
-- `webtech_product_search_after_update`
-- `fk_product_data_search_product`
+These values were last captured on `2026-07-07` and were not re-counted during the `2026-07-11` engine/table verification:
 
-## Performance Observations
+| Table | Exact rows on 2026-07-07 | Notes |
+|---|---:|---|
+| `idv_sell_product_store` | 28,763 | Product source of truth |
+| `product_data_search` | 28,763 | Zero missing products at that audit |
+| `idv_product_image_stock` | 210,998 | Legacy image stock/library |
+| `idv_sell_product_image_name` | 212,184 | Legacy per-product images |
+| `product_image_folder_counter` | 48,378 | Legacy folder counter |
+| `idv_customer_product_image` | 0 | Legacy MyISAM customer image table |
+| `web_admin_entity_registry` | 0 | Admin helper table at that time |
+| `web_admin_sequence` | 1 | `product -> 90788` at that time |
 
-- Category listing depends heavily on `idv_product_category`, `idv_sell_product_store`, product price data, and attribute junction tables.
-- `/api/search` should prefer `product_data_search.data_search` instead of building large text expressions per request.
-- The search cache table has one row per product and a primary key on `product_id`.
-- New product image filtering should use `web_admin_product_images(product_id, type)` after migration.
-- `build_buy_item.order_id` was previously noted as a possible future index, but current order volume is too small to justify an immediate migration without an admin order workload benchmark.
+Always re-query before using these as current operational facts.
 
-## Data Quality Observations
+## Performance observations
 
-- Legacy content contains mixed encodings and old HTML/string fragments.
-- Attribute/icon values may contain URL-like or script-like legacy values; storefront APIs sanitize before rendering filters.
-- The database mixes transactional and non-transactional engines. Do not assume rollback works across every table touched by a feature.
-- Legacy image paths can be stored as folder/name combinations, absolute-looking media paths, or serialized collection strings.
+- The database still mixes transactional InnoDB with 128 non-transactional MyISAM tables. Verify every transaction's table engines.
+- Category/list/search performance depends on junction-table indexes, bounded filters, and avoiding per-item queries.
+- Search uses one row per product in `product_data_search`, worker-local in-memory indexes, prewarm, and single-flight rebuild.
+- Two API workers default to 12 pool connections each. Production must reserve at least 30% of MySQL connections for operations.
+- Enable slow-query logging and investigate any hot request query over 500 ms during the full load test.
+- Add indexes only after `EXPLAIN` and workload benchmarks; legacy write/import costs matter.
 
-## Useful Re-Check Queries
+## Data-quality observations
+
+- Most legacy data uses old latin1-era encodings and can contain mixed-encoding HTML/string fragments.
+- Attribute/icon/filter values may contain URL- or script-like legacy data and must be sanitized before public rendering.
+- Legacy relationships are often logical rather than physical. Never assume FK/cascade behavior.
+- Legacy image paths can be folder/name pairs, absolute-looking paths, or serialized collection strings.
+
+## Re-check queries
 
 ```sql
-SELECT engine, COUNT(*) AS tables
+SELECT COUNT(*) AS total_tables,
+       SUM(engine = 'InnoDB') AS innodb_tables,
+       SUM(engine = 'MyISAM') AS myisam_tables
 FROM information_schema.tables
-WHERE table_schema = DATABASE()
-GROUP BY engine;
+WHERE table_schema = DATABASE();
 ```
 
 ```sql
@@ -89,4 +87,12 @@ SELECT
     LEFT JOIN product_data_search s ON s.product_id = p.id
     WHERE s.product_id IS NULL
   ) AS missing_search_count;
+```
+
+```sql
+SELECT table_name, engine
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+  AND table_name LIKE 'web_admin_%'
+ORDER BY table_name;
 ```

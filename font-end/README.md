@@ -1,164 +1,96 @@
 # HACOM Storefront
 
-Last audited: 2026-07-09
+Last verified: `2026-07-11`
 
-`font-end` is the customer-facing storefront. It must not connect directly to MySQL. All dynamic data should come from `web-admin` APIs.
+`font-end` is the customer-facing Next.js 16.2.9/React 19.2.4 storefront. It consumes `web-admin` APIs and must never access MySQL or backend secrets directly.
 
-## Responsibilities
+## Environment and commands
 
-- Render customer product/category/news pages.
-- Own cart and checkout UI state.
-- Call backend APIs through `NEXT_PUBLIC_API_URL` or configured rewrites.
-- Keep UI behavior in React state instead of legacy global scripts.
-- Display product detail images using backend `imageGroups` when available.
-- Render managed header, homepage blocks, banners, product-card badges, and category first boxes from `web-admin` APIs.
-
-## Environment
+Required public variables:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY=
 ```
-
-The app currently has a Next rewrite for `/api/:path*` to the local backend, so client code can also call same-origin `/api/...` where appropriate.
-
-## Commands
 
 ```powershell
-npm.cmd install
 npm.cmd run dev
 npx.cmd tsc --noEmit
-$env:NODE_OPTIONS='--max-old-space-size=4096'
+npm.cmd run lint -- --quiet
 npm.cmd run build
+npm.cmd run start
+npm.cmd audit
 ```
 
-Known checks:
+The default port is 3001. Production routing should expose backend APIs through the approved origin/proxy contract.
 
-- Typecheck passed on 2026-07-09.
-- Build passed on 2026-07-09 with increased Node memory.
-- Lint is not configured; Next.js prompts for setup.
+## Main journeys
 
-## Main Routes
+- Homepage bootstrap, managed header/homepage content, banners, product sections, and category feature boxes.
+- Product/category dynamic slug pages, category filters/sort/pagination, search, and collections.
+- Guest cart stored under `hacom.cart.v1` and server-validated quote.
+- Checkout with customer/contact/address/invoice fields, voucher quote, CAPTCHA, idempotent order submission, and preserved retry state.
+- Customer registration, verification, login, password recovery/change, profile, addresses, and order history under `/tai-khoan`.
 
-| Route | Purpose |
-| --- | --- |
-| `/` | Home shell |
-| `/[slug]` | Product/category dynamic gateway |
-| `/category` | Category by query id |
-| `/tim` | Search page |
-| `/gio-hang` | Guest cart |
-| `/thanh-toan` | Checkout |
-| `/tin-tuc` | News landing |
-| `/tin-tuc/[slug]` | News article/category |
+## Data boundaries
 
-## Dynamic Slug Flow
+- Treat client product price/status as display cache only. Quote/order APIs are authoritative.
+- Do not send or trust payment status, voucher validity/quota, customer IDs, address ownership, or totals from browser state.
+- Prefix relative media/API paths using the configured API origin; never leak server environment variables into client bundles.
+- Public menu/banner/homepage responses are already reduced for runtime use; do not reintroduce admin metadata into client state.
 
-`app/[slug]/page.tsx` calls:
+## Checkout contract
 
-```text
-GET http://localhost:3000/api/products/{slug}
-```
+At submit time:
 
-If the response is a category, the server fetches initial data from:
+1. Validate and focus the first invalid field without clearing user input.
+2. Generate/reuse one `crypto.randomUUID()` idempotency key for the active submission attempt.
+3. Load/execute reCAPTCHA for action `order_submit`; do not eagerly load it for every page visitor.
+4. Send `Idempotency-Key` and `recaptchaToken` to `POST /api/orders`.
+5. Preserve the key across uncertain network/5xx outcomes so retry cannot duplicate the order. Reset it only when the attempt is conclusively invalid or a new order starts.
 
-- `/api/products?category_id=...`
-- `/api/categories?parentId=...`
-- `/api/categories/price-bounds?categoryId=...`
-- `/api/categories/attributes?categoryId=...`
+Handle the backend error envelope by category:
 
-After hydration, `CategoryClient` refetches product lists when page, filter, price, or sort changes.
+- `VALIDATION_ERROR`: show field errors and focus the first invalid field.
+- HTTP `429`: read `Retry-After`, preserve all input, and show a countdown.
+- Network failure: keep values/key and offer a safe retry.
+- Idempotency conflict `409`: stop automatic retry and explain that the request contents changed.
+- System error: show the request ID for support without exposing raw details.
 
-## Product Detail Images
+## Customer forms and reCAPTCHA
 
-`ProductCarousel` should prefer the new grouped payload from `/api/products/[slug]`:
+Anonymous high-risk customer actions request a token only when submitting:
 
-```ts
-imageGroups.product   // product + self images
-imageGroups.customer  // customer images
-```
+- `customer_register`
+- `customer_login`
+- `password_reset_request`
+- `password_reset_confirm`
+- `verify_email`
+- `otp_resend`
 
-Fallback behavior still supports legacy flat image arrays so old products keep rendering.
+Authenticated customer forms rely on the HttpOnly session and backend origin/rate-limit controls; only use step-up CAPTCHA when the API requires it.
 
-UI rules:
+## Form and accessibility rules
 
-- Default to product images.
-- Customer tab uses only `customer` type images.
-- Hide or lightly disable the customer tab when no customer images exist.
-- Do not change the wider product detail style unless the task explicitly asks for it.
+- Mirror backend max lengths, input types, `inputMode`, autocomplete, min/max/step, and helper text.
+- Keep server validation canonical; browser validation improves UX but is not security.
+- Link each error with `aria-describedby`, set `aria-invalid`, use an `aria-live` summary, and focus the first invalid control.
+- Preserve field values for validation, rate-limit, network, CAPTCHA, and system failures.
+- Prevent double submit with pending state plus backend idempotency; disabling a button alone is insufficient.
+- Dialogs must have an accessible name, trap/restore focus, and close with Escape when dismissal is safe.
 
-## Cart
+## Performance rules
 
-Storage key:
+- Keep server components by default and minimize client boundaries/state duplication.
+- Dynamically import heavy dialogs/carousels and delay reCAPTCHA/nonessential scripts until interaction.
+- Use responsive `next/image`, AVIF/WebP, dimensions, lazy loading below the fold, and preload only the actual LCP image.
+- Avoid request waterfalls; fetch independent data in parallel and use the homepage bootstrap/public caches.
+- Respect ETag/cache behavior and do not add per-product attribute requests when product/search payloads already include card badges.
 
-```text
-hacom.cart.v1
-```
+## UI preservation rules
 
-Cart supports:
+For established homepage `Section*.tsx` markup, bind dynamic data into existing structure unless a task explicitly requests a redesign. Do not duplicate a section in another component, add wrappers/classes merely to consume data, or silently restore stale hardcoded content after an API failure.
 
-- Merge duplicate `productId`.
-- Quantity `1..99` on the client.
-- Selected items and select all.
-- Remove selected.
-- Save for later and restore.
-- Header badge for active quantity.
-- Reload persistence.
+## Verification status
 
-Local cart price is not trusted. Cart and checkout call `POST /api/cart/quote`; order creation re-quotes on the backend.
-
-## Component Notes
-
-`ProgressiveImage`:
-
-- Caches SVG placeholders.
-- Uses native lazy loading.
-- Keeps placeholder if image loading fails.
-
-`ProductCarousel`:
-
-- Custom carousel, no Swiper.
-- Uses refs for drag delta.
-- Stops timer when document tab is hidden.
-- Reads grouped images when supplied.
-
-`Header`:
-
-- Loads `/api/menu/header` and falls back to `src/components/menuData.ts`.
-- Desktop/mobile menu are React-driven.
-- Does not depend on `public/main.js`.
-
-Homepage and listing components:
-
-- `Section2` and `Section4` use `/api/menu/homepage` for homepage-only menu blocks.
-- `Section3` uses `/api/banners/homepage` for the hero carousel.
-- `Section11` uses `/api/categories/homepage-feature-sections` for category sections with first boxes.
-- `ProductGridCard` renders `cardBadges` supplied by `/api/products` or `/api/search`.
-- `CategoryFeatureBox` renders category first-box links with `target="_blank"` and `rel="noopener noreferrer"`.
-
-## Section Data Binding Rules
-
-Áp dụng cho các file `src/components/sections/Section*.tsx` khi chuyển nội dung tĩnh sang dữ liệu động.
-
-- Storefront không đọc database trực tiếp; mọi dữ liệu động phải đi qua API của `web-admin`.
-- Giữ nguyên cấu trúc HTML sẵn có của section: thẻ, `className`, `id`, layout và thứ tự hiển thị.
-- Chỉ thay danh sách hardcode bằng vòng lặp dữ liệu và bind giá trị vào đúng vị trí HTML hiện có.
-- Không tự thêm wrapper, class CSS, component hiển thị mới hoặc khu vực render mới nếu task không yêu cầu rõ.
-- URL chỉ bind vào thẻ link nếu markup hiện tại đã có thẻ link; không tự bọc thêm link chỉ để dùng URL.
-- Nếu API lỗi hoặc dữ liệu rỗng, không render lại dữ liệu hardcode cũ gây sai nguồn; chỉ giữ section shell khi cần giữ khu vực layout.
-- Chuẩn hóa dữ liệu trước khi in: trim text, validate mã màu hex, và prefix media URL tương đối bằng `NEXT_PUBLIC_API_URL`.
-
-Current examples:
-
-- `Circle Story` belongs to `Section2.tsx`, uses `/api/menu/homepage`, and must not render from `Header`.
-- Hero banner carousel belongs to `Section3.tsx`, uses `/api/banners/homepage`, and should keep carousel controls in the section.
-- Category first box belongs to `CategoryFeatureBox` / `CategoryFeatureProductGrid`; category pages get it from `layoutMeta.featureBox`.
-
-## Minimum Manual Checks
-
-- `/laptop`: load, filter, sort, pagination, quick filter search.
-- `/tim`: search query and pagination.
-- Product detail: image tabs, quantity, add to cart, buy online.
-- Cart: select, quantity, save for later, delete, quote refresh.
-- Checkout: selected items, invalid item, submit validation.
-- Header: badge, desktop menu, mobile menu.
-
-See `..\PROJECT_PROGRESS.md` for current test gaps and production blockers.
+Latest local TypeScript, ESLint `--quiet`, production build, npm audit, storefront health routes, and shared 13/13 healthcheck passed. Header payload was reduced to about 51 KB and homepage bootstrap to about 97 KB in the latest local measurement. These are regression observations, not proof of production Web Vitals or 1,500-user capacity.

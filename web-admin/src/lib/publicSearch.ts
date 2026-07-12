@@ -126,13 +126,17 @@ function buildFilteredCandidateQuery(
 }
 
 export async function loadPublicSearchPayload(searchParams: URLSearchParams) {
-  const page = Math.max(1, Number.parseInt(searchParams.get('page') || '1', 10) || 1);
+  if (searchParams.toString().length > 2_048) return { success: false, message: 'Query string is too long', status: 414 };
+  const customFilterCount = Array.from(searchParams.keys()).filter((key) => !reservedParams.has(key)).length;
+  if (customFilterCount > 8) return { success: false, message: 'Too many filters', status: 400 };
+  const page = Math.min(1_000, Math.max(1, Number.parseInt(searchParams.get('page') || '1', 10) || 1));
   const limit = Math.min(96, Math.max(1, Number.parseInt(searchParams.get('limit') || '24', 10) || 24));
   const minPrice = parsePrice(searchParams.get('min-price'));
   const maxPrice = parsePrice(searchParams.get('max-price'));
   if (Number.isNaN(minPrice) || Number.isNaN(maxPrice)) return { success: false, message: 'Invalid price parameter', status: 400 };
 
-  const query = searchParams.get('q') || '';
+  const query = (searchParams.get('q') || '').trim();
+  if (query.length > 100) return { success: false, message: 'Search query is too long', status: 400 };
   const [rankedCandidates, metadata] = await Promise.all([rankLexicalSearch(query), getSearchMetadata()]);
   if (rankedCandidates.length === 0) {
     return {
@@ -144,14 +148,15 @@ export async function loadPublicSearchPayload(searchParams: URLSearchParams) {
     };
   }
 
-  const candidateIds = rankedCandidates.map(({ product }) => product.id);
+  const boundedCandidates = rankedCandidates.slice(0, 2_000);
+  const candidateIds = boundedCandidates.map(({ product }) => product.id);
   const candidateQuery = buildFilteredCandidateQuery(candidateIds, searchParams, metadata, minPrice, maxPrice);
   const [candidateRowsResult] = await pool.query<CandidateRow[]>(
     `SELECT p.id, pr.price, pr.market_price ${candidateQuery.fromWhere}`,
     candidateQuery.params,
   );
   const candidateById = new Map(candidateRowsResult.map((row) => [Number(row.id), row]));
-  let matched = rankedCandidates.filter(({ product }) => candidateById.has(product.id));
+  let matched = boundedCandidates.filter(({ product }) => candidateById.has(product.id));
   const sort = searchParams.get('sort');
 
   if (sort === 'newest') {

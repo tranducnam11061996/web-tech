@@ -13,7 +13,7 @@ export default function HomeDashboard() {
       
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-blue-500 mb-2">Welcome back, Admin!</h1>
-        <p className="text-gray-400">Dưới đây là tổng quan hiệu suất hệ thống bán lẻ HACOM hôm nay.</p>
+        <p className="text-gray-400">Dưới đây là tổng quan hiệu suất hệ thống bán lẻ TrucTiepGAME hôm nay.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

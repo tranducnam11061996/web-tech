@@ -1,8 +1,8 @@
 export type MenuCategory = {
   id: string;
-  name: string;
+  name?: string;
   label?: string;
-  icon: string;
+  icon?: string;
   iconKey?: string;
   suffix?: string;
   suffixText?: string;

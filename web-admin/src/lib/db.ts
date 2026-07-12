@@ -39,8 +39,9 @@ function createPoolConfig(): mysql.PoolOptions {
 
   const baseConfig: mysql.PoolOptions = {
     waitForConnections: true,
-    connectionLimit: 25,
-    queueLimit: 0,
+    connectionLimit: Math.min(50, Math.max(2, Number(process.env.DB_CONNECTION_LIMIT || 12))),
+    queueLimit: Math.max(50, Number(process.env.DB_QUEUE_LIMIT || 500)),
+    connectTimeout: Math.max(1_000, Number(process.env.DB_CONNECT_TIMEOUT_MS || 5_000)),
   };
 
   if (databaseUrl) {
@@ -53,6 +54,8 @@ function createPoolConfig(): mysql.PoolOptions {
       password: decodeURIComponent(parsed.password),
       database: decodeURIComponent(parsed.pathname.replace(/^\/+/, '')),
       charset: 'utf8mb4',
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10_000,
     };
   }
 
@@ -63,6 +66,8 @@ function createPoolConfig(): mysql.PoolOptions {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'hanoi23_db',
     charset: 'utf8mb4',
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10_000,
   };
 }
 

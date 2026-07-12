@@ -54,4 +54,22 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: '/:path*' };
+// Only admin pages and protected admin APIs need the session/permission proxy.
+// Matching all paths makes Turbopack compile this module for every public API,
+// static chunk and favicon request during local development.
+export const config = {
+  matcher: [
+    '/',
+    '/login',
+    '/change-password',
+    '/forbidden',
+    '/product/:path*',
+    '/news/:path*',
+    '/content/:path*',
+    '/banner/:path*',
+    '/sales/:path*',
+    '/customers/:path*',
+    '/system/:path*',
+    '/api/admin/:path*',
+  ],
+};

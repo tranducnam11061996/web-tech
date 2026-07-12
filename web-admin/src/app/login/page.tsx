@@ -3,6 +3,7 @@
 import { LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, Suspense, useState } from 'react';
+import { getAdminLoginRecaptchaToken } from '@/lib/adminRecaptcha';
 
 function LoginForm() {
   const router = useRouter();
@@ -17,10 +18,11 @@ function LoginForm() {
     setLoading(true);
     setError('');
     try {
+      const recaptchaToken = await getAdminLoginRecaptchaToken();
       const response = await fetch('/api/admin/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Origin: window.location.origin },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, recaptchaToken }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Khong the dang nhap');
@@ -40,7 +42,7 @@ function LoginForm() {
       <div className="w-full max-w-md overflow-hidden rounded-2xl border border-gray-800 bg-[#111319] shadow-2xl shadow-black/50">
         <div className="border-b border-gray-800 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,.25),_transparent_48%)] p-8">
           <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 text-red-400"><ShieldCheck /></div>
-          <h1 className="text-2xl font-black tracking-tight">HACOM Admin</h1>
+          <h1 className="text-2xl font-black tracking-tight">TrucTiepGAME Admin</h1>
           <p className="mt-2 text-sm text-gray-400">Dang nhap de quan ly du lieu va noi dung he thong.</p>
         </div>
         <form onSubmit={submit} className="space-y-5 p-8">

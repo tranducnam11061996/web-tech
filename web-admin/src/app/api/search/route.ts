@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPublicSearchPayload } from '@/lib/publicSearch';
+import { jsonWithEtag } from '@/lib/httpCache';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
     const status = 'status' in payload ? Number(payload.status || 200) : 200;
     const { status: _status, ...body } = payload as Record<string, unknown>;
 
-    return NextResponse.json(body, { status, headers: publicCacheHeaders });
+    return jsonWithEtag(request, body, { status, headers: publicCacheHeaders });
   } catch (error) {
     console.error('[Search API] Error:', error);
     return NextResponse.json(

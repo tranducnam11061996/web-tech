@@ -113,7 +113,7 @@ function CartRow({
         className="w-20 h-20 md:w-24 md:h-24 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center overflow-hidden"
       >
         <ProgressiveImage
-          src={item.thumbnail || "https://placehold.co/300x300/1f2937/a1a1aa?text=HACOM"}
+          src={item.thumbnail || "https://placehold.co/300x300/1f2937/a1a1aa?text=TrucTiepGAME"}
           alt={item.name}
           className="w-full h-full object-contain p-2"
         />

@@ -1,231 +1,150 @@
 # Admin and Search Migration Guide
 
-Last audited: 2026-07-09
+Last verified: `2026-07-11`
 
-This guide is for database-changing scripts in `web-admin`. Read it before running migrations on any shared or production-like database.
+Read this before any schema-changing command. The configured local database has received the latest additive admin migration; no other environment should be assumed migrated.
 
-## Safety Rules
+## Safety rules
 
-- Admin write paths are intentionally gated by `ADMIN_WRITE_ENABLED=true`.
-- Search migration scripts mutate the database directly. Run them only after checking `DB_HOST`, `DB_PORT`, `DB_USER`, and `DB_NAME`.
-- Take a database backup before changing production.
-- Do not assume a migration already ran just because the code exists.
-- Prefer running scripts from `D:\web-tech\web-admin`.
+- Identify and back up the target database before enabling writes.
+- Admin migration requires `ADMIN_WRITE_ENABLED=true`; this guard must remain in place.
+- Run migrations from `D:\web-tech\web-admin` with production secrets supplied outside Git.
+- Do not modify legacy engines, collations, columns, or data unless a dedicated migration/rollback plan explicitly requires it.
+- Prefer additive, idempotent `CREATE TABLE IF NOT EXISTS`/compatible helper-column changes.
+- After migration, verify readiness, table/index definitions, application build, and core smoke flows before serving traffic.
 
-## Current Live State
+## Configured local database state
 
-Verified against the configured database on 2026-07-07:
+Read-only verification on `2026-07-11` found 280 tables: 152 InnoDB and 128 MyISAM. The latest admin migration completed successfully and the following groups exist:
 
-| Object | State |
-| --- | --- |
-| `product_data_search` | Present, InnoDB, `utf8mb4_unicode_ci`, 28,763 rows |
-| `webtech_normalize_product_search` | Present |
-| `webtech_product_search_after_insert` | Present |
-| `webtech_product_search_after_update` | Present |
-| `fk_product_data_search_product` | Present |
-| `web_admin_sequence` | Present, row `product -> 90788` |
-| `web_admin_entity_registry` | Present, empty |
-| `web_admin_product_images` | Not present in live DB at audit time; implemented in code and created by admin migration when writes are enabled |
-| `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items` | Implemented in code and created/updated by admin migration |
-| `web_admin_banner_meta` | Implemented in code and created by admin migration |
-| `web_admin_product_card_attribute_rules` | Implemented in code, created and seeded by admin migration |
-| `web_admin_category_feature_boxes` | Implemented in code and created by admin migration |
+- Admin sequence/entity registry, access/RBAC/audit infrastructure.
+- Product images, managed menus, banner metadata, product-card rules, and category feature boxes.
+- Voucher/category/redemption tables.
+- Storefront customer registration/password/session/OTP/attempt/address/order-link/metrics tables.
+- `web_admin_order_requests`, `web_admin_request_limits`, `web_admin_email_outbox`, `web_admin_cache_versions`, and `web_admin_webhook_nonces`.
 
-## Environment
+The exact 28,763 product/search counts and zero missing search rows were last verified on `2026-07-07`; re-query before relying on them.
 
-Required `.env.local` keys:
+## Admin migration
 
-```env
-DB_HOST=...
-DB_PORT=3306
-DB_USER=...
-DB_PASSWORD=...
-DB_NAME=web_tech
-```
-
-For admin write migrations and write APIs:
-
-```env
-ADMIN_WRITE_ENABLED=true
-ADMIN_DRY_RUN=false
-```
-
-For uploaded product images:
-
-```env
-MEDIA_ROOT=D:\web-tech\media
-MEDIA_BASE_URL=/api/media
-```
-
-## Admin Migration
-
-Purpose:
-
-- Create helper tables used by admin write flows.
-- Seed `web_admin_sequence`.
-- Create/update the product image album metadata table.
-- Create/seed the menu draft-publish tables.
-- Create banner metadata, product-card attribute rule, and category feature-box tables.
-- Create transactional storefront voucher tables: `web_admin_vouchers`, `web_admin_voucher_categories`, and `web_admin_voucher_redemptions`.
-
-Command:
+The script calls the current ensure functions for admin core/access, product images, menus, banners, badges, category feature boxes, vouchers, storefront orders, customer accounts, and performance/security infrastructure.
 
 ```powershell
 cd D:\web-tech\web-admin
 $env:ADMIN_WRITE_ENABLED='true'
-$env:ADMIN_DRY_RUN='false'
 npm.cmd run admin:migrate
 ```
 
-Expected current behavior without the write flag:
+Without the flag the expected result is:
 
 ```text
 ADMIN_WRITE_ENABLED must be true to run admin migrations.
 ```
 
-That failure is intentional and means the safety gate is working.
+Disable or unset the flag after migration if the environment should not permit admin writes.
 
-## Search Migration
+## Search migration and rebuild
 
-Purpose:
-
-- Create `product_data_search`.
-- Recreate the normalize function.
-- Recreate insert/update triggers on `idv_sell_product_store`.
-- Rebuild search text for all products.
-
-Command:
+`search:migrate` creates/recreates `product_data_search`, the normalize function, insert/update triggers, and search rows. It is destructive to those search infrastructure objects and should not be run as a routine deployment step.
 
 ```powershell
-cd D:\web-tech\web-admin
 npm.cmd run search:migrate
 ```
 
-The search migration is already reflected in the audited database. Re-running it should be done only when you deliberately want to recreate the search infrastructure.
-
-## Search Rebuild Only
-
-Purpose:
-
-- Refresh `product_data_search.data_search` from current product data without recreating triggers/function.
-
-Command:
+Use rebuild when only search text needs refreshing:
 
 ```powershell
-cd D:\web-tech\web-admin
 npm.cmd run search:rebuild
 ```
 
-## Verification Queries
+Production search runtime is in `web-admin`; `search-tool` is historical reference only.
 
-Check search table health:
+## Post-migration verification
 
 ```sql
-SELECT COUNT(*) AS product_count FROM idv_sell_product_store;
-SELECT COUNT(*) AS search_count FROM product_data_search;
-
-SELECT COUNT(*) AS missing_count
-FROM idv_sell_product_store p
-LEFT JOIN product_data_search s ON s.product_id = p.id
-WHERE s.product_id IS NULL;
+SELECT COUNT(*) AS total_tables,
+       SUM(engine = 'InnoDB') AS innodb_tables,
+       SUM(engine = 'MyISAM') AS myisam_tables
+FROM information_schema.tables
+WHERE table_schema = DATABASE();
 ```
 
-Expected audited values:
-
-| Query | Value |
-| --- | --- |
-| `product_count` | 28,763 |
-| `search_count` | 28,763 |
-| `missing_count` | 0 |
-
-Check search infrastructure:
-
 ```sql
-SHOW TRIGGERS LIKE 'idv_sell_product_store';
-SHOW FUNCTION STATUS WHERE Db = DATABASE() AND Name = 'webtech_normalize_product_search';
-SHOW CREATE TABLE product_data_search;
-```
-
-Check admin image table after admin migration:
-
-```sql
-SHOW CREATE TABLE web_admin_product_images;
-SHOW INDEX FROM web_admin_product_images;
-```
-
-Check new content/helper tables after admin migration:
-
-```sql
-SHOW CREATE TABLE web_admin_menus;
-SHOW CREATE TABLE web_admin_menu_versions;
-SHOW CREATE TABLE web_admin_menu_items;
-SHOW CREATE TABLE web_admin_banner_meta;
-SHOW CREATE TABLE web_admin_product_card_attribute_rules;
-SHOW CREATE TABLE web_admin_category_feature_boxes;
-```
-
-Fast existence check:
-
-```sql
-SELECT TABLE_NAME
+SELECT table_name, engine
 FROM information_schema.tables
 WHERE table_schema = DATABASE()
-  AND TABLE_NAME IN (
+  AND table_name IN (
     'web_admin_product_images',
     'web_admin_menus',
     'web_admin_menu_versions',
     'web_admin_menu_items',
     'web_admin_banner_meta',
     'web_admin_product_card_attribute_rules',
-    'web_admin_category_feature_boxes'
+    'web_admin_category_feature_boxes',
+    'web_admin_vouchers',
+    'web_admin_voucher_categories',
+    'web_admin_voucher_redemptions',
+    'web_admin_storefront_customers',
+    'web_admin_customer_sessions',
+    'web_admin_order_requests',
+    'web_admin_request_limits',
+    'web_admin_email_outbox',
+    'web_admin_cache_versions',
+    'web_admin_webhook_nonces'
   )
-ORDER BY TABLE_NAME;
+ORDER BY table_name;
 ```
 
-## Product Image Migration Status
+```sql
+SHOW CREATE TABLE web_admin_order_requests;
+SHOW CREATE TABLE web_admin_request_limits;
+SHOW CREATE TABLE web_admin_email_outbox;
+SHOW CREATE TABLE web_admin_cache_versions;
+SHOW CREATE TABLE web_admin_webhook_nonces;
+SHOW INDEX FROM web_admin_customer_sessions;
+SHOW INDEX FROM web_admin_voucher_redemptions;
+```
 
-The code now supports album-based product images:
+Application verification:
 
-- `product`: product images.
-- `self`: Hacom/self-shot images.
-- `customer`: customer images.
+```powershell
+npm.cmd run test:unit
+npm.cmd run test:integration
+npm.cmd run build
+npm.cmd run start
+npm.cmd run local:healthcheck
+```
 
-The intended new table is `web_admin_product_images`. At the 2026-07-07 audit, this table was not yet present in the live database because admin migrations had not been run with writes enabled.
+Confirm `/api/health/ready` returns `200`. Then smoke product images, managed content, voucher/customer/admin flows, order idempotency, outbox processing, and cache invalidation.
 
-Legacy image fields remain important:
+## Operational inspection and cleanup
 
-- `idv_sell_product_store.proThum`
-- `idv_sell_product_store.image_collection`
-- `idv_sell_product_store.image_count`
+Use aggregate/status queries and avoid exposing sensitive payloads:
 
-After admin image writes, the code syncs metadata back to those legacy fields so existing list pages and APIs keep working.
+```sql
+SELECT status, COUNT(*) FROM web_admin_order_requests GROUP BY status;
+SELECT status, COUNT(*) FROM web_admin_email_outbox GROUP BY status;
+SELECT cache_key, version, updated_at FROM web_admin_cache_versions ORDER BY cache_key;
+SELECT COUNT(*) AS expired_limits FROM web_admin_request_limits WHERE expires_at < UTC_TIMESTAMP();
+SELECT COUNT(*) AS expired_nonces FROM web_admin_webhook_nonces WHERE expires_at < UTC_TIMESTAMP();
+```
 
-## Menu, Banner, Product Card Badge, and Category Feature Migration Status
+The background worker removes expired runtime rows in bounded batches and sends outbox entries with retry/backoff. Do not replace it with unbounded deletes in request handlers.
 
-`admin:migrate` currently calls:
+## Vietnam location catalog
 
-- `ensureAdminTables()`
-- `ensureProductImageTable()`
-- `ensureHeaderMenuSeeded()`
-- `ensureBannerMetaTable()`
-- `ensureProductCardAttributeRulesTable()`
-- `ensureCategoryFeatureBoxTable()`
+The admin migration creates UTF-8 helper storage for the current two-level address model without changing legacy `province_*` data. Run the explicit sync only when refreshing the last-known-good catalog:
 
-New helper tables and columns:
+```powershell
+npm.cmd run locations:sync
+```
 
-- `web_admin_menus`: `id`, `code`, `name`, `created_at`, `updated_at`.
-- `web_admin_menu_versions`: `id`, `menu_id`, `version_number`, `status`, `settings_json`, `created_at`, `updated_at`, `published_at`.
-- `web_admin_menu_items`: `id`, `version_id`, `area`, `parent_id`, `node_type`, `label`, `icon_key`, `badge_text`, `suffix_text`, `background_color`, `image_url`, `sub_text`, `link_mode`, `entity_type`, `entity_id`, `custom_url`, `url_override`, `ordering`, `is_active`, `desktop_visible`, `mobile_visible`, `created_at`, `updated_at`.
-- `web_admin_banner_meta`: `ad_id`, `mobile_file_url`, `alt_text`, `headline`, `subheading`, `cta_label`, `background_color`, `text_color`, `render_mode`, `style_json`, `updated_at`.
-- `web_admin_product_card_attribute_rules`: `id`, `category_id`, `attr_id`, `slot`, `color_variant`, `label_template`, `value_mode`, `max_values`, `ordering`, `status`, `inherit_to_children`, `updated_at`.
-- `web_admin_category_feature_boxes`: `category_id`, `homepage_enabled`, `category_page_enabled`, `box_position`, `render_mode`, `background_image_url`, `mobile_background_image_url`, `target_url`, `headline`, `subheading`, `cta_label`, `text_color`, `overlay_color`, `button_style_json`, `updated_at`.
+New addresses store province/ward codes plus name snapshots; existing legacy three-tier addresses retain their legacy schema marker. Runtime should continue serving cached DB data if the upstream provider is unavailable.
 
-No legacy table column is added for these features. `idv_seller_category`, `idv_seller_ad`, and attribute tables remain canonical for their legacy data.
+## Rollback principles
 
-## Rollback Notes
-
-- Do not drop `product_data_search` without also changing `/api/search` and webhook/rebuild paths.
-- Do not remove search triggers unless a replacement sync path is ready.
-- Do not delete uploaded files outside `MEDIA_ROOT`.
-- If product image migration needs rollback, keep legacy fields populated before disabling the new table/code path.
-- If menu/banner/badge/category feature rollback is needed, disable the corresponding UI/API code before dropping `web_admin_*` helper tables. Legacy catalog/banner/category data should remain untouched.
+- Disable dependent UI/API behavior before removing any helper table; prefer forward-fix migrations.
+- Do not drop search tables/functions/triggers without a replacement synchronization path.
+- Do not delete uploaded files outside the verified `MEDIA_ROOT` path.
+- Preserve legacy product image fields before disabling the helper-table reader/writer.
+- Never attempt to roll back a transaction across MyISAM tables as though it were fully transactional.

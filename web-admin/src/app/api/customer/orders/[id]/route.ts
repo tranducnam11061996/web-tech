@@ -1,0 +1,2 @@
+import { CustomerAuthError, getCustomerOrder } from '@/lib/customerAccounts'; import { customerError, customerOk } from '@/lib/customerRoute';
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) { try { const id=Number((await context.params).id); if(!Number.isInteger(id)||id<=0) throw new CustomerAuthError(400,'INVALID_ORDER','Mã đơn hàng không hợp lệ.'); return customerOk(await getCustomerOrder(request,id)); } catch (error) { return customerError(error); } }

@@ -1,201 +1,136 @@
 # HACOM Architecture
 
-Last audited: `2026-07-09`
+Last verified: `2026-07-11`
 
-## Boundaries
-
-```mermaid
-flowchart LR
-  FE["font-end\nNext.js 15 storefront"] --> API["web-admin REST APIs\nNext.js 16"]
-  ADMIN["web-admin dashboard"] --> API
-  API --> DB["hanoi23_db\nMySQL legacy DB"]
-  API --> MEDIA["D:\\web-tech\\media\nproduct upload files"]
-```
-
-- `web-admin` is the only app that may connect to `hanoi23_db`.
-- `font-end` uses `NEXT_PUBLIC_API_URL` or local rewrites to call `web-admin`.
-- Product upload files live outside the Next app under `MEDIA_ROOT`; `/api/media/[...path]` serves them.
-- Admin mutations are gated by `ADMIN_WRITE_ENABLED=true`.
-
-## Product/Category Slug Flow
+## System boundaries and runtime
 
 ```mermaid
 flowchart LR
-  Browser["Browser /slug"] --> Page["font-end app/[slug]/page.tsx"]
-  Page --> ProductAPI["GET web-admin /api/products/[slug]"]
-  ProductAPI --> UrlTable["idv_url"]
-  ProductAPI --> ProductTables["product tables"]
-  ProductAPI --> ImageMeta["web_admin_product_images if present\nfallback image_collection"]
-  ProductAPI --> Page
+  Browser["Customer or admin browser"] --> Caddy["Caddy: TLS, compression, limits, security headers"]
+  Caddy --> Store["Storefront worker\nNext.js 16 :3001"]
+  Caddy --> API1["web-admin worker 1\nNext.js 16 :3000"]
+  Caddy --> API2["web-admin worker 2\nNext.js 16 :3000"]
+  Store --> API1
+  Store --> API2
+  API1 --> MySQL["MySQL legacy + web_admin_* tables"]
+  API2 --> MySQL
+  Worker["Background worker\noutbox + cleanup"] --> MySQL
+  API1 --> Media["MEDIA_ROOT"]
+  API2 --> Media
 ```
 
-`/api/products/[slug]` returns either a category payload or product payload. Product payload keeps legacy `images: string[]` and also returns typed image data:
+- `web-admin` owns all MySQL access, public/admin/customer APIs, admin UI, media serving, and background jobs.
+- `font-end` owns the customer UI and calls `web-admin`; it never receives DB credentials.
+- `search-tool` is a historical prototype. Production search is part of `web-admin`.
+- PM2 configuration starts two API/admin workers, one storefront worker, and one background worker. Each API worker defaults to a 12-connection pool with bounded queue/connect timeouts.
+- Liveness checks the process. Readiness checks DB connectivity and required performance tables.
 
-```ts
+## Public read flow and cache
+
+```mermaid
+sequenceDiagram
+  participant B as Browser/storefront
+  participant A as API worker
+  participant C as Worker-local cache
+  participant V as web_admin_cache_versions
+  participant D as MySQL
+  B->>A: GET product/menu/homepage/search
+  A->>V: Poll version periodically
+  A->>C: Normalized bounded cache key
+  alt Fresh or stale-while-rebuild value
+    C-->>A: Reduced public payload
+  else Cache miss
+    A->>D: Bounded query/parallel reads
+    D-->>A: Runtime data
+    A->>C: Store bounded result
+  end
+  A-->>B: ETag + cache headers, or 304
+```
+
+- Menu, banner, homepage, product, category, and search routes return runtime-only fields.
+- Search and other expensive refreshes use single-flight behavior so one worker rebuilds once per cache key.
+- Admin mutations bump a DB-backed cache version. Other workers observe it and clear their local cache.
+- Query, filter count, page, limit, product count, and cart cardinality are bounded to protect CPU, memory, and cache-key growth.
+
+## Checkout, voucher, and email flow
+
+```mermaid
+sequenceDiagram
+  participant F as Checkout UI
+  participant A as POST /api/orders
+  participant R as reCAPTCHA/rate limit
+  participant D as MySQL transaction
+  participant W as Background worker
+  F->>F: Generate UUID Idempotency-Key
+  F->>A: Validated order + CAPTCHA + key
+  A->>A: Body/origin/schema/honeypot checks
+  A->>R: Verify action + consume IP/identity buckets
+  A->>D: Begin only after pre-DB checks
+  D->>D: Claim idempotency and quote once
+  D->>D: Lock voucher row FOR UPDATE
+  D->>D: Insert order + bulk items + customer link/metrics
+  D->>D: Enqueue email + persist replay response
+  D-->>A: Commit
+  A-->>F: Order response with request ID
+  W->>D: Claim pending outbox entry
+  W->>W: Send email with retry/backoff
+```
+
+- Client price, voucher state, customer ID, payment state, and ownership data are never authoritative.
+- `Idempotency-Key` is required. Same key/same payload replays the stored response; same key/different payload returns `409`.
+- Voucher quota and redemption share the order transaction. Limited vouchers cannot decrement below zero.
+- Email is outside request latency but its outbox record is committed atomically with the order.
+
+## Customer authentication and forms
+
+- Registration stores a short-lived challenge and hashed OTP; a customer row is created only after verification.
+- Login reads Argon2id and legacy bcrypt hashes. Successful bcrypt login opportunistically upgrades the stored hash.
+- Customer sessions store hashed tokens, absolute expiry, idle window, and sliding idle expiry. Session touch is throttled.
+- Anonymous high-risk actions use action-specific reCAPTCHA v3, honeypot/minimum-fill signals, and atomic rate-limit buckets by IP plus hashed identifier.
+- Authenticated customer writes require session/origin checks and rate limits; CAPTCHA is reserved for anomalous/step-up behavior.
+- Admin writes require session, RBAC, same-origin handling, audit logging, and the write gate. Admin login adds account/IP throttling and risk-based CAPTCHA.
+
+## API and error contract
+
+Public write failures use:
+
+```json
 {
-  images: string[];
-  imageItems: Array<{ url: string; alt: string; type: 'product' | 'self' | 'customer' }>;
-  imageGroups: {
-    product: imageItemsForProductAndSelf;
-    customer: imageItemsForCustomer;
-  };
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Human-readable Vietnamese message",
+    "fields": { "email": "Field-specific message" },
+    "requestId": "request-correlation-id"
+  }
 }
 ```
 
-## Category Listing Flow
+- Every response should include `X-Request-ID`; `429` also includes `Retry-After`.
+- Order creation additionally requires `Idempotency-Key` and `recaptchaToken`.
+- Signed search webhook requires `X-Webhook-Timestamp`, `X-Webhook-Nonce`, and `X-Webhook-Signature`.
+- Public CORS is restricted to the configured storefront origin; preflight does not emit wildcard origins.
 
-For category slugs, `font-end/src/app/[slug]/page.tsx` fetches initial data in parallel:
+## Database model
 
-- `GET /api/products?category_id=...`
-- `GET /api/categories?parentId=...`
-- `GET /api/categories/price-bounds?categoryId=...`
-- `GET /api/categories/attributes?categoryId=...`
+- Legacy catalog/content/order tables remain canonical where already used. Most are `latin1_swedish_ci`, and 128 tables remain MyISAM.
+- New transactional/security/runtime state lives in additive InnoDB `web_admin_*` tables.
+- No code should assume a physical FK exists between legacy tables.
+- Search uses `product_data_search` plus the normalize function, insert/update triggers, and FK to products.
+- Customer, voucher, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
 
-After hydration, `CategoryClient` fetches product list again when URL filters, sort, or page changes. Attribute/value data is sanitized on backend and defensively filtered again on frontend.
+The configured database snapshot on `2026-07-11` contains 280 tables: 152 InnoDB and 128 MyISAM. See `web-admin/database-docs/DATABASE_SCHEMA.md` for the current schema handoff.
 
-Category first-box metadata is category-scoped and stored outside the legacy category table:
+## Media security
 
-```mermaid
-flowchart LR
-  AdminCategory["web-admin /product/categories-edit"] --> FeatureTable["web_admin_category_feature_boxes"]
-  ProductListAPI["GET /api/products?category_id"] --> FeatureCache["category feature cache\nsingle-flight TTL 5m"]
-  SlugAPI["GET /api/products/[slug]"] --> FeatureCache
-  HomepageAPI["GET /api/categories/homepage-feature-sections"] --> FeatureCache
-  FeatureCache --> StorefrontBox["font-end CategoryFeatureBox"]
-```
+- Uploads are stored under `MEDIA_ROOT/ddMMyyyy/random-name.ext` and served through `/api/media/[...path]`.
+- Routes enforce size/extension/MIME/signature rules and ensure the resolved path stays under `MEDIA_ROOT`.
+- Product image metadata synchronizes to legacy thumbnail/collection/count fields until all consumers migrate.
 
-No column is added to `idv_seller_category` for this feature. The category edit page preserves all existing legacy fields and saves the extra first-box payload as `featureBox`.
+## Performance and release targets
 
-## Menu, Banner, and Homepage Content Flow
-
-```mermaid
-flowchart LR
-  MenuAdmin["/content/menu/header\n/content/menu/homepage"] --> MenuTables["web_admin_menus\nweb_admin_menu_versions\nweb_admin_menu_items"]
-  MenuTables --> HeaderAPI["GET /api/menu/header"]
-  MenuTables --> HomeMenuAPI["GET /api/menu/homepage"]
-  HeaderAPI --> Header["font-end Header"]
-  HomeMenuAPI --> HomeBlocks["Section2 / Section4"]
-
-  BannerAdmin["/banner/banner-list\n/banner/edit\n/banner/locations"] --> LegacyBanner["idv_seller_ad_location\nidv_seller_ad"]
-  BannerAdmin --> BannerMeta["web_admin_banner_meta"]
-  LegacyBanner --> BannerAPI["GET /api/banners/homepage"]
-  BannerMeta --> BannerAPI
-  BannerAPI --> Hero["font-end Section3 hero carousel"]
-```
-
-- Header menu data is all-site runtime data; homepage-only blocks are not required on every page.
-- Public menu and banner APIs use in-memory cache plus single-flight to reduce DB load during bursts.
-- Banner canonical data remains in the legacy banner tables; `web_admin_banner_meta` only stores modern optional display metadata.
-
-## Product Card Badge Flow
-
-```mermaid
-flowchart LR
-  BadgeAdmin["/product/card-attributes"] --> RuleTable["web_admin_product_card_attribute_rules"]
-  AttrTables["idv_attribute*\nidv_product_attribute"] --> BadgeBuilder["product-card badge builder"]
-  RuleTable --> BadgeBuilder
-  BadgeBuilder --> ProductsAPI["GET /api/products"]
-  BadgeBuilder --> SearchAPI["GET /api/search"]
-  ProductsAPI --> ProductCard["font-end ProductGridCard"]
-  SearchAPI --> ProductCard
-```
-
-Badge rules are category based. Attribute values stay canonical in legacy attribute tables; public product/search payloads include `cardBadges` so storefront pages do not request attributes per product card.
-
-## Search Flow
-
-```mermaid
-flowchart LR
-  SearchUI["font-end /tim or search UI"] --> SearchAPI["GET web-admin /api/search"]
-  SearchAPI --> Cache["in-memory searchCache\nTTL 60s"]
-  Cache --> Fuse["Fuse.js short/long indexes"]
-  Cache --> SearchDB["product_data_search"]
-  SearchDB --> Trigger["DB triggers on idv_sell_product_store"]
-```
-
-Search components:
-
-- DB table: `product_data_search(product_id PK, data_search TEXT)`.
-- DB function: `webtech_normalize_product_search`.
-- DB triggers: `webtech_product_search_after_insert`, `webtech_product_search_after_update`.
-- Code cache: `web-admin/src/lib/searchCache.ts`.
-- Ranking/facets: `web-admin/src/lib/productSearch.ts`.
-- Migration: `web-admin/src/lib/searchInfrastructure.ts`.
-- API: `web-admin/src/app/api/search/route.ts`.
-- Webhook cache update: `web-admin/src/app/api/webhook/update-search/route.ts`.
-
-The search cache joins products, prices, URLs, brands, and product attributes. It builds facets from `idv_product_attribute` and uses synonyms/exclusion rules in code.
-
-## Cart and Checkout Flow
-
-```mermaid
-flowchart LR
-  ProductDetail["Product detail"] --> CartLS["localStorage hacom.cart.v1"]
-  CartLS --> CartPage["/gio-hang"]
-  CartPage --> Quote["POST /api/cart/quote"]
-  Quote --> Price["idv_sell_product_price"]
-  CartPage --> Checkout["/thanh-toan"]
-  Checkout --> Order["POST /api/orders"]
-  Order --> Requote["shared cart quote logic"]
-  Requote --> Tx["MySQL transaction"]
-  Tx --> BuildBuy["build_buy"]
-  Tx --> BuildBuyItem["build_buy_item"]
-```
-
-Client prices are never trusted for orders. `POST /api/orders` re-quotes, validates available products, inserts `build_buy`, then inserts `build_buy_item` rows inside one transaction.
-
-## Product Image Upload Flow
-
-```mermaid
-flowchart LR
-  AdminTab["Admin product edit\nTabImages"] --> Upload["POST /api/admin/products/[id]/images/upload"]
-  Upload --> Disk["MEDIA_ROOT/ddMMyyyy/file"]
-  Upload --> ImageTable["web_admin_product_images"]
-  ImageTable --> Legacy["sync proThum/image_collection/image_count"]
-  Storefront["ProductCarousel"] --> Groups["imageGroups.product / imageGroups.customer"]
-```
-
-Image types:
-
-- `product`: official product images.
-- `self`: HACOM self-shot images; storefront groups these with product images.
-- `customer`: customer images; storefront shows these in a separate tab.
-
-Current code is implemented. Live DB audit did not show `web_admin_product_images` yet; run `admin:migrate` with writes enabled to create it.
-
-## Admin Write Model
-
-Admin helper tables:
-
-- `web_admin_sequence`: allocates new product ids.
-- `web_admin_entity_registry`: marks entities created by the new Admin API and protects legacy rows from permanent delete.
-- `web_admin_product_images`: image metadata table created by current code when admin migration/write path runs.
-- `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`: header/homepage menu draft-publish storage.
-- `web_admin_banner_meta`: optional metadata for legacy banner rows.
-- `web_admin_product_card_attribute_rules`: category/attribute display rules for product-card badges.
-- `web_admin_category_feature_boxes`: category-scoped first-box metadata for homepage/category layouts.
-
-Important rule: hide/restore legacy entities; permanent delete only for API-created entities in the registry.
-
-## Runtime DB Model
-
-Core tables:
-
-- Product: `idv_sell_product_store`, `idv_sell_product_price`, `idv_sell_product_info`.
-- Category: `idv_seller_category`, `idv_product_category`.
-- Attributes: `idv_attribute`, `idv_attribute_value`, `idv_attribute_category`, `idv_product_attribute`.
-- URLs: `idv_url`.
-- Orders: `build_buy`, `build_buy_item`.
-- Search: `product_data_search`.
-- Images legacy/reference: `idv_sell_product_image_name`, `idv_product_image_stock`, `idv_customer_product_image`, `product_image_folder_counter`.
-
-Legacy DB has partial/no physical FK coverage. Always validate and use transactions at app level.
-
-## Production Readiness Rules
-
-- Add auth before enabling admin writes in production.
-- Keep CORS allowlisted in production.
-- Add rate limiting/idempotency for public write endpoints.
-- Do not return raw DB errors from public APIs.
-- Keep TinyMCE loaded only through `RichTextEditor`.
-- Use `NODE_OPTIONS=--max-old-space-size=4096` for reliable local builds on this workspace.
+- Target host: one 8 vCPU/16 GB server running apps and MySQL.
+- Target usage: 1,500 online sessions, peak 150 RPS, up to 10 checkouts/s.
+- SLOs: public read p95 <300 ms, quote p95 <500 ms, order p95 <1.5 s excluding email, error rate <0.5%.
+- Frontend: LCP p75 <2.5 s, INP <200 ms, CLS <0.1.
+- The full production-like k6 test remains mandatory. Local benchmarks and health checks do not certify capacity.

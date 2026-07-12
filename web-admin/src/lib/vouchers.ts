@@ -42,6 +42,9 @@ export type VoucherQuote = {
 };
 
 const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+const CATEGORY_TREE_TTL_MS = 5 * 60_000;
+let categoryTreeCache: { expiresAt: number; children: Map<number, number[]> } | null = null;
+let categoryTreeFlight: Promise<Map<number, number[]>> | null = null;
 
 function normalizeVoucherCode(value: unknown) {
   return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -158,16 +161,30 @@ async function getVoucherCategories(db: DbExecutor, voucherId: number) {
   return rows.map((row) => ({ id: Number(row.category_id), name: String(row.name || '').trim() })).filter((row) => row.id > 0);
 }
 
+async function getCategoryChildren() {
+  if (categoryTreeCache && categoryTreeCache.expiresAt > Date.now()) return categoryTreeCache.children;
+  if (categoryTreeFlight) return categoryTreeFlight;
+  categoryTreeFlight = pool.query<RowDataPacket[]>('SELECT id, parentId FROM idv_seller_category')
+    .then(([categories]) => {
+      const children = new Map<number, number[]>();
+      for (const category of categories) {
+        const parentId = Number(category.parentId || 0);
+        const list = children.get(parentId) || [];
+        list.push(Number(category.id));
+        children.set(parentId, list);
+      }
+      categoryTreeCache = { children, expiresAt: Date.now() + CATEGORY_TREE_TTL_MS };
+      return children;
+    })
+    .finally(() => { categoryTreeFlight = null; });
+  return categoryTreeFlight;
+}
+
+export function invalidateVoucherCategoryCache() { categoryTreeCache = null; }
+
 async function getEligibleProductIds(db: DbExecutor, productIds: number[], rootCategoryIds: number[]) {
   if (rootCategoryIds.length === 0) return new Set(productIds);
-  const [categories] = await db.query<RowDataPacket[]>('SELECT id, parentId FROM idv_seller_category');
-  const children = new Map<number, number[]>();
-  for (const category of categories) {
-    const parentId = Number(category.parentId || 0);
-    const list = children.get(parentId) || [];
-    list.push(Number(category.id));
-    children.set(parentId, list);
-  }
+  const children = await getCategoryChildren();
   const targetCategories = new Set<number>(rootCategoryIds);
   const queue = [...rootCategoryIds];
   while (queue.length > 0) {
@@ -262,7 +279,7 @@ export async function reserveVoucherForOrder(
   if (quote.status !== 'applied' || !quote.voucherId) return;
   const [result] = await connection.query<ResultSetHeader>(`
     UPDATE web_admin_vouchers
-    SET remaining_quantity = remaining_quantity - 1
+    SET remaining_quantity = CASE WHEN quantity_mode='limited' THEN remaining_quantity - 1 ELSE remaining_quantity END
     WHERE id = ? AND (quantity_mode = 'unlimited' OR remaining_quantity > 0)
   `, [quote.voucherId]);
   if (result.affectedRows !== 1) {

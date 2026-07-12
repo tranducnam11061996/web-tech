@@ -229,7 +229,7 @@ function buildOrderHtml({
 
     <div class="footer">
       <p>Đây là email tự động. Vui lòng không trả lời email này.</p>
-      <p style="margin-top:4px;">HACOM &copy; ${new Date().getFullYear()}</p>
+      <p style="margin-top:4px;">TrucTiepGAME &copy; ${new Date().getFullYear()}</p>
     </div>
   </div>
 </body>
@@ -259,7 +259,7 @@ export async function sendOrderEmail(params: SendOrderEmailParams): Promise<bool
   const sender = parseSender();
   const from = sender
     ? `${sender.name ? sender.name + ' ' : ''}<${sender.email}>`
-    : 'HACOM <no-reply@hacom.vn>';
+    : 'TrucTiepGAME <no-reply@hacom.vn>';
 
   try {
     const transporter = getTransporter();
@@ -271,7 +271,7 @@ export async function sendOrderEmail(params: SendOrderEmailParams): Promise<bool
     await transporter.sendMail({
       from,
       to: params.to,
-      subject: `Xác nhận đơn hàng #${params.orderId} — HACOM`,
+      subject: `Xác nhận đơn hàng #${params.orderId} — TrucTiepGAME`,
       html,
     });
 

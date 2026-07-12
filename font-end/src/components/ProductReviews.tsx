@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function ProductReviews() {
   return (
-    <div className="card-box">
+    <div className="card-box scroll-mt-24" id="sec-reviews">
         <h3 className="font-bold text-lg text-white mb-6">Nhận xét và Đánh giá</h3>
         <div className="flex flex-col md:flex-row gap-8 items-center md:items-start border-b border-[#1a1a1e] pb-6 mb-6">
 

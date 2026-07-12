@@ -9,21 +9,21 @@ export default function SimilarProducts() {
     <section className="max-w-[1800px] mx-auto px-6 py-12" id="similar-products">
       <div className="bg-[#111115] border border-[#1a1a1e] rounded-2xl p-6 md:p-8">
         {/*  Tabs  */}
-        <div className="flex items-center gap-3 mb-8">
+        <div className="similar-products-tabs flex min-w-0 max-w-full items-center gap-3 mb-8 overflow-x-auto">
           <button
-            className={`rtab ${activeTab === "products" ? "active" : ""}`}
+            className={`rtab shrink-0 ${activeTab === "products" ? "active" : ""}`}
             onClick={() => setActiveTab("products")}
           >
             Similar Products <span className="badge">30</span>
           </button>
           <button
-            className={`rtab ${activeTab === "pages" ? "active" : ""}`}
+            className={`rtab shrink-0 ${activeTab === "pages" ? "active" : ""}`}
             onClick={() => setActiveTab("pages")}
           >
             Related Pages <span className="badge">14</span>
           </button>
           <button
-            className={`rtab ${activeTab === "posts" ? "active" : ""}`}
+            className={`rtab shrink-0 ${activeTab === "posts" ? "active" : ""}`}
             onClick={() => setActiveTab("posts")}
           >
             Related Posts <span className="badge">15</span>

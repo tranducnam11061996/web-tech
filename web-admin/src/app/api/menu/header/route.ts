@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getPublishedHeaderMenu } from '@/lib/admin/menus';
+import { getPublishedHeaderMenu } from '@/lib/publicMenus';
+import { jsonWithEtag } from '@/lib/httpCache';
 
 export const revalidate = 60;
 
@@ -14,7 +15,7 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const menu = await getPublishedHeaderMenu();
-  return NextResponse.json({ success: true, data: menu }, { headers: corsHeaders });
+  return jsonWithEtag(request, { success: true, data: menu }, { headers: corsHeaders });
 }

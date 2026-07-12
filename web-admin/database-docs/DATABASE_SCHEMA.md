@@ -1,26 +1,24 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-09`  
-Database: `hanoi23_db`  
+Verified: `2026-07-11`
+Database: `hanoi23_db`
 Source: live `information_schema` inspection
 
 ## Physical Summary
 
 | Metric | Value |
 |---|---:|
-| Total tables | 244 |
-| InnoDB tables | 116 |
+| Total tables | 280 |
+| InnoDB tables | 152 |
 | MyISAM tables | 128 |
-| `latin1_swedish_ci` tables | 243 |
-| `utf8mb4_unicode_ci` tables | 1 |
 
-The only audited `utf8mb4_unicode_ci` table in the live snapshot was `product_data_search`. New `web_admin_*` helper tables created by current migrations also use `utf8mb4`.
+Engine totals were re-queried on `2026-07-11` after the additive admin migration. The old collation totals (243 legacy `latin1_swedish_ci`, one `utf8mb4_unicode_ci`) were captured before the helper-table expansion and must be re-queried before being presented as current. New `web_admin_*` helper tables use an explicit modern character set where defined.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
 ## Latest Migration Note
 
-The latest feature work intentionally avoids adding columns to legacy tables such as `idv_seller_category`, `idv_seller_ad`, or attribute tables. New runtime/admin metadata is stored in helper tables:
+The additive admin migration was applied to the configured local database on `2026-07-11`. It intentionally avoids changing legacy catalog/content contracts and stores new runtime/admin state in helper tables including:
 
 - `web_admin_menus`
 - `web_admin_menu_versions`
@@ -28,6 +26,13 @@ The latest feature work intentionally avoids adding columns to legacy tables suc
 - `web_admin_banner_meta`
 - `web_admin_product_card_attribute_rules`
 - `web_admin_category_feature_boxes`
+- `web_admin_vouchers`, `web_admin_voucher_categories`, `web_admin_voucher_redemptions`
+- Storefront customer password/session/OTP/address/order-link/metrics tables
+- `web_admin_order_requests`
+- `web_admin_request_limits`
+- `web_admin_email_outbox`
+- `web_admin_cache_versions`
+- `web_admin_webhook_nonces`
 
 On older installs where menu tables were created before the latest menu fields, `admin:migrate` may add helper-table columns:
 
@@ -55,7 +60,7 @@ Main catalog table.
 | `proSummary`, `specialOffer`, `promotion`, `cond` | Product content/admin fields |
 | `postDate`, `lastUpdate` | Admin timestamps |
 
-Exact count at audit: `28,763` products.
+Exact count last verified on `2026-07-07`: `28,763` products. Re-query before treating it as current.
 
 ### `idv_sell_product_price`
 
@@ -177,6 +182,20 @@ Voucher runtime data is intentionally separate from legacy MyISAM `idv_coupon` t
 
 For limited vouchers, `remaining_quantity` is decremented only while creating the order and is incremented only when a pending order becomes failed or cancelled.
 
+## Storefront Customer Accounts
+
+Legacy `idv_customer*` tables remain read-only references. Modern storefront authentication is stored in InnoDB helper tables:
+
+- `web_admin_storefront_customers`: profile, normalized unique email/phone, verification and status.
+- `web_admin_customer_registration_challenges`: short-lived, hashed registration payload and OTP; a customer is inserted only after this challenge is verified.
+- `web_admin_customer_passwords`, `web_admin_customer_sessions`, `web_admin_customer_auth_codes`, `web_admin_customer_auth_attempts`: Argon2id credentials with legacy bcrypt read/upgrade support, hashed session tokens, email OTP and login throttling.
+- `web_admin_customer_addresses`: multiple customer-owned delivery addresses; default-address changes are transactional.
+- `web_admin_customer_oauth_identities`: reserved for future Google/Facebook/Zalo/GitHub identity links.
+- `web_admin_storefront_order_customer`: links new signed-in storefront orders to a customer without changing `build_buy`.
+- `web_admin_storefront_customer_metrics`: transactional read model for CRM list performance (order counts, completed spend, pending orders, and latest order); it is refreshed whenever a linked order is created or changes status.
+
+Location names are read from `province_list`, `province_district_list`, and `province_ward_list`; the customer tables store only their ids.
+
 ## Search Infrastructure
 
 ### `product_data_search`
@@ -188,7 +207,7 @@ Exists in live DB.
 | `product_id` | `int unsigned` | PK | Product id |
 | `data_search` | `text` | - | Normalized product search text |
 
-Exact count: `28,763`. It matches `idv_sell_product_store` count at audit, with `missing_count = 0`.
+Exact count last verified on `2026-07-07`: `28,763`. At that time it matched `idv_sell_product_store` with `missing_count = 0`; re-query before using these values as current health evidence.
 
 Indexes:
 
@@ -230,9 +249,9 @@ Code owners:
 
 ### `web_admin_product_images`
 
-The code defines this table in `web-admin/src/lib/admin/images.ts`, but the live audit did not find the table because `admin:migrate` was not run with `ADMIN_WRITE_ENABLED=true` after the image upload feature was added.
+This table exists in the configured local database. Read-only `information_schema` verification on `2026-07-11` reported an InnoDB table with an approximate `TABLE_ROWS` value of 39. Use `COUNT(*)` when an exact row count is required.
 
-Expected columns:
+Columns defined by the migration:
 
 - `id`
 - `product_id`
@@ -250,7 +269,7 @@ Expected columns:
 - `created_at`
 - `updated_at`
 
-Expected indexes:
+Indexes defined by the migration:
 
 - `(product_id, type)`
 - `(product_id, ordering)`
@@ -425,6 +444,16 @@ Indexes:
 - `idx_category_page_enabled(category_page_enabled)`.
 
 ## Admin Helper Tables
+
+### Performance and abuse-protection tables
+
+- `web_admin_order_requests`: unique hashed `Idempotency-Key`, payload hash, replay response and 24-hour expiry for storefront orders.
+- `web_admin_request_limits`: atomic per-scope hashed request counters and temporary blocks.
+- `web_admin_email_outbox`: transactional order-email queue with retry/backoff state.
+- `web_admin_cache_versions`: cross-worker cache invalidation versions while each worker keeps a bounded local cache.
+- `web_admin_webhook_nonces`: short-lived nonce hashes that prevent signed search-webhook replay.
+
+Customer sessions include `idle_window_seconds`; a throttled session touch advances `idle_expires_at` but never beyond the absolute `expires_at`.
 
 ### `web_admin_sequence`
 

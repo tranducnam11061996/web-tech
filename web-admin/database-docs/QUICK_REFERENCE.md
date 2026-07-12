@@ -1,6 +1,6 @@
 # Database Quick Reference
 
-Verified: `2026-07-09`  
+Verified: `2026-07-11`
 Database: `hanoi23_db`
 
 ## Core Product Read Model
@@ -87,7 +87,7 @@ SELECT
   ) AS missing_count;
 ```
 
-Expected at audit:
+Last exact result on `2026-07-07` (re-query before treating as current):
 
 ```text
 product_count = 28763
@@ -143,7 +143,16 @@ Never accept price/status from the client as trusted input.
 build_buy.id -> build_buy_item.order_id
 ```
 
-All order writes must be inside one transaction.
+Final quote, voucher row lock/redemption, order header, bulk items, signed-in customer link/metrics, idempotency completion, and email outbox enqueue must share one transaction. Never send order email before commit.
+
+Idempotency table:
+
+```text
+web_admin_order_requests(key_hash UNIQUE, payload_hash, status, order_id,
+response_json, expires_at)
+```
+
+Same key/same payload replays the stored response. Same key/different payload is a conflict.
 
 ## Product Images
 
@@ -153,7 +162,7 @@ Legacy product detail source:
 - `idv_sell_product_store.proThum`: legacy thumbnail.
 - `idv_sell_product_store.image_count`: legacy count.
 
-New metadata table planned/implemented in code:
+Current metadata table (present in the configured local database on `2026-07-11`):
 
 ```text
 web_admin_product_images(product_id, type, relative_path, alt, ordering, is_main, ...)
@@ -172,7 +181,7 @@ imageGroups.product = product + self
 imageGroups.customer = customer
 ```
 
-Live audit did not find `web_admin_product_images`; run `admin:migrate` with writes enabled before relying on it.
+Do not infer another environment's migration state from the local snapshot; verify the target database before relying on this table.
 
 ## Managed Menu Tables
 
@@ -287,7 +296,7 @@ SELECT COUNT(*) FROM idv_product_image_stock;
 SELECT COUNT(*) FROM web_admin_entity_registry;
 ```
 
-Audit values:
+Exact values last captured on `2026-07-07` (not re-counted on `2026-07-11`):
 
 | Table | Exact count |
 |---|---:|
@@ -304,3 +313,35 @@ Audit values:
 - Most legacy tables use `latin1_swedish_ci`; `product_data_search` uses `utf8mb4_unicode_ci`.
 - Attribute/icon/filter data can contain URL/script-like legacy values.
 - Do not add indexes or migrations without measuring query plans and having backup/rollback.
+
+## Performance and abuse infrastructure
+
+```text
+web_admin_request_limits      atomic scoped counters and temporary blocks
+web_admin_order_requests      order idempotency/replay state
+web_admin_email_outbox        transactional email queue and retry state
+web_admin_cache_versions      cross-worker invalidation versions
+web_admin_webhook_nonces      short-lived signed-webhook replay prevention
+```
+
+Useful read-only checks:
+
+```sql
+SELECT table_name, engine
+FROM information_schema.tables
+WHERE table_schema = DATABASE()
+  AND table_name IN (
+    'web_admin_request_limits',
+    'web_admin_order_requests',
+    'web_admin_email_outbox',
+    'web_admin_cache_versions',
+    'web_admin_webhook_nonces'
+  )
+ORDER BY table_name;
+
+SELECT status, COUNT(*) FROM web_admin_email_outbox GROUP BY status;
+SELECT status, COUNT(*) FROM web_admin_order_requests GROUP BY status;
+SELECT cache_key, version, updated_at FROM web_admin_cache_versions ORDER BY cache_key;
+```
+
+Do not display raw keys, identifier hashes, email bodies, or customer data in operational dashboards/logs.

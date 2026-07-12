@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { AdminAuthError, assertSameOrigin, changeOwnPassword } from '@/lib/admin/auth';
+import { ADMIN_SESSION_COOKIE, AdminAuthError, assertSameOrigin, changeOwnPassword } from '@/lib/admin/auth';
 
 export async function PATCH(request: Request) {
   try {
@@ -8,7 +8,7 @@ export async function PATCH(request: Request) {
     const body = await request.json().catch(() => ({}));
     await changeOwnPassword(request, body.currentPassword, body.newPassword);
     const cookieStore = await cookies();
-    cookieStore.set('admin_session', '', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 0 });
+    cookieStore.set(ADMIN_SESSION_COOKIE, '', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 0 });
     return NextResponse.json({ success: true, message: 'Da doi mat khau. Vui long dang nhap lai.' });
   } catch (error) {
     if (error instanceof AdminAuthError) {

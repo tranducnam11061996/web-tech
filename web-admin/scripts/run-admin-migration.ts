@@ -7,9 +7,14 @@ import { ensureProductCardAttributeRulesTable } from '../src/lib/productCardAttr
 import { ensureCategoryFeatureBoxTable } from '../src/lib/categoryFeatureBoxes';
 import { ensureVoucherTables } from '../src/lib/vouchers';
 import { ensureStorefrontOrderTables } from '../src/lib/storefrontOrders';
+import { ensureCustomerAccountTables } from '../src/lib/customerAccounts';
+import { ensureAdminAccessTables } from '../src/lib/admin/auth';
+import { ensurePerformanceInfrastructure } from '../src/lib/performanceInfrastructure';
 
 async function main() {
+  if (process.env.ADMIN_WRITE_ENABLED !== 'true') throw new Error('ADMIN_WRITE_ENABLED must be true to run admin migrations.');
   await ensureAdminTables();
+  await ensureAdminAccessTables();
   await ensureProductImageTable();
   await ensureHeaderMenuSeeded();
   await ensureBannerMetaTable();
@@ -17,6 +22,8 @@ async function main() {
   await ensureCategoryFeatureBoxTable();
   await ensureVoucherTables();
   await ensureStorefrontOrderTables();
+  await ensureCustomerAccountTables();
+  await ensurePerformanceInfrastructure();
   console.log('Admin migration completed.');
 }
 

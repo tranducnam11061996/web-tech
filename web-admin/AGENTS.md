@@ -1,88 +1,49 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# web-admin Agent Instructions
 
-This version may differ from the model's training data. Read relevant local Next.js docs and existing project patterns before changing framework behavior.
-<!-- END:nextjs-agent-rules -->
+Read root `../AGENTS.md` and `../AI_HANDOFF.md` first. This file adds backend/admin-specific rules.
 
-## Runtime Architecture
+## Ownership
 
-- This app uses Next.js `16.2.9` and is both the admin UI and REST backend.
-- It is the only app allowed to connect to MySQL.
-- Prefer `DATABASE_URL`; never add direct DB access to `font-end`.
-- Storefront APIs live under `src/app/api` and must preserve public response contracts.
-- Product price/status must be re-read from DB before order creation.
-- New order logic must use a transaction and share quote logic from `src/lib/cart-quote.ts`.
+- This application is the only MySQL owner and serves admin UI plus public/admin/customer APIs.
+- Use `src/lib/db.ts`; do not create per-request pools or database clients elsewhere.
+- Keep storefront-specific UI in `font-end`; keep secrets and privileged logic here.
 
-## Current Handoff Docs
+## Database and migrations
 
-Before major changes, read:
+- Writes and admin migration require `ADMIN_WRITE_ENABLED=true`.
+- Prefer additive InnoDB `web_admin_*` tables and measured indexes. Preserve legacy schema/encoding/engine contracts unless an explicit migration says otherwise.
+- Do not assume foreign keys/cascade exist on legacy tables or that MyISAM writes roll back.
+- Keep order, voucher, customer metrics, idempotency, and outbox mutations in the intended transaction.
+- Read `database-docs/ADMIN_MIGRATION_GUIDE.md` before any schema operation.
 
-- `D:\web-tech\AI_HANDOFF.md`
-- `D:\web-tech\ARCHITECTURE.md`
-- `D:\web-tech\PROJECT_PROGRESS.md`
-- `D:\web-tech\web-admin\database-docs\DATABASE_SCHEMA.md`
-- `D:\web-tech\web-admin\database-docs\ADMIN_MIGRATION_GUIDE.md`
+## API safety
 
-## Database And Migration Rules
+- Parse bounded bodies, enforce content type, validate through canonical schemas, and reject invalid commerce data instead of coercing it.
+- Public writes need request IDs, safe envelopes, origin/CORS checks, appropriate atomic rate limits, and applicable CAPTCHA/idempotency protections.
+- Admin writes need session, RBAC, same-origin behavior, write gate, and audit handling.
+- Never trust client price/status/ownership/payment/voucher state or expose raw SQL/exception details.
+- Preserve `Retry-After` for `429` and replay behavior for order idempotency.
 
-- Admin writes require `ADMIN_WRITE_ENABLED=true`.
-- Do not bypass the admin write gate for UI/API mutations.
-- `product_data_search` is live and synced by DB function/triggers plus rebuild scripts.
-- `admin:migrate` now creates/updates helper tables for product images, menu drafts, banner metadata, product-card badge rules, and category first boxes.
-- Required helper tables for current admin features: `web_admin_product_images`, `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`, `web_admin_banner_meta`, `web_admin_product_card_attribute_rules`, `web_admin_category_feature_boxes`.
-- No latest feature intentionally adds columns to legacy tables; new metadata should live in `web_admin_*` helper tables unless explicitly planned otherwise.
-- Keep legacy product image fields synced until all consumers stop reading `proThum`, `image_collection`, and `image_count`.
+## Security invariants
 
-## API Safety
+- Keep password compatibility: Argon2id for new writes, verify and upgrade valid legacy bcrypt.
+- Store sensitive tokens as hashes where designed. Never log OTPs, password/CAPTCHA/session tokens, secrets, or PII.
+- Keep production cookies Secure/HttpOnly/SameSite=Lax/path `/`, using `__Host-*` when supported.
+- Search webhook requires HMAC timestamp/nonce verification; upload routes require binary signature and path-containment checks.
 
-- Validate request types and ranges; do not silently coerce invalid commerce input.
-- Do not return raw SQL/DB errors in production responses.
-- Keep CORS headers consistent, but use an origin allowlist in production.
-- Public write endpoints need rate limiting, idempotency, and abuse protection.
-- Use `Promise.all` for independent queries and keep count queries minimal.
+## Performance invariants
 
-## Search Rules
+- Keep DB pool/queue/timeouts bounded; acquire a connection only after cheap validation/abuse checks.
+- Keep public cache keys normalized/bounded, refresh single-flight, and bump shared cache versions after mutations.
+- Preserve reduced public response shapes and ETag/conditional GET behavior.
+- Do not add per-item queries or sequential inserts to hot catalog/checkout paths.
 
-- Public search should use `product_data_search`.
-- Search owner files:
-  - `src/lib/searchInfrastructure.ts`
-  - `src/lib/searchCache.ts`
-  - `src/lib/productSearch.ts`
-  - `src/app/api/search/route.ts`
-  - `src/app/api/webhook/update-search/route.ts`
-- Use `npm.cmd run search:rebuild` to refresh rows.
-- Use `npm.cmd run search:migrate` only when intentionally recreating table/function/triggers.
+## UI/editor rules
 
-## Product Image Album Rules
+- Keep TinyMCE loading inside `RichTextEditor`, never the root layout.
+- Preserve vertical-only resizing for long-form editors via the existing `resizable` behavior.
+- Admin forms should provide field errors and keyboard/focus support, but ordinary authenticated forms should not show CAPTCHA unless step-up verification is required.
 
-- Valid image types are `product`, `self`, and `customer`.
-- Storefront product tab contains `product + self`.
-- Storefront customer tab contains only `customer`.
-- Uploaded files must stay under `MEDIA_ROOT`.
-- Do not delete physical files unless the resolved path is inside `MEDIA_ROOT`.
+## Verification
 
-## TinyMCE Loading
-
-- Do not add TinyMCE back to `src/app/layout.tsx`.
-- Load `/tinymce.min.js` only from `RichTextEditor` via `next/script`.
-- Keep all TinyMCE assets local under `public/`; no CDN/cloud dependency.
-
-## Admin UI Guidelines
-
-- Do not include top breadcrumbs unless specifically requested.
-- Do not add warning banners unless specifically requested.
-- All user-facing warning text, instructional text, and button labels must use proper Vietnamese with diacritics when displayed in the admin UI.
-- Use the full workspace width; avoid unnecessary `max-width` wrappers on admin work screens.
-- Keep outer workspace padding compact.
-- Edit/create screens should prioritize readability: use larger labels, taller form controls, clearer spacing, and comfortable multi-column layouts on desktop while collapsing cleanly on mobile.
-- Use `RichTextEditor` only for primary rich content fields. Use normal inputs/textareas for SEO metadata, keywords, and simple descriptions.
-- Every admin `RichTextEditor` used for long-form content should enable vertical resizing with the `resizable` prop so users can expand/collapse editor height without changing layout width.
-- Keep the existing dark tech visual style unless the task explicitly asks for redesign.
-
-## Reusable Modules
-
-- Product search action: `src/actions/product.ts`
-- Shared pagination: `src/components/shared/Pagination.tsx`
-- Product selection modal: `src/components/shared/ProductSelectModal.tsx`
-
-Reuse these modules instead of creating duplicate implementations.
+Run TypeScript, ESLint `--quiet`, unit/integration tests, production build, and the local healthcheck as documented in root `AGENTS.md`. Full k6 is a staging release gate, not a local development command.

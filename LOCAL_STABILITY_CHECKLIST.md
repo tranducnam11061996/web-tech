@@ -1,33 +1,45 @@
 # Local Stability Checklist
 
-Use this checklist before merging a meaningful feature and before deciding that the local environment is ready for staging.
+Last updated: `2026-07-11`
 
-## Start and verify
+Use this before merging meaningful changes or promoting a build to staging.
 
-1. Start MySQL, then start `web-admin` on port 3000 and `font-end` on port 3001.
-2. Run `npm run db:indexes` from `web-admin` once after a fresh local database restore.
-3. Run `npm run admin:access-migrate` from `web-admin` after a fresh local database restore.
-4. Run `npm run db:explain-hot` from `web-admin`; review plans for unexpected full table scans on the hot routes.
-5. Run `npm run local:healthcheck` from `web-admin` while both applications are running.
-6. Run `npm run build` in `web-admin` and `font-end` before a major merge.
+## Environment and migration
 
-## Manual smoke coverage
+- [ ] Confirm the intended database host/name before enabling any writes.
+- [ ] Copy committed examples to ignored local env files; never add real secrets to Git.
+- [ ] Run additive admin migration only when required: set `ADMIN_WRITE_ENABLED=true`, run `npm.cmd run admin:migrate`, then disable the flag if local writes are not needed.
+- [ ] Confirm `/api/health/ready` returns `200`; `migration_required` means required runtime tables are absent.
+- [ ] Run `db:indexes`, `admin:access-migrate`, or search migrations only when their documented preconditions apply.
 
-- Home, a large category, root product/category slug, product detail, search, and collection detail.
-- Price filters, sorting, pagination, cart quote, and checkout validation. Use a test customer only; do not create production-like orders during routine smoke checks.
-- Admin product, category, collection, collection-product, and pagination flows.
-- Admin login, forced password change, logout, role visibility, blocked account, and direct API `401`/`403` responses.
-- Desktop and a 375px viewport: no horizontal scroll, console errors, or broken keyboard focus.
+## Processes
 
-## Local performance baseline
+- [ ] Start MySQL, `web-admin` on 3000, storefront on 3001, and the background worker when testing outbox/cleanup.
+- [ ] Confirm `/api/health/live`, `/api/health/ready`, and storefront `/` return `200`.
+- [ ] Inspect worker output for repeated outbox/cleanup failures without exposing message content or customer data.
 
-- Record response time for `/api/products`, `/api/search`, `/api/products/[slug]`, and `/api/collections/[slug]` after cold start and after warm cache.
-- Keep the search cache TTL configurable with `SEARCH_CACHE_TTL_MS`; the default is five minutes to avoid repeated full in-memory rebuilds.
-- Re-run `db:explain-hot` whenever a query, schema, or product-import job changes.
-- Run a small repeat-request pass only after smoke tests pass. Keep it local and stop if database CPU or error rates rise unexpectedly.
+## Automated checks
 
-## Secrets and local data
+- [ ] Run TypeScript, ESLint `--quiet`, and production build in both applications.
+- [ ] Run `test:unit` and `test:integration` from `web-admin`.
+- [ ] Run `npm.cmd audit` in both applications and review any nonzero result.
+- [ ] Run `npm.cmd run local:healthcheck`; require all 13 checks to pass.
+- [ ] Run `git diff --check` and inspect `git status --short` before handoff.
 
-- Copy from `.env.example` into an ignored local `.env`; never put real credentials in example files.
-- Rotate credentials that were previously committed before any internet-facing deployment.
-- Do not commit `.next`, `node_modules`, database exports, screenshots containing customer data, or local environment files.
+## Manual functional/security smoke
+
+- [ ] Browse homepage, large category, product, collection, search, cart, and account pages on desktop and 375px width.
+- [ ] Test valid/invalid quote and checkout without submitting an unintended real order.
+- [ ] Verify duplicate order submissions reuse the same idempotency key and do not create duplicate rows.
+- [ ] Verify invalid origin, missing order key, malformed payload, unsigned webhook, and unauthenticated admin API produce safe errors.
+- [ ] Test register/login/OTP/reset/address forms for validation, retained values, field errors, `429` countdown, keyboard focus, and network failure.
+- [ ] Test admin login, forced password change, logout, role visibility, blocked user, and direct `401`/`403` behavior.
+- [ ] Confirm no raw SQL error, secret, password/OTP hash, CAPTCHA token, or customer PII appears in browser/server logs.
+
+## Local performance
+
+- [ ] Record cold/warm products, search, homepage bootstrap, product detail, and collection timings with `local:benchmark`.
+- [ ] Re-run `db:explain-hot` after query/schema/import changes and investigate unexpected hot full scans.
+- [ ] Confirm cache invalidation reaches both API workers when testing clustered runtime.
+
+Local timing and repeat-request checks are regression signals only. They do not replace the production-like k6 release gate.

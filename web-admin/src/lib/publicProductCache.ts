@@ -1,3 +1,5 @@
+import pool from '@/lib/db';
+
 type CacheEntry<T> = {
   value: T;
   expiresAt: number;
@@ -8,6 +10,8 @@ const MAX_CACHE_ITEMS = 200;
 const productResponseCache = new Map<string, CacheEntry<unknown>>();
 const productResponseFlights = new Map<string, Promise<unknown>>();
 const metrics = { hits: 0, misses: 0, coalesced: 0, staleFallbacks: 0 };
+let sharedVersion = 0;
+let nextVersionCheckAt = 0;
 
 function touchCacheKey(key: string, entry: CacheEntry<unknown>) {
   productResponseCache.delete(key);
@@ -25,6 +29,8 @@ function trimCache() {
 export function clearPublicProductResponseCache() {
   productResponseCache.clear();
   productResponseFlights.clear();
+  void pool.query(`INSERT INTO web_admin_cache_versions(cache_key,version) VALUES('public_products',2)
+    ON DUPLICATE KEY UPDATE version=version+1`).catch(() => undefined);
 }
 
 export function getPublicProductCacheStats() {
@@ -37,6 +43,18 @@ export async function withPublicProductResponseCache<T>(
   ttlMs = 60_000,
   staleMs = 300_000,
 ): Promise<T> {
+  if (Date.now() >= nextVersionCheckAt) {
+    nextVersionCheckAt = Date.now() + 5_000;
+    try {
+      const [rows] = await pool.query(`SELECT version FROM web_admin_cache_versions WHERE cache_key='public_products' LIMIT 1`);
+      const version = Number((rows as any[])[0]?.version || 0);
+      if (sharedVersion && version && version !== sharedVersion) {
+        productResponseCache.clear();
+        productResponseFlights.clear();
+      }
+      sharedVersion = version;
+    } catch { /* migration may not have run yet */ }
+  }
   const now = Date.now();
   const cached = productResponseCache.get(key) as CacheEntry<T> | undefined;
   if (cached && cached.expiresAt > now) {

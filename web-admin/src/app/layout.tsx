@@ -3,8 +3,9 @@ import './globals.css';
 import { AdminShell } from '@/components/layout/AdminShell';
 
 export const metadata: Metadata = {
- title: 'HACOM Admin | Tech & Gaming',
- description: 'Hệ thống quản lý chuyên nghiệp cho HACOM',
+  title: 'TrucTiepGAME Admin | Tech & Gaming',
+ icons: { icon: '/icon.svg' },
+  description: 'Hệ thống quản lý chuyên nghiệp cho TrucTiepGAME',
 };
 
 export default async function RootLayout({

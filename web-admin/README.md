@@ -1,228 +1,150 @@
 # HACOM Backend API and Admin Dashboard
 
-Last audited: 2026-07-09
+Last verified: `2026-07-11`
 
-`web-admin` is the only app that connects directly to MySQL. It serves internal admin screens and public API routes consumed by the storefront.
+`web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
 ## Responsibilities
 
-- Connect to MySQL through `src/lib/db.ts`.
-- Serve admin dashboard pages.
-- Serve storefront APIs.
-- Own product/category/news/order read and write logic.
-- Own search cache infrastructure through `product_data_search`.
-- Own uploaded product media through `MEDIA_ROOT` and `/api/media`.
-- Keep legacy product fields working while new admin features are added.
+- Public storefront APIs for catalog, categories, collections, content, menus, banners, search, quote, and order creation.
+- Customer APIs for authentication, profile, addresses, locations, and order history.
+- Authenticated/RBAC-protected admin APIs and screens for catalog, content, commerce, users, roles, and customer CRM.
+- MySQL connection pool, legacy schema integration, additive `web_admin_*` tables, cache invalidation, and search infrastructure.
+- Transactional email outbox, expired-record cleanup, readiness/liveness, and media serving.
 
 ## Environment
 
-`src/lib/db.ts` resolves database config in this order:
+Use `.env.example` as the authoritative key list. Major groups:
 
-1. `DATABASE_URL`
-2. `DATABASE_URL` from app/workspace env files
-3. `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- `DATABASE_URL`; optional pool tuning via `DB_CONNECTION_LIMIT`, `DB_QUEUE_LIMIT`, `DB_CONNECT_TIMEOUT_MS`.
+- `ADMIN_WRITE_ENABLED` for write APIs/migrations. Migration commands intentionally fail unless it is exactly `true`.
+- `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `STOREFRONT_ORIGIN`.
+- `RECAPTCHA_SECRET_KEY`, `NEXT_PUBLIC_RECAPTCHA_SITE_KEY`, score/hostname/shadow/bypass controls.
+- `SEARCH_WEBHOOK_SECRET`.
+- SMTP/outbox variables and `BACKGROUND_WORKER_POLL_MS`.
+- `MEDIA_ROOT`, `MEDIA_BASE_URL`, and Vietnam location provider/cache variables.
 
-Example:
-
-```env
-DATABASE_URL="mysql://user:password@127.0.0.1:3306/web_tech"
-```
-
-Admin writes are disabled unless explicitly enabled:
-
-```env
-ADMIN_WRITE_ENABLED=true
-ADMIN_DRY_RUN=false
-```
-
-Product image upload/media config:
-
-```env
-MEDIA_ROOT=D:\web-tech\media
-MEDIA_BASE_URL=/api/media
-```
-
-Storefront URL config:
-
-```env
-STOREFRONT_URL=http://localhost:3001
-NEXT_PUBLIC_STOREFRONT_URL=http://localhost:3001
-```
+Never put real secrets into committed examples or logs.
 
 ## Commands
 
 ```powershell
-npm.cmd install
 npm.cmd run dev
-npx.cmd tsc --noEmit
-$env:NODE_OPTIONS='--max-old-space-size=4096'
+npm.cmd run dev:clean
 npm.cmd run build
+npm.cmd run start
+npm.cmd run lint -- --quiet
+npx.cmd tsc --noEmit
 ```
 
-Known checks:
-
-- Typecheck passed on 2026-07-09.
-- Build passed on 2026-07-09 with increased Node memory.
-- Lint is not clean because of legacy issues.
-
-## Storefront APIs
-
-| Endpoint | Methods | Purpose |
-| --- | --- | --- |
-| `/api/products/[slug]` | `GET` | Resolve product or category slug |
-| `/api/products` | `GET` | Product list, pagination, filters, sorting |
-| `/api/categories` | `GET` | Category tree/subcategories |
-| `/api/categories/homepage-feature-sections` | `GET` | Homepage category sections with configured first boxes |
-| `/api/categories/price-bounds` | `GET` | Category min/max price |
-| `/api/categories/attributes` | `GET` | Attribute and brand filters |
-| `/api/menu/header` | `GET` | All-site header menu data |
-| `/api/menu/homepage` | `GET` | Homepage-only Circle Story and Shop by Category menu blocks |
-| `/api/banners/homepage` | `GET` | Homepage banner groups |
-| `/api/banners/global` | `GET` | Global banner groups |
-| `/api/banners/location/[locationKey]` | `GET` | One banner location |
-| `/api/search` | `GET` | Search products using `product_data_search` |
-| `/api/cart/quote` | `GET`, `POST`, `OPTIONS` | Validate cart items against DB |
-| `/api/orders` | `GET`, `POST`, `OPTIONS` | Create order transaction |
-| `/api/news/[slug]` | `GET` | Article detail |
-| `/api/news-category/[slug]` | `GET` | News category |
-| `/api/media/[...path]` | `GET` | Serve uploaded media from `MEDIA_ROOT` |
-
-## Admin APIs
-
-Admin write endpoints are same-origin and require `ADMIN_WRITE_ENABLED=true`.
-
-| Endpoint | Methods | Purpose |
-| --- | --- | --- |
-| `/api/admin/products` | `GET`, `POST` | List/create products, bulk actions |
-| `/api/admin/products/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete product |
-| `/api/admin/products/[id]/images` | `GET`, `PATCH` | List grouped images, save metadata batch |
-| `/api/admin/products/[id]/images/upload` | `POST` | Upload product image files |
-| `/api/admin/products/[id]/images/[imageId]` | `DELETE` | Delete image metadata and owned file |
-| `/api/admin/product-categories` | `GET`, `POST` | List/create product categories |
-| `/api/admin/product-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete category |
-| `/api/admin/articles` | `GET`, `POST` | List/create articles |
-| `/api/admin/articles/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete article |
-| `/api/admin/article-categories` | `GET`, `POST` | List/create article categories |
-| `/api/admin/article-categories/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/hide or delete article category |
-| `/api/admin/menus/header` | `GET`, `PATCH` | Header menu draft data |
-| `/api/admin/menus/header/publish` | `POST` | Publish menu draft |
-| `/api/admin/menus/header/images/upload` | `POST` | Upload menu images |
-| `/api/admin/banners` | `GET`, `POST` | List/create banners |
-| `/api/admin/banners/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/delete banner |
-| `/api/admin/banners/images/upload` | `POST` | Upload banner image |
-| `/api/admin/banner-locations` | `GET`, `POST` | List/create banner locations |
-| `/api/admin/banner-locations/[id]` | `GET`, `PATCH`, `DELETE` | Read/update/delete banner location |
-| `/api/admin/product-card-attribute-rules` | `GET`, `POST` | Configure product-card attribute badges |
-| `/api/admin/migrate` | `POST` | Create admin helper tables when writes are enabled |
-
-## Search
-
-Current production-facing search uses the `product_data_search` table.
-
-Key files:
-
-- `src/lib/searchInfrastructure.ts`
-- `src/lib/searchCache.ts`
-- `src/lib/productSearch.ts`
-- `src/app/api/search/route.ts`
-- `src/app/api/webhook/update-search/route.ts`
-- `scripts/run-search-migration.ts`
-- `scripts/rebuild-search-data.ts`
-
-Audited state on 2026-07-07:
-
-- `product_data_search`: 28,763 rows.
-- Missing product search rows: 0.
-- Normalize function, insert trigger, update trigger, and FK are present.
-
-Useful commands:
-
 ```powershell
+npm.cmd run admin:migrate
+npm.cmd run admin:access-migrate
+npm.cmd run admin:bootstrap
+npm.cmd run locations:sync
 npm.cmd run search:migrate
 npm.cmd run search:rebuild
+npm.cmd run search:test-ranking
 ```
-
-Run `search:migrate` only when you intentionally want to recreate the search infrastructure.
-
-## Product Image Albums
-
-Admin product edit now supports album/type metadata in code:
-
-| Type | Meaning | Storefront group |
-| --- | --- | --- |
-| `product` | Product image | `imageGroups.product` |
-| `self` | Hacom/self-shot image | `imageGroups.product` |
-| `customer` | Customer image | `imageGroups.customer` |
-
-The intended table is `web_admin_product_images`. It was not present in the live DB at the 2026-07-07 audit, so run admin migration before relying on upload in a shared environment.
-
-Admin migration:
 
 ```powershell
-$env:ADMIN_WRITE_ENABLED='true'
-$env:ADMIN_DRY_RUN='false'
-npm.cmd run admin:migrate
+npm.cmd run worker:background
+npm.cmd run local:healthcheck
+npm.cmd run local:benchmark
+npm.cmd run storefront:benchmark
+npm.cmd run db:indexes
+npm.cmd run db:explain-hot
+npm.cmd run test:unit
+npm.cmd run test:integration
+npm.cmd run load:k6
 ```
 
-Current admin migration creates/updates:
+Run `load:k6` only against an approved isolated target. It is not a local smoke test.
 
-- `web_admin_sequence`
-- `web_admin_entity_registry`
-- `web_admin_product_images`
-- `web_admin_menus`
-- `web_admin_menu_versions`
-- `web_admin_menu_items`
-- `web_admin_banner_meta`
-- `web_admin_product_card_attribute_rules`
-- `web_admin_category_feature_boxes`
+## API groups
 
-No legacy table column is added for menu/banner/product-card/category first-box features.
+### Public reads
 
-Uploaded files are stored under:
+- `/api/products`, `/api/products/[slug]`, `/api/search`, `/api/search-attributes`.
+- `/api/categories/*`, `/api/collections/[slug]`.
+- `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`.
+- `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
+- `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
 
-```text
-MEDIA_ROOT\ddMMyyyy\filename
+Public read APIs use bounded inputs, reduced response shapes, local single-flight caches, ETags, and cross-worker invalidation where applicable.
+
+### Commerce writes
+
+- `POST /api/cart/quote`: validates up to 50 distinct products with integer quantity 1–99; never trusts client prices.
+- `POST /api/orders`: requires storefront origin, `recaptchaToken`, and an `Idempotency-Key` UUID-like value.
+
+Order creation performs final quote, voucher locking, order/items, customer link/metrics, idempotency completion, and email outbox enqueue in one transaction. Email delivery occurs asynchronously after commit.
+
+### Customer
+
+- `/api/customer/auth/register`, `/verify-email`, `/resend-verification`, `/login`, `/logout`.
+- `/api/customer/auth/forgot-password/request`, `/confirm`, `/change-password`.
+- `/api/customer/me`, `/addresses`, `/orders`, and `/locations/*`.
+
+Anonymous high-risk actions use action-specific reCAPTCHA and IP/identifier rate limits. Authenticated writes use customer session, origin/ownership checks, and route limits.
+
+### Admin
+
+Admin API groups live under `/api/admin/*`. Mutations require authenticated session, RBAC permission, same-origin handling, audit behavior where applicable, and `ADMIN_WRITE_ENABLED=true`. Do not add CAPTCHA to ordinary post-login admin forms; use re-authentication or step-up controls only for sensitive/risky actions.
+
+### Health and webhook
+
+- `GET /api/health/live`: process liveness.
+- `GET /api/health/ready`: DB and required runtime-table readiness.
+- `POST /api/webhook/update-search`: requires `X-Webhook-Timestamp`, `X-Webhook-Nonce`, and `X-Webhook-Signature`.
+
+Signature input is `${timestamp}.${nonce}.${rawBody}` using HMAC SHA-256 with `SEARCH_WEBHOOK_SECRET`. Reject stale timestamps and reused nonces.
+
+## Public error contract
+
+Hardened public write routes return:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Vietnamese user-facing message",
+    "fields": { "field": "Field error" },
+    "requestId": "correlation id"
+  }
+}
 ```
 
-After image changes, code syncs back to legacy product fields:
+Responses include `X-Request-ID`. Rate-limit responses use HTTP `429` plus `Retry-After`. Never return raw exceptions or SQL details.
 
-- `proThum`
-- `image_collection`
-- `image_count`
+## Password, session, and CAPTCHA rules
 
-## Admin Editor Guidelines
+- New customer/admin password hashes use Argon2id. Continue reading bcrypt hashes and rehash after successful verification.
+- Store only hashed session/OTP/idempotency/rate-limit identifiers where designed.
+- Production session cookies are `Secure`, `HttpOnly`, `SameSite=Lax`, path `/`, and prefer `__Host-*` names.
+- reCAPTCHA verification checks success, expected action, configurable score, allowed hostname, and two-minute challenge age. Use shadow mode before production enforcement.
 
-- Use `RichTextEditor` for long-form rich content only.
-- Pass `resizable` to long-form admin editors so users can drag the TinyMCE status bar to expand/collapse height.
-- Keep resizing vertical only; do not introduce horizontal editor resizing on admin forms.
+## Cache and search
 
-## Quote and Order
+- Worker-local public caches are bounded and use normalized keys.
+- `web_admin_cache_versions` propagates invalidation between clustered API workers.
+- Search prewarms at process start and uses single-flight/stale data during rebuild.
+- `product_data_search`, its normalize function, triggers, and FK remain part of the production search contract.
+- `search-tool` is not runtime code.
 
-Shared quote logic lives in `src/lib/cart-quote.ts`.
+## Upload rules
 
-Current behavior:
+- Resolve all destinations under `MEDIA_ROOT` and use randomized file names.
+- Enforce body/file size, extension allowlist, declared MIME, and binary image signature.
+- Product albums support `product`, `self`, and `customer`; keep legacy thumbnail/image collection/count synchronized while legacy readers exist.
 
-- Deduplicates cart items by `productId`.
-- Queries product, price, and URL data from DB.
-- Treats a product as available when `isOn = 1` and price is greater than 0.
-- Calculates line totals and cart totals from DB data.
-- `POST /api/orders` re-quotes before inserting `build_buy` and `build_buy_item`.
+## Database status
 
-Production hardening still needed:
+The additive admin migration was run on the configured local database. Read-only verification on `2026-07-11` found 280 tables: 152 InnoDB and 128 MyISAM, including the new customer, voucher, idempotency, rate-limit, outbox, cache-version, webhook-nonce, media, menu, and content helper tables.
 
-- Rate limit and anti-spam.
-- Strict CORS allowlist.
-- Stronger backend validation.
-- Idempotency key.
-- Safer public error responses.
+This does not prove migration state in any other environment. Follow `database-docs/ADMIN_MIGRATION_GUIDE.md`.
 
-## Documentation
+## Verification status
 
-Read these before modifying database-facing behavior:
-
-- `..\AI_HANDOFF.md`
-- `..\ARCHITECTURE.md`
-- `database-docs\DATABASE_SCHEMA.md`
-- `database-docs\QUICK_REFERENCE.md`
-- `database-docs\STATISTICS.md`
-- `database-docs\ADMIN_MIGRATION_GUIDE.md`
+Latest local checks passed TypeScript, ESLint `--quiet`, production build, 5 validation tests, the idempotency/rollback integration test, npm audit with zero known vulnerabilities, readiness/liveness, and 13/13 health checks. Full 1,500-VU target testing remains pending.

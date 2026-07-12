@@ -69,7 +69,7 @@ const ALBUMS: Array<{
   {
     id: 'self',
     label: 'Ảnh tự chụp',
-    uploadLabel: 'Hacom tự chụp',
+    uploadLabel: 'TrucTiepGAME tự chụp',
     accent: 'bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]',
     active: 'bg-purple-600 text-white border-purple-500 shadow-[0_0_12px_rgba(147,51,234,0.45)]',
   },

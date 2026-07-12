@@ -1,7 +1,7 @@
 'use client';
 
 import { Edit3, Plus, Save, Ticket, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { VoucherCategorySelector, type VoucherCategory } from './VoucherCategorySelector';
 
 type Voucher = {
@@ -47,6 +47,7 @@ export function VoucherManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -63,8 +64,28 @@ export function VoucherManager() {
   };
 
   useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const dialog = document.querySelector<HTMLFormElement>('div.fixed.inset-0 form');
+    dialog?.setAttribute('role', 'dialog'); dialog?.setAttribute('aria-modal', 'true'); dialog?.setAttribute('aria-label', editingId ? 'Cập nhật voucher' : 'Tạo voucher');
+    const controls = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])') || []);
+    controls()[0]?.focus({ preventScroll: true });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); setOpen(false); return; }
+      if (event.key !== 'Tab') return;
+      const items = controls(); const first = items[0]; const last = items.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => { document.removeEventListener('keydown', onKeyDown); document.body.style.overflow = previousOverflow; lastFocusedRef.current?.focus({ preventScroll: true }); };
+  }, [editingId, open]);
 
   const startCreate = () => {
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
     setEditingId(null);
     setForm(emptyForm);
     setRedemptions([]);
@@ -73,6 +94,7 @@ export function VoucherManager() {
   };
 
   const startEdit = async (id: number) => {
+    lastFocusedRef.current = document.activeElement as HTMLElement | null;
     setMessage('');
     const response = await fetch(`/api/admin/vouchers/${id}`);
     const json = await response.json();

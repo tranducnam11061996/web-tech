@@ -1,7 +1,7 @@
 import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
+import { hashPassword, passwordNeedsRehash, verifyPassword } from '@/lib/passwordHash';
 import {
   getEffectivePermissions,
   hasPermission,
@@ -17,6 +17,7 @@ const SESSION_TOUCH_MS = 15 * 60 * 1000;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_LOCK_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILURES = 5;
+export const ADMIN_SESSION_COOKIE = process.env.NODE_ENV === 'production' ? '__Host-admin_session' : 'admin_session';
 
 type AdminUserRow = RowDataPacket & {
   id: number;
@@ -210,6 +211,12 @@ export async function ensureAdminAccessTables() {
     }
 
     await connection.query(`
+      UPDATE admin_roles
+      SET permissions = JSON_ARRAY_APPEND(permissions, '$', 'crm.customers.read')
+      WHERE code = 'viewer' AND JSON_CONTAINS(permissions, JSON_QUOTE('crm.customers.read')) = 0
+    `);
+
+    await connection.query(`
       UPDATE admin_users
       SET must_change_password = 0, password_changed_at = COALESCE(password_changed_at, NOW())
       WHERE role = 'superadmin' AND password_changed_at IS NULL
@@ -320,7 +327,7 @@ export async function loginAdmin(request: Request, emailInput: unknown, password
 
   const user = await getUserWithRoleByEmail(email);
   const valid = Boolean(user && Number(user.status) === 1 && (user.role === 'superadmin' || Number(user.role_status) === 1))
-    && await bcrypt.compare(password, String(user?.password || ''));
+    && await verifyPassword(String(user?.password || ''), password);
   if (!valid || !user) {
     await recordFailedAttempt(email, ipAddress);
     await writeAdminAudit({ action: 'auth.login_failed', resource: 'auth', request, metadata: { email } });
@@ -328,6 +335,7 @@ export async function loginAdmin(request: Request, emailInput: unknown, password
   }
 
   await clearFailedAttempts(email, ipAddress);
+  if (passwordNeedsRehash(String(user.password || ''))) await pool.query('UPDATE admin_users SET password=? WHERE id=?', [await hashPassword(password), user.id]);
   const token = crypto.randomBytes(32).toString('base64url');
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SESSION_ABSOLUTE_MS);
@@ -364,7 +372,7 @@ export async function resolveAdminSessionToken(token: string): Promise<AdminSess
 }
 
 export async function getAdminSessionFromRequest(request: Request) {
-  return resolveAdminSessionToken(getCookieValue(request, 'admin_session'));
+  return resolveAdminSessionToken(getCookieValue(request, ADMIN_SESSION_COOKIE));
 }
 
 export async function requireAdminSession(request: Request, allowPasswordChange = false) {
@@ -402,7 +410,7 @@ export async function revokeAdminSessions(userId: number, keepToken?: string) {
 }
 
 export async function logoutAdmin(request: Request) {
-  const token = getCookieValue(request, 'admin_session');
+  const token = getCookieValue(request, ADMIN_SESSION_COOKIE);
   const user = await resolveAdminSessionToken(token);
   if (token) await pool.query('UPDATE admin_sessions SET revoked_at = NOW() WHERE token_hash = ?', [tokenHash(token)]);
   if (user) await writeAdminAudit({ actorUserId: user.id, action: 'auth.logout', resource: 'auth', request });
@@ -452,7 +460,7 @@ export async function createAdminUser(input: Record<string, unknown>, actor: Adm
   const role = String(input.role || 'viewer');
   await assertRoleCanBeAssigned(role);
   const overrides = normalizeOverrides(input.overrides);
-  const hash = await bcrypt.hash(password, 12);
+  const hash = await hashPassword(password);
   try {
     const [result] = await pool.query(
       `INSERT INTO admin_users (email, password, name, role, permissions, status, must_change_password, password_changed_at, auth_version)
@@ -501,7 +509,7 @@ export async function resetAdminPassword(id: number, passwordInput: unknown, act
   const password = validatePassword(passwordInput);
   await pool.query(
     `UPDATE admin_users SET password = ?, must_change_password = 1, password_changed_at = NOW(), auth_version = auth_version + 1 WHERE id = ?`,
-    [await bcrypt.hash(password, 12), id],
+    [await hashPassword(password), id],
   );
   await revokeAdminSessions(id);
   await writeAdminAudit({ actorUserId: actor.id, action: 'admin.password_reset', resource: 'admin.users', resourceId: id, request });
@@ -510,13 +518,13 @@ export async function resetAdminPassword(id: number, passwordInput: unknown, act
 export async function changeOwnPassword(request: Request, currentPassword: unknown, newPassword: unknown) {
   const user = await requireAdminSession(request, true);
   const row = await getUserWithRoleById(user.id);
-  if (!row || !await bcrypt.compare(String(currentPassword || ''), row.password)) {
+  if (!row || !await verifyPassword(row.password, String(currentPassword || ''))) {
     throw new AdminAuthError(400, 'INVALID_CURRENT_PASSWORD', 'Mat khau hien tai khong dung');
   }
   const password = validatePassword(newPassword);
   await pool.query(
     `UPDATE admin_users SET password = ?, must_change_password = 0, password_changed_at = NOW(), auth_version = auth_version + 1 WHERE id = ?`,
-    [await bcrypt.hash(password, 12), user.id],
+    [await hashPassword(password), user.id],
   );
   await revokeAdminSessions(user.id);
   await writeAdminAudit({ actorUserId: user.id, action: 'auth.password_changed', resource: 'auth', request });

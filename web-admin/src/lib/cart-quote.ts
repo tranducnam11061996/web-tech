@@ -40,18 +40,19 @@ export type CartQuote = {
 
 function clampQuantity(quantity: unknown) {
   const parsed = Number(quantity);
-  if (!Number.isFinite(parsed)) return 1;
-  return Math.min(99, Math.max(1, Math.floor(parsed)));
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 99) throw new Error('Invalid cart quantity');
+  return parsed;
 }
 
 function normalizeInputItems(items: unknown): CartQuoteInputItem[] {
   if (!Array.isArray(items)) return [];
+  if (items.length > 50) throw new Error('Too many cart items');
 
   const byProduct = new Map<number, CartQuoteInputItem>();
 
   for (const item of items) {
     const productId = Number((item as any)?.productId);
-    if (!Number.isFinite(productId) || productId <= 0) continue;
+    if (!Number.isInteger(productId) || productId <= 0) throw new Error('Invalid product id');
 
     const quantity = clampQuantity((item as any)?.quantity);
     const existing = byProduct.get(productId);

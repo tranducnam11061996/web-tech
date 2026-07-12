@@ -1,0 +1,2 @@
+import { CustomerAuthError, getCustomerWards } from '@/lib/customerAccounts'; import { customerError, customerOk } from '@/lib/customerRoute';
+export async function GET(request: Request) { try { const provinceCode=String(new URL(request.url).searchParams.get('provinceCode') || ''); if(!/^\d{2}$/.test(provinceCode)) throw new CustomerAuthError(400,'INVALID_LOCATION','Tỉnh/thành phố không hợp lệ.'); return customerOk({ items: await getCustomerWards(provinceCode) }); } catch (error) { return customerError(error); } }

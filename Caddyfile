@@ -1,0 +1,41 @@
+{
+  servers {
+    protocols h1 h2
+  }
+}
+
+{$STOREFRONT_HOST:localhost} {
+  encode zstd gzip
+  @api path /api/*
+  handle @api {
+    request_body { max_size 2MB }
+    reverse_proxy 127.0.0.1:3000 {
+      header_up X-Forwarded-For {remote_host}
+    }
+  }
+  handle {
+    reverse_proxy 127.0.0.1:3001 {
+      header_up X-Forwarded-For {remote_host}
+    }
+  }
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  }
+}
+
+{$ADMIN_HOST:admin.localhost} {
+  encode zstd gzip
+  request_body { max_size 20MB }
+  reverse_proxy 127.0.0.1:3000 {
+    header_up X-Forwarded-For {remote_host}
+  }
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  }
+}

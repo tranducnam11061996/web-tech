@@ -27,11 +27,11 @@ const MOCK_FRAMES: FrameNode[] = [
   { stt: 8, id: '1136', name: 'Độc Quyền Tại Việt Nam', cssClass: 'doc-quyen-tai-viet-nam', imageLink: 'Xem ảnh', position: 'Bên dưới', productCount: 1, createdAt: '07-04-2026 17:16:25' },
   { stt: 9, id: '1019', name: 'Giá Sốc RAM SSD', cssClass: 'gia-soc-ram-ssd', imageLink: 'Xem ảnh', position: 'Bên dưới', productCount: 68, createdAt: '10-03-2026 17:36:36' },
   { stt: 10, id: '829', name: 'Khung CPU Giảm Nửa Giá', cssClass: 'cpu-giam-nua-gia-hacom', imageLink: 'Xem ảnh', position: 'Bên dưới', productCount: 58, createdAt: '05-02-2026 11:45:33' },
-  { stt: 11, id: '828', name: 'Khung Bảo Hành 12 Tháng - HACOM', cssClass: 'bao-hanh-12-thang-hacom', imageLink: 'Xem ảnh', position: 'Bên dưới', productCount: 15, createdAt: '05-02-2026 11:34:23' },
+  { stt: 11, id: '828', name: 'Khung Bảo Hành 12 Tháng - TrucTiepGAME', cssClass: 'bao-hanh-12-thang-hacom', imageLink: 'Xem ảnh', position: 'Bên dưới', productCount: 15, createdAt: '05-02-2026 11:34:23' },
   { stt: 12, id: '827', name: 'Bán và Phân Phối Tại Việt Nam', cssClass: 'ban-va-phan-phoi-tai-viet-nam', imageLink: 'Xem ảnh', position: 'Bên dưới', productCount: 0, createdAt: '05-02-2026 11:29:38' },
   { stt: 13, id: '283', name: 'Sticker GIÁ SỐC 2025', cssClass: 'sticker2025-giasoc', imageLink: 'Xem ảnh', position: 'Bên phải', productCount: 0, createdAt: '09-10-2025 17:51:36' },
   { stt: 14, id: '282', name: 'Sticker HOT 2025', cssClass: 'sticker2025-hot', imageLink: 'Xem ảnh', position: 'Bên trái', productCount: 0, createdAt: '09-10-2025 17:50:28' },
-  { stt: 15, id: '281', name: 'Sticker HACOM Phân Phối', cssClass: 'sticker2025-hacomphanphoi', imageLink: 'Xem ảnh', position: 'Bên phải', productCount: 0, createdAt: '09-10-2025 17:49:32' },
+  { stt: 15, id: '281', name: 'Sticker TrucTiepGAME Phân Phối', cssClass: 'sticker2025-hacomphanphoi', imageLink: 'Xem ảnh', position: 'Bên phải', productCount: 0, createdAt: '09-10-2025 17:49:32' },
 ];
 
 export function ProductFrameTable() {

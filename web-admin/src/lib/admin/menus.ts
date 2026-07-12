@@ -2,6 +2,7 @@
 import pool from '@/lib/db';
 import { AdminApiError, maybeText, requireText, toBoolInt, toInt, withTransaction } from '@/lib/admin/common';
 import { HEADER_MENU_ICON_PATHS, HEADER_MENU_SEED, type HeaderMenuSeed, type HeaderMenuSeedNode } from '@/lib/header-menu-seed';
+import { clearPublicMenuCache as clearPublicMenuRuntimeCache } from '@/lib/publicMenus';
 
 export type HeaderMenuArea = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory' | 'shopByCategory';
 export type HeaderMenuNodeType = 'zone' | 'group' | 'link';
@@ -622,7 +623,7 @@ export async function publishHeaderMenuDraft() {
     await connection.query(`UPDATE web_admin_menu_versions SET status = 'archived' WHERE menu_id = ? AND status = 'published'`, [menuId]);
     const publishedId = await createVersion(connection, menuId, 'published', normalizeHeaderMenuSettings(draftVersion.settings_json));
     await copyItemsToVersion(connection, draftVersion.id, publishedId);
-    clearPublicMenuCache();
+    clearPublicMenuRuntimeCache();
     return { id: publishedId };
   });
 }

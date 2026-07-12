@@ -274,7 +274,7 @@ export default function CollectionClient({ slug, initialData }: CollectionClient
             <div>
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.8)]" />
-                HACOM Collection
+                TrucTiepGAME Collection
               </div>
               <h1 className="max-w-4xl text-2xl font-black tracking-tight text-white md:text-4xl">
                 {collection.name}

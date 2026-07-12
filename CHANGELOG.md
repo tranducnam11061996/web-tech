@@ -2,6 +2,36 @@
 
 Notable workspace changes are grouped by implementation/audit date.
 
+Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and `PROJECT_PROGRESS.md`, not an older “Known Gaps” section, for current status.
+
+## 2026-07-11
+
+### Added
+
+- Added canonical Zod validation and bounded request parsing for high-risk order, quote, customer, and authentication flows.
+- Added atomic MySQL rate limiting, action-specific reCAPTCHA, honeypot handling, request IDs, safe error envelopes, and `Retry-After` responses.
+- Added order idempotency, transactional email outbox, cross-worker cache versions, signed webhook nonces, liveness/readiness, and background cleanup/outbox processing.
+- Added Caddy and PM2 one-host runtime configuration plus a full 1,500-VU k6 scenario.
+- Added validation unit tests and order idempotency/rollback integration coverage.
+- Added root AI entrypoints and refreshed the canonical handoff/documentation set.
+
+### Changed
+
+- Redesigned the storefront product-detail hero as a responsive `40/30/30` gallery, product-information, and purchase grid while preserving the existing cart and checkout flows. Missing bundle, voucher, variant, favorite, and financing integrations are isolated client-side demos and never enter commerce API payloads.
+- Reworked order creation to validate before acquiring a DB connection and to quote once inside a transaction with voucher locking and bulk item insertion.
+- Upgraded storefront to Next.js 16.2.9 and React 19.2.4; both applications now share the supported major runtime.
+- Added Argon2id password writes with legacy bcrypt verification/upgrade and corrected customer sliding session expiry.
+- Reduced public header payload from about 99 KB to 51 KB and homepage bootstrap from about 148 KB to 97 KB; added ETag/conditional GET and bounded cache keys.
+- Hardened search webhook authentication, image upload content checks, production cookie attributes, CORS/origin handling, security headers, and DB pool backpressure.
+- Applied the additive admin migration to the configured local DB; read-only verification found 280 tables (152 InnoDB, 128 MyISAM).
+
+### Verified
+
+- Both application typechecks, ESLint `--quiet`, production builds, and npm audits passed; audits reported zero known vulnerabilities.
+- Validation tests passed 5/5 and the idempotency/rollback integration test passed 1/1.
+- Liveness/readiness/storefront returned HTTP 200 and local healthcheck passed 13/13.
+- Full 1,500-VU production-like capacity testing remains pending and is an explicit release blocker.
+
 ## 2026-07-09
 
 ### Added

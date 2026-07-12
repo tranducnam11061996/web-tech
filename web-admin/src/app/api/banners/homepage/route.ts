@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getPublicBannersByScope } from '@/lib/admin/banners';
+import { getPublicBannersByScope } from '@/lib/publicBanners';
+import { jsonWithEtag } from '@/lib/httpCache';
 
 export const revalidate = 60;
 
@@ -14,6 +15,6 @@ export async function OPTIONS() {
   return NextResponse.json({}, { headers });
 }
 
-export async function GET() {
-  return NextResponse.json({ success: true, data: await getPublicBannersByScope('homepage') }, { headers });
+export async function GET(request: Request) {
+  return jsonWithEtag(request, { success: true, data: await getPublicBannersByScope('homepage') }, { headers });
 }

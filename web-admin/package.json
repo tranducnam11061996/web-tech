@@ -2,24 +2,34 @@
   "name": "admin-dashboard",
   "version": "0.1.0",
   "private": true,
+  "overrides": { "postcss": "8.5.10" },
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "node scripts/clean-next-dev-cache.mjs && next dev",
+    "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "admin:migrate": "tsx scripts/run-admin-migration.ts",
+    "locations:sync": "tsx scripts/sync-vietnam-locations.ts",
     "search:migrate": "tsx scripts/run-search-migration.ts",
     "search:rebuild": "tsx scripts/rebuild-search-data.ts",
     "search:test-ranking": "tsx scripts/test-search-ranking.ts",
     "local:healthcheck": "tsx scripts/local-healthcheck.ts",
+    "local:benchmark": "tsx scripts/benchmark-local-server.ts",
     "db:indexes": "tsx scripts/ensure-local-performance-indexes.ts",
     "db:explain-hot": "tsx scripts/explain-hot-queries.ts",
     "storefront:benchmark": "tsx scripts/benchmark-storefront.ts",
     "admin:access-migrate": "tsx scripts/run-admin-access-migration.ts",
-    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts"
+    "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "worker:background": "tsx scripts/background-worker.ts",
+    "test:unit": "tsx --test tests/*.test.ts",
+    "test:integration": "tsx --test tests/*.integration.ts",
+    "load:k6": "k6 run scripts/load-1500-users.js"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",
+    "argon2": "^0.44.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "fuse.js": "^7.4.2",
@@ -31,7 +41,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "tailwind-merge": "^3.6.0",
-    "tinymce": "^8.6.0"
+    "tinymce": "^8.6.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

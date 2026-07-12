@@ -38,27 +38,28 @@ export class AdminApiError extends Error {
 }
 
 export function ok(data: unknown, message?: string, status = 200) {
-  return NextResponse.json({ success: true, data, ...(message ? { message } : {}) }, { status });
+  return NextResponse.json({ success: true, data, ...(message ? { message } : {}) }, { status, headers: { 'X-Request-ID': crypto.randomUUID() } });
 }
 
 export function fail(error: unknown) {
+  const requestId = crypto.randomUUID();
   if (error instanceof AdminAuthError) {
     return NextResponse.json(
-      { success: false, error: { code: error.code, message: error.message } },
-      { status: error.status },
+      { success: false, error: { code: error.code, message: error.message, requestId } },
+      { status: error.status, headers: { 'X-Request-ID': requestId } },
     );
   }
   if (error instanceof AdminApiError) {
     return NextResponse.json(
-      { success: false, error: { code: error.code, message: error.message, ...(error.fields ? { fields: error.fields } : {}) } },
-      { status: error.status },
+      { success: false, error: { code: error.code, message: error.message, ...(error.fields ? { fields: error.fields } : {}), requestId } },
+      { status: error.status, headers: { 'X-Request-ID': requestId } },
     );
   }
 
   console.error('Admin API internal error:', error);
   return NextResponse.json(
-    { success: false, error: { code: 'INTERNAL_ERROR', message: 'Khong the xu ly yeu cau quan tri' } },
-    { status: 500 },
+    { success: false, error: { code: 'INTERNAL_ERROR', message: 'Không thể xử lý yêu cầu quản trị', requestId } },
+    { status: 500, headers: { 'X-Request-ID': requestId } },
   );
 }
 

@@ -10,6 +10,7 @@ import {
   withTransaction,
 } from '@/lib/admin/common';
 import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
+import { clearPublicBannerCache as clearPublicBannerRuntimeCache } from '@/lib/publicBanners';
 
 export type BannerScope = 'homepage' | 'global';
 
@@ -377,7 +378,7 @@ export async function saveBannerLocation(payload: Record<string, unknown>, id?: 
         [templatePage, indexKey, name, description, id],
       );
       await connection.query('UPDATE idv_seller_ad SET template_page = ?, location_index = ? WHERE location = ?', [templatePage, indexKey, id]);
-      clearPublicBannerCache();
+      clearPublicBannerRuntimeCache();
       return { id };
     }
 
@@ -388,7 +389,7 @@ export async function saveBannerLocation(payload: Record<string, unknown>, id?: 
       `,
       [templatePage, indexKey, name, description],
     );
-    clearPublicBannerCache();
+    clearPublicBannerRuntimeCache();
     return { id: resultId(result) };
   });
 }
@@ -593,7 +594,7 @@ export async function saveAdminBanner(payload: Record<string, unknown>, id?: num
       ],
     );
 
-    clearPublicBannerCache();
+    clearPublicBannerRuntimeCache();
     return { id: bannerId };
   });
 }
@@ -605,7 +606,7 @@ export async function deleteBanner(id: number, mode: string) {
 
     if (mode !== 'permanent') {
       await connection.query('UPDATE idv_seller_ad SET status = 0 WHERE id = ?', [id]);
-      clearPublicBannerCache();
+      clearPublicBannerRuntimeCache();
       return { id, hidden: true };
     }
 
@@ -613,7 +614,7 @@ export async function deleteBanner(id: number, mode: string) {
     await connection.query('DELETE FROM web_admin_banner_meta WHERE ad_id = ?', [id]);
     await connection.query('DELETE FROM idv_seller_ad WHERE id = ?', [id]);
     await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['banner', id]);
-    clearPublicBannerCache();
+    clearPublicBannerRuntimeCache();
     return { id, deleted: true };
   });
 }

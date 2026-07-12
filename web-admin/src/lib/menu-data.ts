@@ -75,6 +75,7 @@ export const menuGroups = [
     title: 'Quản lý khách hàng',
     icon: Users,
     items: [
+      { name: 'Danh sách khách hàng', path: '/customers' },
       { name: 'Tổng hợp trao đổi của người dùng', path: '#' },
       { name: 'Tổng hợp đánh giá của người dùng', path: '#' }
     ]

@@ -12,7 +12,7 @@ interface ProgressiveImageProps extends React.ImgHTMLAttributes<HTMLImageElement
 export default function ProgressiveImage({
   src,
   alt,
-  fallbackText = "HACOM",
+  fallbackText = "TrucTiepGAME",
   className = "",
   ...props
 }: ProgressiveImageProps) {

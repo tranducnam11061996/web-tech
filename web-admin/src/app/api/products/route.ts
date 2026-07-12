@@ -3,6 +3,7 @@ import pool from '@/lib/db';
 import { getProductCardBadgesForProductIds } from '@/lib/productCardAttributes';
 import { withPublicProductResponseCache } from '@/lib/publicProductCache';
 import { getPublicCategoryFeatureBox } from '@/lib/categoryFeatureBoxes';
+import { jsonWithEtag } from '@/lib/httpCache';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +17,8 @@ const publicCacheHeaders = {
 };
 
 const reservedFilterKeys = new Set(['category_id', 'limit', 'page', 'id', 'min-price', 'max-price', 'brand', 'sort', 'feature_scope']);
+const attributeRowsCache = new Map<string, { expiresAt: number; rows: any[] }>();
+const attributeRowsFlights = new Map<string, Promise<any[]>>();
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -34,6 +37,28 @@ function slugify(str: string) {
     .replace(/\s+/g, '-');
 }
 
+async function getAttributeRows(categoryId: number | null) {
+  const key = String(categoryId || 0);
+  const cached = attributeRowsCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.rows;
+  const running = attributeRowsFlights.get(key);
+  if (running) return running;
+  const flight = pool.query(
+    `SELECT a.id AS attr_id,a.name AS attr_name,a.filter_code,v.id AS val_id,v.value AS val_name
+     FROM idv_attribute a
+     ${categoryId ? 'JOIN idv_attribute_category ac ON ac.attr_id=a.id AND ac.category_id=?' : ''}
+     JOIN idv_attribute_value v ON a.id=v.attributeId`,
+    categoryId ? [categoryId] : [],
+  ).then(([rows]) => {
+    const value = rows as any[];
+    attributeRowsCache.set(key, { rows: value, expiresAt: Date.now() + 5 * 60_000 });
+    while (attributeRowsCache.size > 50) attributeRowsCache.delete(attributeRowsCache.keys().next().value!);
+    return value;
+  }).finally(() => attributeRowsFlights.delete(key));
+  attributeRowsFlights.set(key, flight);
+  return flight;
+}
+
 function buildProductsCacheKey(searchParams: URLSearchParams) {
   return Array.from(searchParams.entries())
     .map(([key, value]) => [key.toLowerCase(), value] as const)
@@ -43,11 +68,12 @@ function buildProductsCacheKey(searchParams: URLSearchParams) {
 }
 
 async function loadProductsPayload(searchParams: URLSearchParams) {
+  if (searchParams.toString().length > 2_048) return { success: false, message: 'Query string is too long', status: 414 };
   const categoryIdParam = searchParams.get('category_id');
   const categoryId = categoryIdParam ? Number(categoryIdParam) : null;
   const featureScope = searchParams.get('feature_scope') === 'homepage' ? 'homepage' : 'category';
   const limit = Math.min(96, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24));
-  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+  const page = Math.min(1_000, Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1));
   const offset = (page - 1) * limit;
 
   if (categoryIdParam && (!Number.isInteger(categoryId) || Number(categoryId) <= 0)) {
@@ -101,24 +127,13 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   }
 
   const filterKeys = Array.from(searchParams.keys()).filter((key) => !reservedFilterKeys.has(key));
+  if (filterKeys.length > 8) return { success: false, message: 'Too many filters', status: 400 };
   if (filterKeys.length > 0) {
-    const attrParams: any[] = [];
-    const attrCategoryJoin = categoryId ? 'JOIN idv_attribute_category ac ON ac.attr_id = a.id AND ac.category_id = ?' : '';
-    if (categoryId) attrParams.push(categoryId);
-
-    const [attrRows] = await pool.query(
-      `
-        SELECT a.id AS attr_id, a.name AS attr_name, a.filter_code, v.id AS val_id, v.value AS val_name
-        FROM idv_attribute a
-        ${attrCategoryJoin}
-        JOIN idv_attribute_value v ON a.id = v.attributeId
-      `,
-      attrParams,
-    );
+    const attrRows = await getAttributeRows(categoryId);
 
     const attributesByKey = new Map<string, { attrId: number; valuesBySlug: Map<string, number[]> }>();
 
-    for (const row of attrRows as any[]) {
+    for (const row of attrRows) {
       const rowKey = row.filter_code || slugify(row.attr_name);
       if (!rowKey) continue;
 
@@ -135,7 +150,7 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
     }
 
     for (const key of filterKeys) {
-      const urlValues = searchParams.get(key)?.split(',') || [];
+      const urlValues = (searchParams.get(key)?.split(',') || []).slice(0, 20);
       if (urlValues.length === 0) continue;
 
       const attribute = attributesByKey.get(key);
@@ -231,7 +246,7 @@ export async function GET(request: Request) {
     const payload = await withPublicProductResponseCache(`products:${cacheKey}`, () => loadProductsPayload(searchParams));
     const status = 'status' in payload ? Number(payload.status || 200) : 200;
     const { status: _status, ...body } = payload as Record<string, unknown>;
-    return NextResponse.json(body, { status, headers: publicCacheHeaders });
+    return jsonWithEtag(request, body, { status, headers: publicCacheHeaders });
   } catch (error) {
     console.error('Failed to fetch products:', error);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500, headers: corsHeaders });

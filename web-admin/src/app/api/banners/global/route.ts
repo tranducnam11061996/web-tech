@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getPublicBannersByScope } from '@/lib/admin/banners';
+import { getPublicBannersByScope } from '@/lib/publicBanners';
 
 export const revalidate = 60;
 

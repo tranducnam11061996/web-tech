@@ -1,151 +1,84 @@
 # Project Progress
 
-Last updated: 2026-07-09
+Last updated: `2026-07-11`
 
-This file tracks implementation status for the HACOM workspace. For the shortest handoff path, read `AI_HANDOFF.md` first, then this file, then the database docs.
+`AI_HANDOFF.md` is the canonical continuation guide. This file records completion evidence, open verification, and the prioritized backlog.
 
-## Current Status
+## Current status
 
-| Area | Status | Notes |
-| --- | --- | --- |
-| Storefront product/category pages | Working | Dynamic slug routing, category filters, cart entry points, and product detail remain the main customer flow |
-| Guest cart and checkout draft | Implemented, not production-ready | Cart quote and order transaction exist; production hardening is still open |
-| Admin CRUD | Implemented first pass | Writes are gated by `ADMIN_WRITE_ENABLED=true`; auth/authorization is still missing |
-| Search infrastructure | Implemented and present in live DB | `product_data_search` has 28,763 rows and 0 missing products at audit time |
-| Product image albums | Implemented in code, DB migration pending | `web_admin_product_images` code exists; table was not present in live DB at audit time |
-| Header/homepage menu management | Implemented, needs live smoke test | Admin is split into `/content/menu/header` and `/content/menu/homepage`; public APIs are split into `/api/menu/header` and `/api/menu/homepage` |
-| Banner carousel management | Implemented, DB migration pending | Uses legacy banner tables plus `web_admin_banner_meta`; public banner APIs and cache are in code |
-| Product card attribute badges | Implemented, DB migration pending | Admin `/product/card-attributes`, public `cardBadges`, cache, and storefront badge renderer are in code |
-| Category first box layout | Implemented, DB migration pending | Admin category edit adds first-box settings without removing legacy fields; homepage/category rendering and cache are in code |
-| Documentation audit | Updated | Core handoff docs refreshed on 2026-07-09 with new menu/banner/badge/category metadata notes |
+| Area | Status | Evidence / qualification |
+|---|---|---|
+| Storefront catalog/search/collections | Implemented and locally verified | Bounded APIs, ETag, reduced payloads, cache/single-flight, responsive image behavior |
+| Guest cart and checkout | Hardened and locally verified | Strict quote, transactional order, voucher lock, idempotency, outbox, CAPTCHA/rate limit |
+| Customer accounts | Implemented | Registration/OTP/login/reset/profile/address/order flows and admin CRM surfaces exist |
+| Admin auth and RBAC | Implemented | Session, role/permission checks, write gate, audit surfaces, login throttling |
+| Admin content/catalog | Implemented first production-oriented pass | Product/category/article/menu/banner/collection/voucher/customer/order/user/role management |
+| Search | Implemented | Runtime search in `web-admin`, prewarm/single-flight, signed webhook; `search-tool` is reference only |
+| Runtime topology | Implemented as configuration | Caddy, PM2, readiness/liveness, two API workers, storefront, background worker |
+| Database migration | Applied to configured local DB | 280 tables: 152 InnoDB, 128 MyISAM on 2026-07-11 |
+| Functional verification | Passed locally | TypeScript, lint, builds, tests, audits, readiness/liveness, 13/13 health checks |
+| 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
-## Completed Work
+## Completed in the latest hardening pass
 
-| Item | Evidence |
-| --- | --- |
-| Runtime database audit | 244 tables: 116 InnoDB, 128 MyISAM, 243 legacy latin1 tables |
-| Search table audit | `product_data_search` exists with 28,763 rows |
-| Search sync infrastructure | Normalize function, insert trigger, update trigger, and FK are present |
-| Admin helper tables | `web_admin_sequence` and `web_admin_entity_registry` exist |
-| Storefront image grouping | Product detail code can consume `imageGroups.product` and `imageGroups.customer` |
-| Admin image album UI/API | Upload, batch metadata update, delete, media serving, and legacy sync code paths exist |
-| Header menu DB/API | `web_admin_menus`, `web_admin_menu_versions`, `web_admin_menu_items`, admin APIs, public `/api/menu/header`, and target search endpoint exist |
-| Header menu admin UI | `/content/menu` supports live preview, editable `Danh Mục`/`Nổi bật` labels, expand/collapse tree, area switching, quick custom links, save draft, and publish |
-| Header storefront integration | `font-end` header loads public menu data, falls back locally, renders `Danh Mục`/`Nổi bật`, and repairs known mojibake values |
-| Header icon/text cleanup | Header chrome icons now use `lucide-react`; Vietnamese labels/placeholders render with encoded strings or repair helpers |
-| Circle Story section binding | Circle Story no longer renders from `Header`; `Section2.tsx` reads `/api/menu/homepage` and binds `circleStory` into the existing `.story-*` markup without CSS changes |
-| Circle Story / Shop by Category API split | Homepage-only menu blocks are served by `/api/menu/homepage`; non-home pages should only load `/api/menu/header` |
-| Banner carousel | Admin banner list/edit/location screens use legacy `idv_seller_ad*` tables plus `web_admin_banner_meta`; public APIs are `/api/banners/homepage`, `/api/banners/global`, and `/api/banners/location/[locationKey]` |
-| Product card badges | Attribute badge rules are stored in `web_admin_product_card_attribute_rules`; `/api/products` and `/api/search` return `cardBadges` per product |
-| Category first box | Product category edit saves `featureBox` into `web_admin_category_feature_boxes`; `/api/products/[slug]`, `/api/products`, and `/api/categories/homepage-feature-sections` expose it |
-| Build verification | `web-admin` and `font-end` builds passed with increased Node memory |
+- Added canonical Zod validation and bounded parsing for high-risk commerce/customer routes.
+- Added request IDs, safe public error envelopes, origin allowlist, `Retry-After`, atomic rate limits, honeypots, and action-specific reCAPTCHA.
+- Reworked order creation around one quote/transaction, bulk item insert, voucher locking, idempotency replay, customer metrics, and email outbox.
+- Added Argon2id password writes with bcrypt compatibility/upgrade and improved sliding session expiry.
+- Added HMAC/timestamp/nonce protection for search webhook and image-content signature validation for uploads.
+- Added DB-backed cross-worker cache versions, ETags, bounded filters/keys, search prewarm, and reduced public payloads.
+- Upgraded storefront to Next.js 16.2.9/React 19.2.4 and added a committed ESLint configuration.
+- Added Caddy/PM2 topology, background job runner, readiness/liveness, unit/integration tests, benchmark script, and k6 scenario.
 
-## Important Pending Work
+## Latest verification matrix
 
-1. Run the admin migration with writes enabled on the intended database to create all helper tables: `web_admin_product_images`, menu tables, `web_admin_banner_meta`, `web_admin_product_card_attribute_rules`, and `web_admin_category_feature_boxes`.
-2. Smoke-test `/content/menu/header`, `/content/menu/homepage`, `/banner/banner-list`, `/product/card-attributes`, and `/product/categories-edit?id=1106`.
-3. Verify image/banner/category upload end to end: upload each type, reload admin edit page, check storefront tabs/sections, and check legacy fields where sync is expected.
-4. Add authentication and authorization before enabling admin write routes outside a trusted environment.
-5. Harden checkout before production: rate limit, CORS allowlist, request validation, backend quantity rules, idempotency, and safer error responses.
-6. Add integration tests around order transaction rollback and search/image/menu migration behavior.
-7. Decide whether to keep or remove legacy scratch/debug files at workspace root.
+| Check | Result |
+|---|---|
+| `web-admin` TypeScript | Pass |
+| `font-end` TypeScript | Pass |
+| `web-admin` ESLint `--quiet` | Pass |
+| `font-end` ESLint `--quiet` | Pass |
+| `web-admin` production build | Pass |
+| `font-end` production build | Pass |
+| Validation unit tests | 5/5 pass |
+| Idempotency/rollback integration test | 1/1 pass |
+| npm audit in both apps | 0 known vulnerabilities |
+| Local healthcheck | 13/13 pass |
+| Liveness/readiness/storefront | HTTP 200 |
+| Invalid quote/origin/order-key/webhook probes | Expected safe 4xx/5xx responses |
+| Full k6 1,500 VU | Not run on production-like host |
 
-## Verification Matrix
+## Latest local performance observations
 
-| Check | Result | Notes |
-| --- | --- | --- |
-| `web-admin` typecheck | Pass | `npx.cmd tsc --noEmit` |
-| `font-end` typecheck | Pass | `npx.cmd tsc --noEmit` |
-| `web-admin` build | Pass | Use `NODE_OPTIONS=--max-old-space-size=4096` |
-| `font-end` build | Pass | Use `NODE_OPTIONS=--max-old-space-size=4096` |
-| Header menu frontend/admin typecheck | Pass | Rechecked on 2026-07-09 with `npx tsc --noEmit` in both apps |
-| Header menu frontend/admin build | Pass | Rechecked on 2026-07-09 with `npm run build` in both apps; `web-admin` still shows the known multi-lockfile Next warning |
-| Circle Story Section2 binding | Pass | Rechecked on 2026-07-09 with `npx tsc --noEmit` and `npm run build` in `font-end` after moving story render out of `Header` |
-| Menu/banner/product-card/category feature work | Pass | Rechecked on 2026-07-09 with typecheck/build in both apps after cache/API/admin/storefront changes |
-| `web-admin` admin migration without write flag | Expected failure | Safety gate rejects when `ADMIN_WRITE_ENABLED` is not `true` |
-| Search DB health | Pass | Product rows = search rows = 28,763; missing = 0 |
-| `web-admin` lint | Not clean | Legacy lint errors remain |
-| `font-end` lint | Not configured | Next.js prompts for ESLint setup |
+| Measurement | Observed |
+|---|---:|
+| Products cold / warm | ~28.1 ms / ~3.1 ms |
+| Search cold / warm | ~126.1 ms / ~2.0 ms |
+| Homepage bootstrap cold / warm | ~21.6 ms / ~4.8 ms |
+| Header payload | 51,415 bytes, down from 99,097 |
+| Homepage bootstrap payload | 96,610 bytes, down from 148,256 |
 
-## Commands Used For Verification
+These results are development-machine observations and must not be used as production SLO evidence.
 
-```powershell
-cd D:\web-tech\web-admin
-npx.cmd tsc --noEmit
-$env:NODE_OPTIONS='--max-old-space-size=4096'
-npm.cmd run build
-```
+## Prioritized next work
 
-```powershell
-cd D:\web-tech\font-end
-npx.cmd tsc --noEmit
-$env:NODE_OPTIONS='--max-old-space-size=4096'
-npm.cmd run build
-```
+1. Run the complete `load:k6` scenario on an isolated target-like host and capture application, MySQL, CPU, RAM, pool, and slow-query metrics.
+2. Validate production reCAPTCHA hostnames/actions/scores in shadow mode, then enable enforcement in a coordinated frontend/backend release.
+3. Exercise graceful PM2/Caddy restart, worker crash recovery, outbox retry/backoff, and cleanup against staging.
+4. Add integration/E2E coverage for every write-route group and all 15 forms; focus on upload, RBAC, OTP/session revoke, concurrent vouchers, `429`, keyboard/focus, and offline failures.
+5. Audit the remaining lower-risk legacy admin write forms for canonical Zod field schemas and uniform field-level error UX.
+6. Re-run DB query plans under load and add only benchmark-supported indexes.
+7. Review root scratch/debug artifacts separately; preserve them until the owner authorizes removal.
 
-## Product Image Album State
+## Known risks and blockers
 
-Code supports three image types:
+- Capacity is not certified until the full k6 release gate passes.
+- CAPTCHA enforcement depends on production site/secret keys and allowed hostnames; a missing or mismatched configuration can block real users.
+- Search webhook updates depend on a shared strong `SEARCH_WEBHOOK_SECRET`.
+- MySQL shares the target host with the applications. If CPU/RAM/pool/SLO targets fail, separate MySQL or add another host.
+- The database still mixes InnoDB and MyISAM and mostly contains legacy latin1 data; transaction/encoding behavior cannot be assumed across all old tables.
+- Shared validation/security foundations cover the highest-risk routes, but the project should not claim every legacy admin field has been converted to canonical Zod without a route-by-route follow-up audit.
 
-| Type | Admin label | Storefront grouping |
-| --- | --- | --- |
-| `product` | Anh san pham | `imageGroups.product` |
-| `self` | Anh tu chup / Hacom tu chup | `imageGroups.product` |
-| `customer` | Anh khach hang | `imageGroups.customer` |
+## Verification commands
 
-The new admin metadata table is expected to be `web_admin_product_images`. The migration was not applied to the audited database because admin writes were not enabled.
-
-## Search State
-
-`product_data_search` is the current production-facing search cache for `/api/search`.
-
-Owners:
-
-- Migration: `web-admin/scripts/run-search-migration.ts`
-- Rebuild: `web-admin/scripts/rebuild-search-data.ts`
-- Runtime helpers: `web-admin/src/lib/searchInfrastructure.ts`
-- API: `web-admin/src/app/api/search/route.ts`
-- Webhook sync: `web-admin/src/app/api/webhook/update-search/route.ts`
-
-## Header Menu State
-
-Header navigation is now managed from `web-admin` instead of only from hardcoded storefront data.
-
-Owners:
-
-- Admin UI: `web-admin/src/app/content/menu/header/page.tsx`, `web-admin/src/app/content/menu/homepage/page.tsx`, and `web-admin/src/components/menu/HeaderMenuManager.tsx`
-- Admin API: `web-admin/src/app/api/admin/menus/header/*`
-- Public API: `web-admin/src/app/api/menu/header/route.ts` and `web-admin/src/app/api/menu/homepage/route.ts`
-- Backend service: `web-admin/src/lib/admin/menus.ts`
-- Seed data: `web-admin/src/lib/header-menu-seed.ts`
-- Storefront renderer: `font-end/src/components/Header.tsx`
-- Circle Story section renderer: `font-end/src/components/sections/Section2.tsx`
-- Storefront fallback data: `font-end/src/components/menuData.ts`
-
-Current behavior:
-
-- Admin edits draft menu data, then publishes it for the storefront.
-- `Danh Mục` and `Nổi bật` labels are editable in draft/published settings.
-- Admin preview updates from local draft state and supports area switching.
-- Menu tree is expandable/collapsible so large zone/group/link lists stay manageable.
-- Storefront header fetches `/api/menu/header`, uses fallback data if the API fails, and repairs known mojibake labels/suffixes before rendering.
-- Circle Story and Shop by Category data are homepage-only and served by `/api/menu/homepage`; Circle Story renders only in `Section2.tsx`, using the existing `.story-*` HTML structure. Do not render the same story strip from `Header`.
-
-## Storefront Section Binding Rule
-
-For future work in `font-end/src/components/sections/Section*.tsx`:
-
-- Keep existing section markup, classes, IDs, and layout unless a task explicitly asks for new UI.
-- Replace hardcoded repeated content with a data loop, then bind values into existing text nodes, attributes, or inline style values.
-- Do not add wrappers, new CSS classes, or duplicate render locations just to consume dynamic data.
-- URL values should only be bound when an existing link element is already part of the markup.
-- If dynamic data is empty or the API fails, avoid falling back to stale hardcoded content unless the task explicitly asks for a local fallback.
-- Normalize values before printing them: trim text, validate hex colors, and prefix relative media URLs with `NEXT_PUBLIC_API_URL`.
-
-## Known Risks
-
-- Most database tables still use legacy `latin1_swedish_ci`.
-- The database mixes InnoDB and MyISAM.
-- Admin write routes are powerful and should stay disabled until auth is complete.
-- Uploaded media serving depends on correct `MEDIA_ROOT` and `MEDIA_BASE_URL`.
-- Legacy image fields must continue to be synced until every consumer reads the new image metadata table.
+Use the command blocks in `AGENTS.md`. Use `npm.cmd run local:healthcheck` and `npm.cmd run local:benchmark` from `web-admin` while both apps are running. Use `npm.cmd run load:k6` only against an approved isolated target.

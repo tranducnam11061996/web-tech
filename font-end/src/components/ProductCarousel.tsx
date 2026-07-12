@@ -1,33 +1,77 @@
 "use client";
-import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Camera, ClipboardList, MessageCircle, Star, Users, Video } from "lucide-react";
+
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Heart,
+  Share2,
+  Users,
+  Video,
+} from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type {
+  ProductDetailData,
+  ProductGalleryImage,
+} from "@/types/product-detail";
 import ProgressiveImage from "./ProgressiveImage";
 
-type GalleryImage = {
-  url: string;
-  alt?: string;
-  type?: string;
-};
-
-function normalizeGalleryImages(input: unknown): GalleryImage[] {
+function normalizeGalleryImages(input: unknown): ProductGalleryImage[] {
   if (!Array.isArray(input)) return [];
+
   return input
     .map((item) => {
       if (typeof item === "string") return { url: item };
-      const record = item as Partial<GalleryImage>;
-      return record.url ? { url: record.url, alt: record.alt, type: record.type } : null;
+      const record = item as Partial<ProductGalleryImage>;
+      return record.url
+        ? { url: record.url, alt: record.alt, type: record.type }
+        : null;
     })
-    .filter(Boolean) as GalleryImage[];
+    .filter(Boolean) as ProductGalleryImage[];
 }
 
-export default function ProductCarousel({ productData }: { productData: any }) {
+function copyWithLegacyFallback(value: string) {
+  const textarea = document.createElement("textarea");
+  textarea.value = value;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+export default function ProductCarousel({
+  productData,
+}: {
+  productData: ProductDetailData;
+}) {
   const productImages = useMemo(() => {
-    const grouped = normalizeGalleryImages(productData?.imageGroups?.product);
-    return grouped.length > 0 ? grouped : normalizeGalleryImages(productData?.images);
-  }, [productData?.imageGroups?.product, productData?.images]);
-  const customerImages = useMemo(() => normalizeGalleryImages(productData?.imageGroups?.customer), [productData?.imageGroups?.customer]);
-  const [activeImageTab, setActiveImageTab] = useState<"product" | "customer">("product");
-  const currentGallery = activeImageTab === "customer" && customerImages.length > 0 ? customerImages : productImages;
+    const grouped = normalizeGalleryImages(productData.imageGroups?.product);
+    return grouped.length > 0
+      ? grouped
+      : normalizeGalleryImages(productData.images);
+  }, [productData.imageGroups?.product, productData.images]);
+  const customerImages = useMemo(
+    () => normalizeGalleryImages(productData.imageGroups?.customer),
+    [productData.imageGroups?.customer],
+  );
+  const [activeImageTab, setActiveImageTab] = useState<"product" | "customer">(
+    "product",
+  );
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [actionMessage, setActionMessage] = useState("");
+  const currentGallery =
+    activeImageTab === "customer" && customerImages.length > 0
+      ? customerImages
+      : productImages;
   const totalSlides = currentGallery.length || 1;
   const [curSlide, setCurSlide] = useState(1);
   const [isTransitioning, setIsTransitioning] = useState(true);
@@ -35,11 +79,61 @@ export default function ProductCarousel({ productData }: { productData: any }) {
 
   const mainRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+  const railRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const dragTranslateRef = useRef(0);
-  const autoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const realIndex = curSlide === 0 ? totalSlides - 1 : curSlide === totalSlides + 1 ? 0 : curSlide - 1;
+  const [canScrollRailLeft, setCanScrollRailLeft] = useState(false);
+  const [canScrollRailRight, setCanScrollRailRight] = useState(false);
+
+  const checkRailScroll = useCallback(() => {
+    if (railRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = railRef.current;
+      // The first box (video) is 80px wide. Hide left arrow unless it is fully scrolled out of view.
+      setCanScrollRailLeft(scrollLeft >= 80);
+      setCanScrollRailRight(Math.ceil(scrollLeft + clientWidth) < scrollWidth);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkRailScroll();
+    window.addEventListener("resize", checkRailScroll);
+    return () => window.removeEventListener("resize", checkRailScroll);
+  }, [checkRailScroll, totalSlides]);
+
+  const showMessage = useCallback((message: string) => {
+    setActionMessage(message);
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    messageTimerRef.current = setTimeout(() => setActionMessage(""), 2400);
+  }, []);
+
+  const stopAuto = useCallback(() => {
+    if (autoTimerRef.current) clearInterval(autoTimerRef.current);
+    autoTimerRef.current = null;
+  }, []);
+
+  const startAuto = useCallback(() => {
+    stopAuto();
+    if (totalSlides <= 1) return;
+    autoTimerRef.current = setInterval(() => {
+      setIsTransitioning(true);
+      setCurSlide((previous) => previous + 1);
+    }, 4200);
+  }, [stopAuto, totalSlides]);
+
+  const resetAuto = useCallback(() => {
+    stopAuto();
+    startAuto();
+  }, [startAuto, stopAuto]);
+
+  const realIndex =
+    curSlide === 0
+      ? totalSlides - 1
+      : curSlide === totalSlides + 1
+        ? 0
+        : curSlide - 1;
 
   useEffect(() => {
     setIsTransitioning(false);
@@ -57,8 +151,9 @@ export default function ProductCarousel({ productData }: { productData: any }) {
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       stopAuto();
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
     };
-  }, [totalSlides]);
+  }, [startAuto, stopAuto]);
 
   useEffect(() => {
     if (curSlide === totalSlides + 1) {
@@ -77,228 +172,292 @@ export default function ProductCarousel({ productData }: { productData: any }) {
     }
   }, [curSlide, totalSlides]);
 
-  const nextSlide = () => {
+  const nextSlide = useCallback(() => {
     if (curSlide >= totalSlides + 1) return;
     setIsTransitioning(true);
-    setCurSlide((prev) => prev + 1);
+    setCurSlide((previous) => previous + 1);
     resetAuto();
-  };
+  }, [curSlide, resetAuto, totalSlides]);
 
-  const prevSlide = () => {
+  const prevSlide = useCallback(() => {
     if (curSlide <= 0) return;
     setIsTransitioning(true);
-    setCurSlide((prev) => prev - 1);
+    setCurSlide((previous) => previous - 1);
     resetAuto();
-  };
+  }, [curSlide, resetAuto]);
 
-  const startAuto = () => {
-    stopAuto();
-    if (totalSlides <= 1) return;
-    autoTimerRef.current = setInterval(() => {
-      setIsTransitioning(true);
-      setCurSlide((prev) => prev + 1);
-    }, 3000);
-  };
-
-  const stopAuto = () => {
-    if (autoTimerRef.current) clearInterval(autoTimerRef.current);
-  };
-
-  const resetAuto = () => {
-    stopAuto();
-    startAuto();
-  };
-
-  const dStart = (e: React.MouseEvent | React.TouchEvent) => {
+  const dragStart = (event: React.MouseEvent | React.TouchEvent) => {
     setIsDragging(true);
-    startXRef.current = "touches" in e ? e.touches[0].clientX : e.pageX;
+    startXRef.current =
+      "touches" in event ? event.touches[0].clientX : event.pageX;
     dragTranslateRef.current = 0;
     stopAuto();
   };
 
-  const dMove = (e: React.MouseEvent | React.TouchEvent) => {
+  const dragMove = (event: React.MouseEvent | React.TouchEvent) => {
     if (!isDragging) return;
-    const x = "touches" in e ? e.touches[0].clientX : e.pageX;
+    const x = "touches" in event ? event.touches[0].clientX : event.pageX;
     dragTranslateRef.current = x - startXRef.current;
     if (trackRef.current) {
       trackRef.current.style.transform = `translateX(calc(-${curSlide * 100}% + ${dragTranslateRef.current}px))`;
     }
   };
 
-  const dEnd = () => {
+  const dragEnd = () => {
     if (!isDragging) return;
     setIsDragging(false);
-    const w = mainRef.current?.offsetWidth || 1;
-    if (dragTranslateRef.current < -w * 0.15) {
-      setIsTransitioning(true);
-      setCurSlide((prev) => prev + 1);
-    } else if (dragTranslateRef.current > w * 0.15) {
-      setIsTransitioning(true);
-      setCurSlide((prev) => prev - 1);
+    const width = mainRef.current?.offsetWidth || 1;
+    if (dragTranslateRef.current < -width * 0.15) nextSlide();
+    else if (dragTranslateRef.current > width * 0.15) prevSlide();
+    else if (trackRef.current) {
+      trackRef.current.style.transform = `translateX(-${curSlide * 100}%)`;
     }
     dragTranslateRef.current = 0;
     startAuto();
   };
 
-  const images = useMemo(() => {
-    const fallback = productData?.images?.[0] || "https://placehold.co/800x800/1f2937/a1a1aa?text=No+Image";
-    return Array.from({ length: totalSlides }).map((_, i) => currentGallery[i] || currentGallery[0] || { url: fallback });
-  }, [currentGallery, productData?.images, totalSlides]);
+  const fallback =
+    typeof productData.images?.[0] === "string"
+      ? productData.images[0]
+      : "https://placehold.co/800x680/111115/71717a?text=No+Image";
+  const images = useMemo(
+    () =>
+      Array.from({ length: totalSlides }).map(
+        (_, index) =>
+          currentGallery[index] || currentGallery[0] || { url: fallback },
+      ),
+    [currentGallery, fallback, totalSlides],
+  );
   const clonedImages = useMemo(
     () => [images[images.length - 1], ...images, images[0]],
     [images],
   );
 
+  const handleShare = async () => {
+    const shareData = {
+      title: productData.name,
+      text: productData.name,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        showMessage("Đã mở bảng chia sẻ");
+        return;
+      }
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareData.url);
+      } else {
+        copyWithLegacyFallback(shareData.url);
+      }
+      showMessage("Đã sao chép đường dẫn sản phẩm");
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      try {
+        copyWithLegacyFallback(shareData.url);
+        showMessage("Đã sao chép đường dẫn sản phẩm");
+      } catch {
+        showMessage("Chưa thể sao chép đường dẫn");
+      }
+    }
+  };
+
   return (
-    <div className="w-full lg:w-[60%] lg:sticky lg:top-6 lg:self-start min-w-0">
-      <div className="flex flex-col-reverse lg:flex-row gap-3 lg:items-stretch min-w-0">
-        {/* Thumbnails */}
-        <div className="w-full lg:w-[15%] shrink-0" style={{ containerType: "inline-size" }}>
-          <div
-            className="flex flex-row lg:flex-col gap-3 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] pb-1 lg:pb-0 h-full lg:max-h-[calc(5*100cqi+4*0.75rem)]"
-            id="thumbList"
-          >
-            {images.map((image, i) => (
-              <div
-                key={i}
-                className={`thumb ${
-                  realIndex === i ? "active" : ""
-                } shrink-0 w-[23%] lg:w-full lg:aspect-square border border-[#27272a] rounded-md overflow-hidden cursor-pointer`}
-                onClick={() => {
-                  setIsTransitioning(true);
-                  setCurSlide(i + 1);
-                  resetAuto();
-                }}
-              >
-                <ProgressiveImage
-                  src={image.url}
-                  alt={image.alt || `${productData.name} thumb ${i + 1}`}
-                  className="w-full h-full object-cover text-transparent text-[0px]"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-        {/* Main carousel */}
-        <div className="w-full lg:flex-1 relative lg:h-auto min-w-0">
-          <div
-            className="carousel-main aspect-[4/3] lg:aspect-auto lg:h-full lg:w-full overflow-hidden rounded-xl bg-black"
-            id="carouselMain"
-            ref={mainRef}
-            onMouseEnter={stopAuto}
-            onMouseLeave={() => {
-              if (!isDragging) startAuto();
+    <section className="product-gallery-column" aria-label="Hình ảnh sản phẩm">
+      <div
+        className="product-gallery-stage"
+        ref={mainRef}
+        tabIndex={0}
+        role="region"
+        aria-roledescription="carousel"
+        aria-label={`Bộ ảnh ${productData.name}`}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") prevSlide();
+          if (event.key === "ArrowRight") nextSlide();
+        }}
+        onMouseEnter={stopAuto}
+        onMouseLeave={() => {
+          if (isDragging) dragEnd();
+          else startAuto();
+        }}
+        onMouseDown={dragStart}
+        onMouseMove={dragMove}
+        onMouseUp={dragEnd}
+        onTouchStart={dragStart}
+        onTouchMove={dragMove}
+        onTouchEnd={dragEnd}
+      >
+        <div className="product-gallery-actions">
+          <button
+            type="button"
+            className={`product-gallery-icon-button ${isFavorite ? "is-active" : ""}`}
+            aria-label={
+              isFavorite
+                ? "Bỏ sản phẩm khỏi danh sách yêu thích"
+                : "Thêm sản phẩm vào danh sách yêu thích"
+            }
+            aria-pressed={isFavorite}
+            onClick={() => {
+              setIsFavorite((current) => !current);
+              showMessage(
+                isFavorite
+                  ? "Đã bỏ khỏi danh sách yêu thích"
+                  : "Đã lưu sản phẩm trên thiết bị này",
+              );
             }}
-            onMouseDown={dStart}
-            onTouchStart={dStart}
-            onMouseMove={dMove}
-            onTouchMove={dMove}
-            onMouseUp={dEnd}
-            onTouchEnd={dEnd}
           >
-            <div
-              ref={trackRef}
-              className="carousel-track"
-              id="carTrack"
-              style={{
-                transform: `translateX(-${curSlide * 100}%)`,
-                transition: isDragging || !isTransitioning ? "none" : "transform .4s cubic-bezier(.25,1,.5,1)",
+            <Heart aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="product-gallery-icon-button"
+            aria-label="Chia sẻ sản phẩm"
+            onClick={handleShare}
+          >
+            <Share2 aria-hidden="true" />
+          </button>
+        </div>
+
+        <div
+          ref={trackRef}
+          className="product-gallery-track"
+          style={{
+            transform: `translateX(-${curSlide * 100}%)`,
+            transition:
+              isDragging || !isTransitioning
+                ? "none"
+                : "transform .4s cubic-bezier(.25,1,.5,1)",
+          }}
+        >
+          {clonedImages.map((image, index) => (
+            <div className="product-gallery-slide" key={`${image.url}-${index}`}>
+              <ProgressiveImage
+                src={image.url}
+                alt={image.alt || `${productData.name} - ảnh ${index + 1}`}
+                loading={index === 1 ? "eager" : "lazy"}
+                fetchPriority={index === 1 ? "high" : "auto"}
+                draggable={false}
+                disableLoadingEffects
+                className="product-gallery-image"
+              />
+            </div>
+          ))}
+        </div>
+
+        {totalSlides > 1 && (
+          <>
+            <button
+              type="button"
+              className="product-gallery-arrow is-left"
+              aria-label="Ảnh trước"
+              onClick={prevSlide}
+            >
+              <ChevronLeft aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="product-gallery-arrow is-right"
+              aria-label="Ảnh tiếp theo"
+              onClick={nextSlide}
+            >
+              <ChevronRight aria-hidden="true" />
+            </button>
+          </>
+        )}
+
+        {customerImages.length > 0 && (
+          <div className="product-gallery-tabs" role="group" aria-label="Nhóm ảnh">
+            <button
+              type="button"
+              className={activeImageTab === "product" ? "is-active" : ""}
+              onClick={() => setActiveImageTab("product")}
+            >
+              <Camera aria-hidden="true" /> Ảnh sản phẩm
+            </button>
+            <button
+              type="button"
+              className={activeImageTab === "customer" ? "is-active" : ""}
+              onClick={() => setActiveImageTab("customer")}
+            >
+              <Users aria-hidden="true" /> Ảnh khách hàng
+            </button>
+          </div>
+        )}
+      </div>
+      <p className="product-gallery-note">
+        Hình ảnh mang tính chất minh họa / tham khảo
+      </p>
+      <div className="product-gallery-rail-container">
+        {canScrollRailLeft && (
+          <button
+            type="button"
+            className="product-gallery-rail-arrow is-left"
+            onClick={() => {
+              if (railRef.current) {
+                railRef.current.scrollBy({ left: -300, behavior: "smooth" });
+              }
+            }}
+          >
+            <ChevronLeft aria-hidden="true" />
+          </button>
+        )}
+        <div
+          ref={railRef}
+          className="product-gallery-rail"
+          aria-label="Điều hướng hình ảnh"
+          onScroll={checkRailScroll}
+        >
+          <button
+            type="button"
+            className="product-gallery-utility"
+            onClick={() => showMessage("Video sản phẩm sẽ được cập nhật ở phase sau")}
+          >
+            <Video aria-hidden="true" />
+            <span>Video</span>
+          </button>
+          <a href="#cot-thongsokythuat" className="product-gallery-utility">
+            <ClipboardList aria-hidden="true" />
+            <span>Thông số</span>
+          </a>
+          {images.map((image, index) => (
+            <button
+              type="button"
+              key={`${image.url}-thumb-${index}`}
+              className={`product-gallery-thumbnail ${realIndex === index ? "is-active" : ""}`}
+              aria-label={`Xem ảnh ${index + 1}`}
+              aria-current={realIndex === index ? "true" : undefined}
+              onClick={() => {
+                setIsTransitioning(true);
+                setCurSlide(index + 1);
+                resetAuto();
               }}
             >
-              {clonedImages.map((image, i) => (
-                <div className="carousel-slide" key={i}>
-                  <div className="w-full h-full p-2 lg:p-6 flex items-center justify-center">
-                    <ProgressiveImage
-                      src={image.url}
-                      alt={image.alt || `${productData.name} image ${i}`}
-                      className="w-full h-full object-contain text-transparent text-[0px] drop-shadow-xl"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="car-arrow left-3" onClick={prevSlide}>
-              ‹
-            </div>
-            <div className="car-arrow right-3" onClick={nextSlide}>
-              ›
-            </div>
-          </div>
+              <ProgressiveImage
+                src={image.url}
+                alt=""
+                className="h-full w-full object-contain"
+              />
+            </button>
+          ))}
         </div>
+        {canScrollRailRight && (
+          <button
+            type="button"
+            className="product-gallery-rail-arrow is-right"
+            onClick={() => {
+              if (railRef.current) {
+                railRef.current.scrollBy({ left: 300, behavior: "smooth" });
+              }
+            }}
+          >
+            <ChevronRight aria-hidden="true" />
+          </button>
+        )}
       </div>
-
-      <p className="text-[14px] text-gray-600 text-center mt-3 italic lg:pl-[calc(15%+0.75rem)]">
-        Hình ảnh mang tính chất minh họa / tham khảo !
+      <p className="sr-only" role="status" aria-live="polite">
+        {actionMessage}
       </p>
-
-      {/* Nav Buttons */}
-      <div className="flex gap-3 mt-5 justify-center flex-wrap lg:pl-[calc(15%+0.75rem)]">
-        <button
-          type="button"
-          onClick={() => setActiveImageTab("product")}
-          className={`nav-btn ${activeImageTab === "product" ? "ring-2 ring-red-500/40" : ""}`}
-        >
-          <div className="icon">
-            <Camera className="w-7 h-7" />
-          </div>
-          <span>
-            Hình ảnh<br />
-            sản phẩm
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => customerImages.length > 0 && setActiveImageTab("customer")}
-          disabled={customerImages.length === 0}
-          className={`nav-btn ${activeImageTab === "customer" ? "ring-2 ring-red-500/40" : ""} ${
-            customerImages.length === 0 ? "opacity-45 cursor-not-allowed" : ""
-          }`}
-        >
-          <div className="icon">
-            <Users className="w-7 h-7" />
-          </div>
-          <span>
-            Hình ảnh<br />
-            khách hàng
-          </span>
-        </button>
-        <a href="#sec-specs" className="nav-btn">
-          <div className="icon">
-            <ClipboardList className="w-7 h-7" />
-          </div>
-          <span>
-            Thông số<br />
-            kỹ thuật
-          </span>
-        </a>
-        <a href="#sec-video" className="nav-btn">
-          <div className="icon">
-            <Video className="w-7 h-7" />
-          </div>
-          <span>
-            Video sản<br />
-            phẩm
-          </span>
-        </a>
-        <a href="#sec-faq" className="nav-btn">
-          <div className="icon">
-            <MessageCircle className="w-7 h-7" />
-          </div>
-          <span>
-            Câu hỏi<br />
-            thường gặp
-          </span>
-        </a>
-        <a href="#sec-reviews" className="nav-btn">
-          <div className="icon">
-            <Star className="w-7 h-7" />
-          </div>
-          <span>
-            Đánh giá<br />
-            sản phẩm
-          </span>
-        </a>
-      </div>
-    </div>
+    </section>
   );
 }

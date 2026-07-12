@@ -24,7 +24,7 @@ export function TabCategories() {
     { id: 9, name: 'Dịch Vụ Sửa Chữa, Lắp Đặt', hasChildren: true },
     { id: 10, name: 'Thiết Bị Mô Phỏng, Mô Hình', hasChildren: true },
     { id: 11, name: 'Linh Kiện Tản Nước Thanh Lý', hasChildren: true },
-    { id: 12, name: 'Gợi ý của HACOM', hasChildren: true },
+  { id: 12, name: 'Gợi ý của TrucTiepGAME', hasChildren: true },
     { id: 13, name: 'Gia Dụng, Điện Máy, Sức Khỏe', hasChildren: true },
     { id: 14, name: 'Laptop, Tablet, Surface', hasChildren: true },
     { id: 15, name: 'Test', hasChildren: true },

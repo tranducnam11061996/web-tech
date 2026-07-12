@@ -2,7 +2,7 @@ import path from 'node:path';
 import { access, mkdir, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { AdminApiError, fail, ok, requireAdminWrite } from '@/lib/admin/common';
-import { getMediaRoot, isPathInside } from '@/lib/admin/media-storage';
+import { getMediaRoot, isPathInside, matchesImageSignature } from '@/lib/admin/media-storage';
 
 export const runtime = 'nodejs';
 
@@ -78,6 +78,7 @@ export async function POST(request: Request) {
     await mkdir(folderPath, { recursive: true });
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    if (!matchesImageSignature(buffer, mimeType)) throw new AdminApiError(400, 'BAD_REQUEST', 'Nội dung file không đúng định dạng ảnh');
     const baseName = sanitizeName(file.name, `circle-story-${Date.now()}`);
     const { fileName, targetPath } = await uniqueFilePath(folderPath, baseName, extension);
     if (!isPathInside(mediaRoot, targetPath)) throw new AdminApiError(400, 'BAD_REQUEST', 'Đường dẫn file không hợp lệ');

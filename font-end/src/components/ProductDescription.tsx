@@ -10,6 +10,7 @@ interface ProductDescriptionProps {
 export default function ProductDescription({ productName, description }: ProductDescriptionProps) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [showDescBtn, setShowDescBtn] = useState(true);
+  const [descHeight, setDescHeight] = useState(2000);
   const descRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -17,6 +18,7 @@ export default function ProductDescription({ productName, description }: Product
     if (descRef.current) {
       descObserver = new ResizeObserver(() => {
         if (descRef.current) {
+          setDescHeight(descRef.current.scrollHeight);
           setShowDescBtn(descRef.current.scrollHeight > descRef.current.clientHeight);
         }
       });
@@ -28,8 +30,8 @@ export default function ProductDescription({ productName, description }: Product
   if (!description) return null;
 
   return (
-    <div className="lg:w-3/5 scroll-mt-[15vh]" id="cot-motasanpham">
-      <div id="descCol" ref={descRef} className={`relative py-6 transition-all duration-700 ease-in-out col-collapsed ${descExpanded ? "expanded" : ""}`} style={{ maxHeight: descExpanded ? `${descRef.current?.scrollHeight || 2000}px` : "66vh", overflow: "hidden" }}>
+    <div className="lg:w-[70%] scroll-mt-[15vh]" id="cot-motasanpham">
+      <div id="descCol" ref={descRef} className={`relative py-6 transition-all duration-700 ease-in-out col-collapsed ${descExpanded ? "expanded" : ""}`} style={{ maxHeight: descExpanded ? `${descHeight}px` : "66vh", overflow: "hidden" }}>
 
         <h2 className="text-lg font-bold text-white mb-6 border-b border-[#1a1a1e] pb-4">Đánh giá: {productName}</h2>
 

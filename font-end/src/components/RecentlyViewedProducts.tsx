@@ -62,8 +62,7 @@ function fetchProductsByIds(ids: number[]) {
   const key = ids.join(",");
   const existing = requestFlights.get(key);
   if (existing) return existing;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-  const flight = fetch(`${API_URL}/api/products?ids=${encodeURIComponent(key)}`)
+  const flight = fetch(`/api/products?ids=${encodeURIComponent(key)}`)
     .then(async (response) => {
       if (!response.ok) throw new Error(`Recently viewed request failed: ${response.status}`);
       const payload = await response.json();

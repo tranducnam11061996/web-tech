@@ -1,7 +1,7 @@
-"use client";
-
 import CheckoutClient from "./CheckoutClient";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 export default function CheckoutPage() {
-  return <CheckoutClient />;
+  return <><Header /><CheckoutClient /><Footer /></>;
 }

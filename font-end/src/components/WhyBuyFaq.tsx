@@ -1,6 +1,3 @@
-"use client";
-
-import { useId, useState } from "react";
 import type { BuyingGuideData } from "../types/buying-guide";
 
 function AccordionItem({
@@ -14,17 +11,10 @@ function AccordionItem({
   answer: string;
   defaultExpanded?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const contentId = useId();
-
   return (
-    <div className={`accordion-item ${isExpanded ? "active" : ""}`}>
-      <button
-        type="button"
+    <details className="accordion-item group" open={defaultExpanded}>
+      <summary
         className="accordion-header w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
-        aria-expanded={isExpanded}
-        aria-controls={contentId}
-        onClick={() => setIsExpanded((expanded) => !expanded)}
       >
         <span className="accordion-num" aria-hidden="true">{num}</span>
         <span className="accordion-title">{title}</span>
@@ -35,18 +25,18 @@ function AccordionItem({
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
-            className={`transition-transform duration-300 motion-reduce:transition-none ${isExpanded ? "rotate-180" : ""}`}
+            className="transition-transform duration-300 motion-reduce:transition-none group-open:rotate-180"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
           </svg>
         </span>
-      </button>
-      <div id={contentId} className="accordion-body" hidden={!isExpanded}>
+      </summary>
+      <div className="accordion-body">
         <div className="accordion-body-inner whitespace-pre-line border-t border-[#1a1a1e] pt-3 text-[15px] leading-7 text-zinc-400">
           {answer}
         </div>
       </div>
-    </div>
+    </details>
   );
 }
 

@@ -31,6 +31,12 @@ flowchart LR
 
 ## Public read flow and cache
 
+Product detail now has two cacheable compositions. `include=full` remains the compatibility default. The storefront requests `include=core` for above-the-fold catalog, image, price, variant, combo, voucher, promotion, video, and specification data, then streams `/api/products/[slug]/supplemental` for recommendations, related posts, and buying guides through `Suspense`. Recently viewed data remains browser-local and is loaded only near the viewport.
+
+Worker-local product caches are bounded by entry count and estimated bytes. Fresh entries return directly; expired entries inside the stale window return immediately while one background flight rebuilds them. Negative slug results use a short TTL. DB cache versions still invalidate both API workers.
+
+Operational visibility is exposed through token-protected `/api/internal/metrics`; sampled, bounded, same-origin Web Vitals batches enter `/api/telemetry/web-vitals`. Browser API calls stay relative to the storefront origin, while server components use `API_INTERNAL_URL`.
+
 ```mermaid
 sequenceDiagram
   participant B as Browser/storefront

@@ -2,12 +2,18 @@
   "name": "hacom-frontend",
   "version": "0.1.0",
   "private": true,
-  "overrides": { "postcss": "8.5.10" },
+  "overrides": {
+    "postcss": "8.5.10"
+  },
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "perf:budget": "node scripts/check-performance-budgets.mjs",
+    "perf:budget:release": "node scripts/check-performance-budgets.mjs --release",
+    "perf:lighthouse": "npx --yes @lhci/cli autorun",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "clsx": "^2.1.0",
@@ -19,6 +25,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^20.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.0",

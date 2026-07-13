@@ -10,7 +10,7 @@ import {
   type SidebarSectionVisibility,
 } from "../../lib/sidebarFilterVisibility";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_URL = "";
 const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
 
 export interface Product {

@@ -1,12 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CheckoutProductRow, type CheckoutDisplayItem } from "@/components/commerce/CheckoutProductRow";
 import { CommercePageFrame } from "@/components/commerce/CommercePageFrame";
-import { VietnamLocationSelector } from "@/components/location/VietnamLocationSelector";
 import { customerFetch, type CustomerAddress, useCustomerSession } from "@/lib/customer";
-import { getCustomerRecaptchaToken } from "@/lib/customerRecaptcha";
 import { formatCurrency } from "@/lib/cart";
 import { setComboCart, toComboApiPayload, useComboCart } from "@/lib/comboCart";
 
@@ -23,6 +22,10 @@ type CheckoutForm = {
 };
 const initialForm: CheckoutForm = { customerName: "", customerPhone: "", customerEmail: "", receiverEnabled: false, receiverName: "", receiverPhone: "", deliveryMethod: "shipping", provinceCode: "", province: "", wardCode: "", ward: "", address: "", note: "", invoiceEnabled: false, companyName: "", taxCode: "", invoiceAddress: "", invoiceEmail: "", paymentMethod: "bank_transfer" };
 const inputClass = "w-full rounded-lg border border-[#27272a] bg-[#0d0d10] px-[14px] py-[10px] text-[13px] text-white outline-none transition-colors placeholder:text-[#555] focus:border-blue-500";
+const VietnamLocationSelector = dynamic(
+  () => import("@/components/location/VietnamLocationSelector").then((module) => module.VietnamLocationSelector),
+  { loading: () => <div className="h-24 animate-pulse rounded-lg bg-[#111115]" aria-hidden="true" /> },
+);
 
 export default function ComboCheckoutClient() {
   const cart = useComboCart();
@@ -62,6 +65,7 @@ export default function ComboCheckoutClient() {
     if (form.deliveryMethod === "shipping" && (!form.provinceCode || !form.wardCode || !form.address.trim())) return setDeliveryError("Vui lòng chọn tỉnh/thành phố, phường/xã/đặc khu và nhập địa chỉ giao hàng.");
     setIsSubmitting(true);
     try {
+      const { getCustomerRecaptchaToken } = await import("@/lib/customerRecaptcha");
       const recaptchaToken = await getCustomerRecaptchaToken("combo_order_submit"); idempotencyKey.current ||= crypto.randomUUID();
       const response = await fetch("/api/combo-orders", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey.current }, body: JSON.stringify({ ...toComboApiPayload(cart), recaptchaToken, website: "", customer: { name: form.customerName.trim(), phone: form.customerPhone.trim(), email: form.customerEmail.trim() }, receiver: { enabled: form.receiverEnabled, name: form.receiverName.trim(), phone: form.receiverPhone.trim() }, delivery: { method: form.deliveryMethod, province: form.province.trim(), ward: form.ward.trim(), address: form.address.trim(), note: form.note.trim() }, paymentMethod: form.paymentMethod, invoice: { enabled: form.invoiceEnabled, companyName: form.companyName.trim(), taxCode: form.taxCode.trim(), address: form.invoiceAddress.trim(), email: form.invoiceEmail.trim() }, note: form.note.trim() }) });
       const payload = await response.json(); if (!response.ok || !payload.success) { if (response.status < 500 && payload?.error?.code !== "ORDER_PROCESSING") idempotencyKey.current = null; throw new Error(payload?.error?.message || "Không thể tạo đơn combo."); }

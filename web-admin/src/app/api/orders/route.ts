@@ -8,9 +8,10 @@ import { linkOrderToCustomer, resolveCustomerSession } from '@/lib/customerAccou
 import { orderSchema } from '@/lib/commerceValidation';
 import { verifyCustomerCaptcha } from '@/lib/customerRecaptcha';
 import { assertPublicOrigin, parseJson, publicCorsHeaders, publicError, PublicRequestError, requestId } from '@/lib/publicRequest';
-import { consumeRateLimit, requestIp } from '@/lib/performanceInfrastructure';
+import { consumeRateLimits, rateLimitSetting, requestIp } from '@/lib/performanceInfrastructure';
 import { claimOrderRequest, completeOrderRequest, enqueueOrderEmail, validateIdempotencyKey } from '@/lib/orderInfrastructure';
 import type { EmailCustomer, EmailDelivery, EmailOrderItem, EmailOrderTotals } from '@/lib/email';
+import { recordRouteMetric } from '@/lib/runtimeMetrics';
 
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, { status: 204, headers: publicCorsHeaders(request, 'POST, OPTIONS') });
@@ -25,6 +26,7 @@ function toDbSafeText(value: string) {
 }
 
 export async function POST(request: Request) {
+  const startedAt = performance.now();
   const cors = publicCorsHeaders(request, 'POST, OPTIONS');
   const id = requestId(request);
   try {
@@ -33,8 +35,10 @@ export async function POST(request: Request) {
     if (body.website) return NextResponse.json({ success: true }, { status: 202, headers: { ...cors, 'X-Request-ID': id } });
     const idempotencyKey = validateIdempotencyKey(request.headers.get('idempotency-key'));
     await Promise.all([
-      consumeRateLimit({ scope: 'order_ip', key: requestIp(request), limit: 120, windowSeconds: 300, blockSeconds: 300 }),
-      consumeRateLimit({ scope: 'order_phone', key: body.customer.phone, limit: 8, windowSeconds: 900, blockSeconds: 900 }),
+      consumeRateLimits([
+        { scope: 'order_ip', key: requestIp(request), limit: rateLimitSetting('RATE_LIMIT_ORDER_IP', 120), windowSeconds: 300, blockSeconds: 300 },
+        { scope: 'order_phone', key: body.customer.phone, limit: rateLimitSetting('RATE_LIMIT_ORDER_PHONE', 8), windowSeconds: 900, blockSeconds: 900 },
+      ]),
       verifyCustomerCaptcha(request, body.recaptchaToken, 'order_submit'),
     ]);
 
@@ -85,7 +89,9 @@ export async function POST(request: Request) {
       await completeOrderRequest(connection, claimed.id, orderId, responseBody);
       await connection.commit();
       if (voucherAvailabilityChanged) clearPublicCatalogDetailCache();
-      return NextResponse.json(responseBody, { headers: { ...cors, 'X-Request-ID': id } });
+      const duration = performance.now() - startedAt;
+      recordRouteMetric('POST /api/orders', duration, 200);
+      return NextResponse.json(responseBody, { headers: { ...cors, 'X-Request-ID': id, 'Server-Timing': `app;dur=${duration.toFixed(1)}` } });
     } catch (error) {
       await connection.rollback();
       throw error;
@@ -93,6 +99,8 @@ export async function POST(request: Request) {
       connection.release();
     }
   } catch (error) {
-    return publicError(error, request, cors);
+    const response = publicError(error, request, cors);
+    recordRouteMetric('POST /api/orders', performance.now() - startedAt, response.status);
+    return response;
   }
 }

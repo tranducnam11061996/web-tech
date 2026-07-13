@@ -1,8 +1,9 @@
 import { type CSSProperties } from 'react';
 import { type MenuLinkObject } from '../menuData';
 import { cleanMenuTextTrimmed, resolveMenuHexColor, resolveMenuMediaUrl } from '@/lib/menuUtils';
+import { internalApiUrl } from '@/lib/apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = internalApiUrl('');
 
 function cleanText(value: unknown) {
   return cleanMenuTextTrimmed(value);

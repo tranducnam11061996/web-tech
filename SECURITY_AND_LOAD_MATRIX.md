@@ -1,12 +1,14 @@
 # Security and Load Coverage Matrix
 
-Last updated: `2026-07-11`
+Last updated: `2026-07-13`
 
 Status meanings: **Implemented** is present in code and locally checked; **Partial** needs route/form coverage or staging evidence; **Not verified** exists as a plan/script but has not passed the target environment gate.
 
 | Endpoint/form group | Validation/body bound | Auth/origin | Abuse protection | CAPTCHA/idempotency | Status |
 |---|---|---|---|---|---|
 | Public catalog/menu/banner/homepage/search reads | Bounded query/page/filter/cache keys | Public read | ETag, cache, single-flight | N/A | Implemented |
+| Product core/supplemental reads | Bounded slug/include; compatibility default remains full | Public read | ETag, byte-bounded SWR, negative TTL, cross-worker invalidation | N/A | Implemented locally |
+| Web Vitals telemetry | Strict 2 KB batch and five known metrics; no PII fields | Storefront origin | 5% session sampling; operational signal is untrusted | N/A | Implemented locally |
 | `POST /api/cart/quote` | Canonical cart schema, 50 items, qty 1–99 | Storefront origin | IP rate limit | No CAPTCHA by default | Implemented |
 | `POST /api/orders` | Canonical bounded order schema | Storefront origin; optional customer session | IP + phone buckets, honeypot | `order_submit`; required `Idempotency-Key` | Implemented |
 | `POST /api/combo-cart/quote` | Canonical set/revision/group/product/qty schema; server prices only | Storefront origin | IP rate limit | No CAPTCHA | Implemented locally |
@@ -31,6 +33,7 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Order consistency | Single transaction, voucher row lock, bulk items, idempotency replay | Concurrent staging load |
 | Email | Transactional outbox with worker retry/backoff | SMTP failure/recovery staging test |
 | Cache coherence | Worker-local cache plus DB version invalidation | Two-worker mutation test under load |
+| Runtime metrics | Token-protected route with safe route/cache/process/outbox metrics | Connect staging collector and retain the full k6 run |
 | Webhook replay | HMAC SHA-256, ±5 minute timestamp, nonce table | Production secret rotation procedure |
 | Reverse proxy | Caddy compression, body limits, timeouts, CSP/HSTS/security headers | Production TLS/domain validation |
 
@@ -44,5 +47,6 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Correctness | <0.5% errors, no duplicate order, no oversold voucher | Idempotency test passes; concurrent voucher load pending |
 | Host | CPU <75%, free RAM ≥20%, no pool timeout/hot query >500 ms | Not verified on target host |
 | Web UX | LCP p75 <2.5 s, INP <200 ms, CLS <0.1 | Production-like measurement pending |
+| JS budget | Product detail <=205 KB; commerce <=170 KB referenced route JS | Commerce passes; product detail is 219.9 KB (down from 233.6 KB) and remains a release blocker |
 
 Run `web-admin/scripts/load-1500-users.js` only against an approved isolated staging host. Preserve the result bundle and treat any failed threshold as a release blocker.

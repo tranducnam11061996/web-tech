@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import SearchClient, { type SearchClientProps } from "./SearchClient";
+import { internalApiUrl } from "@/lib/apiUrl";
 
 type SearchApiResponse = SearchClientProps["initialData"]["products"] & {
   attributes?: SearchClientProps["initialData"]["attributes"]["data"];
@@ -11,7 +12,7 @@ export default async function SearchPage(props: {
 }) {
   const searchParams = await props.searchParams;
   const query = typeof searchParams?.q === 'string' ? searchParams.q : '';
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const API_URL = internalApiUrl("");
 
   // Fetch products từ search API
   let products: SearchApiResponse = {

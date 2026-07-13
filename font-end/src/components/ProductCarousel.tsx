@@ -6,6 +6,8 @@ import {
   ChevronRight,
   ClipboardList,
   Heart,
+  Pause,
+  Play,
   Share2,
   Users,
   Video,
@@ -23,7 +25,7 @@ import type {
   ProductGalleryImage,
 } from "@/types/product-detail";
 import ProgressiveImage from "./ProgressiveImage";
-import { useProductDetailModal } from "./ProductDetailModalProvider";
+import { openProductSpecifications } from "./ProductSpecificationsOpenButton";
 
 const ProductVideoModal = dynamic(() => import("./ProductVideoModal"), { ssr: false });
 
@@ -57,7 +59,6 @@ export default function ProductCarousel({
 }: {
   productData: ProductDetailData;
 }) {
-  const { openSpecifications } = useProductDetailModal();
   const productImages = useMemo(() => {
     const grouped = normalizeGalleryImages(productData.imageGroups?.product);
     return grouped.length > 0
@@ -84,6 +85,7 @@ export default function ProductCarousel({
   const [isTransitioning, setIsTransitioning] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isAutoPaused, setIsAutoPaused] = useState(false);
 
   const mainRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -123,12 +125,12 @@ export default function ProductCarousel({
 
   const startAuto = useCallback(() => {
     stopAuto();
-    if (totalSlides <= 1) return;
+    if (totalSlides <= 1 || isAutoPaused) return;
     autoTimerRef.current = setInterval(() => {
       setIsTransitioning(true);
       setCurSlide((previous) => previous + 1);
     }, 4200);
-  }, [stopAuto, totalSlides]);
+  }, [isAutoPaused, stopAuto, totalSlides]);
 
   const resetAuto = useCallback(() => {
     stopAuto();
@@ -141,6 +143,14 @@ export default function ProductCarousel({
       : curSlide === totalSlides + 1
         ? 0
         : curSlide - 1;
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotionPreference = () => setIsAutoPaused(media.matches);
+    updateMotionPreference();
+    media.addEventListener("change", updateMotionPreference);
+    return () => media.removeEventListener("change", updateMotionPreference);
+  }, []);
 
   useEffect(() => {
     setIsTransitioning(false);
@@ -294,6 +304,10 @@ export default function ProductCarousel({
         onTouchStart={dragStart}
         onTouchMove={dragMove}
         onTouchEnd={dragEnd}
+        onFocusCapture={stopAuto}
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) startAuto();
+        }}
       >
         <div className="product-gallery-actions">
           <button
@@ -324,6 +338,17 @@ export default function ProductCarousel({
           >
             <Share2 aria-hidden="true" />
           </button>
+          {totalSlides > 1 && (
+            <button
+              type="button"
+              className="product-gallery-icon-button"
+              aria-label={isAutoPaused ? "Tiếp tục tự chuyển ảnh" : "Tạm dừng tự chuyển ảnh"}
+              aria-pressed={isAutoPaused}
+              onClick={() => setIsAutoPaused((current) => !current)}
+            >
+              {isAutoPaused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+            </button>
+          )}
         </div>
 
         <div
@@ -338,7 +363,7 @@ export default function ProductCarousel({
           }}
         >
           {clonedImages.map((image, index) => (
-            <div className="product-gallery-slide" key={`${image.url}-${index}`}>
+            <div className="product-gallery-slide" key={`${image.url}-${index}`} aria-hidden={index !== curSlide}>
               <ProgressiveImage
                 src={image.url}
                 alt={image.alt || `${productData.name} - ảnh ${index + 1}`}
@@ -431,7 +456,7 @@ export default function ProductCarousel({
               type="button"
               className="product-gallery-utility"
               aria-label="Mở thông số kỹ thuật"
-              onClick={openSpecifications}
+              onClick={openProductSpecifications}
             >
               <ClipboardList aria-hidden="true" />
               <span>Thông số</span>

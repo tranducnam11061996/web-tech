@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 interface ProgressiveImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
@@ -35,58 +35,25 @@ export default function ProgressiveImage({
   ...props
 }: ProgressiveImageProps) {
   const placeholder = useMemo(() => getPlaceholder(fallbackText), [fallbackText]);
-  const [imgSrc, setImgSrc] = useState(() => placeholder);
+  const [imgSrc, setImgSrc] = useState(() => src || placeholder);
   const [isLoaded, setIsLoaded] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
 
   useEffect(() => {
-    setImgSrc(placeholder);
+    setImgSrc(src || placeholder);
     setIsLoaded(false);
-    if (!src) return;
-
-    let cancelled = false;
-    let observer: IntersectionObserver | null = null;
-
-    const loadImage = () => {
-      const image = new Image();
-      image.src = src;
-      image.onload = () => {
-        if (cancelled) return;
-        setImgSrc(src);
-        setIsLoaded(true);
-      };
-    };
-
-    if (loading === "eager") {
-      loadImage();
-    } else if ("IntersectionObserver" in window) {
-      observer = new IntersectionObserver(
-        ([entry]) => {
-          if (!entry.isIntersecting) return;
-          observer?.disconnect();
-          loadImage();
-        },
-        { rootMargin: "50px" },
-      );
-
-      if (imgRef.current) observer.observe(imgRef.current);
-    } else {
-      loadImage();
-    }
-
-    return () => {
-      cancelled = true;
-      observer?.disconnect();
-    };
-  }, [loading, placeholder, src]);
+  }, [placeholder, src]);
 
   return (
     <img
-      ref={imgRef}
       src={imgSrc}
       alt={alt}
       loading={loading}
       decoding="async"
+      onLoad={() => setIsLoaded(true)}
+      onError={() => {
+        if (imgSrc !== placeholder) setImgSrc(placeholder);
+        setIsLoaded(true);
+      }}
       className={`${className} transition-all duration-500 ${
         disableLoadingEffects || isLoaded
           ? "opacity-100 blur-0 scale-100"

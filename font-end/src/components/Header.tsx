@@ -19,7 +19,7 @@ import CustomerAccountMenu from './CustomerAccountMenu';
 import { cleanMenuText } from '@/lib/menuUtils';
 import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem } from './menuData';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = '';
 const HEADER_MENU_FALLBACK_CACHE_MS = 10 * 1000;
 const HEADER_MENU_CLIENT_CACHE_MS = 60 * 1000;
 const SUBMENU_TOP_ZONE_PX = 64;
@@ -751,22 +751,22 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
           </svg>
           <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
         </Link>
-        <button className="text-gray-400 hover:text-white transition-colors">
+        <button type="button" aria-label="Sản phẩm yêu thích" className="text-gray-400 hover:text-white transition-colors">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
           </svg>
         </button>
-        <button className="text-gray-400 hover:text-white transition-colors">
+        <button type="button" aria-label="Hỗ trợ khách hàng" className="text-gray-400 hover:text-white transition-colors">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
           </svg>
         </button>
-        <button className="text-gray-400 hover:text-white transition-colors">
+        <button type="button" aria-label="Ứng dụng di động" className="text-gray-400 hover:text-white transition-colors">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
           </svg>
         </button>
-        <button className="text-gray-400 hover:text-white transition-colors">
+        <button type="button" aria-label="Mở thêm tùy chọn" className="text-gray-400 hover:text-white transition-colors">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
           </svg>

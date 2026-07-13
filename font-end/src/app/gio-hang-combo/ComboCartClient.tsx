@@ -63,12 +63,13 @@ export default function ComboCartClient() {
   useEffect(() => {
     if (!cart || cart.items.length === 0) { setQuote(null); setLoading(false); return; }
     const controller = new AbortController(); setLoading(true); setError("");
-    fetch("/api/combo-cart/quote", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(toComboApiPayload(cart)) })
+    const timer = window.setTimeout(() => fetch("/api/combo-cart/quote", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(toComboApiPayload(cart)) })
       .then(async (response) => { const payload = await response.json(); if (!response.ok || !payload.success) throw new Error(payload?.error?.message || "Combo không còn khả dụng."); return payload.data as Quote; })
       .then((data) => setQuote(data))
-      .catch((cause) => { if (!controller.signal.aborted) { setQuote(null); setError(cause instanceof Error ? cause.message : "Không thể báo giá combo."); } })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+      .catch((cause) => { if (!controller.signal.aborted) { setError(cause instanceof Error ? cause.message : "Không thể báo giá combo."); } })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); })
+    , 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
   }, [cart]);
   const update = (productId: number, delta: number) => cart && setComboCart({ ...cart, items: cart.items.map((item) => item.productId === productId ? { ...item, quantity: Math.min(99, Math.max(1, item.quantity + delta)) } : item) });
   const remove = (productId: number) => cart && setComboCart({ ...cart, items: cart.items.filter((item) => item.productId !== productId) });

@@ -10,6 +10,7 @@ Last updated: `2026-07-13`
 |---|---|---|
 | Real combo sets / combo cart / combo orders | Implemented locally; E2E assignment pending | Local migration ran twice successfully; product detail chunks more than four combo groups into four-card thumbnail slides without extra requests, and combo cart/checkout use the standard dark commerce shell while retaining isolated storage/API/voucher behavior; MSI 87409 remains intentionally unassigned |
 | Storefront catalog/search/collections | Implemented and locally verified | Bounded APIs, ETag, reduced payloads, cache/single-flight, responsive image behavior |
+| Performance/UX optimization | Implemented; strict product bundle target pending | Core/supplemental streaming, byte-bounded SWR cache, ETag/timing/metrics, same-origin browser APIs, quote debounce, image/motion improvements, desktop/mobile axe checks |
 | Dynamic breadcrumbs | Implemented and locally verified | Shared semantic component; bounded product/news hierarchy resolver; no extra storefront request or document overflow |
 | Product related content | Implemented | Similar products with direct-parent fallback, title-ranked/fallback news, and versioned browser-local recently viewed history |
 | Product/category buying guides | Implemented and locally verified | Independent admin-managed content, detail-only API payload, accessible storefront accordion, selective cache invalidation; migration idempotency/schema verified |
@@ -23,7 +24,7 @@ Last updated: `2026-07-13`
 | Admin content/catalog | Implemented first production-oriented pass | Product/category/article/menu/banner/collection/voucher/customer/order/user/role management |
 | Search | Implemented | Runtime search in `web-admin`, prewarm/single-flight, signed webhook; `search-tool` is reference only |
 | Runtime topology | Implemented as configuration | Caddy, PM2, readiness/liveness, two API workers, storefront, background worker |
-| Database migration | Applied to configured local DB | 282 tables: 154 InnoDB, 128 MyISAM on 2026-07-12 |
+| Database migration | Applied to configured local DB | 285 tables: 157 InnoDB, 128 MyISAM on 2026-07-13 |
 | Functional verification | Passed locally | TypeScript, lint, builds, tests, audits, readiness/liveness, 13/13 health checks |
 | 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
@@ -51,13 +52,17 @@ Last updated: `2026-07-13`
 | `font-end` ESLint `--quiet` | Pass |
 | `web-admin` production build | Pass |
 | `font-end` production build | Pass |
-| Validation, breadcrumb, recommendation, buying-guide, combo, voucher, product-group, product-promotion, and product-video unit tests | 43/43 pass |
+| Validation, cache/ETag, breadcrumb, recommendation, buying-guide, combo, voucher, product-group, product-promotion, and product-video unit tests | 46/46 pass |
 | Idempotency/rollback, product-group, and product-promotion DB integration tests | 4/4 pass |
 | npm audit in both apps | 0 known vulnerabilities |
 | Local healthcheck | 13/13 pass |
 | Liveness/readiness/storefront | HTTP 200 |
 | Invalid quote/origin/order-key/webhook probes | Expected safe 4xx/5xx responses |
 | Full k6 1,500 VU | Not run on production-like host |
+| Playwright + axe | Desktop 2/2 and mobile 2/2 pass |
+| Lighthouse CI | Configuration added; local Windows Chrome run was inconclusive because the temporary profile cleanup failed with `EPERM`, so staging artifacts remain required |
+| Regression bundle budget | Pass: product 219.9 KB; commerce 157.5-167.0 KB |
+| Strict release bundle budget | Product detail fails 219.9 KB >205 KB; commerce passes <170 KB |
 
 ## Latest local performance observations
 

@@ -26,7 +26,10 @@
     "worker:background": "tsx scripts/background-worker.ts",
     "test:unit": "tsx --test tests/*.test.ts",
     "test:integration": "tsx --test tests/*.integration.ts",
-    "load:k6": "k6 run scripts/load-1500-users.js"
+    "load:k6": "k6 run scripts/load-read-capacity.js",
+    "load:k6:read": "k6 run scripts/load-read-capacity.js",
+    "load:k6:commerce": "k6 run scripts/load-commerce-capacity.js",
+    "load:k6:abuse": "k6 run scripts/load-abuse-correctness.js"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

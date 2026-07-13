@@ -24,8 +24,8 @@ import type {
 import type { HeaderMenuData } from "../components/menuData";
 import type { MenuLinkObject } from "../components/menuData";
 import type { HeroBanner } from "../components/sections/HeroBannerCarousel";
+import { internalApiUrl } from "@/lib/apiUrl";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const HOMEPAGE_PRODUCT_SECTION_CONFIGS: HomepageProductSectionConfig[] = [
   section6HomepageProductConfig,
   section10HomepageProductConfig,
@@ -47,7 +47,7 @@ async function fetchHomepageProductSections(configs: HomepageProductSectionConfi
   if (categoryIds.length === 0) return [];
 
   const productLimit = Math.max(1, Math.min(24, Math.max(...configs.map((config) => config.productLimit || 8))));
-  const url = new URL(`${API_URL}/api/categories/homepage-product-sections`);
+  const url = new URL(internalApiUrl("/api/categories/homepage-product-sections"));
   url.searchParams.set("categoryIds", categoryIds.join(","));
   url.searchParams.set("productLimit", String(productLimit));
 
@@ -72,7 +72,7 @@ type HomepageBootstrap = {
 
 async function fetchHomepageBootstrap(): Promise<HomepageBootstrap | null> {
   try {
-    const response = await fetch(`${API_URL}/api/homepage/bootstrap`, { next: { revalidate: 60 } });
+    const response = await fetch(internalApiUrl("/api/homepage/bootstrap"), { next: { revalidate: 60 } });
     if (!response.ok) return null;
     const payload = await response.json();
     return payload?.success && payload.data ? payload.data as HomepageBootstrap : null;

@@ -1,11 +1,9 @@
-"use client";
-
-import { useState } from "react";
-import ProductGridCard, { type ProductGridCardData } from "./ProductGridCard";
+import type { ProductGridCardData } from "./ProductGridCard";
+import ProductGridCardStatic from "./ProductGridCardStatic";
 
 export default function SimilarProducts({ products = [] }: { products?: ProductGridCardData[] }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const visibleProducts = isExpanded ? products.slice(0, 15) : products.slice(0, 5);
+  const initialProducts = products.slice(0, 5);
+  const additionalProducts = products.slice(5, 15);
 
   return (
     <section className="mx-auto max-w-[1800px] px-4 py-6 md:px-6" aria-labelledby="similar-products-title">
@@ -16,9 +14,9 @@ export default function SimilarProducts({ products = [] }: { products?: ProductG
           </h2>
         </div>
 
-        {visibleProducts.length > 0 ? (
+        {initialProducts.length > 0 ? (
           <div id="similar-products-grid" className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {visibleProducts.map((product) => <ProductGridCard key={product.id} product={product} />)}
+            {initialProducts.map((product) => <ProductGridCardStatic key={product.id} product={product} />)}
           </div>
         ) : (
           <p role="status" className="rounded-xl border border-dashed border-[#27272a] py-10 text-center text-sm text-zinc-500">
@@ -26,18 +24,16 @@ export default function SimilarProducts({ products = [] }: { products?: ProductG
           </p>
         )}
 
-        {products.length > 5 ? (
-          <div className="mt-6 flex justify-center">
-            <button
-              type="button"
-              className="show-btn focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
-              aria-controls="similar-products-grid"
-              aria-expanded={isExpanded}
-              onClick={() => setIsExpanded((expanded) => !expanded)}
-            >
-              {isExpanded ? "Thu gọn" : `Xem thêm (${Math.min(products.length, 15) - 5})`}
-            </button>
-          </div>
+        {additionalProducts.length > 0 ? (
+          <details className="group mt-4 flex flex-col">
+            <summary className="show-btn order-2 mx-auto mt-6 block w-fit cursor-pointer list-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400">
+              <span className="group-open:hidden">{`Xem thêm (${additionalProducts.length})`}</span>
+              <span className="hidden group-open:inline">Thu gọn</span>
+            </summary>
+            <div className="order-1 grid min-w-0 grid-cols-2 gap-4 pt-4 sm:grid-cols-3 lg:grid-cols-5">
+              {additionalProducts.map((product) => <ProductGridCardStatic key={product.id} product={product} />)}
+            </div>
+          </details>
         ) : null}
       </div>
     </section>

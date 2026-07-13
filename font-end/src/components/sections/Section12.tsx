@@ -20,7 +20,7 @@ export default function Section12() {
         </div>
 
         {/*  Product Grid  */}
-        <div className="product-grid">
+        <div className="product-grid" tabIndex={0} aria-label="Danh sách sản phẩm khuyến mãi">
 
           {/*  ============================================  */}
           {/*  ROW 1: Banner (3 cols) + 3 Product Cards      */}

@@ -79,46 +79,68 @@ export class RateLimitError extends Error {
   }
 }
 
-export async function consumeRateLimit(input: {
+export type RateLimitInput = {
   scope: string;
   key: string;
   limit: number;
   windowSeconds: number;
   blockSeconds?: number;
-}) {
-  const connection = await pool.getConnection();
+};
+
+export function rateLimitSetting(name: string, fallback: number, min = 1, max = 100_000) {
+  const value = Number(process.env[name] || fallback);
+  return Math.min(max, Math.max(min, Number.isFinite(value) ? Math.trunc(value) : fallback));
+}
+
+async function consumeRateLimitOnConnection(connection: PoolConnection, input: RateLimitInput) {
   const scope = input.scope.replace(/[^a-z0-9:_-]/gi, '').slice(0, 64);
   const keyHash = sha256(input.key);
   const blockSeconds = Math.max(1, input.blockSeconds || input.windowSeconds);
-  try {
-    await connection.beginTransaction();
-    const [rows] = await connection.query<RowDataPacket[]>(`SELECT request_count,
+  const [rows] = await connection.query<RowDataPacket[]>(`SELECT request_count,
       window_started_at > DATE_SUB(NOW(), INTERVAL ? SECOND) AS inside_window,
       blocked_until > NOW() AS blocked,
       GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), blocked_until)) AS retry_after
       FROM web_admin_request_limits WHERE scope=? AND key_hash=? FOR UPDATE`,
     [input.windowSeconds, scope, keyHash]);
-    const row = rows[0];
-    if (Number(row?.blocked) === 1) throw new RateLimitError(Math.max(1, Number(row.retry_after) || blockSeconds));
-    const insideWindow = Number(row?.inside_window) === 1;
-    const count = (insideWindow ? Number(row?.request_count || 0) : 0) + 1;
-    const blocked = count > input.limit;
-    await connection.query(`INSERT INTO web_admin_request_limits
+  const row = rows[0];
+  if (Number(row?.blocked) === 1) throw new RateLimitError(Math.max(1, Number(row.retry_after) || blockSeconds));
+  const insideWindow = Number(row?.inside_window) === 1;
+  const count = (insideWindow ? Number(row?.request_count || 0) : 0) + 1;
+  const blocked = count > input.limit;
+  await connection.query(`INSERT INTO web_admin_request_limits
       (scope,key_hash,request_count,window_started_at,blocked_until)
       VALUES(?,?,?,NOW(),${blocked ? 'DATE_ADD(NOW(), INTERVAL ? SECOND)' : 'NULL'})
       ON DUPLICATE KEY UPDATE request_count=VALUES(request_count),
       window_started_at=IF(?=1,window_started_at,NOW()),blocked_until=VALUES(blocked_until)`,
-    blocked
-      ? [scope, keyHash, count, blockSeconds, insideWindow ? 1 : 0]
-      : [scope, keyHash, count, insideWindow ? 1 : 0]);
+  blocked
+    ? [scope, keyHash, count, blockSeconds, insideWindow ? 1 : 0]
+    : [scope, keyHash, count, insideWindow ? 1 : 0]);
+  return blocked ? new RateLimitError(blockSeconds) : null;
+}
+
+export async function consumeRateLimits(inputs: RateLimitInput[]) {
+  if (inputs.length === 0) return;
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    let blocked: RateLimitError | null = null;
+    const ordered = [...inputs].sort((left, right) => `${left.scope}:${sha256(left.key)}`.localeCompare(`${right.scope}:${sha256(right.key)}`));
+    for (const input of ordered) {
+      const inputBlock = await consumeRateLimitOnConnection(connection, input);
+      blocked ||= inputBlock;
+    }
     await connection.commit();
-    if (blocked) throw new RateLimitError(blockSeconds);
+    if (blocked) throw blocked;
   } catch (error) {
-    await connection.rollback();
+    try { await connection.rollback(); } catch { /* connection may already be committed */ }
     throw error;
   } finally {
     connection.release();
   }
+}
+
+export async function consumeRateLimit(input: RateLimitInput) {
+  return consumeRateLimits([input]);
 }
 
 export async function claimWebhookNonce(nonce: string, ttlSeconds = 300) {

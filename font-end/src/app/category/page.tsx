@@ -1,5 +1,6 @@
 import React, { Suspense } from "react";
 import CategoryClient from "./CategoryClient";
+import { internalApiUrl } from "@/lib/apiUrl";
 
 export default async function CategoryPage(props: any) {
   const searchParams = await props.searchParams;
@@ -7,7 +8,7 @@ export default async function CategoryPage(props: any) {
 
   // Extract categoryId from props if it exists, or fallback
   const categoryId = searchParams?.id || undefined;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const API_URL = internalApiUrl("");
 
   // Build query for products
   let productUrl = `${API_URL}/api/products?limit=24&page=1`;

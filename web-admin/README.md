@@ -71,6 +71,14 @@ Run `load:k6` only against an approved isolated target. It is not a local smoke 
 
 ### Public reads
 
+Product-detail performance contracts:
+
+- `GET /api/products/[slug]?include=full` is the backward-compatible default.
+- `GET /api/products/[slug]?include=core` omits below-the-fold recommendations, posts, and buying-guide data.
+- `GET /api/products/[slug]/supplemental` returns deferred content with its own cache and ETag.
+- Product caches use `PUBLIC_CACHE_MAX_ITEMS`/`PUBLIC_CACHE_MAX_BYTES`, negative TTLs, true stale-while-revalidate, and DB-version invalidation.
+- `/api/internal/metrics` requires `INTERNAL_METRICS_TOKEN` in production. `/api/telemetry/web-vitals` accepts only bounded, same-origin, non-PII batches.
+
 - `/api/products/[slug]` optionally embeds a bounded `productGroup` for the current sellable SKU. Group items include each SKU's thumbnail, resolved from `proThum` with a legacy `image_collection` fallback; attribute value visual metadata is not exposed. Product-group data is intentionally absent from lists, search, categories, homepage, and news.
 - `/api/products`, `/api/products/[slug]`, `/api/search`, `/api/search-attributes`.
 - `/api/categories/*`, `/api/collections/[slug]`.

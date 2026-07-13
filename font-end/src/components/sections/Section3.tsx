@@ -1,6 +1,7 @@
 import { HeroBannerCarousel, type HeroBanner } from './HeroBannerCarousel';
+import { internalApiUrl } from '@/lib/apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = internalApiUrl('');
 const PRIMARY_HERO_LOCATION = 'banner_slider_homepage_temp2019';
 const FALLBACK_HERO_LOCATION = 'fake_slide_trang_chu';
 

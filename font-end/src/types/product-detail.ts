@@ -9,7 +9,7 @@ export type ProductGalleryImage = {
   type?: string;
 };
 
-export type ProductDetailData = {
+export type ProductCoreData = {
   id: number | string;
   slug?: string;
   name: string;
@@ -31,14 +31,20 @@ export type ProductDetailData = {
   videos?: ProductVideoSummary[];
   categoryTrail?: CategoryTrailItem[];
   thumbnail?: string;
-  similarProducts?: ProductGridCardData[];
-  relatedPosts?: RelatedPostData[];
-  buyingGuide?: BuyingGuideData | null;
   comboSets?: ComboSetSummary[];
   vouchers?: ProductVoucherSummary[];
   productPromotions?: ProductPromotionSummary[];
   productGroup?: ProductGroupDetail | null;
+  supplementalAvailable?: boolean;
 };
+
+export type ProductSupplementalData = {
+  similarProducts: ProductGridCardData[];
+  relatedPosts: RelatedPostData[];
+  buyingGuide: BuyingGuideData | null;
+};
+
+export type ProductDetailData = ProductCoreData & Partial<ProductSupplementalData>;
 
 export type ProductGroupValue = {
   attributeId: number;

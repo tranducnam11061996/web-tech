@@ -6,6 +6,16 @@ This is the canonical handoff for the next AI or engineer. Read `AGENTS.md` firs
 
 ## Current repository state
 
+### Performance and UX optimization pass (current working tree)
+
+- Product detail now supports backward-compatible `include=full`, a storefront `include=core` path, and cached `/api/products/[slug]/supplemental`. The sample local observation was a 4,288-byte core at 14.7 ms cold/7.6 ms warm and a 9,335-byte supplemental response at 295.9 ms cold/12.4 ms warm.
+- Public product cache now has configurable entry/byte budgets, negative caching, true stale-while-revalidate with one background flight, ETag/304, and safe `Server-Timing`.
+- Token-protected runtime metrics, sampled Web Vitals telemetry, startup prewarm readiness, batched rate limiting, separate read/commerce/abuse k6 suites, bundle budgets, Lighthouse config, and Playwright/axe coverage are implemented.
+- Browser calls are same-origin and server components use `API_INTERNAL_URL`. Quote requests debounce by 250 ms; image loading no longer preloads the same source in JavaScript; product carousel focus/reduced-motion behavior passed desktop and mobile E2E.
+- Latest checks passed 46/46 unit tests, 4/4 integration tests, both typechecks/lints/builds, 13/13 health checks, production dependency audits, regression bundle budgets, and Playwright/axe on desktop and mobile.
+- The strict release bundle budget still fails only product detail at 219.9 KB versus 205 KB (down from 233.6 KB); all commerce routes are below 170 KB. The full production-like 1,500-VU gate remains pending.
+- Lighthouse CI is configured for the requested routes, but the local Windows Chrome run was inconclusive because temporary-profile cleanup failed with `EPERM`; do not treat it as Web Vitals release evidence.
+
 - Real “Khuyến Mãi Sản Phẩm” support is implemented end to end. Admin CRUD manages display text, safe internal/HTTPS detail links, manual priority, Vietnam-time schedules, and union SKU/category scopes. Product detail embeds at most 50 active summaries, category roots include descendants dynamically, and the former five-item storefront demo has been removed.
 
 - Product groups are now live end to end. The existing `config_group*` tables remain canonical, admin CRUD uses transactional reconciliation, and product detail embeds a bounded `productGroup` without a second storefront request. Each public SKU card carries its own resolved thumbnail (`proThum`, then legacy `image_collection` fallback); value image/color metadata has been removed from the admin contract and schema. Invalid legacy relations are filtered publicly and reported in admin rather than cleaned automatically.
@@ -15,10 +25,10 @@ This is the canonical handoff for the next AI or engineer. Read `AGENTS.md` firs
 - Product detail now receives bounded active voucher summaries resolved from `web_admin_vouchers` and category descendants. `ProductSidebar` hides only the voucher card when none apply, keeps the independent demo product-promotion list visible, exposes real codes/terms through an accessible lazy dialog, and leaves cart/order quote validation authoritative.
 - Product detail now normalizes legacy `idv_sell_product_info.video_code` into a bounded safe YouTube embed list and exposes `hasSpecifications`. The gallery rail hides Video/Thông số utilities without matching data; video playback is lazy-modal only and the existing specification modal is opened directly from its utility card.
 - Combo migration ran twice successfully on the identified local `hanoi23_db` on `2026-07-12`; the combo relation indexes and combo-order metadata columns/indexes are present. Product `87409` is intentionally not assigned automatically.
-- Verification on 2026-07-13 passed both app typechecks/lints/builds, 43 web-admin unit tests, 4 integration tests, and local healthcheck 13/13.
+- Verification on 2026-07-13 passed both app typechecks/lints/builds, 46 web-admin unit tests, 4 integration tests, local healthcheck 13/13, and 4/4 desktop/mobile accessibility smoke tests.
 
-- Branch at verification: `main`, HEAD `504d36e` (`feat: update storefront search vouchers and order management`).
-- The working tree is intentionally dirty with a large set of user and AI changes spanning customer accounts, checkout, validation/security, public cache performance, runtime configuration, tests, and documentation.
+- Branch before this uncommitted optimization pass: `main`, HEAD `d2e51b0` (`feat: complete catalog and commerce enhancements`).
+- The working tree is intentionally dirty with this performance/UX implementation.
 - Do not reset, checkout, clean, or overwrite these changes. Inspect `git status --short` and focused diffs before editing.
 - Both applications now use Next.js `16.2.9` and React `19.2.4`.
 - `web-admin` is the only MySQL owner. `font-end` consumes its APIs.
@@ -140,7 +150,7 @@ npm.cmd run local:healthcheck
 npm.cmd run local:benchmark
 ```
 
-The last run passed 40/40 unit tests, 4/4 integration tests, both typechecks/lints/builds, and 13/13 local health checks. Product-promotion integration covered idempotent migration, union-scope deduplication, priority ordering, rollback and delete cascade; desktop/mobile storefront screenshots verified the live `01` presentation. The earlier audits remained at zero known vulnerabilities but were not rerun for these dependency-neutral changes.
+The latest run passed 46/46 unit tests, 4/4 integration tests, both typechecks/lints/builds, 13/13 local health checks, and desktop/mobile Playwright accessibility smoke tests. Product-promotion integration covered idempotent migration, union-scope deduplication, priority ordering, rollback and delete cascade. Production dependency audits report zero known vulnerabilities.
 
 Observed local benchmark after payload reduction:
 
@@ -156,12 +166,13 @@ These are local observations, not production SLO proof.
 
 ## Highest-priority next work
 
-1. Deploy to an isolated production-like 8 vCPU/16 GB staging host and run `npm.cmd run load:k6`; retain k6, CPU, RAM, MySQL pool, slow-query, and error metrics for the full ramp/hold test.
-2. Verify reCAPTCHA hostname/action/score metrics in shadow mode, then explicitly enable enforcement.
-3. Configure and test Caddy/PM2 process restart, graceful rollout, outbox retry, and cleanup behavior on the target OS.
-4. Expand integration/E2E coverage across all write routes and all 15 forms, especially upload, admin RBAC, customer OTP/session revoke, concurrent voucher redemption, `429`, accessibility, and network failures.
-5. Review remaining write routes against `SECURITY_AND_LOAD_MATRIX.md`; shared foundations exist, but do not assume every legacy admin form has canonical field-level Zod coverage.
-6. Decide separately whether root scratch/debug files should be removed. Do not delete them as part of unrelated work.
+1. Reduce product-detail referenced client JS from 219.9 KB to the strict 205 KB release budget without changing the UI.
+2. Deploy to an isolated production-like 8 vCPU/16 GB staging host and run `load:k6:read`, `load:k6:commerce`, and `load:k6:abuse`; retain k6, CPU, RAM, MySQL pool, slow-query, runtime metrics, and error metrics for the full ramp/hold test.
+3. Verify reCAPTCHA hostname/action/score metrics in shadow mode, then explicitly enable enforcement.
+4. Configure and test Caddy/PM2 process restart, graceful rollout, outbox retry, and cleanup behavior on the target OS.
+5. Expand integration/E2E coverage across all write routes and all 15 forms, especially upload, admin RBAC, customer OTP/session revoke, concurrent voucher redemption, `429`, accessibility, and network failures.
+6. Review remaining write routes against `SECURITY_AND_LOAD_MATRIX.md`; shared foundations exist, but do not assume every legacy admin form has canonical field-level Zod coverage.
+7. Decide separately whether root scratch/debug files should be removed. Do not delete them as part of unrelated work.
 
 ## Release blocker
 

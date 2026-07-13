@@ -2,13 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { ExternalLink, Save, X } from 'lucide-react';
-import { TabAttributes } from '@/components/products/edit/TabAttributes';
 import { TabBasic } from '@/components/products/edit/TabBasic';
-import { TabCombo } from '@/components/products/edit/TabCombo';
-import { TabDescription } from '@/components/products/edit/TabDescription';
-import { TabImages, type TabImagesHandle } from '@/components/products/edit/TabImages';
-import { BuyingGuideEditor } from '@/components/products/edit/BuyingGuideEditor';
+import type { TabImagesHandle } from '@/components/products/edit/TabImages';
+
+const tabLoading = () => <div className="h-64 animate-pulse rounded-xl bg-slate-100" aria-hidden="true" />;
+const TabAttributes = dynamic(() => import('@/components/products/edit/TabAttributes').then((module) => module.TabAttributes), { loading: tabLoading });
+const TabCombo = dynamic(() => import('@/components/products/edit/TabCombo').then((module) => module.TabCombo), { loading: tabLoading });
+const TabDescription = dynamic(() => import('@/components/products/edit/TabDescription').then((module) => module.TabDescription), { loading: tabLoading });
+const TabImages = dynamic(() => import('@/components/products/edit/TabImages').then((module) => module.TabImages), { loading: tabLoading });
+const BuyingGuideEditor = dynamic(() => import('@/components/products/edit/BuyingGuideEditor').then((module) => module.BuyingGuideEditor), { loading: tabLoading });
 
 const TABS = [
   { id: 'basic', label: 'Cơ bản' },

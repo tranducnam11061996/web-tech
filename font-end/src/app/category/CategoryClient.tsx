@@ -438,7 +438,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
       lastSearchKeyRef.current = searchKey;
     }
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    const API_URL = "";
     const controller = new AbortController();
     const url = new URL(`${API_URL}/api/products`);
     url.searchParams.set("limit", "24");
@@ -492,7 +492,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
       return;
     }
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+    const API_URL = "";
     const controller = new AbortController();
 
     Promise.all([

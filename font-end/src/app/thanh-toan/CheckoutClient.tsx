@@ -2,8 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Header from "../../components/Header";
-import Footer from "../../components/Footer";
+import dynamic from "next/dynamic";
 import ProgressiveImage from "../../components/ProgressiveImage";
 import {
   CartItem,
@@ -17,8 +16,11 @@ import {
   type CustomerAddress,
   useCustomerSession,
 } from "@/lib/customer";
-import { VietnamLocationSelector } from "@/components/location/VietnamLocationSelector";
-import { getCustomerRecaptchaToken } from "@/lib/customerRecaptcha";
+
+const VietnamLocationSelector = dynamic(
+  () => import("@/components/location/VietnamLocationSelector").then((module) => module.VietnamLocationSelector),
+  { loading: () => <div className="h-24 animate-pulse rounded-lg bg-[#111115]" aria-hidden="true" /> },
+);
 
 type QuoteItem = {
   productId: number;
@@ -178,6 +180,8 @@ export default function CheckoutClient() {
   const [voucher, setVoucher] = useState<VoucherQuote | null>(null);
   const [voucherCode] = useState(() => getAppliedVoucherCode());
   const [isQuoting, setIsQuoting] = useState(false);
+  const [quoteError, setQuoteError] = useState("");
+  const [quoteRetry, setQuoteRetry] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [form, setForm] = useState<CheckoutForm>(initialForm);
   const [error, setError] = useState("");
@@ -190,6 +194,7 @@ export default function CheckoutClient() {
   const [selectedAddressId, setSelectedAddressId] = useState<number | "">("");
   const accountPrefilled = useRef(false);
   const orderIdempotencyKey = useRef<string | null>(null);
+  const quoteRequestId = useRef(0);
   const [website, setWebsite] = useState("");
 
   useEffect(() => {
@@ -243,13 +248,16 @@ export default function CheckoutClient() {
       setQuoteTotals({ voucherDiscount: 0, total: 0 });
       setVoucher(null);
       setIsQuoting(false);
+      setQuoteError("");
       return;
     }
 
     const controller = new AbortController();
+    const requestId = ++quoteRequestId.current;
     setIsQuoting(true);
+    setQuoteError("");
 
-    fetch("/api/cart/quote", {
+    const timer = window.setTimeout(() => fetch("/api/cart/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: quoteRequestItems, voucherCode }),
@@ -257,7 +265,8 @@ export default function CheckoutClient() {
     })
       .then((response) => response.json())
       .then((json) => {
-        if (!json.success) return;
+        if (requestId !== quoteRequestId.current) return;
+        if (!json.success) throw new Error(json?.error?.message || "Không thể xác nhận giá.");
         const nextQuoteMap: Record<number, QuoteItem> = {};
         for (const item of json.data.items as QuoteItem[]) {
           nextQuoteMap[item.productId] = item;
@@ -268,15 +277,18 @@ export default function CheckoutClient() {
       })
       .catch((requestError) => {
         if (requestError.name !== "AbortError") {
-          setError("Chưa thể cập nhật giá mới nhất. Vui lòng thử lại.");
+          setQuoteError("Chưa thể cập nhật giá mới nhất. Vui lòng thử lại.");
         }
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsQuoting(false);
-      });
+      }), 250);
 
-    return () => controller.abort();
-  }, [quoteKey, quoteRequestItems, voucherCode]);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [quoteKey, quoteRequestItems, voucherCode, quoteRetry]);
 
   const checkoutItems = useMemo(
     () =>
@@ -311,6 +323,7 @@ export default function CheckoutClient() {
     invalidItems.length === 0 &&
     !isSubmitting &&
     !isQuoting &&
+    !quoteError &&
     (!voucherCode || voucher?.status === "applied");
 
   const updateForm = <K extends keyof CheckoutForm>(
@@ -370,6 +383,7 @@ export default function CheckoutClient() {
     setIsSubmitting(true);
 
     try {
+      const { getCustomerRecaptchaToken } = await import("@/lib/customerRecaptcha");
       const recaptchaToken = await getCustomerRecaptchaToken("order_submit");
       orderIdempotencyKey.current ||= crypto.randomUUID();
       const response = await fetch("/api/orders", {
@@ -433,7 +447,6 @@ export default function CheckoutClient() {
   if (success) {
     return (
       <div className="bg-[#0a0a0c] min-h-screen text-white font-sans">
-        <Header />
         <section className="max-w-[900px] mx-auto px-4 md:px-6 py-16">
           <div className="bg-[#111115] border border-emerald-500/30 rounded-2xl p-10 text-center">
             <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-2xl">
@@ -461,14 +474,12 @@ export default function CheckoutClient() {
             </div>
           </div>
         </section>
-        <Footer />
       </div>
     );
   }
 
   return (
     <div className="bg-[#0a0a0c] min-h-screen text-white font-sans">
-      <Header />
       <form onSubmit={handleSubmit}>
         <div className="sr-only" aria-hidden="true">
           <label htmlFor="checkout-website">Website</label>
@@ -935,6 +946,12 @@ export default function CheckoutClient() {
                     {error}
                   </div>
                 )}
+                {quoteError && (
+                  <div role="alert" aria-live="polite" className="bg-amber-500/10 border border-amber-500/30 text-amber-100 rounded-xl p-3 text-sm">
+                    <p>{quoteError}</p>
+                    <button type="button" onClick={() => setQuoteRetry((value) => value + 1)} className="mt-2 font-bold underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400">Thử cập nhật lại</button>
+                  </div>
+                )}
 
                 {invalidItems.length > 0 && (
                   <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-200 rounded-xl p-3 text-sm">
@@ -969,7 +986,6 @@ export default function CheckoutClient() {
           )}
         </section>
       </form>
-      <Footer />
     </div>
   );
 }

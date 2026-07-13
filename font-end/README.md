@@ -94,6 +94,11 @@ Authenticated customer forms rely on the HttpOnly session and backend origin/rat
 
 ## Performance rules
 
+- Server components call `web-admin` through server-only `API_INTERNAL_URL`; browser requests use same-origin `/api/*` paths.
+- Product detail requests `include=core` and streams `/api/products/[slug]/supplemental` without changing section order. Recently viewed content loads near the viewport.
+- Run `npm run perf:budget` for no-regression budgets and `npm run perf:budget:release` for strict 205 KB product/170 KB commerce release targets.
+- Run `npm run test:e2e` after `npx playwright install chromium`; set `PLAYWRIGHT_PRODUCT_SLUG` to include carousel checks. `npm run perf:lighthouse` writes local reports when the Chrome/Lighthouse runtime is healthy.
+
 - Keep server components by default and minimize client boundaries/state duplication.
 - Dynamically import heavy dialogs/carousels and delay reCAPTCHA/nonessential scripts until interaction.
 - Use responsive `next/image`, AVIF/WebP, dimensions, lazy loading below the fold, and preload only the actual LCP image.

@@ -6,7 +6,7 @@ import { createOrderMeta } from '@/lib/storefrontOrders';
 import { linkOrderToCustomer, resolveCustomerSession } from '@/lib/customerAccounts';
 import { verifyCustomerCaptcha } from '@/lib/customerRecaptcha';
 import { assertPublicOrigin, parseJson, publicCorsHeaders, publicError, requestId } from '@/lib/publicRequest';
-import { consumeRateLimit, requestIp } from '@/lib/performanceInfrastructure';
+import { consumeRateLimits, rateLimitSetting, requestIp } from '@/lib/performanceInfrastructure';
 import { claimOrderRequest, completeOrderRequest, enqueueOrderEmail, validateIdempotencyKey } from '@/lib/orderInfrastructure';
 import type { EmailCustomer, EmailDelivery, EmailOrderItem, EmailOrderTotals } from '@/lib/email';
 
@@ -27,8 +27,10 @@ export async function POST(request: Request) {
     if (body.website) return NextResponse.json({ success: true }, { status: 202, headers: { ...cors, 'X-Request-ID': id } });
     const idempotencyKey = validateIdempotencyKey(request.headers.get('idempotency-key'));
     await Promise.all([
-      consumeRateLimit({ scope: 'combo_order_ip', key: requestIp(request), limit: 120, windowSeconds: 300, blockSeconds: 300 }),
-      consumeRateLimit({ scope: 'combo_order_phone', key: body.customer.phone, limit: 8, windowSeconds: 900, blockSeconds: 900 }),
+      consumeRateLimits([
+        { scope: 'combo_order_ip', key: requestIp(request), limit: rateLimitSetting('RATE_LIMIT_COMBO_ORDER_IP', 120), windowSeconds: 300, blockSeconds: 300 },
+        { scope: 'combo_order_phone', key: body.customer.phone, limit: rateLimitSetting('RATE_LIMIT_COMBO_ORDER_PHONE', 8), windowSeconds: 900, blockSeconds: 900 },
+      ]),
       verifyCustomerCaptcha(request, body.recaptchaToken, 'combo_order_submit'),
     ]);
     const sessionCustomer = await resolveCustomerSession(request);

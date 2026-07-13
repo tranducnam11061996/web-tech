@@ -2,8 +2,9 @@ import Link from "next/link";
 import CategoryFeatureProductGrid from "../CategoryFeatureProductGrid";
 import type { CategoryFeatureBoxData } from "../CategoryFeatureBox";
 import type { ProductGridCardData } from "../ProductGridCard";
+import { internalApiUrl } from '@/lib/apiUrl';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const API_URL = internalApiUrl('');
 
 type HomepageFeatureSection = {
   category: {

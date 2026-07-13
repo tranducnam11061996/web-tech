@@ -5,6 +5,7 @@ import { getHomepageCategoryFeatureSections } from '@/lib/categoryFeatureBoxes';
 import { loadHomepageProductSections } from '@/lib/homepageProductSections';
 import { withPublicProductResponseCache } from '@/lib/publicProductCache';
 import { jsonWithEtag } from '@/lib/httpCache';
+import { recordRouteMetric } from '@/lib/runtimeMetrics';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -32,10 +33,12 @@ export async function GET(request: Request) {
       return { headerMenu: menus.headerMenu, homepageMenu: menus.homepageMenu, banners, productSections, featureSections };
     });
     timings.push(`bootstrap;dur=${(performance.now() - startedAt).toFixed(1)}`);
+    recordRouteMetric('GET /api/homepage/bootstrap', performance.now() - startedAt, 200);
     return jsonWithEtag(request, { success: true, data }, { headers: { ...headers, 'Server-Timing': timings.join(', ') } });
   } catch (error) {
     console.error('Failed to load homepage bootstrap:', error);
     timings.push(`bootstrap;dur=${(performance.now() - startedAt).toFixed(1)}`);
+    recordRouteMetric('GET /api/homepage/bootstrap', performance.now() - startedAt, 500);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500, headers: { ...headers, 'Server-Timing': timings.join(', ') } });
   }
 }

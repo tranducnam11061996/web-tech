@@ -8,6 +8,11 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 
 ### Added
 
+- Removed an unreachable product bundle demo that Turbopack still emitted, replaced hydrated product description/specification state with accessible native disclosures/dialog behavior, and reduced product-detail referenced client JS from 233.6 KB to 219.9 KB without removing a visible section.
+- Added backward-compatible product core/supplemental contracts, ETag/304, byte-bounded true stale-while-revalidate, negative caching, safe route timing, protected runtime metrics, and sampled Web Vitals telemetry.
+- Added same-origin storefront API usage with server-only `API_INTERNAL_URL`, 250 ms quote debounce/stale-response protection, deferred recently-viewed loading, server-rendered related product cards, native accessible accordions, reduced-motion carousel controls, loading/error/404 states, and contrast/accessibility corrections.
+- Added split read/commerce/abuse k6 suites, corrected storefront benchmarks, regression/strict bundle budgets, Lighthouse configuration, and Playwright/axe desktop/mobile coverage.
+
 - Added three additive InnoDB product-promotion tables with safe detail URLs, manual ordering, optional UTC validity ranges, direct SKU scope, category-root scope, and cascading helper-table relations.
 - Added RBAC-protected admin CRUD at `/sales/product-promotions`, including searchable/filterable status views, persistent paginated SKU selection, reusable descendant-aware category selection, storefront preview, and permanent-delete confirmation/audit.
 - Embedded up to 50 active product promotions in the existing product-detail payload and replaced the five hardcoded storefront rows with zero-padded live results and safe internal/external links.
@@ -15,6 +20,8 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 - Added safe parsing of legacy PHP-serialized product `video_code` into bounded YouTube-nocookie embeds in product-detail payloads. Gallery Video/Thông số utilities now appear only for available data; video playback is a lazy accessible modal with finite previous/next navigation, while the existing specification modal opens directly from its utility card.
 
 ### Verified
+
+- Optimization verification passed 46 unit tests, 4 integration tests, both TypeScript/lint/build pipelines, 13/13 local health checks, dependency audits, regression bundle budgets, and four desktop/mobile Playwright/axe scenarios. Product core measured 4,288 bytes; the strict 205 KB product-detail JS target and full staging k6 gate remain pending.
 
 - Product-promotion migration completed twice on identified local `hanoi23_db`; the database now contains 285 tables (157 InnoDB, 128 MyISAM), relation indexes/FKs and role grants were verified, and integration fixtures were removed.
 - Both applications passed TypeScript, ESLint `--quiet`, and production builds; backend tests passed 43/43 unit and 4/4 integration, local healthcheck passed 13/13, and fresh desktop/mobile storefront screenshots verified the live numbered block.

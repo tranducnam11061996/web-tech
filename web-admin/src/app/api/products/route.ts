@@ -6,6 +6,7 @@ import { getPublicCategoryFeatureBox } from '@/lib/categoryFeatureBoxes';
 import { jsonWithEtag } from '@/lib/httpCache';
 import { getCategoryTrail } from '@/lib/publicBreadcrumbs';
 import { getProductsByIds, parseProductIdsParam } from '@/lib/publicRecommendations';
+import { recordRouteMetric } from '@/lib/runtimeMetrics';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -244,6 +245,7 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
 }
 
 export async function GET(request: Request) {
+  const startedAt = performance.now();
   try {
     const { searchParams } = new URL(request.url);
     if (searchParams.has('ids')) {
@@ -255,6 +257,8 @@ export async function GET(request: Request) {
         );
       }
       const products = await getProductsByIds(parsedIds.ids);
+      const duration = performance.now() - startedAt;
+      recordRouteMetric('GET /api/products', duration, 200);
       return NextResponse.json(
         {
           success: true,
@@ -269,9 +273,12 @@ export async function GET(request: Request) {
     const payload = await withPublicProductResponseCache(`products:${cacheKey}`, () => loadProductsPayload(searchParams));
     const status = 'status' in payload ? Number(payload.status || 200) : 200;
     const { status: _status, ...body } = payload as Record<string, unknown>;
-    return jsonWithEtag(request, body, { status, headers: publicCacheHeaders });
+    const duration = performance.now() - startedAt;
+    recordRouteMetric('GET /api/products', duration, status);
+    return jsonWithEtag(request, body, { status, headers: { ...publicCacheHeaders, 'Server-Timing': `app;dur=${duration.toFixed(1)}` } });
   } catch (error) {
     console.error('Failed to fetch products:', error);
+    recordRouteMetric('GET /api/products', performance.now() - startedAt, 500);
     return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500, headers: corsHeaders });
   }
 }

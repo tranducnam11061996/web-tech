@@ -4047,6 +4047,116 @@ body.mobile-menu-open {
   display: flex;
 }
 
+.modal-backdrop[open] {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  padding: 0;
+}
+
+.modal-backdrop::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.product-description-disclosure {
+  display: grid;
+}
+
+.product-description-disclosure > summary {
+  list-style: none;
+}
+
+.product-description-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.product-description-content {
+  grid-row: 1;
+  max-height: 66vh;
+  overflow: hidden;
+}
+
+.product-description-content::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 200px;
+  background: linear-gradient(to top, #111115, rgba(17, 17, 21, 0.9), transparent);
+  pointer-events: none;
+}
+
+.product-description-toggle {
+  grid-row: 2;
+  z-index: 1;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: -3.5rem;
+  padding: 0.625rem 1.5rem;
+  cursor: pointer;
+  border: 1px solid #27272a;
+  border-radius: 9999px;
+  background: #18181b;
+  color: #fff;
+  font-weight: 500;
+}
+
+.product-description-less {
+  display: none;
+}
+
+.product-description-disclosure[open] .product-description-content {
+  max-height: none;
+  overflow: visible;
+}
+
+.product-description-disclosure[open] .product-description-content::after,
+.product-description-disclosure[open] .product-description-more {
+  display: none;
+}
+
+.product-description-disclosure[open] .product-description-less {
+  display: inline;
+}
+
+.product-description-disclosure[open] .product-description-toggle {
+  margin-top: 1.5rem;
+}
+
+.product-description-disclosure[open] .product-description-toggle svg {
+  transform: rotate(180deg);
+}
+
+.product-summary-disclosure > summary {
+  list-style: none;
+}
+
+.product-summary-disclosure > summary::-webkit-details-marker,
+.product-summary-less {
+  display: none;
+}
+
+.product-summary-disclosure:not([open]) li:nth-child(n + 6) {
+  display: none;
+}
+
+.product-summary-disclosure[open] .product-summary-more {
+  display: none;
+}
+
+.product-summary-disclosure[open] .product-summary-less {
+  display: inline;
+}
+
+.product-summary-disclosure[open] summary svg {
+  transform: rotate(180deg);
+}
+
 .modal-content {
   background: #111115;
   border: 1px solid #1a1a1e;
@@ -4131,6 +4241,50 @@ body.mobile-menu-open {
 
 @media (prefers-reduced-motion: reduce) {
   .product-video-modal-track { transition: none; }
+}
+
+/* WCAG AA contrast corrections without changing layout or hierarchy. */
+.feature-desc {
+  color: #8b8b91;
+}
+
+.stat-pill {
+  color: #92929a;
+}
+
+.store-btn .store-label {
+  color: #9ca3af;
+}
+
+.partner-link {
+  color: #a1a1aa;
+}
+
+footer .text-gray-500,
+footer .text-gray-600 {
+  color: #9ca3af;
+}
+
+footer .text-red-500 {
+  color: #ff6b6b;
+}
+
+body .text-gray-500,
+body .text-gray-600,
+body .text-zinc-500,
+body .text-zinc-600,
+.breadcrumb-list,
+.product-gallery-note,
+.product-detail-meta {
+  color: #a1a1aa;
+}
+
+body .text-red-500 {
+  color: #ff6b6b;
+}
+
+summary::-webkit-details-marker {
+  display: none;
 }
 
 /* Add-to-cart confirmation — graphite gaming surface */
@@ -6661,3 +6815,49 @@ vertical-align: baseline;
 .bundle-list-footer { display:flex; align-items:center; justify-content:center; gap:12px; padding:14px; border-top:1px solid #27272f; }
 .bundle-list-footer button { display:grid; place-items:center; width:34px; height:34px; border:1px solid #3f3f46; border-radius:5px; background:#18181f; color:#fff; }
 .bundle-grid-btn.is-selected { background:#3f1218; color:#ff646f; }
+/* Performance containment for long, below-the-fold product content. */
+.product-supplemental-skeleton {
+  min-height: 280px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 280px;
+}
+
+#content-sanpham,
+.product-supplemental-skeleton,
+.product-bundle-demo-section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Final component-level contrast overrides; kept last so legacy rules cannot lower contrast. */
+.product-gallery-note,
+.purchase-price-old {
+  color: #a1a1aa !important;
+}
+
+.purchase-shipping-speed {
+  background-color: #1d4ed8 !important;
+}
+
+.purchase-cta-installment {
+  color: #1d4ed8 !important;
+}
+
+.purchase-cta-addcart > span {
+  color: #991b1b !important;
+}
+
+.purchase-payment-header {
+  color: #818cf8 !important;
+}

@@ -37,13 +37,14 @@ export default function ProductComboBuilder({ productData }: { productData: Prod
     if (!activeSet || selected.length === 0) { setQuote(null); return; }
     const controller = new AbortController();
     setQuoting(true); setError("");
-    fetch(`/api/combo-cart/quote`, {
+    const timer = window.setTimeout(() => fetch(`/api/combo-cart/quote`, {
       method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
       body: JSON.stringify({ anchorProductId: Number(productData.id), comboSetId: activeSet.id, revision: activeSet.revision, items: selected.map(({ groupIndex, id, quantity }) => ({ groupIndex, productId: id, quantity })) }),
     }).then(async (response) => { const payload = await response.json(); if (!response.ok || !payload.success) throw new Error(payload?.error?.message || "Không thể tính giá combo."); return payload.data; })
-      .then((data) => setQuote(data)).catch((cause) => { if (!controller.signal.aborted) { setQuote(null); setError(cause instanceof Error ? cause.message : "Không thể tính giá combo."); } })
-      .finally(() => { if (!controller.signal.aborted) setQuoting(false); });
-    return () => controller.abort();
+      .then((data) => setQuote(data)).catch((cause) => { if (!controller.signal.aborted) { setError(cause instanceof Error ? cause.message : "Không thể tính giá combo."); } })
+      .finally(() => { if (!controller.signal.aborted) setQuoting(false); })
+    , 250);
+    return () => { window.clearTimeout(timer); controller.abort(); };
   }, [activeSet, productData.id, selected]);
 
   const toggleProduct = useCallback((groupIndex: number, product: BundleProduct) => {
@@ -53,7 +54,7 @@ export default function ProductComboBuilder({ productData }: { productData: Prod
   }, []);
   const changeQuantity = (productId: number, delta: number) => setSelected((current) => current.map((item) => item.id === productId ? { ...item, quantity: Math.min(99, Math.max(1, item.quantity + delta)) } : item));
   const buyCombo = () => {
-    if (!activeSet || !quote || selected.length === 0 || quoting) return;
+    if (!activeSet || !quote || selected.length === 0 || quoting || error) return;
     const current = getComboCart();
     if (current && (current.anchorProductId !== Number(productData.id) || current.comboSetId !== activeSet.id) && !window.confirm("Giỏ combo hiện tại sẽ được thay thế. Bạn có muốn tiếp tục?")) return;
     setComboCart({ version: 1, anchorProductId: Number(productData.id), comboSetId: activeSet.id, revision: activeSet.revision, items: selected.map((item) => ({ groupIndex: item.groupIndex, productId: item.id, quantity: item.quantity })) });
@@ -84,7 +85,7 @@ export default function ProductComboBuilder({ productData }: { productData: Prod
       {groupSlides.length > 1 && groupSlideIndex > 0 && <button type="button" className="product-bundle-slider-arrow is-left" onClick={() => moveGroupSlide(-1)} aria-label="Xem 4 nhóm sản phẩm trước"><ChevronLeft aria-hidden="true" /></button>}
       <div className="product-bundle-slider-viewport">
         <div className="product-bundle-slider-track" style={{ transform: `translateX(-${groupSlideIndex * 100}%)` }}>
-          {groupSlides.map((groups, slideIndex) => <div key={slideIndex} className="product-bundle-slide" aria-hidden={slideIndex !== groupSlideIndex}>
+          {groupSlides.map((groups, slideIndex) => <div key={slideIndex} className="product-bundle-slide" aria-hidden={slideIndex !== groupSlideIndex} inert={slideIndex !== groupSlideIndex}>
             <div className="product-bundle-items">
               {groups.map((group) => <article key={group.groupIndex} className="product-bundle-item"><div className="product-bundle-item-image"><img src={group.image} alt=""/></div><div className="product-bundle-item-info"><h4 className="product-bundle-item-title">{group.title}</h4><div className="product-bundle-item-bottom"><span className="product-bundle-item-promo">{group.discountLabel}</span><button type="button" className="product-bundle-item-btn" onClick={() => setOpenGroup(group.groupIndex)}>Chọn thêm <Plus aria-hidden="true"/></button></div></div></article>)}
             </div>

@@ -1,8 +1,8 @@
 # HACOM Workspace Instructions
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
-Read `AI_HANDOFF.md` before changing this workspace. It is the canonical current-state handoff. Then read `ARCHITECTURE.md`, `PROJECT_PROGRESS.md`, the applicable app README, and `web-admin/database-docs/DATABASE_SCHEMA.md` for database work.
+Read `AI_HANDOFF.md` before changing this workspace. It is the canonical current-state handoff. Then read `ARCHITECTURE.md`, `PROJECT_PROGRESS.md`, the applicable app README, and `web-admin/database-docs/DATABASE_SCHEMA.md` for database work. For backup, export, restore, or machine-transfer work, also read `web-admin/database-docs/DATABASE_TRANSFER.md`.
 
 ## Workspace boundaries
 

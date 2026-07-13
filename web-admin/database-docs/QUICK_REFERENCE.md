@@ -1,7 +1,7 @@
 # Database Quick Reference
 
-Verified: `2026-07-11`
-Database: `hanoi23_db`
+Verified: `2026-07-13`
+Active database: `it_tech_db`; retained legacy source: `hanoi23_db`
 
 ## Core Product Read Model
 
@@ -87,11 +87,11 @@ SELECT
   ) AS missing_count;
 ```
 
-Last exact result on `2026-07-07` (re-query before treating as current):
+Exact result in active `it_tech_db` after PCMarket product run 3:
 
 ```text
-product_count = 28763
-search_count = 28763
+product_count = 4712
+search_count = 4712
 missing_count = 0
 ```
 
@@ -280,11 +280,7 @@ web_admin_entity_registry(entity_type, entity_id)
   -> required for permanent delete
 ```
 
-Current `web_admin_sequence` row:
-
-```text
-product -> next_id 90788
-```
+`web_admin_sequence` is empty in active `it_tech_db`. The historical source value `product -> 90788` was intentionally not copied; the owning admin API initializes `product` to `MAX(id)+1` inside `ensureAdminTables()` before allocation.
 
 ## Useful Counts
 
@@ -296,14 +292,14 @@ SELECT COUNT(*) FROM idv_product_image_stock;
 SELECT COUNT(*) FROM web_admin_entity_registry;
 ```
 
-Exact values last captured on `2026-07-07` (not re-counted on `2026-07-11`):
+Exact active values captured on `2026-07-13`:
 
 | Table | Exact count |
 |---|---:|
-| `idv_sell_product_store` | 28,763 |
-| `product_data_search` | 28,763 |
-| `idv_sell_product_image_name` | 212,184 |
-| `idv_product_image_stock` | 210,998 |
+| `idv_sell_product_store` | 4,712 |
+| `product_data_search` | 4,712 |
+| `idv_sell_product_image_name` | 0 |
+| `idv_product_image_stock` | 0 |
 | `web_admin_entity_registry` | 0 |
 
 ## Cautions

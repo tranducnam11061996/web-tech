@@ -253,10 +253,10 @@ Responses include `X-Request-ID`. Rate-limit responses use HTTP `429` plus `Retr
 
 ## Database status
 
-The additive admin migration was run on the configured local database. Read-only verification on `2026-07-13` found 285 tables: 157 InnoDB and 128 MyISAM, including the product-promotion, buying-guide, customer, voucher, idempotency, rate-limit, outbox, cache-version, webhook-nonce, media, menu, and content helper tables.
+The active local database is `it_tech_db`; `hanoi23_db` remains the read-only legacy source. The live catalog has 788 categories, 89 brands, 4,712 products, and 4,712 search rows. Read-only verification on `2026-07-13` found 342 physical tables: 207 InnoDB and 135 MyISAM. The 57 tables above the pre-import baseline are 3 import audit/map tables and 54 run-scoped recovery tables; they are not permanent schema contracts and must not be removed casually.
 
-This does not prove migration state in any other environment. Follow `database-docs/ADMIN_MIGRATION_GUIDE.md`.
+This does not prove migration state in any other environment. Follow `database-docs/ADMIN_MIGRATION_GUIDE.md`, and use `database-docs/DATABASE_TRANSFER.md` for full export/import or machine migration.
 
 ## Verification status
 
-Latest importer verification passed both application TypeScript/ESLint/build pipelines, 55 web-admin unit tests, and the 4 existing DB integration tests; the new destructive category swap/rollback integration test was safely skipped because no disposable test database was opted in. Dependency installation/audit reported zero known vulnerabilities. Healthcheck was not rerun because ports 3000/3001 were not running; the prior 13/13 result remains historical, not evidence for this change. Full 1,500-VU target testing remains pending.
+Latest full catalog verification passed both application TypeScript/ESLint/build pipelines, 66/66 web-admin unit tests, the default integration suite, disposable destructive category/product/brand apply-and-rollback fixtures, and 15/15 runtime checks with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true`. The documentation audit reran unit tests (66 pass), the default integration suite (3 pass, 4 environment-gated skips), strict healthcheck (13/15; only the two intentionally absent collection routes returned 404), and transitional healthcheck (15/15). A full SQL archive also restored successfully into a disposable database with matching schema objects and critical catalog counts. Full 1,500-VU target testing remains pending.

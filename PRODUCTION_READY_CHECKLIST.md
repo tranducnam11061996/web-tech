@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: `2026-07-11`
+Last updated: `2026-07-13`
 
 Do not deploy until every applicable item is complete and evidence is retained.
 
@@ -9,12 +9,13 @@ Do not deploy until every applicable item is complete and evidence is retained.
 - [ ] Rotate database, SMTP, admin/session, CAPTCHA, webhook, and any previously exposed credentials.
 - [ ] Store production secrets outside Git; verify example env files contain placeholders only.
 - [ ] Configure exact `STOREFRONT_ORIGIN`, CAPTCHA allowed hostnames/actions, strong `SEARCH_WEBHOOK_SECRET`, secure cookies, and trusted proxy behavior.
-- [ ] Back up MySQL and verify restore steps before migrations.
+- [ ] Back up MySQL and restore into a disposable database before migrations; preserve/verify SHA-256 and critical counts using `web-admin/database-docs/DATABASE_TRANSFER.md`.
 - [ ] Confirm RBAC, write gate, audit logs, password/session rotation, admin login throttling, and direct API `401`/`403` behavior.
 
 ## Database and runtime
 
 - [ ] Apply additive migrations with the explicit write flag; verify readiness and all required tables/indexes afterward.
+- [ ] Confirm import run state and retention of run-scoped recovery tables; never delete them as generic schema clutter.
 - [ ] Configure Caddy TLS/HTTP2/compression, request body limits, security headers, route-specific timeouts, and overwritten forwarding headers.
 - [ ] Run two API workers with at most 12 DB connections each, one storefront worker, and one background worker.
 - [ ] Reserve at least 30% of MySQL connections for operations; enable slow-query logging and monitor pool queue/timeouts.

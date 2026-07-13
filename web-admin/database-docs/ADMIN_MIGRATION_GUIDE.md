@@ -23,9 +23,9 @@ The combo migration ran twice successfully against identified local database `ha
 
 The product-group migration ran twice successfully against local `hanoi23_db` on `2026-07-12`. It preflights duplicate `config_group_product.product_id` rows, then adds `uq_config_group_product_product(product_id)` to enforce one group per product and force-removes obsolete `config_group_attribute_value.image`/`color_code` columns after logging their non-empty counts. It does not add foreign keys or remove legacy orphans. Rollback after reverting application writes is `ALTER TABLE config_group_product DROP INDEX uq_config_group_product_product`; restoring removed value columns only restores empty schema, not discarded data.
 
-Read-only verification on `2026-07-13` found 285 tables: 157 InnoDB and 128 MyISAM. The buying-guide and product-promotion migrations completed twice successfully to verify idempotency, and the following groups exist:
+The 285-table count (157 InnoDB and 128 MyISAM) was the empty `it_tech_db` pre-import baseline and also reflects the additive migration set present during cutover. Buying-guide and product-promotion migrations had previously completed twice against identified `hanoi23_db` to prove idempotency. Product-promotion fixtures were removed after verifying UTF-8 tables, relation FKs/indexes, mixed-scope resolution, and cascade deletion.
 
-Product-promotion migration verification on `2026-07-13` ran twice successfully against identified local `hanoi23_db`. The three UTF-8 InnoDB tables, relation foreign keys, reverse-lookup indexes, mixed-scope resolver and delete cascade were verified; integration fixtures were removed afterward. Current totals are 285 tables: 157 InnoDB and 128 MyISAM.
+Active `it_tech_db` now has 342 physical tables (207 InnoDB and 135 MyISAM): the 285-table baseline, 3 import audit/map tables, and 54 retained run-scoped backups. Its current catalog contains 788 categories, 89 brands, 4,712 products, and 4,712 search rows. These totals must not be copied into a migration as expected permanent objects.
 
 - Admin sequence/entity registry, access/RBAC/audit infrastructure.
 - Product images, managed menus, banner metadata, product-card rules, and category feature boxes.
@@ -36,7 +36,7 @@ Product-promotion migration verification on `2026-07-13` ran twice successfully 
 - `web_admin_order_requests`, `web_admin_request_limits`, `web_admin_email_outbox`, `web_admin_cache_versions`, and `web_admin_webhook_nonces`.
 - `web_admin_import_runs`, `web_admin_import_records`, and `web_admin_import_entity_map` for guarded legacy-import audit/mapping state.
 
-The exact 28,763 product/search counts and zero missing search rows were last verified on `2026-07-07`; re-query before relying on them.
+The historical `hanoi23_db` audit found 28,763 product/search rows. Active `it_tech_db` instead has 4,712 product/search rows with zero missing search rows after PCMarket run 3.
 
 ## Admin migration
 
@@ -259,6 +259,10 @@ npm.cmd run import:legacy -- --source=pcmarket --entity=brands --rollback --run-
 ```
 
 The brand rollback restores the prior UTF-8/latin1 table definitions, MyISAM tables and InnoDB references. It is blocked while any later import run remains applied.
+
+## Full database transfer
+
+For exporting `it_tech_db`, verifying the archive, and importing it on another machine, follow `DATABASE_TRANSFER.md`. The verified path uses the MySQL command-line client, includes routines/triggers, records SHA-256, and restores into a disposable database before the artifact is accepted. phpMyAdmin is an optional convenience path, not the canonical backup workflow.
 
 ## Rollback principles
 

@@ -1,63 +1,71 @@
 # Database Statistics
 
-Last verified: `2026-07-11`
+Last verified: `2026-07-13`
 
-Database: configured `DATABASE_URL` for `web-admin`
-Source: read-only `information_schema` query plus previously recorded exact counts
+- Active database: `it_tech_db`.
+- Retained legacy source: `hanoi23_db`.
+
+Use this file for operational orientation, not as a substitute for preflight queries. `information_schema.TABLE_ROWS` is approximate for InnoDB; import/restore assertions require `COUNT(*)` or canonical hashes.
 
 ## Current physical summary
 
-| Metric | Value | Verified |
+| Metric | Value | Qualification |
 |---|---:|---|
-| Total tables | 280 | 2026-07-11 |
-| InnoDB tables | 152 | 2026-07-11 |
-| MyISAM tables | 128 | 2026-07-11 |
+| Physical tables | 342 | Includes retained importer backup/staging objects |
+| InnoDB tables | 207 | Includes InnoDB run backups |
+| MyISAM tables | 135 | Includes MyISAM run backups |
+| `latin1_swedish_ci` tables | 271 | Legacy plus legacy-shaped backups |
+| `utf8mb4_unicode_ci` tables | 68 | Modern helper/import tables and canonical brand tables |
+| `utf8mb4_0900_ai_ci` tables | 3 | Current MySQL-default objects |
+| Stored routines | 1 | Search normalization function |
+| Triggers | 2 | Product-search insert/update triggers |
 
-The 36-table increase from the earlier 244-table snapshot is consistent with applied additive admin/access/customer/voucher/performance infrastructure. Collation totals were not re-queried on `2026-07-11`; do not reuse the old 243/1 collation split as a current total.
+The empty pre-import `it_tech_db` baseline had 285 tables: 157 InnoDB and 128 MyISAM. The 57 additional tables are exactly 3 import audit/map tables and 54 `web_admin_import_b_<run-id>_*` recovery tables. Do not delete them or advertise all 342 tables as stable application contracts.
 
-## Confirmed helper tables
+## Current exact catalog counts
 
-Read-only verification found these InnoDB tables in the configured database:
+| Table/data set | Exact rows/state |
+|---|---:|
+| `idv_seller_category` | 788 |
+| Category roots / enabled / disabled | 60 / 722 / 66 |
+| `idv_brand` | 89 |
+| `idv_brand_info` (`sellerId=0`) | 89 |
+| `idv_sell_product_store` | 4,712 |
+| `idv_sell_product_price` | 4,712 |
+| `idv_sell_product_info` | 4,712 |
+| `product_data_search` | 4,712 |
+| Missing product search rows | 0 |
+| `idv_product_category` | 14,455 |
+| `idv_product_attribute` | 17,603 |
+| `idv_attribute_category` | 162 |
+| `idv_brand_category` | 1,209 |
+| `web_admin_product_images` | 0 |
+| `web_admin_entity_registry` | 0 |
+| `web_admin_sequence` | 0 |
 
-- Product/content: `web_admin_product_images`, menu tables, `web_admin_banner_meta`, product-card rules, and category feature boxes.
-- Commerce: `web_admin_vouchers`, category links, redemptions, storefront order/customer links and metrics.
-- Customer: customer profile, password, session, challenge/OTP/attempt, address, and related helper tables.
-- Reliability/security: `web_admin_order_requests`, `web_admin_request_limits`, `web_admin_email_outbox`, `web_admin_cache_versions`, and `web_admin_webhook_nonces`.
+Imported product/category/brand images remain in their legacy fields as validated absolute `https://pcmarket.vn/...` URLs. The legacy image-name/stock/folder-counter tables and modern product-image metadata table remain empty in `it_tech_db`.
 
-`information_schema.TABLE_ROWS` is approximate for InnoDB and must not be used for business reporting or exact migration assertions.
+## Import/audit state
 
-## Historical exact counts
+- Run 1: safe configuration, applied, 5,170 rows.
+- Run 2: categories, applied, 788 source records.
+- Run 3: products plus source brands/attributes/values, applied, 4,712 products.
+- Run 4: first brand sync, rolled back and retained for audit/recovery.
+- Run 5: corrected brand sync, applied; 91 source records canonicalized to 89 runtime brands.
+- Pending audit-only relations: 11,735 variant references, 3 config occurrences, and 1,121 comboset occurrences.
 
-These values were last captured on `2026-07-07` and were not re-counted during the `2026-07-11` engine/table verification:
+## Historical source counts
 
-| Table | Exact rows on 2026-07-07 | Notes |
-|---|---:|---|
-| `idv_sell_product_store` | 28,763 | Product source of truth |
-| `product_data_search` | 28,763 | Zero missing products at that audit |
-| `idv_product_image_stock` | 210,998 | Legacy image stock/library |
-| `idv_sell_product_image_name` | 212,184 | Legacy per-product images |
-| `product_image_folder_counter` | 48,378 | Legacy folder counter |
-| `idv_customer_product_image` | 0 | Legacy MyISAM customer image table |
-| `web_admin_entity_registry` | 0 | Admin helper table at that time |
-| `web_admin_sequence` | 1 | `product -> 90788` at that time |
+Older documentation recorded 28,763 products/search rows, 212,184 product image names, 210,998 stock images, 48,378 folder counters, and populated product groups in `hanoi23_db`. Those values describe the legacy source before the approved clean-database cutover. They must not be used as current `it_tech_db` health assertions.
 
-Always re-query before using these as current operational facts.
+## Performance and data-quality observations
 
-## Performance observations
-
-- The database still mixes transactional InnoDB with 128 non-transactional MyISAM tables. Verify every transaction's table engines.
-- Category/list/search performance depends on junction-table indexes, bounded filters, and avoiding per-item queries.
-- Search uses one row per product in `product_data_search`, worker-local in-memory indexes, prewarm, and single-flight rebuild.
-- Two API workers default to 12 pool connections each. Production must reserve at least 30% of MySQL connections for operations.
-- Enable slow-query logging and investigate any hot request query over 500 ms during the full load test.
-- Add indexes only after `EXPLAIN` and workload benchmarks; legacy write/import costs matter.
-
-## Data-quality observations
-
-- Most legacy data uses old latin1-era encodings and can contain mixed-encoding HTML/string fragments.
-- Attribute/icon/filter values may contain URL- or script-like legacy data and must be sanitized before public rendering.
-- Legacy relationships are often logical rather than physical. Never assume FK/cascade behavior.
-- Legacy image paths can be folder/name pairs, absolute-looking paths, or serialized collection strings.
+- Transactions must be designed around actual engines; MyISAM writes need explicit staging/swap or compensation.
+- Category/list/search performance depends on bounded filters, correct junction indexes, cache versioning, and avoiding per-card queries.
+- Search keeps one row per product, worker-local indexes, prewarm, and single-flight rebuild behavior.
+- Two API workers default to 12 pool connections each; production must retain operational MySQL headroom.
+- Legacy strings/HTML can contain mixed encoding or unsafe markup and must pass the existing normalization/sanitization boundary.
+- Add indexes only after `EXPLAIN` and workload measurement.
 
 ## Re-check queries
 
@@ -90,9 +98,7 @@ SELECT
 ```
 
 ```sql
-SELECT table_name, engine
-FROM information_schema.tables
-WHERE table_schema = DATABASE()
-  AND table_name LIKE 'web_admin_%'
-ORDER BY table_name;
+SELECT id, source, entity, status, item_count, snapshot_hash
+FROM web_admin_import_runs
+ORDER BY id;
 ```

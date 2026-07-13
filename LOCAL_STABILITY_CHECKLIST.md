@@ -1,12 +1,13 @@
 # Local Stability Checklist
 
-Last updated: `2026-07-11`
+Last updated: `2026-07-13`
 
 Use this before merging meaningful changes or promoting a build to staging.
 
 ## Environment and migration
 
 - [ ] Confirm the intended database host/name before enabling any writes.
+- [ ] For current catalog work, confirm `SELECT DATABASE()` is `it_tech_db`; never infer the target from a database client tab or an old `.env`.
 - [ ] Copy committed examples to ignored local env files; never add real secrets to Git.
 - [ ] Run additive admin migration only when required: set `ADMIN_WRITE_ENABLED=true`, run `npm.cmd run admin:migrate`, then disable the flag if local writes are not needed.
 - [ ] Confirm `/api/health/ready` returns `200`; `migration_required` means required runtime tables are absent.
@@ -23,12 +24,12 @@ Use this before merging meaningful changes or promoting a build to staging.
 - [ ] Run TypeScript, ESLint `--quiet`, and production build in both applications.
 - [ ] Run `test:unit` and `test:integration` from `web-admin`.
 - [ ] Run `npm.cmd audit` in both applications and review any nonzero result.
-- [ ] Run `npm.cmd run local:healthcheck`; require all 13 checks to pass.
+- [ ] Run `npm.cmd run local:healthcheck`. Until collection data exists, set `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` and require 15/15; strict mode is expected to be 13/15 only because both collection routes return 404.
 - [ ] Run `git diff --check` and inspect `git status --short` before handoff.
 
 ## Manual functional/security smoke
 
-- [ ] Browse homepage, large category, product, collection, search, cart, and account pages on desktop and 375px width.
+- [ ] Browse homepage, large category, active/inactive product, brand, collection, search, cart, and account pages on desktop and 375px width.
 - [ ] Test valid/invalid quote and checkout without submitting an unintended real order.
 - [ ] Verify duplicate order submissions reuse the same idempotency key and do not create duplicate rows.
 - [ ] Verify invalid origin, missing order key, malformed payload, unsigned webhook, and unauthenticated admin API produce safe errors.

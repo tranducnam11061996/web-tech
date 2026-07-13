@@ -53,15 +53,19 @@ Copy from the committed `.env.example` files into ignored local environment file
 - Guest cart and hardened checkout with server-side quote, strict cart rules, action CAPTCHA, origin/rate-limit controls, voucher row locking, transactional order creation, idempotency, and email outbox.
 - Storefront customer registration, email verification, login, password reset/change, sessions, addresses, order history, and admin CRM views.
 - Admin authentication/RBAC and management for catalog, content, menus, banners, collections, vouchers, customers, orders, users, and roles.
+- Guarded PCMarket importers for categories, products, brands, attributes, routes, search rows, audit records, and run-scoped rollback backups. The active catalog keeps absolute HTTPS images on `pcmarket.vn`.
+- Canonical public brand pages and homepage brand data; duplicate source identities E-DRA and TEAMGROUP are merged through durable source-to-target mappings.
 - Display-only product-promotion management with union SKU/category scopes, descendant matching, scheduling, manual priority, safe detail links, and live product-detail rendering.
 - Signed search webhook with HMAC, timestamp, nonce, and replay prevention.
 - Product media upload with content-signature validation and legacy metadata synchronization.
 
-The additive admin migration was run twice against the identified local database on `2026-07-13`. It currently contains 285 tables: 157 InnoDB and 128 MyISAM. See the database docs before running any migration elsewhere.
+The active local database is `it_tech_db`; `hanoi23_db` is retained as the untouched legacy source. The live catalog contains 788 categories, 89 runtime brands, 4,712 products, and 4,712 search rows. Its 342 physical tables are 57 above the 285-table pre-import baseline: 3 import audit/map tables and 54 retained run-scoped backup tables. Table count alone is not the stable schema contract. See the database docs before any migration, cleanup, or restore.
 
 ## Verification status
 
-The most recent local verification passed TypeScript, ESLint, production builds, 40 unit tests, 4 integration tests, readiness/liveness, and 13/13 local health checks. The earlier dependency audits remained at zero known vulnerabilities and were not rerun for this dependency-neutral change.
+The latest catalog verification passed both applications' TypeScript, ESLint, and production builds, 66/66 web-admin unit tests, the default integration suite, disposable destructive apply/rollback fixtures for category/product/brand imports, and 15/15 runtime checks with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` so the two intentionally absent collection routes may return 404. On this documentation review, the 66 unit tests, default integration suite (3 pass/4 gated skips), and transitional 15/15 runtime check passed again; strict default healthcheck was 13/15 only because those two collection checks require HTTP 200.
+
+A full SQL migration archive was generated and restored into a disposable database on `2026-07-13`; schema objects and critical catalog counts matched before the disposable database was removed. This proves that archive's local restore path, not production capacity or compatibility with every MySQL/MariaDB version.
 
 The full 1,500-VU k6 test has not been run on a production-like 8 vCPU/16 GB host. Do not claim production capacity until that release gate passes.
 
@@ -73,4 +77,4 @@ The full 1,500-VU k6 test has not been run on a production-like 8 vCPU/16 GB hos
 4. `PROJECT_PROGRESS.md` — progress, evidence, risks, backlog.
 5. `SECURITY_AND_LOAD_MATRIX.md` — protection coverage and load gates.
 6. App READMEs — application-specific behavior and commands.
-7. `web-admin/database-docs/` — live schema, migrations, statistics, and query references.
+7. `web-admin/database-docs/` — live schema, migrations, statistics, query references, and the verified database transfer procedure.

@@ -15,6 +15,8 @@ Read root `../AGENTS.md` and `../AI_HANDOFF.md` first. This file adds backend/ad
 - Do not assume foreign keys/cascade exist on legacy tables or that MyISAM writes roll back.
 - Keep order, voucher, customer metrics, idempotency, and outbox mutations in the intended transaction.
 - Read `database-docs/ADMIN_MIGRATION_GUIDE.md` before any schema operation.
+- Active local work targets `it_tech_db`; `hanoi23_db` is a retained legacy source. Confirm `SELECT DATABASE()` before writes/imports, and read `database-docs/DATABASE_TRANSFER.md` before export, restore, or machine migration.
+- Run-scoped `web_admin_import_b_*` tables are recovery artifacts, not disposable clutter. Retain them until an approved cleanup/rollback plan exists.
 
 ## API safety
 

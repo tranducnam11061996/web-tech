@@ -8,6 +8,8 @@ Source: live `information_schema` inspection
 
 Migration verification on `2026-07-12`: applied twice successfully to local `hanoi23_db` to confirm idempotency.
 
+Active `it_tech_db` contains the combo schema but currently has 0 `combo_set` and 0 `combo_set_product` rows. Imported PCMarket comboset occurrences remain pending audit data and were not written to these runtime tables.
+
 - Legacy `combo_set.config` remains PHP-serialized with discount types `number|percent`; application code normalizes `number` to `fixed` and writes legacy values back unchanged.
 - `combo_set_product` migration adds unique index `uq_combo_set_product_product_set(product_id,set_id)` and read/delete index `idx_combo_set_product_set_product(set_id,product_id)` after a duplicate preflight. It does not remove orphan rows.
 - `web_admin_storefront_order_meta` gains `order_type enum('standard','combo')`, `combo_set_id`, `combo_anchor_product_id`, plus `(order_type,order_id)` and `(combo_set_id,order_id)` indexes. Existing rows default to `standard`.
@@ -16,11 +18,11 @@ Migration verification on `2026-07-12`: applied twice successfully to local `han
 
 | Metric | Value |
 |---|---:|
-| Total tables | 285 |
-| InnoDB tables | 157 |
-| MyISAM tables | 128 |
+| Total physical tables | 342 |
+| InnoDB tables | 207 |
+| MyISAM tables | 135 |
 
-Engine totals were re-queried on `2026-07-12` after the buying-guide migration. The old collation totals (243 legacy `latin1_swedish_ci`, one `utf8mb4_unicode_ci`) were captured before the helper-table expansion and must be re-queried before being presented as current. New `web_admin_*` helper tables use an explicit modern character set where defined.
+Engine/collation totals were re-queried from active `it_tech_db` on `2026-07-13`: 271 tables use `latin1_swedish_ci`, 68 use `utf8mb4_unicode_ci`, and 3 use `utf8mb4_0900_ai_ci`. The empty pre-import baseline contained 285 tables (157 InnoDB and 128 MyISAM); the 57 additions are 3 import audit/map tables and 54 retained run-scoped backups. Current totals therefore are not a stable schema contract.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
@@ -69,7 +71,7 @@ Main catalog table.
 | `proSummary`, `specialOffer`, `promotion`, `cond` | Product content/admin fields |
 | `postDate`, `lastUpdate` | Admin timestamps |
 
-Exact count last verified on `2026-07-07`: `28,763` products. Re-query before treating it as current.
+Exact active `it_tech_db` count verified on `2026-07-13`: `4,712` products imported by PCMarket run 3.
 
 ### `idv_sell_product_price`
 
@@ -101,7 +103,7 @@ Used columns include `video_code`, `spec`, `multipart_spec`, and `description`.
 
 The application treats these as logical relations and validates ownership transactionally. Public reads ignore placeholder `--Lựa chọn--`, malformed serialization, missing attributes/values, orphan products, inactive/zero-price products, and missing slugs. `uq_config_group_product_product(product_id)` enforces one group per product; existing `group_id` supports bounded group-member reads. No FK was added because legacy orphan rows remain intentionally untouched.
 
-Verified after the idempotent migration on `2026-07-12`: 1,972 groups, 1,813 attributes, 8,289 values, and 7,154 product relations.
+Active `it_tech_db` has 0 groups, attributes, values, and product-group relations because this catalog was not included in the approved PCMarket import. The historical `hanoi23_db` audit on `2026-07-12` found 1,972 groups, 1,813 attributes, 8,289 values, and 7,154 product relations; do not apply those counts to the current database.
 
 ## Category and Attribute Tables
 
@@ -239,7 +241,7 @@ Exists in live DB.
 | `product_id` | `int unsigned` | PK | Product id |
 | `data_search` | `text` | - | Normalized product search text |
 
-Exact count last verified on `2026-07-07`: `28,763`. At that time it matched `idv_sell_product_store` with `missing_count = 0`; re-query before using these values as current health evidence.
+Exact active count verified on `2026-07-13`: `4,712`, matching `idv_sell_product_store` with `missing_count = 0` after PCMarket product run 3.
 
 Indexes:
 
@@ -274,14 +276,14 @@ Code owners:
 
 | Table | Exact count | Notes |
 |---|---:|---|
-| `idv_sell_product_image_name` | 212,184 | Legacy product image names; indexed by `proId` |
-| `idv_product_image_stock` | 210,998 | Existing stock image library; indexed by `product_id`, `keywords` |
+| `idv_sell_product_image_name` | 0 | Legacy product image-name table was not imported |
+| `idv_product_image_stock` | 0 | Legacy stock-image library was not imported |
 | `idv_customer_product_image` | 0 | Legacy customer image table, currently empty |
-| `product_image_folder_counter` | 48,378 | Legacy folder counter |
+| `product_image_folder_counter` | 0 | Legacy folder counter was not imported |
 
 ### `web_admin_product_images`
 
-This table exists in the configured local database. Read-only `information_schema` verification on `2026-07-11` reported an InnoDB table with an approximate `TABLE_ROWS` value of 39. Use `COUNT(*)` when an exact row count is required.
+This table exists in active `it_tech_db` and has 0 rows as of `2026-07-13`. Imported PCMarket images remain in legacy product fields as absolute HTTPS URLs; they were intentionally not expanded into this metadata table.
 
 Columns defined by the migration:
 
@@ -522,12 +524,7 @@ Exists in live DB.
 | `next_id` | `int unsigned` | Next id to allocate |
 | `updated_at` | `timestamp` | Last update |
 
-Current row:
-
-```text
-name = product
-next_id = 90788
-```
+Active `it_tech_db` currently has no sequence row. The owning admin API calls `ensureAdminTables()` transactionally and initializes `product` to `MAX(id)+1` before allocation; do not seed the historical `hanoi23_db` value `product -> 90788`.
 
 ### `web_admin_entity_registry`
 

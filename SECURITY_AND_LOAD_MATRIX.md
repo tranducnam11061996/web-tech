@@ -49,4 +49,4 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Web UX | LCP p75 <2.5 s, INP <200 ms, CLS <0.1 | Production-like measurement pending |
 | JS budget | Product detail <=205 KB; commerce <=170 KB referenced route JS | Commerce passes; product detail is 219.9 KB (down from 233.6 KB) and remains a release blocker |
 
-Run `web-admin/scripts/load-1500-users.js` only against an approved isolated staging host. Preserve the result bundle and treat any failed threshold as a release blocker.
+Run the maintained `npm.cmd run load:k6:read`, `load:k6:commerce`, and `load:k6:abuse` commands only against an approved isolated staging host. Preserve every result bundle and treat any failed threshold as a release blocker. `scripts/load-1500-users.js` is a historical helper, not the canonical release command.

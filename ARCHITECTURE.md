@@ -146,13 +146,13 @@ Public write failures use:
 
 ## Database model
 
-- Legacy catalog/content/order tables remain canonical where already used. Most are `latin1_swedish_ci`, and 128 tables remain MyISAM.
+- Legacy catalog/content/order tables remain canonical where already used. Most stable legacy tables are `latin1_swedish_ci`; the active database also contains MyISAM run-scoped backup copies created by guarded imports.
 - New transactional/security/runtime state lives in additive InnoDB `web_admin_*` tables.
 - No code should assume a physical FK exists between legacy tables.
 - Search uses `product_data_search` plus the normalize function, insert/update triggers, and FK to products.
 - Customer, voucher, product-promotion, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
 
-The configured database snapshot on `2026-07-12` contains 282 tables: 154 InnoDB and 128 MyISAM after the buying-guide migration. See `web-admin/database-docs/DATABASE_SCHEMA.md` for the current schema handoff.
+The active `it_tech_db` snapshot on `2026-07-13` contains 342 physical tables: 207 InnoDB and 135 MyISAM. Its pre-import baseline was 285 tables; the 57 additions are 3 import audit/map tables and 54 intentionally retained category/product/brand recovery tables. Consumers must use named table contracts rather than infer schema from totals. The live catalog is 788 categories, 89 brands, 4,712 products, and 4,712 search rows. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified full-database restore path.
 
 ## Media security
 

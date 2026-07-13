@@ -6,6 +6,14 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 
 ## 2026-07-13
 
+### Documentation and database portability audit
+
+- Re-audited every project-owned Markdown file against Git, package scripts, API/page inventory, importer code, tests, and live `it_tech_db`; reconciled the canonical handoff, architecture, progress, app READMEs, checklists, search reference, and database references.
+- Corrected current-state documentation from historical `hanoi23_db` counts to the active 788-category/89-brand/4,712-product catalog and separated the stable 285-table pre-import baseline from the 342 physical tables that include retained importer recovery objects.
+- Added `web-admin/database-docs/DATABASE_TRANSFER.md` with the verified MySQL CLI export/import, SHA-256, disposable restore checks, target compatibility caveats, and phpMyAdmin `max_input_vars` diagnosis.
+- Generated `it_tech_db-migration-20260713-175300.sql` (105,243,385 bytes, SHA-256 `86b1eb9113e3c0424abd8a480936aab9123784333b1fdb1740920c5c0662e9a8`) plus a 13,806,638-byte ZIP outside Git. Disposable restore matched 342 tables, 152,141 exact rows, 1 routine, 2 triggers, and critical catalog counts before cleanup.
+- Documentation-review verification reran 66/66 unit tests, the default integration suite (3 pass, 4 intentionally environment-gated skips), strict runtime health (13/15; only the two intentionally absent collection routes returned 404), and transitional health with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` (15/15).
+
 ### Legacy brand sync
 
 - Added independent guarded `pcmarket/brands` dry-run/apply/rollback with two-snapshot stability checks, raw audit snapshots, source-authoritative normalization, target-only preservation, exact database/hash/confirmation gates, advisory locking, and run-scoped backups.

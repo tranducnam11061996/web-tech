@@ -38,6 +38,7 @@ The storefront CSP permits `unsafe-eval` only under `next dev`, because React's 
 - Product-detail gallery utilities are conditional: normalized YouTube videos open in a lazy modal that mounts only the active player, and meaningful API-provided specification HTML opens the existing technical-specification modal. Invalid legacy video data is omitted by `web-admin` and never becomes a browser iframe source.
 - Homepage bootstrap, managed header/homepage content, banners, product sections, and category feature boxes.
 - Product/category dynamic slug pages, category filters/sort/pagination, search, and collections.
+- Canonical brand pages at `/brand/[slug]`; homepage brands use backend-provided canonical IDs/slugs and remote PCMarket logos with a text fallback.
 - Shared dynamic breadcrumbs on product, product-category, article, and news-category pages. `/` and `/tin-tuc` intentionally omit them; narrow viewports scroll the trail locally without widening the document.
 - Product detail ends with independent “Sản phẩm tương tự”, “Sản phẩm đã xem”, and “Bài viết liên quan” sections. Recently viewed history is versioned browser-local data, hides the current product, and revalidates up to 15 prior cards in one bounded request.
 - Product and product-category detail pages render an optional API-provided “Lý do nên mua” accordion. It is absent when no active entity-specific guide exists and is intentionally not rendered on homepage, search, or news pages.
@@ -113,4 +114,4 @@ For established homepage `Section*.tsx` markup, bind dynamic data into existing 
 
 ## Verification status
 
-Latest local TypeScript, ESLint `--quiet`, production build, npm audit, storefront health routes, and shared 13/13 healthcheck passed. Header payload was reduced to about 51 KB and homepage bootstrap to about 97 KB in the latest local measurement. These are regression observations, not proof of production Web Vitals or 1,500-user capacity.
+Latest local TypeScript, ESLint `--quiet`, production build, storefront routes, and the shared transitional healthcheck passed 15/15 with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true`, including the canonical brand API/page; the flag accepts the intentionally absent collection page at 404. Strict default healthcheck is 13/15 until collection data exists. Header payload was reduced to about 51 KB and homepage bootstrap to about 97 KB in the latest recorded measurement. These are regression observations, not proof of production Web Vitals or 1,500-user capacity.

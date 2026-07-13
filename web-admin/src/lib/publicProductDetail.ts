@@ -10,6 +10,7 @@ import { getPublicProductVouchers } from '@/lib/vouchers';
 import { getPublicProductGroup } from '@/lib/productGroups';
 import { getPublicProductPromotions } from '@/lib/productPromotions';
 import { getPublicProductVideos, hasDisplayableSpecifications } from '@/lib/productVideos';
+import { canonicalPcmarketBrandId } from '@/lib/legacyImport/pcmarketProducts';
 
 type ResolvedPublicEntity = {
   entityId: number;
@@ -48,7 +49,7 @@ export async function loadProductCorePayload(slug: string) {
 
   if (resolved.type === 'category') {
     const [rows] = await pool.query<any[]>(
-      'SELECT name, summary, img_big, meta_title, static_html FROM idv_seller_category WHERE id = ? LIMIT 1',
+      'SELECT name, summary, img_big, meta_title, static_html FROM idv_seller_category WHERE id = ? AND status = 1 LIMIT 1',
       [resolved.entityId],
     );
     const category = rows[0];
@@ -76,8 +77,8 @@ export async function loadProductCorePayload(slug: string) {
   }
 
   const [productRows] = await pool.query<any[]>(`
-    SELECT p.id, p.proName, p.storeSKU, p.warranty, p.image_collection, p.proSummary, p.product_cat,
-      pr.price, pr.market_price, pr.isOn, b.name AS brandName, i.video_code, i.spec, i.description
+    SELECT p.id, p.proName, p.storeSKU, p.warranty, p.image_collection, p.proSummary, p.product_cat,p.brandId,
+      pr.price, pr.market_price, pr.isOn, b.name AS brandName,b.brand_index AS brandIndex, i.video_code, i.spec, i.description
     FROM idv_sell_product_store p
     LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
     LEFT JOIN idv_brand b ON p.brandId = b.id
@@ -107,6 +108,8 @@ export async function loadProductCorePayload(slug: string) {
       name: product.proName,
       sku: product.storeSKU,
       brand: product.brandName || 'Dang cap nhat',
+      brandId: canonicalPcmarketBrandId(Number(product.brandId || 0)),
+      brandSlug: String(product.brandIndex || '').trim(),
       warranty: product.warranty || 'Dang cap nhat',
       price: product.price || 0,
       marketPrice: product.market_price || 0,

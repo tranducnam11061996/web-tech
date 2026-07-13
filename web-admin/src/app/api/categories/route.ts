@@ -33,7 +33,7 @@ export async function GET(request: Request) {
          JOIN idv_sell_product_price pr ON pc.pro_id = pr.id 
          WHERE pc.category_id = c.id AND pr.isOn = 1) as computedCount
       FROM idv_seller_category c
-      WHERE c.parentId = ?
+      WHERE c.parentId = ? AND c.status = 1
       ORDER BY c.ordering DESC, c.id DESC
     `, [parseInt(parentId, 10)]);
 

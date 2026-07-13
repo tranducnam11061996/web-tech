@@ -1,6 +1,7 @@
 import { serialize } from 'php-serialize';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 import { AdminApiError, toBoolInt, toInt, withTransaction } from './common';
 
 export const PRODUCT_IMAGE_TYPES = ['product', 'self', 'customer'] as const;
@@ -82,7 +83,7 @@ export function normalizeImageType(value: unknown): ProductImageType {
 }
 
 function legacyProductUrl(fileName: string) {
-  return `https://hacom.vn/media/product/${fileName.replace(/^\/+/, '')}`;
+  return resolveProductImageUrl(fileName);
 }
 
 function basenameFromPath(value: string) {
@@ -90,6 +91,8 @@ function basenameFromPath(value: string) {
 }
 
 export function buildMediaUrl(relativePath: string, folder = '') {
+  const remote = resolveProductImageUrl(relativePath);
+  if (/^https:\/\//i.test(remote)) return remote;
   const normalized = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
   if (!normalized) return '';
   if (folder === 'legacy' && !normalized.includes('/')) return legacyProductUrl(normalized);

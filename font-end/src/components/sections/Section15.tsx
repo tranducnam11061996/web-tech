@@ -1,180 +1,60 @@
-export default function Section15() {
+"use client";
+
+import Link from "next/link";
+import { ChevronDown } from "lucide-react";
+import { useState } from "react";
+
+export type HomepageBrand = {
+  id: number;
+  name: string;
+  slug: string;
+  image: string;
+  productCount: number;
+};
+
+export default function Section15({ brands = [] }: { brands?: HomepageBrand[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!brands.length) return null;
+  const visibleBrands = expanded ? brands : brands.slice(0, 24);
+  const hasMore = brands.length > 24;
+
   return (
-    <>
-  {/*  START section-15  */}
-  <section className="section-15 py-10 bg-dark-200" id="section-15">
-    <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
-
-      {/*  Brands Section  */}
-      <div className="brands-section" id="brandsSection">
-
-        {/*  Section Header  */}
-        <div className="section-header">
-          <h2 className="section-title">Brands We <span className="highlight">Supply</span></h2>
-          <a href="#" className="view-all-btn">View All</a>
+    <section className="section-15 py-10 bg-dark-200" id="section-15" aria-labelledby="homepage-brands-title">
+      <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="brands-section">
+          <div className="section-header">
+            <h2 className="section-title" id="homepage-brands-title">Thương hiệu <span className="highlight">chúng tôi phân phối</span></h2>
+            <span className="text-xs font-semibold text-zinc-500">{brands.length} thương hiệu</span>
+          </div>
+          <div className="brands-grid" id="brandsGrid">
+            {visibleBrands.map((brand) => (
+              <Link key={brand.id} href={`/brand/${brand.slug}`} className="brand-card" title={`${brand.name} · ${brand.productCount} sản phẩm`}>
+                {brand.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={brand.image} alt={`Logo ${brand.name}`} loading="lazy" className="brand-logo-image" />
+                ) : (
+                  <span className="brand-name">{brand.name}</span>
+                )}
+                <span className="sr-only">Xem {brand.productCount} sản phẩm {brand.name}</span>
+              </Link>
+            ))}
+          </div>
+          {hasMore ? (
+            <div className={`expand-overlay ${expanded ? "is-expanded" : ""}`}>
+              <button
+                type="button"
+                className={`expand-btn ${expanded ? "rotated" : ""}`}
+                aria-expanded={expanded}
+                aria-controls="brandsGrid"
+                aria-label={expanded ? "Thu gọn danh sách thương hiệu" : `Xem thêm ${brands.length - 24} thương hiệu`}
+                onClick={() => setExpanded((value) => !value)}
+              >
+                <ChevronDown aria-hidden="true" className="h-5 w-5" />
+              </button>
+            </div>
+          ) : null}
         </div>
-
-        {/*  Brands Grid  */}
-        <div className="brands-grid" id="brandsGrid">
-
-          {/*  ROW 1  */}
-          <div className="brand-card brand-tint-red">
-            <span className="brand-name">ADATA</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">ALIENWARE</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name brand-name-lg">AMD</span>
-          </div>
-          <div className="brand-card brand-tint-green">
-            <span className="brand-name">Antec</span>
-          </div>
-          <div className="brand-card brand-tint-blue">
-            <span className="brand-name brand-name-lg">AOC</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name brand-name-md">Apple<br /><span
-                className="brand-name-sub">Authorized Reseller</span></span>
-          </div>
-
-          {/*  ROW 2  */}
-          <div className="brand-card brand-tint-purple">
-            <span className="brand-name">Arozzi</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">ASRock</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name brand-name-lg">ASUS</span>
-          </div>
-          <div className="brand-card brand-tint-cyan">
-            <span className="brand-name">AutoFull</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name brand-name-sm">Cooler Master<br /><span
-                className="brand-name-sub">Make It Yours.</span></span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">CORSAIR</span>
-          </div>
-
-          {/*  ROW 3  */}
-          <div className="brand-card">
-            <span className="brand-name">cudy</span>
-          </div>
-          <div className="brand-card brand-tint-blue">
-            <span className="brand-name">dahua</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">DeepCool</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name brand-name-md">DELL Technologies</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">EINAREX</span>
-          </div>
-          <div className="brand-card">
-            <div className="badge-new">NEW</div>
-            <span className="brand-name brand-name-lg">ELEGOO</span>
-          </div>
-
-          {/*  ROW 4  */}
-          <div className="brand-card brand-tint-green">
-            <span className="brand-name">enova</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">Fractal</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">GAMEMAX</span>
-          </div>
-          <div className="brand-card brand-tint-purple">
-            <span className="brand-name">GAMDIAS</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">GLORIOUS</span>
-          </div>
-          <div className="brand-card">
-            <span className="brand-name">Govee</span>
-          </div>
-
-          {/*  ROW 5 (hidden by default)  */}
-          <div className="brand-card extra-row">
-            <span className="brand-name">HyperX</span>
-          </div>
-          <div className="brand-card extra-row brand-tint-red">
-            <span className="brand-name">Intel</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">Kingston</span>
-          </div>
-          <div className="brand-card extra-row brand-tint-cyan">
-            <span className="brand-name">Lenovo</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">LG</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">Logitech</span>
-          </div>
-
-          {/*  ROW 6 (hidden by default)  */}
-          <div className="brand-card extra-row brand-tint-blue">
-            <span className="brand-name">MARVO</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">MSI</span>
-          </div>
-          <div className="brand-card extra-row brand-tint-green">
-            <span className="brand-name">NZXT</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">NVIDIA</span>
-          </div>
-          <div className="brand-card extra-row brand-tint-purple">
-            <span className="brand-name">Razer</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">Samsung</span>
-          </div>
-
-          {/*  ROW 7 (hidden by default)  */}
-          <div className="brand-card extra-row">
-            <span className="brand-name">SteelSeries</span>
-          </div>
-          <div className="brand-card extra-row brand-tint-red">
-            <span className="brand-name">Thermaltake</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">TP-Link</span>
-          </div>
-          <div className="brand-card extra-row brand-tint-cyan">
-            <span className="brand-name">Turtle Beach</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">ViewSonic</span>
-          </div>
-          <div className="brand-card extra-row">
-            <span className="brand-name">Western Digital</span>
-          </div>
-
-        </div>{/*  /brands-grid  */}
-
-        {/*  Expand overlay with gradient fade  */}
-        <div className="expand-overlay" id="expandOverlay">
-          <button className="expand-btn" id="expandBtn" aria-label="Show more brands">
-            ▼
-          </button>
-        </div>
-
-      </div>{/*  /brands-section  */}
-
-    </div>
-  </section>
-
-  {/*  END section-15  */}
-    </>
+      </div>
+    </section>
   );
 }

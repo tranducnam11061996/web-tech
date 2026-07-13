@@ -92,14 +92,14 @@ export async function GET(request: Request) {
     if (categoryIdParam) {
       const catId = parseInt(categoryIdParam, 10);
       const [bRows]: any[] = await pool.query(`
-        SELECT b.id as value_id, b.name as value_name, COUNT(DISTINCT p.id) as product_count
+        SELECT MIN(b.id) as value_id, MIN(b.name) as value_name, COUNT(DISTINCT p.id) as product_count
         FROM idv_brand b
         JOIN idv_sell_product_store p ON b.id = p.brandId
         WHERE p.id IN (${productIds.slice(0, BATCH_SIZE).map(() => '?').join(',')})
           AND EXISTS (
             SELECT 1 FROM idv_product_category pc WHERE pc.pro_id = p.id AND pc.category_id = ?
           )
-        GROUP BY b.id, b.name
+        GROUP BY LOWER(TRIM(b.name))
         ORDER BY product_count DESC
       `, [...productIds.slice(0, BATCH_SIZE), catId]);
       brandRows = bRows;

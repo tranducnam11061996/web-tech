@@ -6,6 +6,7 @@ import { loadHomepageProductSections } from '@/lib/homepageProductSections';
 import { withPublicProductResponseCache } from '@/lib/publicProductCache';
 import { jsonWithEtag } from '@/lib/httpCache';
 import { recordRouteMetric } from '@/lib/runtimeMetrics';
+import { getHomepageBrands } from '@/lib/publicBrands';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -24,13 +25,14 @@ export async function GET(request: Request) {
 
   try {
     const data = await withPublicProductResponseCache('homepage:bootstrap:v1', async () => {
-      const [menus, banners, productSections, featureSections] = await Promise.all([
+      const [menus, banners, productSections, featureSections, brands] = await Promise.all([
         timed('menu', getPublishedMenuBundle),
         timed('banners', () => getPublicBannersByScope('homepage')),
         timed('product_sections', () => loadHomepageProductSections([178, 137, 1087], 8)),
         timed('feature_sections', () => getHomepageCategoryFeatureSections(3, 9)),
+        timed('brands', getHomepageBrands),
       ]);
-      return { headerMenu: menus.headerMenu, homepageMenu: menus.homepageMenu, banners, productSections, featureSections };
+      return { headerMenu: menus.headerMenu, homepageMenu: menus.homepageMenu, banners, productSections, featureSections, brands };
     });
     timings.push(`bootstrap;dur=${(performance.now() - startedAt).toFixed(1)}`);
     recordRouteMetric('GET /api/homepage/bootstrap', performance.now() - startedAt, 200);

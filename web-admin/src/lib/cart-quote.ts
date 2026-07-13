@@ -1,6 +1,7 @@
 import type { Pool, PoolConnection } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { quoteVoucher, type VoucherQuote } from '@/lib/vouchers';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 type DbExecutor = Pool | PoolConnection;
 
@@ -144,7 +145,7 @@ export async function buildCartQuote(
       name: row.proName || 'Sản phẩm',
       sku: row.storeSKU || '',
       slug: row.slug ? String(row.slug).replace(/^\/+/, '') : `product-${row.id}`,
-      thumbnail: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://placehold.co/300x300/1f2937/a1a1aa?text=HACOM',
+      thumbnail: resolveProductImageUrl(row.proThum, 'https://placehold.co/300x300/1f2937/a1a1aa?text=HACOM'),
       price,
       marketPrice,
       available,

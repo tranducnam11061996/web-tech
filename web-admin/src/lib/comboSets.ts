@@ -7,6 +7,7 @@ import pool from '@/lib/db';
 import { AdminApiError, withTransaction } from '@/lib/admin/common';
 import { PublicRequestError } from '@/lib/publicRequest';
 import { clearPublicCatalogDetailCache } from '@/lib/publicProductCache';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 type DbExecutor = Pool | PoolConnection;
 
@@ -132,7 +133,7 @@ function isComboActive(row: Record<string, unknown>, now = Math.floor(Date.now()
 }
 
 function productImage(thumbnail: unknown) {
-  return thumbnail ? `https://hacom.vn/media/product/${String(thumbnail).replace(/^\/+/, '')}` : 'https://placehold.co/300x300/111115/71717a?text=HACOM';
+  return resolveProductImageUrl(thumbnail, 'https://placehold.co/300x300/111115/71717a?text=HACOM');
 }
 
 function discountLabel(products: ComboProductConfig[]) {

@@ -67,6 +67,86 @@ npm.cmd run load:k6
 
 Run `load:k6` only against an approved isolated target. It is not a local smoke test.
 
+## PCMarket legacy category import
+
+The active local database is configured in the ignored `.env` as `it_tech_db`; keep the persisted write gate `false`. `hanoi23_db` is a retained read-only source. Bootstrap approved non-catalog configuration only after confirming the target business tables are empty:
+
+```powershell
+npm.cmd run db:bootstrap-safe-config -- --source-database=hanoi23_db --target-database=it_tech_db --dry-run
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run db:bootstrap-safe-config -- --source-database=hanoi23_db --target-database=it_tech_db --apply --expected-hash=<sha256> --confirm=COPY_SAFE_CONFIGURATION
+```
+
+Create a logical artifact and require a successful disposable restore before acknowledging backup readiness:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run db:logical-backup -- --database=it_tech_db --label=<label> --output-dir=D:\web-tech\tmp\db-backups --verify-restore
+```
+
+The importer is read-only by default. It downloads the source twice, validates every page with Zod, canonicalizes records by ID, requires matching SHA-256 hashes, stores the raw snapshot under the ignored `var/imports` directory, and runs target-schema/route preflight without writing MySQL:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --dry-run
+```
+
+Apply is a full category replacement and must run only after a full MySQL backup in an approved maintenance window. It preserves source category IDs, atomically swaps a populated staging table, detaches existing products, stages category-attribute links as pending import records, disables category-scoped voucher/promotion/banner/menu behavior, bumps shared caches, and retains every per-run backup table:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --apply --expected-database=<name> --expected-hash=<sha256> --confirm=REPLACE_PRODUCT_CATEGORIES --backup-confirmed --maintenance-window
+```
+
+Rollback also requires the write gate and exact database name:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --rollback --run-id=<id> --expected-database=<name>
+```
+
+Do not delete `web_admin_import_b_<run-id>_*` tables until acceptance. Restart API/background workers after apply or rollback. The category integration test is skipped unless `LEGACY_IMPORT_TEST_DATABASE_URL` points to a disposable database whose name contains `test`, `import`, or `disposable`, and `LEGACY_IMPORT_DESTRUCTIVE_TEST=true`.
+
+Local cutover completed on `2026-07-13`: safe configuration is run `1`, PCMarket categories are run `2`, and PCMarket products are run `3`. Never reuse a documented snapshot hash for another apply because the source may change; use the hash printed by the immediately preceding dry-run.
+
+## PCMarket legacy product import
+
+The product entity imports the product, brand, and attribute exporters as one stable composite snapshot. It is dry-run by default and requires an empty target catalog plus the already imported 788 categories:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=products --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=products --apply --expected-database=it_tech_db --expected-hash=<fresh-composite-sha256> --confirm=IMPORT_PCMARKET_PRODUCTS --backup-confirmed --maintenance-window
+```
+
+Rollback requires the write gate and the applied run ID:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=products --rollback --run-id=3 --expected-database=it_tech_db
+```
+
+Run `3` applied hash `5f1f22c6756c862131f9f46926d9d3f4c47835159a82ad4fb70891fa0bd74021`. Media remains on `https://pcmarket.vn`; variants, config groups, and combosets without complete source contracts remain pending audit data. Set the process write gate back to `false` after apply/rollback and retain all snapshot/backup artifacts until acceptance.
+
+## PCMarket legacy brand sync
+
+The standalone brand entity preserves remote `https://pcmarket.vn/...` logos, merges source IDs 34/57 into canonical IDs 25/31, converts the two live brand tables to UTF-8, refreshes product references/search/cache state, and retains all 91 source records in audit:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=brands --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=brands --apply --expected-database=it_tech_db --expected-hash=<fresh-sha256> --confirm=SYNC_PCMARKET_BRANDS --backup-confirmed --maintenance-window
+npm.cmd run import:legacy -- --source=pcmarket --entity=brands --rollback --run-id=<id> --expected-database=it_tech_db
+```
+
+Applied run `5` uses hash `4ace3a4c0cc7ba7c2270e10463ce7f31e653d7c86915cdc2b13db6eeacf43eef`. Run `4` is intentionally retained as `rolled_back` after an acceptance correction. Rollback run `5` before attempting to roll back product run `3`; later applied import runs block brand rollback.
+
+The post-import runtime healthcheck uses category ID 30. Set `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` only to accept the expected collection 404s (collection definitions were not imported); product list/search/detail and cart quote still run and must pass:
+
+```powershell
+$env:LOCAL_HEALTHCHECK_CATEGORY_ID='30'
+$env:LOCAL_HEALTHCHECK_EMPTY_CATALOG='true'
+npm.cmd run local:healthcheck
+```
+
 ## API groups
 
 ### Public reads
@@ -81,6 +161,7 @@ Product-detail performance contracts:
 
 - `/api/products/[slug]` optionally embeds a bounded `productGroup` for the current sellable SKU. Group items include each SKU's thumbnail, resolved from `proThum` with a legacy `image_collection` fallback; attribute value visual metadata is not exposed. Product-group data is intentionally absent from lists, search, categories, homepage, and news.
 - `/api/products`, `/api/products/[slug]`, `/api/search`, `/api/search-attributes`.
+- `/api/brands/[slug]` returns canonical brand metadata, enabled products, price bounds, sort and pagination.
 - `/api/categories/*`, `/api/collections/[slug]`.
 - `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
@@ -178,4 +259,4 @@ This does not prove migration state in any other environment. Follow `database-d
 
 ## Verification status
 
-Latest local checks passed TypeScript, ESLint `--quiet`, production build, 40 unit tests, 4 integration tests, readiness/liveness, and 13/13 health checks. The earlier dependency audit remained at zero known vulnerabilities and was not rerun for this dependency-neutral change. Full 1,500-VU target testing remains pending.
+Latest importer verification passed both application TypeScript/ESLint/build pipelines, 55 web-admin unit tests, and the 4 existing DB integration tests; the new destructive category swap/rollback integration test was safely skipped because no disposable test database was opted in. Dependency installation/audit reported zero known vulnerabilities. Healthcheck was not rerun because ports 3000/3001 were not running; the prior 13/13 result remains historical, not evidence for this change. Full 1,500-VU target testing remains pending.

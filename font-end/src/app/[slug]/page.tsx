@@ -38,6 +38,18 @@ async function fetchSlugData(slug: string) {
   }
 }
 
+export async function generateMetadata(props: any) {
+  const params = await props.params;
+  const slug = String(params?.slug || '');
+  const { data, status } = await fetchSlugData(slug);
+  if (status === 404) notFound();
+  if (!data) return {};
+  return {
+    title: data.metaTitle || data.name || 'TrucTiepGAME',
+    description: data.metaDescription || data.summary || undefined,
+  };
+}
+
 async function fetchSupplementalData(slug: string): Promise<ProductSupplementalData> {
   try {
     const response = await fetch(

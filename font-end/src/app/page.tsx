@@ -13,7 +13,7 @@ import Section11 from "../components/sections/Section11";
 import Section12 from "../components/sections/Section12";
 import Section13 from "../components/sections/Section13";
 import Section14 from "../components/sections/Section14";
-import Section15 from "../components/sections/Section15";
+import Section15, { type HomepageBrand } from "../components/sections/Section15";
 import Section16 from "../components/sections/Section16";
 import Section17, { section17HomepageProductConfig } from "../components/sections/Section17";
 import type {
@@ -68,6 +68,7 @@ type HomepageBootstrap = {
   banners: { locations?: Array<{ key: string; banners?: HeroBanner[] }> };
   productSections: { sections?: HomepageProductSectionData[] };
   featureSections: { sections?: any[] };
+  brands?: HomepageBrand[];
 };
 
 async function fetchHomepageBootstrap(): Promise<HomepageBootstrap | null> {
@@ -108,7 +109,7 @@ export default async function Page() {
       <Section12 />
       <Section13 />
       <Section14 />
-      <Section15 />
+      <Section15 brands={bootstrap?.brands} />
       <Section16 />
       <Section17 sectionDataPromise={homepageProductSectionsPromise} />
 

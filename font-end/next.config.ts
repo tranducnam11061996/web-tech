@@ -30,6 +30,10 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'pcmarket.vn',
+      },
+      {
+        protocol: 'https',
         hostname: 'placehold.co',
       },
       {

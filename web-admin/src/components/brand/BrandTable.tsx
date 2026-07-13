@@ -98,7 +98,7 @@ export function BrandTable({ brands, pagination }: BrandTableProps) {
                   {row.logo ? (
                     <div className="h-6 w-20 relative mx-auto opacity-80 group-hover:opacity-100 transition-opacity">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mN8/x8AAuMB8DtXNJsAAAAASUVORK5CYII=" alt="logo" className="absolute inset-0 w-full h-full object-contain" />
+                      <img src={row.logo} alt={`Logo ${row.name}`} loading="lazy" className="absolute inset-0 w-full h-full object-contain" />
                     </div>
                   ) : null}
                 </td>

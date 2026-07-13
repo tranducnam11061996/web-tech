@@ -63,13 +63,13 @@ export async function GET(request: Request) {
     `, [categoryId, categoryId]);
 
     const brandsPromise = pool.query(`
-      SELECT b.id as value_id, b.name as value_name, COUNT(DISTINCT p.id) as product_count
+      SELECT MIN(b.id) as value_id, MIN(b.name) as value_name, COUNT(DISTINCT p.id) as product_count
       FROM idv_brand b
       JOIN idv_sell_product_store p ON b.id = p.brandId
       JOIN idv_product_category pc ON p.id = pc.pro_id
       JOIN idv_sell_product_price pr ON p.id = pr.id
       WHERE pc.category_id = ? AND pr.isOn = 1
-      GROUP BY b.id, b.name
+      GROUP BY LOWER(TRIM(b.name))
       ORDER BY product_count DESC
     `, [categoryId]);
 

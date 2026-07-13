@@ -4,6 +4,8 @@ const apiBase = (process.env.LOCAL_API_BASE || 'http://localhost:3000').replace(
 const storefrontBase = (process.env.LOCAL_STOREFRONT_BASE || 'http://localhost:3001').replace(/\/+$/, '');
 const categoryId = process.env.LOCAL_HEALTHCHECK_CATEGORY_ID || '6';
 const collectionSlug = process.env.LOCAL_COLLECTION_SLUG || 'ban-phim-co-khong-day-full-size';
+const brandSlug = process.env.LOCAL_HEALTHCHECK_BRAND_SLUG || 'intel';
+const emptyCatalog = process.env.LOCAL_HEALTHCHECK_EMPTY_CATALOG === 'true';
 
 type CheckResult = { name: string; status: number; durationMs: number; ok: boolean };
 
@@ -40,20 +42,22 @@ async function main() {
     }) || payload?.data?.[0] || null;
   }
 
-  const sharedChecks = [
-    ['Admin login page', `${apiBase}/login`],
-    ['API search', `${apiBase}/api/search?q=ban%20phim&limit=1&page=1`],
-    ['API collection', `${apiBase}/api/collections/${encodeURIComponent(collectionSlug)}?limit=1&page=1`],
-    ['API categories', `${apiBase}/api/categories?parentId=${categoryId}`],
-    ['API category price bounds', `${apiBase}/api/categories/price-bounds?categoryId=${categoryId}`],
-    ['API category attributes', `${apiBase}/api/categories/attributes?categoryId=${categoryId}`],
-    ['Storefront home', storefrontBase],
-    ['Storefront search', `${storefrontBase}/tim?q=ban%20phim`],
-    ['Storefront collection', `${storefrontBase}/collection/${encodeURIComponent(collectionSlug)}`],
+  const sharedChecks: ReadonlyArray<readonly [string, string, number[]]> = [
+    ['Admin login page', `${apiBase}/login`, [200]],
+    ['API search', `${apiBase}/api/search?q=ban%20phim&limit=1&page=1`, [200]],
+    ['API collection', `${apiBase}/api/collections/${encodeURIComponent(collectionSlug)}?limit=1&page=1`, emptyCatalog ? [200, 404] : [200]],
+    ['API categories', `${apiBase}/api/categories?parentId=${categoryId}`, [200]],
+    ['API category price bounds', `${apiBase}/api/categories/price-bounds?categoryId=${categoryId}`, [200]],
+    ['API category attributes', `${apiBase}/api/categories/attributes?categoryId=${categoryId}`, [200]],
+    ['API brand', `${apiBase}/api/brands/${encodeURIComponent(brandSlug)}?limit=1&page=1`, [200]],
+    ['Storefront home', storefrontBase, [200]],
+    ['Storefront search', `${storefrontBase}/tim?q=ban%20phim`, [200]],
+    ['Storefront collection', `${storefrontBase}/collection/${encodeURIComponent(collectionSlug)}`, emptyCatalog ? [200, 404] : [200]],
+    ['Storefront brand', `${storefrontBase}/brand/${encodeURIComponent(brandSlug)}`, [200]],
   ] as const;
 
-  for (const [name, url] of sharedChecks) {
-    const result = await check(name, url);
+  for (const [name, url, statuses] of sharedChecks) {
+    const result = await check(name, url, undefined, statuses);
     results.push(result.result);
   }
 

@@ -3,6 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { getProductCardBadgesForProductIds, type ProductCardBadge } from '@/lib/productCardAttributes';
 import type { CategoryTrailItem } from '@/lib/publicBreadcrumbs';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 export type PublicProductCard = {
   id: number;
@@ -164,7 +165,7 @@ function toPublicProductCard(row: ProductCardRow, cardBadges: ProductCardBadge[]
     slug: String(row.slug || '').replace(/^\/+|\/+$/g, ''),
     name: decodeHtmlEntities(row.proName).trim(),
     sku: String(row.storeSKU || ''),
-    thumbnail: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://via.placeholder.com/300',
+    thumbnail: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/300'),
     price,
     marketPrice,
     savings: Math.max(0, marketPrice - price),

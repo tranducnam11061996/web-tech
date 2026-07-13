@@ -57,6 +57,7 @@ interface PreparedAttribute {
   name: string;
   icon: string | null;
   filter_code?: string;
+  attribute_code?: string;
   values: AttributeValue[];
   sectionVisibility: SidebarSectionVisibility<AttributeValue>;
 }
@@ -77,7 +78,7 @@ function AttributeFilterBlock({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const filterKey = attr.filter_code || slugify(attr.name);
+  const filterKey = attr.filter_code || attr.attribute_code || slugify(attr.name);
   const currentValues = searchParams.get(filterKey)?.split(",") || [];
   const displayValues = showAll
     ? [...attr.sectionVisibility.visibleValues, ...attr.sectionVisibility.collapsedValues]
@@ -275,7 +276,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
     const attributeLookup = new Map<string, { attrName: string; values: Map<string, string> }>();
 
     for (const attr of attributes) {
-      const key = attr.filter_code || slugify(attr.name);
+      const key = attr.filter_code || attr.attribute_code || slugify(attr.name);
       const values = new Map<string, string>();
 
       for (const val of attr.values || []) {
@@ -324,7 +325,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
         const displayableValues = (attr.values || []).filter((value: any) =>
           isDisplayableFilterValue(value.name),
         );
-        const filterKey = attr.filter_code || slugify(attr.name);
+        const filterKey = attr.filter_code || attr.attribute_code || slugify(attr.name);
         const selectedSlugs = new Set(
           (searchParamsHook?.get(filterKey)?.split(",") || []).filter(Boolean),
         );

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { SafeImage } from '@/components/shared/SafeImage';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 type ProductModalNode = {
   id: number;
@@ -17,10 +18,7 @@ type ProductModalNode = {
 };
 
 function productImageUrl(value: unknown) {
-  const raw = String(value || '').trim();
-  if (!raw || raw === '0') return '';
-  if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
-  return `https://hacom.vn/media/product/${raw}`;
+  return resolveProductImageUrl(value);
 }
 
 export function AddProductModal({

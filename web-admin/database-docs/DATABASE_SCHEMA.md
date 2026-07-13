@@ -1,7 +1,7 @@
 # Database Runtime Schema Reference
 
 Verified: `2026-07-13`
-Database: `hanoi23_db`
+Active local database: `it_tech_db`. Retained legacy source: `hanoi23_db` (read only during the 2026-07-13 cutover).
 Source: live `information_schema` inspection
 
 ## Combo commerce additions
@@ -476,6 +476,22 @@ Indexes:
 - `idx_category_page_enabled(category_page_enabled)`.
 
 ## Admin Helper Tables
+
+### Legacy import audit tables
+
+The additive admin migration creates three UTF-8 InnoDB tables. They do not modify legacy table contracts:
+
+- `web_admin_import_runs`: source/entity, immutable snapshot SHA-256, state, item count, preflight/report JSON, timestamps, and bounded failure text.
+- `web_admin_import_records`: normalized per-source-record audit payload and `none`/`pending`/`applied` relation state. Category attribute links are `applied` after product run 3; incomplete product variants/config/combosets remain `pending`.
+- `web_admin_import_entity_map`: durable source/entity/source-ID to target-ID mapping and last successful run. Product-category replacement maps source ID to the same target ID.
+
+Apply creates run-scoped `web_admin_import_b_<run-id>_*` backup tables plus a temporary staging category table. Those operational backup tables are deliberately not part of the stable schema and must not be deleted before acceptance.
+
+Current `it_tech_db` audit state: runs `1`/`2`/`3` are the applied safe-configuration, category and product imports. Brand run `4` is `rolled_back`; corrected brand run `5` is applied with 91 source audit records and many-to-one maps `34 -> 25`, `57 -> 31`. Run 2 stores 788 normalized category records; its 37 records containing 162 attribute links are now `applied`. Run 3 stores 4,712 products, 91 original brand records, 45 attributes, and 426 values as applied records. It also retains 11,735 variant references, 3 config occurrences, and 1,121 comboset occurrences as pending audit data.
+
+Run 3 populated 4,712 rows in each legacy product store/price/info table, 14,455 `idv_product_category` rows, 17,603 `idv_product_attribute` rows, 162 `idv_attribute_category` rows, 1,218 MyISAM `idv_brand_category` rows, and 4,712 search rows. Product image fields retain absolute `https://pcmarket.vn/...` URLs; no media binary is stored in the database or workspace.
+
+Brand run 5 changes the live brand state to 89 `idv_brand` rows plus exactly 89 `idv_brand_info` rows (`sellerId=0`), both `utf8mb4_unicode_ci`. `idv_brand_category` has 1,209 MyISAM rows, all product/search counts remain intact, and there are no live IDs/references 34 or 57. Thirteen `image` fields remain absolute PCMarket HTTPS logo URLs. Run-scoped backups for both run 4 and run 5 are operational recovery tables and are intentionally retained.
 
 ### Product/category buying guides
 

@@ -1,5 +1,6 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 import {
   AdminApiError,
   md5,
@@ -41,10 +42,7 @@ function normalizeSearchText(value: string) {
 }
 
 function imageUrl(value: unknown) {
-  const raw = String(value || '').trim();
-  if (!raw || raw === '0') return '';
-  if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
-  return `https://hacom.vn/media/product/${raw}`;
+  return resolveProductImageUrl(value);
 }
 
 function formatDateTime(value: unknown) {

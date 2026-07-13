@@ -3,6 +3,7 @@ import pool from './db';
 import { getProductCardBadgesForProductIds } from './productCardAttributes';
 import { withPublicProductResponseCache } from './publicProductCache';
 import { rankLexicalSearch } from './searchLexicalCache';
+import { resolveProductImageUrl } from './productImageUrl';
 
 export interface SearchFacet {
   id: number;
@@ -57,7 +58,7 @@ async function getSearchMetadata() {
     const filters = new Map<string, FilterDefinition>();
     for (const row of rows) {
       const name = String(row.attribute_name || '').trim();
-      const key = String(row.filter_code || slugify(name));
+      const key = String(row.filter_code || row.attribute_code || slugify(name));
       const valueName = String(row.value_name || '').trim();
       if (!key || !name || !valueName) continue;
       let filter = filters.get(key);
@@ -213,13 +214,13 @@ export async function loadPublicSearchPayload(searchParams: URLSearchParams) {
     matchedIds.length === 0
       ? Promise.resolve([[] as BrandFacetRow[]] as [BrandFacetRow[]])
       : pool.query<BrandFacetRow[]>(`
-          SELECT b.id, b.name, COUNT(DISTINCT p.id) AS productCount
+          SELECT MIN(b.id) AS id, MIN(b.name) AS name, COUNT(DISTINCT p.id) AS productCount
           FROM idv_sell_product_store p
           JOIN idv_brand b ON b.id = p.brandId
           WHERE p.id IN (${matchedIds.map(() => '?').join(',')})
             AND TRIM(COALESCE(b.name, '')) <> ''
-          GROUP BY b.id, b.name
-          ORDER BY productCount DESC, b.name ASC
+          GROUP BY LOWER(TRIM(b.name))
+          ORDER BY productCount DESC, name ASC
         `, matchedIds),
   ]);
 
@@ -256,7 +257,7 @@ export async function loadPublicSearchPayload(searchParams: URLSearchParams) {
     data: rows.map((row) => ({
       id: Number(row.id), name: row.proName, sku: row.storeSKU, price: Number(row.price || 0), marketPrice: Number(row.market_price || 0),
       savings: Math.max(0, Number(row.market_price || 0) - Number(row.price || 0)),
-      thumbnail: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://via.placeholder.com/300',
+      thumbnail: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/300'),
       slug: row.slug ? String(row.slug).replace(/^\/+/, '') : `product-${row.id}`,
       brand: row.brandName || 'Khac', cardBadges: badges.get(Number(row.id)) || [],
     })),

@@ -3,6 +3,7 @@ import { ProductFilter, ProductTopActions } from '@/components/products/ProductF
 import { ProductTable, ProductSkeleton } from '@/components/products/ProductTable';
 import pool from '@/lib/db';
 import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 const storefrontUrl = process.env.STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || 'http://localhost:3001';
 
@@ -59,7 +60,7 @@ async function getProducts(page: number, limit: number, search?: string) {
       updater: '',
       status: (row.isOn === 1 || row.isOn === true ? 'HIỂN THỊ' : 'ẨN') as 'HIỂN THỊ' | 'ẨN',
       sequence: 0,
-      imageUrl: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://via.placeholder.com/60',
+      imageUrl: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/60'),
       frontEndUrl: row.frontEndUrl ? `${storefrontUrl}${row.frontEndUrl}` : '#',
     }));
 

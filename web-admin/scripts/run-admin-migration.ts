@@ -14,6 +14,7 @@ import { ensureBuyingGuideTables } from '../src/lib/buyingGuides';
 import { ensureComboIndexes } from '../src/lib/comboSets';
 import { ensureProductGroupIndexes, removeProductGroupValueVisualColumns } from '../src/lib/productGroups';
 import { ensureProductPromotionTables } from '../src/lib/productPromotions';
+import { ensureLegacyImportTables } from '../src/lib/legacyImport/tables';
 
 async function main() {
   if (process.env.ADMIN_WRITE_ENABLED !== 'true') throw new Error('ADMIN_WRITE_ENABLED must be true to run admin migrations.');
@@ -33,6 +34,7 @@ async function main() {
   await ensureProductGroupIndexes();
   await removeProductGroupValueVisualColumns();
   await ensureProductPromotionTables();
+  await ensureLegacyImportTables();
   console.log('Admin migration completed.');
 }
 

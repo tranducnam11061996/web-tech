@@ -7,6 +7,7 @@ import { jsonWithEtag } from '@/lib/httpCache';
 import { getCategoryTrail } from '@/lib/publicBreadcrumbs';
 import { getProductsByIds, parseProductIdsParam } from '@/lib/publicRecommendations';
 import { recordRouteMetric } from '@/lib/runtimeMetrics';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -47,7 +48,7 @@ async function getAttributeRows(categoryId: number | null) {
   const running = attributeRowsFlights.get(key);
   if (running) return running;
   const flight = pool.query(
-    `SELECT a.id AS attr_id,a.name AS attr_name,a.filter_code,v.id AS val_id,v.value AS val_name
+    `SELECT a.id AS attr_id,a.name AS attr_name,a.filter_code,a.attribute_code,v.id AS val_id,v.value AS val_name
      FROM idv_attribute a
      ${categoryId ? 'JOIN idv_attribute_category ac ON ac.attr_id=a.id AND ac.category_id=?' : ''}
      JOIN idv_attribute_value v ON a.id=v.attributeId`,
@@ -137,7 +138,7 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
     const attributesByKey = new Map<string, { attrId: number; valuesBySlug: Map<string, number[]> }>();
 
     for (const row of attrRows) {
-      const rowKey = row.filter_code || slugify(row.attr_name);
+      const rowKey = row.filter_code || row.attribute_code || slugify(row.attr_name);
       if (!rowKey) continue;
 
       let entry = attributesByKey.get(rowKey);
@@ -222,7 +223,7 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
     price: row.price || 0,
     marketPrice: row.market_price || 0,
     savings: Math.max(0, (row.market_price || 0) - (row.price || 0)),
-    thumbnail: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://via.placeholder.com/300',
+    thumbnail: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/300'),
     slug: row.slug ? row.slug.replace('/', '') : `product-${row.id}`,
     brand: row.brandName || 'Khac',
     cardBadges: badgesByProduct.get(Number(row.id)) || [],

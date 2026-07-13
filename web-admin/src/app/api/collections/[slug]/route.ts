@@ -3,6 +3,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { getProductCardBadgesForProductIds } from '@/lib/productCardAttributes';
 import { withPublicProductResponseCache } from '@/lib/publicProductCache';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -172,7 +173,7 @@ async function loadCollectionPayload(slug: string, searchParams: URLSearchParams
     price: Number(row.price || 0),
     marketPrice: Number(row.market_price || 0),
     savings: Math.max(0, Number(row.market_price || 0) - Number(row.price || 0)),
-    thumbnail: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://via.placeholder.com/300',
+    thumbnail: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/300'),
     slug: row.slug ? String(row.slug).replace('/', '') : `product-${row.id}`,
     brand: String(row.brandName || 'Khac'),
     cardBadges: badgesByProduct.get(Number(row.id)) || [],

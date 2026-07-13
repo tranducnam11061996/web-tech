@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2';
 import pool from '@/lib/db';
 import { getProductCardBadgesForProductIds } from '@/lib/productCardAttributes';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 type CategoryRow = RowDataPacket & { id: number; name: string | null; slug: string | null };
 type ProductRow = RowDataPacket & {
@@ -72,7 +73,7 @@ export async function loadHomepageProductSections(categoryIds: number[], product
           id: Number(product.id), name: String(product.proName || ''), sku: String(product.storeSKU || ''),
           price: Number(product.price || 0), marketPrice: Number(product.market_price || 0),
           savings: Math.max(0, Number(product.market_price || 0) - Number(product.price || 0)),
-          thumbnail: product.proThum ? `https://hacom.vn/media/product/${product.proThum}` : '',
+          thumbnail: resolveProductImageUrl(product.proThum),
           slug: product.slug ? normalizeSlug(product.slug) : `product-${product.id}`,
           brand: String(product.brandName || 'TrucTiepGAME'), cardBadges: badgesByProduct.get(Number(product.id)) || [],
         })),

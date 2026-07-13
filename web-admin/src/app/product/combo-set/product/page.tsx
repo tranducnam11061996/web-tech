@@ -4,6 +4,7 @@ import { ComboSetProductTable } from '@/components/products/combo-set/ComboSetPr
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
+import { resolveProductImageUrl } from '@/lib/productImageUrl';
 
 async function getComboSetInfo(id: number) {
   const [rows] = await pool.query('SELECT title FROM combo_set WHERE id = ?', [id]);
@@ -42,7 +43,7 @@ async function getComboProducts(comboId: number, page: number, limit: number) {
       name: row.proName,
       price: row.price || 0,
       marketPrice: row.market_price || 0,
-      imageUrl: row.proThum ? `https://hacom.vn/media/product/${row.proThum}` : 'https://via.placeholder.com/60',
+      imageUrl: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/60'),
       status: row.isOn?.toString() || '0'
     }));
 

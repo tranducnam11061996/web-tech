@@ -20,6 +20,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'hacom.vn',
       },
+      {
+        protocol: 'https',
+        hostname: 'pcmarket.vn',
+      },
     ],
   },
   async headers() {

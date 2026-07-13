@@ -2,7 +2,9 @@
   "name": "admin-dashboard",
   "version": "0.1.0",
   "private": true,
-  "overrides": { "postcss": "8.5.10" },
+  "overrides": {
+    "postcss": "8.5.10"
+  },
   "scripts": {
     "dev": "node scripts/dev-with-worker.mjs",
     "dev:api": "next dev",
@@ -12,6 +14,9 @@
     "start": "next start",
     "lint": "eslint",
     "admin:migrate": "tsx scripts/run-admin-migration.ts",
+    "import:legacy": "tsx scripts/import-legacy.ts",
+    "db:bootstrap-safe-config": "tsx scripts/bootstrap-safe-config.ts",
+    "db:logical-backup": "tsx scripts/logical-database-backup.ts",
     "locations:sync": "tsx scripts/sync-vietnam-locations.ts",
     "search:migrate": "tsx scripts/run-search-migration.ts",
     "search:rebuild": "tsx scripts/rebuild-search-data.ts",
@@ -44,6 +49,7 @@
     "php-serialize": "^5.1.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "sanitize-html": "^2.17.6",
     "tailwind-merge": "^3.6.0",
     "tinymce": "^8.6.0",
     "zod": "^3.25.76"
@@ -53,6 +59,7 @@
     "@types/node": "^20",
     "@types/react": "19.2.17",
     "@types/react-dom": "^19",
+    "@types/sanitize-html": "^2.16.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",

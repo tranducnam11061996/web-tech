@@ -3,6 +3,7 @@ node_modules/
 dist/
 build/
 tmp/
+web-admin/var/imports/
 **/.local-*.log
 
 # Local secrets. Keep only sanitized examples in version control.

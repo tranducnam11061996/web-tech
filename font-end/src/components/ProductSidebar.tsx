@@ -25,6 +25,7 @@ import {
   Zap,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { addCartItem, clampQuantity } from "@/lib/cart";
@@ -74,7 +75,7 @@ function ProductInformationColumn({ productData }: { productData: ProductDetailD
       <h1 id="product-detail-title" className="product-detail-title">{productData.name}</h1>
       <div className="product-detail-meta">
         <a href="#sec-reviews" aria-label="Xem đánh giá sản phẩm"><strong>4.9</strong><span className="product-detail-stars" aria-hidden="true">★★★★★</span><span>(128 đánh giá)</span></a>
-        {productData.brand ? <span>Thương hiệu: {productData.brand}</span> : null}
+        {productData.brand ? <span>Thương hiệu: {productData.brandSlug ? <Link href={`/brand/${productData.brandSlug}`} className="font-semibold text-cyan-300 hover:text-cyan-200 hover:underline">{productData.brand}</Link> : productData.brand}</span> : null}
         {productData.sku ? <span>SKU: {productData.sku}</span> : null}
         {productData.views != null ? <span>Lượt xem: {productData.views}</span> : null}
       </div>

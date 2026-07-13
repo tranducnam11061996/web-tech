@@ -34,6 +34,7 @@ Product-promotion migration verification on `2026-07-13` ran twice successfully 
 - Product-promotion program/product/category tables.
 - Storefront customer registration/password/session/OTP/attempt/address/order-link/metrics tables.
 - `web_admin_order_requests`, `web_admin_request_limits`, `web_admin_email_outbox`, `web_admin_cache_versions`, and `web_admin_webhook_nonces`.
+- `web_admin_import_runs`, `web_admin_import_records`, and `web_admin_import_entity_map` for guarded legacy-import audit/mapping state.
 
 The exact 28,763 product/search counts and zero missing search rows were last verified on `2026-07-07`; re-query before relying on them.
 
@@ -109,7 +110,10 @@ WHERE table_schema = DATABASE()
     'web_admin_request_limits',
     'web_admin_email_outbox',
     'web_admin_cache_versions',
-    'web_admin_webhook_nonces'
+    'web_admin_webhook_nonces',
+    'web_admin_import_runs',
+    'web_admin_import_records',
+    'web_admin_import_entity_map'
   )
 ORDER BY table_name;
 ```
@@ -120,6 +124,9 @@ SHOW CREATE TABLE web_admin_request_limits;
 SHOW CREATE TABLE web_admin_email_outbox;
 SHOW CREATE TABLE web_admin_cache_versions;
 SHOW CREATE TABLE web_admin_webhook_nonces;
+SHOW CREATE TABLE web_admin_import_runs;
+SHOW CREATE TABLE web_admin_import_records;
+SHOW CREATE TABLE web_admin_import_entity_map;
 SHOW CREATE TABLE web_admin_buying_guides;
 SHOW CREATE TABLE web_admin_buying_guide_items;
 SHOW INDEX FROM web_admin_customer_sessions;
@@ -168,6 +175,90 @@ npm.cmd run locations:sync
 ```
 
 New addresses store province/ward codes plus name snapshots; existing legacy three-tier addresses retain their legacy schema marker. Runtime should continue serving cached DB data if the upstream provider is unavailable.
+
+## PCMarket product-category replacement
+
+For the empty-schema cutover, bootstrap only the approved configuration whitelist; do not run the full `admin:migrate` seeder:
+
+```powershell
+npm.cmd run db:bootstrap-safe-config -- --source-database=hanoi23_db --target-database=it_tech_db --dry-run
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run db:bootstrap-safe-config -- --source-database=hanoi23_db --target-database=it_tech_db --apply --expected-hash=<sha256> --confirm=COPY_SAFE_CONFIGURATION
+```
+
+Rollback safe configuration independently with `--rollback --run-id=<id> --target-database=it_tech_db`. The rollback deletes the copied whitelist in reverse FK order and retains the audit run. Before category apply, run `db:logical-backup` with `--verify-restore`; an artifact is written only after schema/count/data hashes match in the disposable restore.
+
+Run the dry-run first. It makes no database writes, but it does require read access to the target so schema, foreign keys/triggers, field lengths, dependency counts, and cross-entity route conflicts can be reported:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --dry-run
+```
+
+Before apply, take and verify a full MySQL backup, stop catalog writes, enter the approved maintenance window, record the dry-run hash/database name, and verify there are no non-category route conflicts. Apply is intentionally blocked unless every guard is present:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --apply --expected-database=<name> --expected-hash=<sha256> --confirm=REPLACE_PRODUCT_CATEGORIES --backup-confirmed --maintenance-window
+```
+
+After apply, record the returned run ID; verify 788 unique IDs, 60 roots, maximum depth 3, status 722/66, unique routes, `.html` routes, inactive-category 404 behavior, remote PCMarket icons, empty product/filter state, and pending 162 attribute links. Restart all API/background workers and run the healthcheck. Do not attach products or apply pending attributes during category acceptance.
+
+Rollback by run ID restores categories, routes, junctions, product `product_cat`, scoped voucher/promotion/banner/menu state, helper catalog configuration, and cache versions. It retains the imported category table and all backups for investigation:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --rollback --run-id=<id> --expected-database=<name>
+```
+
+Never treat the MyISAM relation cleanup as transactional. If apply reports `apply_failed` after the table swap, keep maintenance mode active and invoke rollback for that run ID; do not manually delete its backup tables.
+
+Local execution on `2026-07-13` produced safe-config run `1` and category run `2` in `it_tech_db`. Category rollback is:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --rollback --run-id=2 --expected-database=it_tech_db
+```
+
+## PCMarket product import
+
+Run a fresh composite dry-run immediately before apply. The importer requires the 788-category run and an otherwise empty product/brand/attribute/config/combo catalog:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=products --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=products --apply --expected-database=it_tech_db --expected-hash=<fresh-composite-sha256> --confirm=IMPORT_PCMARKET_PRODUCTS --backup-confirmed --maintenance-window
+```
+
+Product run `3` used composite hash `5f1f22c6756c862131f9f46926d9d3f4c47835159a82ad4fb70891fa0bd74021`. Its verified pre-import backup is `D:\web-tech\tmp\db-backups\it_tech_db-pre-product-import-2026-07-13T09-17-52-684Z.json` with manifest SHA-256 `f632a4ea910ba8f20094f492ce6535192c77db185e8d6deb0587d87185486968`.
+
+Rollback restores the prior catalog/search/MyISAM state and returns run 2 category-attribute records to pending:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=products --rollback --run-id=3 --expected-database=it_tech_db
+```
+
+Do not delete run-scoped backup tables, raw snapshots, or logical backup artifacts before catalog acceptance. Product media is intentionally remote and must remain an absolute HTTPS PCMarket URL.
+
+## PCMarket brand sync
+
+Run a new brand dry-run immediately before apply. The source hash must be stable across both downloads and the target must still have a complete product/search state with no unexpected brand reference table:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=brands --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=brands --apply --expected-database=it_tech_db --expected-hash=<fresh-sha256> --confirm=SYNC_PCMARKET_BRANDS --backup-confirmed --maintenance-window
+```
+
+Applied run `5` uses SHA-256 `4ace3a4c0cc7ba7c2270e10463ce7f31e653d7c86915cdc2b13db6eeacf43eef`. The verified pre-sync backup is `D:\web-tech\tmp\db-backups\it_tech_db-pre-brand-sync-2026-07-13T10-20-37-337Z.json`, manifest `312b0ac3eef985d621120ccd71b8d1cd12c569038f31b70d301c26a4a174d09d`. Run `4` is rolled back and retained for audit after acceptance exposed an ambiguous denormalized product count.
+
+Acceptance requires 89 brand/info rows, `utf8mb4_unicode_ci` on both, 1,209 brand-category rows, 4,712 search rows, 13 remote PCMarket logos, 91 run records, mappings `34 -> 25` and `57 -> 31`, and no alias reference in any whitelisted table. Rollback is:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=brands --rollback --run-id=5 --expected-database=it_tech_db
+```
+
+The brand rollback restores the prior UTF-8/latin1 table definitions, MyISAM tables and InnoDB references. It is blocked while any later import run remains applied.
 
 ## Rollback principles
 

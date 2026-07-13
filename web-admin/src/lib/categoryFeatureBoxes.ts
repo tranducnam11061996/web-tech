@@ -3,6 +3,7 @@ import pool from './db';
 import { AdminApiError, maybeText, toBoolInt } from './admin/common';
 import { clearPublicProductResponseCache } from './publicProductCache';
 import { getProductCardBadgesForProductIds } from './productCardAttributes';
+import { resolveProductImageUrl } from './productImageUrl';
 
 export type CategoryFeatureBoxPosition = 'left' | 'right';
 export type CategoryFeatureBoxRenderMode = 'image' | 'hybrid';
@@ -385,7 +386,7 @@ async function loadHomepageCategoryFeatureSections(limit: number, productLimit: 
         price: Number(product.price || 0),
         marketPrice: Number(product.market_price || 0),
         savings: Math.max(0, Number(product.market_price || 0) - Number(product.price || 0)),
-        thumbnail: product.proThum ? `https://hacom.vn/media/product/${product.proThum}` : 'https://via.placeholder.com/300',
+        thumbnail: resolveProductImageUrl(product.proThum, 'https://via.placeholder.com/300'),
         slug: product.slug ? normalizeCategorySlug(product.slug) : `product-${product.id}`,
         brand: String(product.brandName || 'Khac'),
         cardBadges: badgesByProduct.get(Number(product.id)) || [],

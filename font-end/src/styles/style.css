@@ -2279,6 +2279,25 @@ body.mobile-menu-open {
   box-shadow: 0 6px 20px rgba(0, 0, 0, .25)
 }
 
+.brand-card:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 3px
+}
+
+.brand-logo-image {
+  width: min(78%, 150px);
+  height: 58%;
+  object-fit: contain;
+  filter: saturate(.9);
+  transition: transform .25s ease, filter .25s ease
+}
+
+.brand-card:hover .brand-logo-image,
+.brand-card:focus-visible .brand-logo-image {
+  filter: saturate(1.1);
+  transform: scale(1.04)
+}
+
 .brand-name {
   font-size: 14px;
   font-weight: 700;
@@ -2351,6 +2370,13 @@ body.mobile-menu-open {
   pointer-events: none
 }
 
+.expand-overlay.is-expanded {
+  height: 72px;
+  background: linear-gradient(to bottom, transparent, rgba(12, 10, 18, .7));
+  position: relative;
+  margin-inline: -32px
+}
+
 .expand-btn {
   width: 44px;
   height: 44px;
@@ -2382,6 +2408,15 @@ body.mobile-menu-open {
 
 .expand-btn.rotated:hover {
   transform: rotate(180deg) scale(1.08)
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-card,
+  .brand-logo-image,
+  .expand-overlay,
+  .expand-btn {
+    transition: none
+  }
 }
 
 @media (max-width:1200px) {

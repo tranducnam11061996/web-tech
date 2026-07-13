@@ -93,6 +93,12 @@ export function normalizeSlug(input: unknown) {
     .slice(0, 180);
 }
 
+export function normalizeLegacyProductCategoryPath(input: unknown) {
+  const raw = String(input || '').trim().toLowerCase().replace(/^\/+|\/+$/g, '');
+  if (raw.length <= 180 && /^[a-z0-9][a-z0-9._-]*$/.test(raw) && !raw.includes('..')) return raw;
+  return normalizeSlug(raw);
+}
+
 export function md5(value: string) {
   return crypto.createHash('md5').update(value).digest('hex');
 }

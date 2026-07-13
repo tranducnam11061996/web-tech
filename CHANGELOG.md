@@ -6,8 +6,43 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 
 ## 2026-07-13
 
+### Legacy brand sync
+
+- Added independent guarded `pcmarket/brands` dry-run/apply/rollback with two-snapshot stability checks, raw audit snapshots, source-authoritative normalization, target-only preservation, exact database/hash/confirmation gates, advisory locking, and run-scoped backups.
+- Canonicalized E-DRA `34 -> 25` and TEAMGROUP `57 -> 31` in both brand and future product imports. Brand/info staging uses `utf8mb4_unicode_ci`; `idv_brand_category` and `idv_movie` use compensating atomic swaps while product references update transactionally and search/cache state is refreshed.
+- Added `GET /api/brands/[slug]`, canonical brand fields on product detail, real homepage brand bootstrap/cards, storefront `/brand/[slug]`, remote logo rendering in admin, and brand API/page healthchecks.
+- Verified the 318-table/78,567-row pre-brand backup and manifest `312b0ac3eef985d621120ccd71b8d1cd12c569038f31b70d301c26a4a174d09d` through a disposable restore. Destructive brand apply/rollback also passed on a cloned disposable database.
+- Run `4` was rolled back after runtime acceptance found an ambiguous product-count aggregation. Corrected run `5` applied hash `4ace3a4c0cc7ba7c2270e10463ce7f31e653d7c86915cdc2b13db6eeacf43eef`: 89 brands/info rows, 1,209 brand-category rows, 13 remote logos, 91 audit records, 4,712 search rows, 80 homepage brands, and zero runtime/reference IDs 34/57. E-DRA verifies at 63 total/10 enabled and TEAMGROUP at 7/6.
+- Final verification passed 66/66 unit tests, the default integration suite, the opt-in destructive brand test, both application typecheck/lint/build pipelines, and 15/15 runtime checks.
+
+### Legacy product import
+
+- Extended `import:legacy` with a guarded `pcmarket/products` workflow that fetches two stable bounded snapshots from product, brand, and attribute endpoints, validates them with Zod, normalizes SKU/path/VAT/category/attribute/media data, sanitizes HTML, and stores raw audit snapshots outside Git.
+- Added product apply/rollback with exact database/hash confirmation, schema and empty-catalog preflight, advisory locking, run-scoped backups, transactional InnoDB writes, compensating MyISAM `idv_brand_category` swap, search infrastructure installation, cache-version invalidation, and pending audit records for incomplete variants/config/combosets.
+- Product run `3` applied composite SHA-256 `5f1f22c6756c862131f9f46926d9d3f4c47835159a82ad4fb70891fa0bd74021` to `it_tech_db`: 4,712 products/routes/search rows, 14,455 product-category links, 17,603 product-attribute links, 91 brands, 45 attributes, 426 values, and 162 category-attribute links. The source status split is 2,528/2,184 and 415 products retain zero price.
+- Added a shared absolute/legacy image resolver across admin, public API, search, cart, combo, and recommendation paths, plus `pcmarket.vn` Next.js remote-image permission in both apps. Product binaries were not downloaded.
+- Retained 11,735 variant references, 3 config occurrences, and 1,121 comboset occurrences as pending audit data. Eight duplicate product URLs use deterministic `-product-{id}` paths and 102 empty SKUs use unique `PCM-{id}` fallbacks.
+- A full 305-table/8,341-row pre-import backup was restored and hash-verified in a disposable database. Verification passed 62/62 unit tests, the product destructive apply/rollback fixture, the default integration suite, and both application typecheck/lint/build pipelines.
+- Restarted web-admin, storefront, and the background worker against `it_tech_db`; the post-import runtime healthcheck passed 13/13. Enabled product search, inactive-product search exclusion/direct detail state, cart quote, and absolute PCMarket thumbnails were verified. Collection routes remain intentionally 404 because collection definitions were not in the approved import scope.
+
+### Legacy category import
+
+- Switched the ignored local runtime configuration to `it_tech_db` without changing the source fallback or committed database placeholder. Added guarded `db:bootstrap-safe-config` and `db:logical-backup` commands, including whitelist schema/hash checks, FK-safe transactional copy, MyISAM compensation, admin first-login hardening, run-ID rollback, SHA manifests, and disposable restore verification.
+- Safe-config run `1` copied 5,170 approved rows from read-only `hanoi23_db`. Verified pre-bootstrap and post-bootstrap backup manifests are retained under `D:\web-tech\tmp\db-backups`; their restore-test databases were dropped.
+- Destructive category apply/rollback passed against disposable `it_tech_db_import_test`; the database was dropped after the test. Category run `2` then imported the stable 788-row snapshot into `it_tech_db`, producing 788 unique routes and 162 pending attribute links while leaving product and attribute relations empty.
+- Added `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` so the local runtime probe accepts the documented empty/404 collection state during the category-only phase while leaving default healthcheck behavior unchanged.
+- Added a lightweight category route-status API plus storefront pre-render guard so inactive categories return an actual HTTP 404 instead of a streamed 200 response carrying a 404 fallback. Runtime verification passed enabled and legacy `.html` routes at 200, inactive ID 447 at 404, and the empty-catalog healthcheck at 11/11.
+
+- Added a reusable guarded legacy-import command and the PCMarket product-category adapter with bounded HTTPS pagination, Zod validation, retry/backoff, two-snapshot SHA-256 stability checks, ignored raw audit snapshots, tree/path validation, safe HTML normalization, and deterministic duplicate-route resolution.
+- Added InnoDB import audit/mapping tables, schema/engine/FK/trigger/route/field preflight, advisory locking, category staging and atomic table swap, run-scoped backups, old product/attribute relation detachment, scoped voucher/promotion/banner/menu/helper deactivation, cache-version bumps, and run-ID rollback.
+- Public category child/detail reads now reject inactive categories; category admin saves preserve safe legacy `.html` paths. Source attribute links remain pending until the full attribute export is available.
+- Added pure unit coverage plus destructive integration coverage that is disabled unless an explicitly disposable database and opt-in flag are supplied.
+- The earlier `hanoi23_db` preflight conflict did not exist in the empty `it_tech_db` route table. The apply used the fresh immediately preceding dry-run hash `feda1324a39499931996b31c10bab23472a63d3528c4a44173fcdd7c861d3abc`; future runs must still use a fresh hash.
+- Verification passed 55/55 unit tests, all 4 existing database integration tests, and both application typecheck/lint/build pipelines. The destructive category cutover integration test remained skipped without a disposable opt-in database; healthcheck was not run because production servers were not listening.
+
 ### Fixed
 
+- Enabled the existing development-only reCAPTCHA bypass in the ignored local `web-admin/.env` and restarted the port-3002 dev runtime. An empty-token login probe now reaches credential validation (`401 INVALID_CREDENTIALS`) instead of failing with `503 BOT_PROTECTION_UNAVAILABLE`; production continues to require real Google reCAPTCHA keys.
 - Restored category-page development rendering by allowing `unsafe-eval` only in the storefront development CSP; production CSP remains unchanged.
 
 ### Added

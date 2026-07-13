@@ -15,6 +15,8 @@ export type ProductCoreData = {
   name: string;
   sku?: string;
   brand?: string;
+  brandId?: number;
+  brandSlug?: string;
   warranty?: string;
   price?: number;
   marketPrice?: number;

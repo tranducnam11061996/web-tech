@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import pool from './db';
 import { clearPublicProductResponseCache } from './publicProductCache';
+import { resolveProductImageUrl } from './productImageUrl';
 
 export type ProductCardBadgeSlot = 'image_top_left' | 'image_bottom_center';
 export type ProductCardBadgeColorVariant = 'red' | 'blue' | 'cyan' | 'green' | 'amber' | 'purple' | 'slate';
@@ -746,7 +747,7 @@ async function loadPreviewProduct(categoryId: number, attributeIds: number[]) {
     id: Number(product.id),
     name: cleanPublicText(product.proName, 180) || 'Preview product',
     slug: String(product.slug || '').replace(/^\/+/, '') || `product-${product.id}`,
-    thumbnail: product.proThum ? `https://hacom.vn/media/product/${product.proThum}` : 'https://via.placeholder.com/300',
+    thumbnail: resolveProductImageUrl(product.proThum, 'https://via.placeholder.com/300'),
     price: Number(product.price || 0),
     marketPrice: Number(product.market_price || 0),
     brand: cleanPublicText(product.brandName, 120) || 'Khac',

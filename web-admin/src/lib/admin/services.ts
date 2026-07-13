@@ -20,6 +20,7 @@ import {
   isRegistered,
   markRegistry,
   maybeText,
+  normalizeLegacyProductCategoryPath,
   normalizeSlug,
   parseIdList,
   requestPathIndex,
@@ -870,7 +871,9 @@ async function saveCategory(options: {
       throw new AdminApiError(400, 'BAD_REQUEST', 'Danh muc cha khong duoc la chinh no hoac hau due');
     }
 
-    const slug = normalizeSlug(payload.slug || payload.url || name);
+    const slug = table === 'idv_seller_category'
+      ? normalizeLegacyProductCategoryPath(payload.slug || payload.url || name)
+      : normalizeSlug(payload.slug || payload.url || name);
     if (!slug) throw new AdminApiError(400, 'BAD_REQUEST', 'Slug khong hop le');
     const requestPath = `/${slug}`;
     const status = toBoolInt(payload.status, 1);

@@ -24,8 +24,11 @@ Last updated: `2026-07-13`
 | Admin content/catalog | Implemented first production-oriented pass | Product/category/article/menu/banner/collection/voucher/customer/order/user/role management |
 | Search | Implemented | Runtime search in `web-admin`, prewarm/single-flight, signed webhook; `search-tool` is reference only |
 | Runtime topology | Implemented as configuration | Caddy, PM2, readiness/liveness, two API workers, storefront, background worker |
-| Database migration | Applied to configured local DB | 285 tables: 157 InnoDB, 128 MyISAM on 2026-07-13 |
-| Functional verification | Passed locally | TypeScript, lint, builds, tests, audits, readiness/liveness, 13/13 health checks |
+| Database cutover | Applied to `it_tech_db` | Original 285-table empty schema retained; safe-config run 1 copied 5,170 whitelisted rows; `hanoi23_db` remained read only; verified pre/post-bootstrap logical backups retained outside Git |
+| PCMarket category import | Applied to `it_tech_db` | Run 2 imported 788 categories and 788 unique routes; 60 roots, depth 3, 722/66 status; run 3 applied all 162 category-attribute links |
+| PCMarket product import | Applied to `it_tech_db` | Run 3 imported 4,712 products/search rows, 14,455 category links, 17,603 attribute links, 91 brands, 45 attributes, and 426 values; images remain remote HTTPS PCMarket URLs; incomplete variant/config/combo data remains audit-only pending |
+| PCMarket brand sync | Applied to `it_tech_db` | Corrected run 5 retains 91 source audit records and 89 runtime brands after E-DRA/TEAMGROUP merges; 89 UTF-8 info rows, 1,209 brand-category rows, 13 remote logos, 80 homepage brands, and zero alias references |
+| Functional verification | Passed for imported catalog | Both typecheck/lint/build pipelines pass; 66/66 unit tests, default integration suite, disposable category/product/brand apply+rollback, and 15/15 runtime healthcheck passed; collections remain intentionally absent/404 |
 | 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
 ## Completed in the latest hardening pass
@@ -52,10 +55,10 @@ Last updated: `2026-07-13`
 | `font-end` ESLint `--quiet` | Pass |
 | `web-admin` production build | Pass |
 | `font-end` production build | Pass |
-| Validation, cache/ETag, breadcrumb, recommendation, buying-guide, combo, voucher, product-group, product-promotion, and product-video unit tests | 46/46 pass |
-| Idempotency/rollback, product-group, and product-promotion DB integration tests | 4/4 pass |
+| Validation, cache/ETag, catalog features, and legacy category-import unit tests | 55/55 pass |
+| Existing DB integration tests | 4/4 pass; destructive category swap/rollback fixture also passed on `it_tech_db_import_test`, which was dropped afterward |
 | npm audit in both apps | 0 known vulnerabilities |
-| Local healthcheck | 13/13 pass |
+| Local healthcheck | 11/11 pass in `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` mode with category ID 30 |
 | Liveness/readiness/storefront | HTTP 200 |
 | Invalid quote/origin/order-key/webhook probes | Expected safe 4xx/5xx responses |
 | Full k6 1,500 VU | Not run on production-like host |

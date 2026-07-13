@@ -4,6 +4,7 @@ import pool from './db';
 import { getProductCardBadgesForProductIds, type ProductCardBadge } from './productCardAttributes';
 import { invalidateSearchLexicalCache } from './searchLexicalCache';
 import { injectSearchSynonyms, normalizeSearchText } from './searchRules';
+import { resolveProductImageUrl } from './productImageUrl';
 
 export { SYNONYM_GROUPS } from './searchRules';
 
@@ -179,9 +180,7 @@ function createSearchProduct(row: ProductRow, override?: SearchWebhookProduct): 
     normalizedName: injectSynonyms(removeVietnameseTones(proName)),
     price: Number(row.price || 0),
     marketPrice: Number(row.market_price || 0),
-    thumbnail: row.proThum
-      ? `https://hacom.vn/media/product/${row.proThum}`
-      : 'https://via.placeholder.com/300',
+    thumbnail: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/300'),
     slug: row.slug ? row.slug.replace(/^\/+/, '') : `product-${row.id}`,
     brand: brandName,
     cardBadges: [],
@@ -229,7 +228,7 @@ function registerAttribute(
   if (!isDisplayableSearchFilterValue(valueName)) return;
 
   const attributeName = decodeHtmlEntities(row.attribute_name).trim();
-  const key = String(row.filter_code || slugifySearchFilter(attributeName));
+  const key = String(row.filter_code || row.attribute_code || slugifySearchFilter(attributeName));
   const valueSlug = slugifySearchFilter(valueName);
   if (!key || !valueSlug) return;
 
@@ -277,7 +276,7 @@ async function refreshSearchCache() {
         b.name AS brandName
       FROM idv_sell_product_store p
       LEFT JOIN product_data_search s ON s.product_id = p.id
-      LEFT JOIN idv_sell_product_price pr ON pr.id = p.id AND pr.isOn = 1
+      JOIN idv_sell_product_price pr ON pr.id = p.id AND pr.isOn = 1
       LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
       LEFT JOIN idv_brand b ON b.id = p.brandId
       WHERE p.id > 0
@@ -361,7 +360,7 @@ async function loadProductForCache(id: number) {
         b.name AS brandName
       FROM idv_sell_product_store p
       LEFT JOIN product_data_search s ON s.product_id = p.id
-      LEFT JOIN idv_sell_product_price pr ON pr.id = p.id AND pr.isOn = 1
+      JOIN idv_sell_product_price pr ON pr.id = p.id AND pr.isOn = 1
       LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
       LEFT JOIN idv_brand b ON b.id = p.brandId
       WHERE p.id = ?
@@ -407,6 +406,12 @@ export function mutateSearchCache(
 
     const existing = searchCache.cachedProducts.find((product) => product.id === id);
     const { row, attributes } = await loadProductForCache(id);
+    if (!row) {
+      searchCache.cachedProducts = searchCache.cachedProducts.filter((product) => product.id !== id);
+      rebuildFuseIndexes();
+      searchCache.expiresAt = Date.now() + CACHE_TTL_MS;
+      return { skipped: false };
+    }
     let nextProduct: SearchProduct;
 
     if (row) {

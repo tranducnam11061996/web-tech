@@ -1,92 +1,67 @@
-import React from "react";
-import { Metadata } from "next";
-import Header from "../../../components/Header";
-import Footer from "../../../components/Footer";
-import CategoryView from "./CategoryView";
-import ArticleView from "./ArticleView";
+import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { internalApiUrl } from '../../../lib/apiUrl';
+import ArticleView from './ArticleView';
+import CategoryView from './CategoryView';
 
+type Loaded =
+  | { type: 'article'; data: any }
+  | { type: 'category'; data: any; news: any[]; totalNews: number; pagination?: any };
 
-// Fetch data helper to reuse across Metadata and Page
-async function fetchData(slug: string, page: number = 1) {
+async function fetchData(slug: string, page = 1): Promise<Loaded | null> {
+  const encoded = encodeURIComponent(slug);
   try {
-    const articleRes = await fetch(`http://localhost:3000/api/news/${slug}`, { next: { revalidate: 60 } });
-    if (articleRes.ok) {
-      const articleJson = await articleRes.json();
-      if (articleJson.data) return { type: 'article', data: articleJson.data };
+    const articleResponse = await fetch(internalApiUrl(`/api/news/${encoded}`), { next: { revalidate: 60 } });
+    if (articleResponse.ok) {
+      const payload = await articleResponse.json();
+      if (payload.data) return { type: 'article', data: payload.data };
     }
-
-    const categoryRes = await fetch(`http://localhost:3000/api/news-category/${slug}?page=${page}&limit=21`, { next: { revalidate: 60 } });
-    if (categoryRes.ok) {
-      const categoryJson = await categoryRes.json();
-      if (categoryJson.data) return { type: 'category', data: categoryJson.data, news: categoryJson.news, totalNews: categoryJson.totalNews };
+    const categoryResponse = await fetch(internalApiUrl(`/api/news-category/${encoded}?page=${page}&limit=21`), { next: { revalidate: 60 } });
+    if (categoryResponse.ok) {
+      const payload = await categoryResponse.json();
+      if (payload.data) return { type: 'category', data: payload.data, news: payload.news || [], totalNews: payload.totalNews || 0, pagination: payload.pagination };
     }
   } catch (error) {
-    console.error("Server fetch error:", error);
+    console.error('Unable to load news route:', error);
   }
   return null;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
-  const fetched = await fetchData(slug);
-  
-  if (!fetched) return { title: 'Không tìm thấy' };
-
-  if (fetched.type === 'article') {
-    const article = fetched.data;
-    return {
-      title: article.meta_title || article.title,
-      description: article.meta_description || article.summary,
-      keywords: article.meta_keyword,
-      openGraph: {
-        images: article.thumnail ? [`https://hacom.vn/media/news/${article.thumnail}`] : [],
-      }
-    };
-  } else {
-    const category = fetched.data;
-    return {
-      title: category.meta_title || category.name,
-      description: category.meta_description || category.description,
-      keywords: category.meta_keyword,
-    };
-  }
+function siteOrigin() {
+  const value = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
+  try { return new URL(value).origin; } catch { return 'http://localhost:3001'; }
 }
 
-export default async function SingleTinTucPage({ params, searchParams }: { params: Promise<{ slug: string }>, searchParams?: Promise<{ [key: string]: string | string[] | undefined }> }) {
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const sp = searchParams ? await searchParams : {};
-  const page = sp.page ? parseInt(sp.page as string, 10) : 1;
-  const fetched = await fetchData(slug, page);
-
-  const article = fetched?.type === 'article' ? fetched.data : null;
-  const category = fetched?.type === 'category' ? fetched.data : null;
-  const categoryNews = fetched?.type === 'category' ? (fetched.news || []) : [];
-  const totalNews = fetched?.type === 'category' ? (fetched.totalNews || 0) : 0;
-
-
-
-  if (!article && !category) {
-    return (
-      <>     
-        <Header />
-        <div className="max-w-[1400px] mx-auto px-4 py-32 text-center text-white text-2xl font-bold">
-           Không tìm thấy bài viết hoặc danh mục!
-        </div>
-        <Footer />
-      </>
-    );
-  }
-
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+  const loaded = await fetchData(slug);
+  if (!loaded) return { title: 'Không tìm thấy', robots: { index: false, follow: false } };
+  const entity = loaded.data;
+  const title = entity.meta_title || entity.title || entity.name;
+  const description = entity.meta_description || entity.summary || entity.description || '';
+  const canonical = `${siteOrigin()}/tin-tuc/${slug}`;
+  const image = loaded.type === 'article' ? entity.thumnail : entity.imgUrl;
+  return {
+    title,
+    description,
+    keywords: entity.meta_keywords || entity.meta_keyword || undefined,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical, type: loaded.type === 'article' ? 'article' : 'website', images: image ? [image] : [] },
   };
+}
 
-
-  if (category) {
-    return <CategoryView category={category} categoryNews={categoryNews} formatDate={formatDate} page={page} totalNews={totalNews} />;
+export default async function NewsRoute({ params, searchParams }: {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<{ page?: string }>;
+}) {
+  const { slug } = await params;
+  const resolved = await searchParams;
+  const requested = Number(resolved?.page || 1);
+  const page = Number.isInteger(requested) && requested > 0 && requested <= 1_000 ? requested : 1;
+  const loaded = await fetchData(slug, page);
+  if (!loaded) notFound();
+  if (loaded.type === 'category') {
+    return <CategoryView category={loaded.data} categoryNews={loaded.news} page={page} totalNews={loaded.totalNews} />;
   }
-
-  return <ArticleView article={article} formatDate={formatDate} />;
+  return <ArticleView article={loaded.data} />;
 }

@@ -333,6 +333,7 @@ async function insertRoutes(connection: PoolConnection, categories: NormalizedCa
   for (let offset = 0; offset < categories.length; offset += 100) {
     const batch = categories.slice(offset, offset + 100);
     const values = batch.flatMap((category) => [
+      'product:category',
       category.requestPath,
       crypto.createHash('md5').update(category.requestPath).digest('hex'),
       `${CATEGORY_ID_PATH_PREFIX}${category.id}`,
@@ -340,7 +341,7 @@ async function insertRoutes(connection: PoolConnection, categories: NormalizedCa
       '',
     ]);
     await connection.query(
-      `INSERT INTO idv_url (request_path,request_path_index,id_path,target_path,redirect_code) VALUES ${batch.map(() => '(?,?,?,?,?)').join(',')}`,
+      `INSERT INTO idv_url (url_type,request_path,request_path_index,id_path,target_path,redirect_code) VALUES ${batch.map(() => '(?,?,?,?,?,?)').join(',')}`,
       values,
     );
   }
@@ -445,12 +446,13 @@ export async function rollbackProductCategoryImport(input: { runId: number; expe
     lockHeld = Number(lockRows[0]?.acquired) === 1;
     if (!lockHeld) throw new Error('Another product-category import is running');
     const [runs] = await connection.query<RowDataPacket[]>(
-      "SELECT status FROM web_admin_import_runs WHERE id=? AND source='pcmarket' AND entity='product-categories' LIMIT 1",
+      "SELECT status,rollback_closed_at FROM web_admin_import_runs WHERE id=? AND source='pcmarket' AND entity='product-categories' LIMIT 1",
       [input.runId],
     );
     if (!['applied', 'apply_failed'].includes(String(runs[0]?.status || ''))) {
       throw new Error(`Run ${input.runId} is not in applied/apply_failed state`);
     }
+    if (runs[0]?.rollback_closed_at) throw new Error(`Run ${input.runId} rollback window is closed`);
     const categoryBackup = backupName(input.runId, 'category');
     if (!await tableExists(connection, database, categoryBackup)) throw new Error(`Category backup is missing for run ${input.runId}`);
     await connection.query("UPDATE web_admin_import_runs SET status='rolling_back',completed_at=NULL,error_message='' WHERE id=?", [input.runId]);

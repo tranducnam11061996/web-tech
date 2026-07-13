@@ -19,6 +19,7 @@ import ProductSpecifications from "../../components/ProductSpecifications";
 import ProductSidebar from "../../components/ProductSidebar";
 import Breadcrumb from "../../components/Breadcrumb";
 import { internalApiUrl } from "@/lib/apiUrl";
+import { CATALOG_PAGE_SIZE, normalizeCatalogPage } from "@/lib/pagination";
 import type { ProductSupplementalData } from "@/types/product-detail";
 
 async function fetchSlugData(slug: string) {
@@ -93,8 +94,8 @@ async function fetchCategoryInitialData(
   searchParams: Record<string, any> | undefined,
 ) {
   const productUrl = new URL(internalApiUrl("/api/products"));
-  productUrl.searchParams.set("limit", "24");
-  productUrl.searchParams.set("page", "1");
+  productUrl.searchParams.set("limit", String(CATALOG_PAGE_SIZE));
+  productUrl.searchParams.set("page", String(normalizeCatalogPage(searchParams?.page)));
   productUrl.searchParams.set("category_id", String(categoryId));
   appendSearchParams(productUrl, searchParams);
 

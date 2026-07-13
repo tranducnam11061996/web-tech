@@ -11,13 +11,9 @@ import { getPublicProductGroup } from '@/lib/productGroups';
 import { getPublicProductPromotions } from '@/lib/productPromotions';
 import { getPublicProductVideos, hasDisplayableSpecifications } from '@/lib/productVideos';
 import { canonicalPcmarketBrandId } from '@/lib/legacyImport/pcmarketProducts';
+import { classifyPublicCatalogRoute } from '@/lib/publicCatalogRoute';
 
-type ResolvedPublicEntity = {
-  entityId: number;
-  type: 'category' | 'product';
-};
-
-async function resolvePublicEntity(slug: string): Promise<ResolvedPublicEntity | null> {
+async function resolvePublicEntity(slug: string) {
   const requestPath = `/${slug}`;
   const requestPathIndex = createHash('md5').update(requestPath).digest('hex');
   const [urlRows] = await pool.query<any[]>(
@@ -26,12 +22,7 @@ async function resolvePublicEntity(slug: string): Promise<ResolvedPublicEntity |
   );
   const url = urlRows[0];
   if (!url) return null;
-  const match = String(url.id_path || '').match(/view_id:(\d+)/);
-  const entityId = match ? Number(match[1]) : 0;
-  if (!entityId) return null;
-  if (url.url_type === 'product:category') return { entityId, type: 'category' };
-  if (url.url_type === 'product:product-detail') return { entityId, type: 'product' };
-  return null;
+  return classifyPublicCatalogRoute(url.id_path, url.url_type);
 }
 
 async function safely<T>(label: string, loader: () => Promise<T>, fallback: T) {

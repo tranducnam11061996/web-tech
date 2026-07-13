@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { effectivePublicCategoryScope, loadEnabledPublicCategoryScope } from '@/lib/publicCategoryScope';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
     if (!Number.isInteger(categoryId) || categoryId <= 0) {
       return NextResponse.json({ success: false, message: 'Missing categoryId parameter' }, { status: 400, headers: corsHeaders });
     }
+    const categoryScope = effectivePublicCategoryScope(await loadEnabledPublicCategoryScope(categoryId));
 
     const attributesPromise = pool.query(`
       SELECT
@@ -47,20 +49,24 @@ export async function GET(request: Request) {
         a.attribute_code,
         v.id as value_id,
         v.value as value_name,
-        COALESCE(product_counts.product_count, 0) as product_count
+        COALESCE(product_counts.product_count, 0) as product_count,
+        MAX(ac.ordering) as category_ordering,
+        v.ordering as value_ordering
       FROM idv_attribute_category ac
       JOIN idv_attribute a ON ac.attr_id = a.id
       JOIN idv_attribute_value v ON a.id = v.attributeId
       LEFT JOIN (
-        SELECT pa.attr_value_id, COUNT(DISTINCT pa.pro_id) as product_count
+        SELECT pa.attr_id, pa.attr_value_id, COUNT(DISTINCT pa.pro_id) as product_count
           FROM idv_product_attribute pa
-          JOIN idv_product_category pc ON pa.pro_id = pc.pro_id AND pc.category_id = ?
+          JOIN idv_product_category pc ON pa.pro_id = pc.pro_id AND pc.category_id IN (?)
           JOIN idv_sell_product_price pr ON pa.pro_id = pr.id AND pr.isOn = 1
-          GROUP BY pa.attr_value_id
-      ) product_counts ON product_counts.attr_value_id = v.id
-      WHERE ac.category_id = ?
-      ORDER BY ac.ordering DESC, v.ordering ASC
-    `, [categoryId, categoryId]);
+          GROUP BY pa.attr_id,pa.attr_value_id
+      ) product_counts ON product_counts.attr_id=a.id AND product_counts.attr_value_id = v.id
+      WHERE ac.category_id IN (?)
+      GROUP BY a.id,a.name,a.icon,a.filter_code,a.attribute_code,v.id,v.value,
+               product_counts.product_count,v.ordering
+      ORDER BY category_ordering DESC, value_ordering ASC
+    `, [categoryScope, categoryScope]);
 
     const brandsPromise = pool.query(`
       SELECT MIN(b.id) as value_id, MIN(b.name) as value_name, COUNT(DISTINCT p.id) as product_count
@@ -68,10 +74,10 @@ export async function GET(request: Request) {
       JOIN idv_sell_product_store p ON b.id = p.brandId
       JOIN idv_product_category pc ON p.id = pc.pro_id
       JOIN idv_sell_product_price pr ON p.id = pr.id
-      WHERE pc.category_id = ? AND pr.isOn = 1
+      WHERE pc.category_id IN (?) AND pr.isOn = 1
       GROUP BY LOWER(TRIM(b.name))
       ORDER BY product_count DESC
-    `, [categoryId]);
+    `, [categoryScope]);
 
     const [[rows], [brandRows]] = await Promise.all([attributesPromise, brandsPromise]);
 

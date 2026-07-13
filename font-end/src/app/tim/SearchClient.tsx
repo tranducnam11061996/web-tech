@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
@@ -9,8 +9,12 @@ import {
   buildSidebarSectionVisibility,
   type SidebarSectionVisibility,
 } from "../../lib/sidebarFilterVisibility";
+import {
+  buildQueryPath,
+  CATALOG_PAGE_SIZE,
+  normalizeCatalogPage,
+} from "../../lib/pagination";
 
-const API_URL = "";
 const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
 
 export interface Product {
@@ -159,9 +163,10 @@ function AttributeFilterBlock({
     } else {
       newParams.delete(filterKey);
     }
+    newParams.delete("page");
 
     const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
-    router.push(currentPath + "?" + newParams.toString(), { scroll: false });
+    router.push(buildQueryPath(currentPath, newParams.toString(), {}), { scroll: false });
   };
 
   return (
@@ -281,7 +286,6 @@ function AttributeFilterBlock({
 export default function SearchClient({ initialData }: SearchClientProps) {
   const initialBounds = normalizePriceBounds(initialData?.priceBounds?.data);
   const [products, setProducts] = useState<Product[]>(initialData?.products?.data || []);
-  const [currentPage, setCurrentPage] = useState(initialData?.products?.pagination?.page || 1);
   const [totalPages, setTotalPages] = useState(initialData?.products?.pagination?.totalPages || 1);
   const [totalProducts, setTotalProducts] = useState(initialData?.products?.pagination?.total || 0);
   const [attributes, setAttributes] = useState<Attribute[]>(initialData?.attributes?.data || []);
@@ -298,8 +302,12 @@ export default function SearchClient({ initialData }: SearchClientProps) {
   const searchParamsHook = useSearchParams();
   const searchKey = searchParamsHook?.toString() || "";
   const router = useRouter();
-  const lastSearchKeyRef = useRef(searchKey);
-  const lastRequestKeyRef = useRef(`${searchKey}|${currentPage}`);
+  const rawPage = searchParamsHook?.get("page");
+  const currentPage = normalizeCatalogPage(rawPage);
+  const [isPending, startTransition] = useTransition();
+  const [errorText, setErrorText] = useState("");
+  const [retryNonce, setRetryNonce] = useState(0);
+  const lastRequestKeyRef = useRef(`${searchKey}|0`);
   const query = searchParamsHook?.get("q") || initialData?.query || "";
 
   useEffect(() => {
@@ -323,65 +331,82 @@ export default function SearchClient({ initialData }: SearchClientProps) {
     setCurrentPrice(clampPriceSelection(nextMin, nextMax, nextBounds));
   }, [priceBounds, searchKey, searchParamsHook]);
 
-  useEffect(() => {
-    if (searchKey !== lastSearchKeyRef.current && currentPage !== 1) {
-      setCurrentPage(1);
-    }
-  }, [currentPage, searchKey]);
+  const navigateToPage = (page: number, replace = false) => {
+    const safePage = Math.min(Math.max(1, page), Math.max(1, totalPages));
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
+    const href = buildQueryPath(currentPath, searchKey, {
+      page: safePage === 1 ? null : String(safePage),
+    });
+
+    startTransition(() => {
+      if (replace) router.replace(href, { scroll: false });
+      else router.push(href, { scroll: false });
+    });
+  };
 
   useEffect(() => {
-    if (searchKey !== lastSearchKeyRef.current && currentPage !== 1) {
-      lastSearchKeyRef.current = searchKey;
-      setCurrentPage(1);
-      return;
-    }
-    if (searchKey !== lastSearchKeyRef.current) {
-      lastSearchKeyRef.current = searchKey;
-    }
+    const canonicalPage = Math.min(currentPage, Math.max(1, totalPages));
+    const canonicalValue = canonicalPage === 1 ? null : String(canonicalPage);
+    if (rawPage === canonicalValue) return;
+    navigateToPage(canonicalPage, true);
+  }, [currentPage, rawPage, totalPages]);
 
-    const requestKey = `${searchKey}|${currentPage}`;
+  useEffect(() => {
+    const requestKey = `${searchKey}|${retryNonce}`;
     if (requestKey === lastRequestKeyRef.current) return;
     lastRequestKeyRef.current = requestKey;
 
     const controller = new AbortController();
-    const url = new URL(`${API_URL}/api/search`);
-    url.searchParams.set("q", query);
-    url.searchParams.set("limit", "24");
-    url.searchParams.set("page", String(currentPage));
+    const requestParams = new URLSearchParams();
+    requestParams.set("q", query);
+    requestParams.set("limit", String(CATALOG_PAGE_SIZE));
+    requestParams.set("page", String(currentPage));
 
     const paramsFromUrl = new URLSearchParams(searchKey);
     paramsFromUrl.forEach((value, key) => {
       if (!["q", "page", "limit"].includes(key)) {
-        url.searchParams.set(key, value);
+        requestParams.set(key, value);
       }
     });
 
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-
+    setErrorText("");
     setIsLoading(true);
-    fetch(url.toString(), { signal: controller.signal })
-      .then((res) => res.json())
-      .then((res) => {
-        if (!res.success) return;
-        setProducts(res.data || []);
-        setTotalPages(res.pagination?.totalPages || 1);
-        setTotalProducts(res.pagination?.total || 0);
-        setAttributes(res.attributes || []);
-        setPriceBounds(normalizePriceBounds(res.priceBounds));
-      })
-      .catch((err) => {
-        if (!(err instanceof DOMException && err.name === "AbortError")) {
-          console.error("Error fetching products:", err);
+    void (async () => {
+      try {
+        const response = await fetch(`/api/search?${requestParams.toString()}`, {
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+          throw new Error(payload.message || "Không thể tải kết quả tìm kiếm");
         }
-      })
-      .finally(() => {
+
+        const nextTotalPages = Math.max(1, Number(payload.pagination?.totalPages) || 1);
+        setTotalPages(nextTotalPages);
+        setTotalProducts(Number(payload.pagination?.total) || 0);
+        if (currentPage > nextTotalPages) {
+          navigateToPage(nextTotalPages, true);
+          return;
+        }
+
+        setProducts(payload.data || []);
+        setAttributes(payload.attributes || []);
+        setPriceBounds(normalizePriceBounds(payload.priceBounds));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.error("Error fetching products:", error);
+          setErrorText(
+            error instanceof Error ? error.message : "Không thể tải kết quả tìm kiếm",
+          );
+        }
+      } finally {
         if (!controller.signal.aborted) setIsLoading(false);
-      });
+      }
+    })();
 
     return () => controller.abort();
-  }, [currentPage, query, searchKey]);
+  }, [currentPage, query, retryNonce, searchKey]);
 
   const normalizedSidebarKeyword = sidebarSearchKeyword.trim().toLowerCase();
   const isFilterSearchActive = normalizedSidebarKeyword.length > 0;
@@ -503,9 +528,11 @@ export default function SearchClient({ initialData }: SearchClientProps) {
       }
     }
 
+    newParams.delete("page");
     const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
-    const queryString = newParams.toString();
-    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
+    startTransition(() => {
+      router.push(buildQueryPath(currentPath, newParams.toString(), {}), { scroll: false });
+    });
   };
 
   const handleClearAll = () => {
@@ -515,10 +542,12 @@ export default function SearchClient({ initialData }: SearchClientProps) {
     });
     newParams.delete("min-price");
     newParams.delete("max-price");
+    newParams.delete("page");
 
     const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
-    const queryString = newParams.toString();
-    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
+    startTransition(() => {
+      router.push(buildQueryPath(currentPath, newParams.toString(), {}), { scroll: false });
+    });
   };
 
   const handleRemoveFilter = (filter: {
@@ -537,10 +566,12 @@ export default function SearchClient({ initialData }: SearchClientProps) {
       if (values.length > 0) newParams.set(filter.key, values.join(","));
       else newParams.delete(filter.key);
     }
+    newParams.delete("page");
 
     const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
-    const queryString = newParams.toString();
-    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
+    startTransition(() => {
+      router.push(buildQueryPath(currentPath, newParams.toString(), {}), { scroll: false });
+    });
   };
 
   const priceTrackStyles = hasPriceBounds
@@ -575,10 +606,12 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                     const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
                     if (e.target.value) newParams.set("sort", e.target.value);
                     else newParams.delete("sort");
+                    newParams.delete("page");
 
                     const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
-                    const queryString = newParams.toString();
-                    router.push(currentPath + (queryString ? "?" + queryString : ""), { scroll: false });
+                    startTransition(() => {
+                      router.push(buildQueryPath(currentPath, newParams.toString(), {}), { scroll: false });
+                    });
                   }}
                   defaultValue={searchParamsHook?.get("sort") || ""}
                 >
@@ -749,7 +782,24 @@ export default function SearchClient({ initialData }: SearchClientProps) {
 
         <main className="flex-1 min-w-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" id="productGrid">
-            {isLoading ? (
+            {errorText ? (
+              <div
+                className="col-span-1 my-4 flex flex-col items-center justify-center rounded-2xl border border-red-500/40 bg-[#111115] px-5 py-20 text-center sm:col-span-2 xl:col-span-4"
+                role="alert"
+              >
+                <h3 className="mb-2 text-lg font-bold text-white">Không thể tải kết quả tìm kiếm</h3>
+                <p className="mb-6 max-w-sm text-sm leading-relaxed text-gray-400">
+                  Kết nối đang gặp sự cố tạm thời. Hãy thử tải lại kết quả tìm kiếm.
+                </p>
+                <button
+                  type="button"
+                  className="rounded-xl bg-red-600 px-6 py-2.5 text-sm font-bold text-white transition hover:bg-red-500"
+                  onClick={() => setRetryNonce((value) => value + 1)}
+                >
+                  Thử lại
+                </button>
+              </div>
+            ) : isLoading ? (
               <div className="col-span-1 sm:col-span-2 xl:col-span-4 flex flex-col items-center justify-center py-32 text-center">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mb-4"></div>
                 <p className="text-gray-400 text-sm font-medium animate-pulse">Đang tìm kiếm sản phẩm...</p>
@@ -780,8 +830,10 @@ export default function SearchClient({ initialData }: SearchClientProps) {
           {totalPages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-12 mb-10">
               <button
-                onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                disabled={currentPage === 1}
+                type="button"
+                aria-label="Trang trước"
+                onClick={() => navigateToPage(currentPage - 1)}
+                disabled={currentPage === 1 || isPending || isLoading}
                 className="w-10 h-10 flex items-center justify-center bg-[#18181b] rounded-xl text-gray-400 hover:text-white hover:bg-[#27272a] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <svg
@@ -839,7 +891,11 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                     ) : (
                       <button
                         key={page}
-                        onClick={() => setCurrentPage(page as number)}
+                        type="button"
+                        aria-label={`Đến trang ${page}`}
+                        aria-current={currentPage === page ? "page" : undefined}
+                        onClick={() => navigateToPage(page as number)}
+                        disabled={isPending || isLoading}
                         className={`w-10 h-10 flex items-center justify-center rounded-xl text-[15px] font-semibold transition-all ${
                           currentPage === page
                             ? "bg-[#0b63e5] text-white shadow-[0_4px_12px_rgba(11,99,229,0.3)]"
@@ -854,8 +910,10 @@ export default function SearchClient({ initialData }: SearchClientProps) {
               </div>
 
               <button
-                onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                disabled={currentPage === totalPages}
+                type="button"
+                aria-label="Trang sau"
+                onClick={() => navigateToPage(currentPage + 1)}
+                disabled={currentPage === totalPages || isPending || isLoading}
                 className="w-10 h-10 flex items-center justify-center bg-[#18181b] rounded-xl text-gray-400 hover:text-white hover:bg-[#27272a] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 <svg

@@ -8,6 +8,7 @@ import { getCategoryTrail } from '@/lib/publicBreadcrumbs';
 import { getProductsByIds, parseProductIdsParam } from '@/lib/publicRecommendations';
 import { recordRouteMetric } from '@/lib/runtimeMetrics';
 import { resolveProductImageUrl } from '@/lib/productImageUrl';
+import { effectivePublicCategoryScope, loadEnabledPublicCategoryScope } from '@/lib/publicCategoryScope';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,18 +42,18 @@ function slugify(str: string) {
     .replace(/\s+/g, '-');
 }
 
-async function getAttributeRows(categoryId: number | null) {
-  const key = String(categoryId || 0);
+async function getAttributeRows(categoryScope: number[] | null) {
+  const key = categoryScope?.join(',') || '0';
   const cached = attributeRowsCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.rows;
   const running = attributeRowsFlights.get(key);
   if (running) return running;
   const flight = pool.query(
-    `SELECT a.id AS attr_id,a.name AS attr_name,a.filter_code,a.attribute_code,v.id AS val_id,v.value AS val_name
+    `SELECT DISTINCT a.id AS attr_id,a.name AS attr_name,a.filter_code,a.attribute_code,v.id AS val_id,v.value AS val_name
      FROM idv_attribute a
-     ${categoryId ? 'JOIN idv_attribute_category ac ON ac.attr_id=a.id AND ac.category_id=?' : ''}
+     ${categoryScope ? 'JOIN idv_attribute_category ac ON ac.attr_id=a.id AND ac.category_id IN (?)' : ''}
      JOIN idv_attribute_value v ON a.id=v.attributeId`,
-    categoryId ? [categoryId] : [],
+    categoryScope ? [categoryScope] : [],
   ).then(([rows]) => {
     const value = rows as any[];
     attributeRowsCache.set(key, { rows: value, expiresAt: Date.now() + 5 * 60_000 });
@@ -90,10 +91,13 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   ];
   const whereParts = ['pr.isOn = 1'];
   const queryParams: any[] = [];
+  const categoryScope = categoryId
+    ? effectivePublicCategoryScope(await loadEnabledPublicCategoryScope(categoryId))
+    : null;
 
-  if (categoryId) {
-    joins.push('JOIN idv_product_category pc ON pc.pro_id = p.id AND pc.category_id = ?');
-    queryParams.push(categoryId);
+  if (categoryScope) {
+    joins.push('JOIN idv_product_category pc ON pc.pro_id = p.id AND pc.category_id IN (?)');
+    queryParams.push(categoryScope);
   }
 
   const minPrice = searchParams.get('min-price');
@@ -133,7 +137,7 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   const filterKeys = Array.from(searchParams.keys()).filter((key) => !reservedFilterKeys.has(key));
   if (filterKeys.length > 8) return { success: false, message: 'Too many filters', status: 400 };
   if (filterKeys.length > 0) {
-    const attrRows = await getAttributeRows(categoryId);
+    const attrRows = await getAttributeRows(categoryScope);
 
     const attributesByKey = new Map<string, { attrId: number; valuesBySlug: Map<string, number[]> }>();
 

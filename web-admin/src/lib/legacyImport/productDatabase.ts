@@ -414,8 +414,9 @@ export async function rollbackProductImport(input: { runId: number; expectedData
     const [locks] = await connection.query<RowDataPacket[]>('SELECT GET_LOCK(?,0) AS acquired', [LOCK_NAME]);
     if (Number(locks[0]?.acquired) !== 1) throw new Error('Another product import is running');
     lockHeld = true;
-    const [runs] = await connection.query<RowDataPacket[]>("SELECT status,report_json FROM web_admin_import_runs WHERE id=? AND source='pcmarket' AND entity='products' LIMIT 1", [input.runId]);
+    const [runs] = await connection.query<RowDataPacket[]>("SELECT status,report_json,rollback_closed_at FROM web_admin_import_runs WHERE id=? AND source='pcmarket' AND entity='products' LIMIT 1", [input.runId]);
     if (!runs[0] || !['applied', 'apply_failed'].includes(String(runs[0].status))) throw new Error(`Run ${input.runId} cannot be rolled back`);
+    if (runs[0].rollback_closed_at) throw new Error(`Run ${input.runId} rollback window is closed`);
     const [dependentBrandRuns] = await connection.query<RowDataPacket[]>("SELECT id FROM web_admin_import_runs WHERE source='pcmarket' AND entity='brands' AND status='applied' AND id>? ORDER BY id DESC LIMIT 1", [input.runId]);
     if (dependentBrandRuns.length) throw new Error(`Rollback brand run ${dependentBrandRuns[0].id} before product run ${input.runId}`);
     await connection.query("UPDATE web_admin_import_runs SET status='rolling_back',completed_at=NULL,error_message='' WHERE id=?", [input.runId]);

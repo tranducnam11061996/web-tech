@@ -35,7 +35,7 @@ test('category staging swap, guarded dependency cleanup and complete rollback', 
   await db.query(`CREATE TABLE idv_url (
     id int unsigned NOT NULL AUTO_INCREMENT, request_path varchar(255) NOT NULL, request_path_index char(32) NOT NULL,
     id_path varchar(255) NOT NULL, target_path varchar(255) NOT NULL DEFAULT '', redirect_code varchar(10) NOT NULL DEFAULT '',
-    url_type varchar(50) NOT NULL DEFAULT 'product:category', PRIMARY KEY(id), UNIQUE KEY uq_path(request_path)
+    url_type varchar(50) NOT NULL DEFAULT '0', PRIMARY KEY(id), UNIQUE KEY uq_path(request_path)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
   await db.query('CREATE TABLE idv_product_category(category_id int NOT NULL,pro_id int NOT NULL) ENGINE=MyISAM');
   await db.query('CREATE TABLE idv_attribute_category(category_id int NOT NULL,attributeId int NOT NULL) ENGINE=MyISAM');
@@ -64,6 +64,8 @@ test('category staging swap, guarded dependency cleanup and complete rollback', 
   });
   const [afterApply] = await db.query<any[]>('SELECT id FROM idv_seller_category');
   assert.deepEqual(afterApply.map((row) => row.id), [30]);
+  const [routeAfterApply] = await db.query<any[]>("SELECT url_type,request_path_index=MD5(request_path) AS valid_hash FROM idv_url WHERE id_path='module:product/view:category/view_id:30'");
+  assert.deepEqual(routeAfterApply[0], { url_type: 'product:category', valid_hash: 1 });
   const [voucherAfterApply] = await db.query<any[]>('SELECT status FROM web_admin_vouchers WHERE id=7');
   assert.equal(voucherAfterApply[0].status, 0, 'Scoped voucher must not become active and global');
   assert.equal((await db.query<any[]>('SELECT * FROM web_admin_voucher_categories'))[0].length, 0);
@@ -75,6 +77,7 @@ test('category staging swap, guarded dependency cleanup and complete rollback', 
   assert.equal((await db.query<any[]>('SELECT status FROM web_admin_vouchers WHERE id=7'))[0][0].status, 1);
   assert.equal((await db.query<any[]>('SELECT category_id FROM idv_product_category'))[0][0].category_id, 900);
   assert.equal((await db.query<any[]>('SELECT product_cat FROM idv_sell_product_store WHERE id=1'))[0][0].product_cat, '900');
+  assert.equal((await db.query<any[]>("SELECT url_type FROM idv_url WHERE id_path='module:product/view:category/view_id:900'"))[0][0].url_type, '0');
   const { default: importPool } = await import('../src/lib/db');
   await importPool.end();
   await db.end();

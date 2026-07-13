@@ -11,16 +11,18 @@ Use this file for operational orientation, not as a substitute for preflight que
 
 | Metric | Value | Qualification |
 |---|---:|---|
-| Physical tables | 342 | Includes retained importer backup/staging objects |
-| InnoDB tables | 207 | Includes InnoDB run backups |
-| MyISAM tables | 135 | Includes MyISAM run backups |
-| `latin1_swedish_ci` tables | 271 | Legacy plus legacy-shaped backups |
-| `utf8mb4_unicode_ci` tables | 68 | Modern helper/import tables and canonical brand tables |
-| `utf8mb4_0900_ai_ci` tables | 3 | Current MySQL-default objects |
+| Physical tables | 288 | Lean accepted schema; no recovery/stage/restore objects |
+| InnoDB tables | 160 | Runtime and durable audit tables |
+| MyISAM tables | 128 | Legacy runtime tables |
+| `latin1_swedish_ci` tables | 0 | Accepted recovery objects removed |
+| `utf8mb4_unicode_ci` tables | 286 | Runtime/default collation |
+| `utf8mb4_0900_ai_ci` tables | 2 | Preserved MySQL-default objects |
 | Stored routines | 1 | Search normalization function |
 | Triggers | 2 | Product-search insert/update triggers |
 
-The empty pre-import `it_tech_db` baseline had 285 tables: 157 InnoDB and 128 MyISAM. The 57 additional tables are exactly 3 import audit/map tables and 54 `web_admin_import_b_<run-id>_*` recovery tables. Do not delete them or advertise all 342 tables as stable application contracts.
+After live run 8 and accepted cleanup of exactly 74 recovery tables, the active database has 288 physical tables: 160 InnoDB and 128 MyISAM. There are zero Latin-1/utf8mb3 columns and no import recovery/stage/restore tables.
+
+The empty pre-import `it_tech_db` baseline had 285 tables: 157 InnoDB and 128 MyISAM. The current three additional InnoDB tables are the durable importer run/record/entity-map audit contract.
 
 ## Current exact catalog counts
 
@@ -28,8 +30,8 @@ The empty pre-import `it_tech_db` baseline had 285 tables: 157 InnoDB and 128 My
 |---|---:|
 | `idv_seller_category` | 788 |
 | Category roots / enabled / disabled | 60 / 722 / 66 |
-| `idv_brand` | 89 |
-| `idv_brand_info` (`sellerId=0`) | 89 |
+| `idv_brand` | 90 |
+| `idv_brand_info` (`sellerId=0`) | 90 |
 | `idv_sell_product_store` | 4,712 |
 | `idv_sell_product_price` | 4,712 |
 | `idv_sell_product_info` | 4,712 |
@@ -38,9 +40,18 @@ The empty pre-import `it_tech_db` baseline had 285 tables: 157 InnoDB and 128 My
 | `idv_product_category` | 14,455 |
 | `idv_product_attribute` | 17,603 |
 | `idv_attribute_category` | 162 |
-| `idv_brand_category` | 1,209 |
+| `idv_brand_category` | 1,587 |
+| PCM products / enabled PCM products | 2,276 / 849 |
+| Product references to brand 0/34/57 | 0 |
 | `web_admin_product_images` | 0 |
-| `web_admin_entity_registry` | 0 |
+| `idv_seller_news_category` | 4 |
+| `idv_seller_news` / `idv_seller_news_content` | 668 / 668 |
+| Enabled / disabled articles | 654 / 14 |
+| Article thumbnails / no-category / multi-category | 653 / 14 / 50 |
+| `idv_article_category` unique links | 705 |
+| Article/category canonical routes | 668 / 4 |
+| Article-category menu references | 0 |
+| Article/category entity registry rows | 668 / 4 |
 | `web_admin_sequence` | 0 |
 
 Imported product/category/brand images remain in their legacy fields as validated absolute `https://pcmarket.vn/...` URLs. The legacy image-name/stock/folder-counter tables and modern product-image metadata table remain empty in `it_tech_db`.
@@ -50,8 +61,12 @@ Imported product/category/brand images remain in their legacy fields as validate
 - Run 1: safe configuration, applied, 5,170 rows.
 - Run 2: categories, applied, 788 source records.
 - Run 3: products plus source brands/attributes/values, applied, 4,712 products.
-- Run 4: first brand sync, rolled back and retained for audit/recovery.
-- Run 5: corrected brand sync, applied; 91 source records canonicalized to 89 runtime brands.
+- Run 4: first brand sync, rolled back; durable audit remains, recovery tables removed after acceptance.
+- Run 5: corrected alias sync, applied historically; superseded by final brand run 8.
+- Run 6: article categories, applied; 4 source records, canonical routes, registry/map/record rows, and no article/menu writes.
+- Run 7: articles, applied; 669 source records, 668 runtime articles/content/routes/maps, 705 unique category links, and source ID 83 pending quarantine.
+- Run 8: PCM fallback brand finalization, applied and accepted; 90 runtime brands, map `0 -> 96`, and zero noncanonical brand references.
+- Runs 2-8: `accepted_at`, `rollback_closed_at`, `recovery_cleaned_at`, and cleanup report are populated; recovery tables are removed and rollback is closed.
 - Pending audit-only relations: 11,735 variant references, 3 config occurrences, and 1,121 comboset occurrences.
 
 ## Historical source counts

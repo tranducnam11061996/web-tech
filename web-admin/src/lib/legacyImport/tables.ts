@@ -3,6 +3,16 @@ import pool from '@/lib/db';
 
 type Db = Pool | PoolConnection;
 
+async function ensureRunAuditColumn(db: Db, column: string, definition: string) {
+  const [rows] = await db.query(
+    `SELECT 1 FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='web_admin_import_runs' AND COLUMN_NAME=? LIMIT 1`,
+    [column],
+  );
+  if ((rows as unknown[]).length) return;
+  await db.query(`ALTER TABLE web_admin_import_runs ADD COLUMN \`${column}\` ${definition}`);
+}
+
 export async function ensureLegacyImportTables(db: Db = pool) {
   await db.query(`CREATE TABLE IF NOT EXISTS web_admin_import_runs (
     id bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -46,4 +56,9 @@ export async function ensureLegacyImportTables(db: Db = pool) {
     KEY idx_web_admin_import_entity_map_target (entity, target_id),
     KEY idx_web_admin_import_entity_map_run (last_run_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+
+  await ensureRunAuditColumn(db, 'accepted_at', 'datetime NULL AFTER completed_at');
+  await ensureRunAuditColumn(db, 'rollback_closed_at', 'datetime NULL AFTER accepted_at');
+  await ensureRunAuditColumn(db, 'recovery_cleaned_at', 'datetime NULL AFTER rollback_closed_at');
+  await ensureRunAuditColumn(db, 'recovery_cleanup_json', 'longtext CHARACTER SET utf8mb4 NULL AFTER recovery_cleaned_at');
 }

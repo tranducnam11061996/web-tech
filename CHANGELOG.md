@@ -4,7 +4,63 @@ Notable workspace changes are grouped by implementation/audit date.
 
 Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and `PROJECT_PROGRESS.md`, not an older “Known Gaps” section, for current status.
 
+## 2026-07-14
+
+### Progressive image hydration repair
+
+- Fixed a shared `ProgressiveImage` hydration race where cached images could complete before React attached handlers and then remain stuck in the loading blur after an effect reset. Image state is now bound to the active source and reconciles the DOM `complete`/`naturalWidth` result after hydration.
+- Cached failures now switch once to the SVG placeholder even when the browser error event occurred before hydration; stale load/error events cannot update a newer source, and caller callbacks remain composed with the internal handlers.
+- Reduced the one-shot loading effect from `blur-md`/500ms/`transition-all` to bounded `blur-sm`/300ms with explicit opacity, transform and filter transitions.
+- Verified 16/16 desktop/mobile Playwright checks, 4/4 focused tests against the production build, category/product/news image smoke with zero loaded images stuck in loading classes, both application pipelines, and 15/15 local health.
+
+### Storefront category and search pagination
+
+- Fixed category/search client pagination constructing relative paths with `new URL()` without a base, which threw before `fetch` and activated the route-level error boundary. Browser requests now use same-origin `/api/products` and `/api/search` paths through the storefront rewrite.
+- Made `?page=N` the single pagination state for category and search pages, including SSR deep links, Back/Forward, page-one canonicalization, bounded out-of-range correction, filter/sort reset, aborted stale requests, accessible page controls, and inline retryable API errors.
+- Added desktop/mobile Playwright coverage for page-two navigation, reload, history, filter reset, local failure/retry, search pagination, and invalid/out-of-range pages.
+
+### Product-category route repair and descendant scope
+
+- Repaired all 788 `idv_url` product-category rows from legacy `url_type='0'` to `product:category` after a restore-verified backup and disposable-clone `apply -> rollback -> re-apply` trial. The guarded command binds the exact database, preimage hash, verified manifest, maintenance flag, advisory locks and confirmation; rollback uses an external SHA-256 preimage and creates no recovery table.
+- Made catalog resolution use exact category/product `id_path` prefixes, temporarily accept exact legacy type-0 catalog paths, and reject article/news or mismatched route types. Importer and admin product/category saves now always write canonical types; category applied verification checks all 788 types, hashes and orphans.
+- Added one bounded enabled-descendant category scope shared by product list/count, price bounds, brand/attribute filters and counts. Immediate-child API counts now aggregate each enabled subtree and product results remain distinct across multiple junction links.
+- Added `idx_webtech_category_parent_status(parentId,status,id)`. Clone `EXPLAIN ANALYZE` reduced the 29-node category-521 hierarchy query from about 1.05 ms with repeated 788-row scans to about 0.071 ms with covering index lookups; product membership retained the existing category/product index.
+- Live `/pc-van-phong.html` now resolves category 521 and visibly renders 34 products; child 578 renders 7, disabled category 71 stays 404, and product/news routes remain unchanged. Both app pipelines, 88 unit tests, integration/destructive fixtures, restore verification and 15/15 local health passed.
+- Recorded pre/post restore-verified backup SHA-256 values `e47e523256f7eaa94156ee81007ecc8b75d9bea0fba41779d88431cae52dab21` and `4d7c52495957b1072627c5c9bbf7326b08fee6e595b43ace37f93f3f991472ef`. A separate read-only check found two new PCMarket articles (IDs 682/683); they were not imported as part of this catalog repair.
+
 ## 2026-07-13
+
+### PCMarket finalization, PCM brand, news indexes, and recovery cleanup
+
+- Reserved public brand ID 96/slug `pcm`, mapped the PCMarket unassigned sentinel `0 -> 96`, retained aliases `34 -> 25` and `57 -> 31`, and blocked conflicting future source ID 96 records. Live run 8 applied the unchanged brand hash and produced 90 brand/info rows, 1,587 brand-category rows, PCM 2,276 total/849 enabled products, and zero noncanonical references.
+- Added read-only importer `--verify-applied`, acceptance/rollback-closure/recovery-cleanup audit fields, rollback refusal after closure, restore-verification manifests, and guarded exact-name `db:import-recovery-cleanup` with all importer locks and destructive confirmations.
+- Replaced news category `OR` membership/dependent subqueries with `UNION DISTINCT`; added status/date, URL/status, and two covering junction indexes. Before/after plans moved news list/detail off full scans and made category junction membership use the composite index.
+- Restore-verified a 352-table pre-finalization backup, proved clone run-8 apply/rollback/re-apply, index apply, 88-table clone cleanup, 288-table healthcheck, and closed rollback. Restore-verified the 362-table post-run-8 backup before live cleanup, then removed exactly 74 live recovery tables.
+- Final live database is 288 tables (160 InnoDB/128 MyISAM), 84,040 rows, zero recovery/stage/restore and Latin-1 objects. Final lean backup SHA-256 is `941f3b5abcfd30db21f913d9741c68d32c69aa068a4a646b7c1ea60f4c37456a` and its disposable restore passed.
+- Verification passed 84/84 unit tests, default integration (3 pass/6 gated skips), both app typecheck/lint/build pipelines, 15/15 live health, PCM public API/page, and news API/plan checks. No 1,500-VU capacity claim was made.
+
+### PCMarket article import and live news
+
+- Added the guarded `articles` importer with two-pass canonical snapshots, ID 83 quarantine, duplicate category removal, HTTPS media preservation, HTML sanitization, MyISAM staging/swap, transactional InnoDB writes and compensated rollback.
+- Restore-tested the post-run-6 backup, completed clone apply/rollback/re-apply, then applied live run `7` with 668 articles, 668 content rows, 705 category links and 669 audit records while preserving catalog/search/index/routine/trigger invariants.
+- Added bounded public news index/detail/category APIs with ETag, active-only filtering, deduplicated category counts, absolute thumbnails and related-news fallback.
+- Replaced storefront news demo content with live paginated pages, true not-found behavior, local canonical/Open Graph metadata and a second HTML sanitizer; updated admin/recommendation image resolution for absolute PCMarket URLs.
+
+### PCMarket article-category import
+
+- Added `article-categories` to the guarded PCMarket importer with strict source schemas, bounded HTTPS-only pagination, double-snapshot SHA-256 stability, source ID/tree/route/media normalization, and ignored raw audit snapshots.
+- Added empty-target/schema/route/FK/trigger/catalog preflight, exact database/hash/backup/maintenance/confirmation gates, advisory locking, transactional category/route/registry/record/map writes, four retained run-scoped backups, and run-ID rollback.
+- Created and checksum-verified a fresh pre-import SQL/ZIP backup, restored it into `it_tech_db_article_category_test_20260713_203630`, and passed clone apply/verify/rollback before live cutover.
+- Applied live run `6` with snapshot `0a3d22d053ec9feb5f6eadf752b4191a240b5e0010515f671a84fd0a34204b04`: 4 enabled root categories and 4 canonical routes/registry/map/record rows, with no articles or menus created and no media downloaded.
+- Verified 346 tables, 152,162 exact rows, unchanged critical catalog counts `788/89/4,712/4,712`, 25 full-text indexes, 1 routine, 2 triggers, UTF-8 API/storefront rendering for all four routes, both application pipelines, 74 unit tests, default integration, readiness/liveness, worker startup, and 15/15 local health.
+
+### Runtime database collation normalization
+
+- Added guarded `db:collation` audit/apply/verify tooling with exact database allowlisting, SHA-256 plan locking, advisory locking, backup/maintenance/confirmation gates, schema/index/row preconditions, target-collation duplicate and index-size preflight, per-table manifests, and idempotent resume from a locked baseline.
+- Generated and checksummed a fresh offline rollback dump (`105,255,739` bytes; SHA-256 `cc0b1d36f07ee8262e8209e0c769cacc3bf9e62624fa24eb2d1cdcf7d7884839`) and ZIP (`13,806,911` bytes; SHA-256 `8e0b929be2517a05219bcf0eb167fb3175e98772b96d5a1baef50e150cdad489`).
+- Restored the dump into disposable clone `it_tech_db_collation_test_20260713_195854`, converted 240 runtime tables, repaired 54 banner-location names from verified UTF-8 bytes, and proved a second apply skips all 240 completed tables.
+- Applied live plan `15f0f236257b0214617d6b3f0ec8b04d02aad19989d91f04f8044665fc5782e6` in 12.8 seconds. Verification retained 342 tables, 152,141 rows, 1 routine, 2 triggers, 25 full-text indexes, and all critical catalog counts; residual Latin-1 is confined to 31 recovery tables/108 columns and runtime `utf8mb3` is zero.
+- Cut local root/web-admin configuration over from `hanoi23_db` to `it_tech_db` with `ADMIN_WRITE_ENABLED=false`, restarted both applications and the worker, passed readiness/liveness, 69 unit tests, default integration, both typecheck/lint/build pipelines, 15/15 transitional health, and 14/15 strict health (only the unpopulated collection API returns 404).
 
 ### Documentation and database portability audit
 

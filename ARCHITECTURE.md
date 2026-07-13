@@ -1,6 +1,6 @@
 # HACOM Architecture
 
-Last verified: `2026-07-13`
+Last verified: `2026-07-14`
 
 ## System boundaries and runtime
 
@@ -29,21 +29,35 @@ flowchart LR
 - PM2 configuration starts two API/admin workers, one storefront worker, and one background worker. Each API worker defaults to a 12-connection pool with bounded queue/connect timeouts.
 - Liveness checks the process. Readiness checks DB connectivity and required performance tables.
 
+### Database character-set boundary
+
+Runtime tables in `it_tech_db` use UTF-8: `utf8mb4_unicode_ci`, except two existing `utf8mb4_0900_ai_ci` tables that were deliberately preserved. The accepted runs 2-8 recovery cleanup removed the last Latin-1 recovery objects; live verification now reports zero Latin-1 tables and columns. Migration tooling is owned by `web-admin`, runs offline under an advisory lock, validates the audited schema/index/row snapshot, and never grants MySQL access to `font-end`.
+
 ## Legacy import flow
 
 Legacy imports are operational jobs owned by `web-admin`; neither the storefront nor `search-tool` connects to the source or MySQL. The PCMarket category adapter fetches two complete HTTPS snapshots, validates pagination and records, compares canonical SHA-256 hashes, rewrites/sanitizes description HTML, validates the category tree, and performs a read-only target preflight.
 
 The product adapter composes stable snapshots from the product, brand, and attribute exporters. It preserves source IDs, imports brand/attribute/value definitions before product rows and junctions, applies the staged category-attribute links, rebuilds search rows, and records incomplete variant/config/comboset structures as pending audit entities instead of guessing runtime data. Product HTML is sanitized and relative media is normalized to HTTPS PCMarket URLs. A shared image resolver preserves absolute HTTPS URLs and only expands legacy filenames to the HACOM media origin; neither application downloads PCMarket binaries.
 
-The standalone brand adapter uses the same normalization as future product imports. It canonicalizes E-DRA `34 -> 25` and TEAMGROUP `57 -> 31`, preserves all source records in the audit map, stages `idv_brand`/`idv_brand_info` as `utf8mb4_unicode_ci`, and atomically swaps those tables together with MyISAM `idv_brand_category` and `idv_movie`. Related InnoDB product references update transactionally, search is rebuilt, and rollback restores both swapped MyISAM state and relation snapshots. Public `GET /api/brands/[slug]` serves canonical metadata and enabled products; homepage bootstrap returns only canonical enabled brands with at least one enabled product. The storefront consumes these APIs for `/brand/[slug]` and the homepage brand grid.
+The standalone brand adapter uses the same normalization as future product imports. It canonicalizes the unassigned sentinel `0 -> 96` as the managed public `PCM` brand, E-DRA `34 -> 25`, and TEAMGROUP `57 -> 31`. Source ID 96 is reserved and rejected unless it matches the PCM policy. The adapter preserves every source mapping in audit, stages `idv_brand`/`idv_brand_info` as `utf8mb4_unicode_ci`, and atomically swaps those tables together with MyISAM `idv_brand_category` and `idv_movie`. Related InnoDB product references update transactionally, search is rebuilt, and rollback restores both swapped MyISAM state and relation snapshots. Public `GET /api/brands/[slug]` serves canonical metadata and enabled products; homepage bootstrap returns only canonical enabled brands with at least one enabled product, with PCM ordered last. The storefront consumes these APIs for `/brand/[slug]` and the homepage brand grid.
+
+The article-category adapter imports only the PCMarket news taxonomy. It uses the same bounded double-snapshot/hash boundary, preserves source IDs and `.html` slugs, writes `idv_seller_news_category`, canonical `idv_url`, registry, record, and map rows in one InnoDB transaction, and retains four run-scoped pre-state backups. Initial apply is blocked unless categories/articles/junctions/category routes/menu references are still empty. It never creates articles or menus and never downloads media; future PCMarket media remains a validated absolute HTTPS URL. Rollback restores the exact pre-run category/route/registry/map state by run ID.
+
+The article adapter consumes the bounded paginated PCMarket export twice and applies only a matching canonical snapshot. Run 7 used 67 pages and preserves 668 valid source IDs/routes, quarantines ID 83, sanitizes HTML and HTTPS media, stages the MyISAM category junction before an atomic table swap, and writes article/content/routes/registry/maps transactionally. Public news APIs filter inactive rows, deduplicate category membership, return absolute image URLs and bounded related news. The storefront consumes those APIs through `internalApiUrl` and sanitizes article HTML again before rendering; it never reads MySQL.
+
+Public news list/detail reads use the measured `(status,createDate DESC,id DESC)` and `(url,status)` indexes. Category totals, lists, and related-news membership are formed with `UNION DISTINCT` across the primary `catId` and junction sources, avoiding the former `OR` join/dependent subquery; the junction branches use covering composite indexes in both category-to-article and article-to-category directions.
 
 The active local application database is `it_tech_db`. `hanoi23_db` is retained as a read-only legacy source. `db:bootstrap-safe-config` is a separate guarded job that compares whitelist schema/index/engine definitions, requires an empty business target, copies MyISAM shipping data with compensating cleanup, copies the InnoDB whitelist transactionally in FK-safe order, transforms admin login state, and records the run without logging password hashes. `db:logical-backup -- --verify-restore` captures DDL/data plus SHA-256 manifests outside Git and verifies them through a disposable restore before an artifact is accepted.
 
-Apply requires the admin write gate, exact database name/hash, explicit replacement confirmation, full-backup acknowledgement, and maintenance-window acknowledgement. A MySQL advisory lock serializes runs. The job populates a `CREATE TABLE ... LIKE idv_seller_category` staging table, creates run-scoped backups before cutover, swaps category tables with `RENAME TABLE`, then detaches old product/attribute/configuration relations. `web_admin_import_runs`, `web_admin_import_records`, and `web_admin_import_entity_map` contain audit state and pending attribute relations; raw source snapshots stay outside Git. Rollback restores the old category table, routes, product CSV/junctions, scoped configurations, and cache versions by run ID. Backup tables remain until manual acceptance.
+Apply requires the admin write gate, exact database name/hash, explicit replacement confirmation, full-backup acknowledgement, and maintenance-window acknowledgement. A MySQL advisory lock serializes runs. The job populates a `CREATE TABLE ... LIKE idv_seller_category` staging table, creates run-scoped backups before cutover, swaps category tables with `RENAME TABLE`, then detaches old product/attribute/configuration relations. `web_admin_import_runs`, `web_admin_import_records`, and `web_admin_import_entity_map` contain audit state and pending attribute relations; raw source snapshots stay outside Git. Read-only `--verify-applied` re-downloads the source twice, matches the latest applied hash, and checks runtime relations without requiring an empty target. Rollback restores state by run ID only while `rollback_closed_at` is null. The guarded recovery cleanup acquires every importer lock, accepts only exact run-derived table names, requires a restore-verified backup manifest, records acceptance/closure/cleanup audit fields, and then drops the whitelisted recovery tables.
 
 Product apply uses a transaction for the InnoDB catalog graph and a run-scoped staging/swap with compensating restore for MyISAM `idv_brand_category`. Search routines/triggers are installed independently without running the broad admin seeder. Product rollback reverses routes/search/junctions/definitions, restores the prior MyISAM table and search-infrastructure state, and changes the category attribute audit links back to pending.
 
 For single-slug storefront requests, a lightweight `GET /api/categories/route-status` guard distinguishes non-category slugs from inactive category routes before React streaming begins. Non-category/product slugs continue normally, enabled categories continue normally, and inactive category routes are rewritten to a response with an actual HTTP 404 status.
+
+Catalog slug resolution classifies exact `module:product/view:category/view_id:<id>` and `module:product/view:product-detail/view_id:<id>` paths. Canonical route types are required for new importer/admin writes; exact legacy `url_type='0'` catalog paths remain read-compatible during rollout, while article/news and malformed prefixes are rejected. `db:repair-catalog-routes` is dry-run by default and can update only the exact category join under database, maintenance, write-gate, backup-manifest, preimage-hash, advisory-lock, and confirmation guards. Its rollback preimage is an external SHA-256 artifact, not a recovery table.
+
+Public category product/list/count/price/brand/attribute reads first resolve one bounded recursive scope containing the enabled root and enabled descendants. All product-facing queries reuse that scope and deduplicate product IDs; `GET /api/categories?parentId=...` aggregates each immediate child's enabled subtree. Hierarchy expansion uses `idx_webtech_category_parent_status(parentId,status,id)`, while product membership continues through the existing `(category_id,pro_id)` junction index. Category admin save/delete/status operations invalidate product and catalog-detail cache versions.
 
 ## Public read flow and cache
 
@@ -146,13 +160,13 @@ Public write failures use:
 
 ## Database model
 
-- Legacy catalog/content/order tables remain canonical where already used. Most stable legacy tables are `latin1_swedish_ci`; the active database also contains MyISAM run-scoped backup copies created by guarded imports.
+- Legacy catalog/content/order tables remain canonical where already used. Runtime character data has been normalized to UTF-8; accepted importer recovery objects have been removed after restore verification.
 - New transactional/security/runtime state lives in additive InnoDB `web_admin_*` tables.
 - No code should assume a physical FK exists between legacy tables.
 - Search uses `product_data_search` plus the normalize function, insert/update triggers, and FK to products.
 - Customer, voucher, product-promotion, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
 
-The active `it_tech_db` snapshot on `2026-07-13` contains 342 physical tables: 207 InnoDB and 135 MyISAM. Its pre-import baseline was 285 tables; the 57 additions are 3 import audit/map tables and 54 intentionally retained category/product/brand recovery tables. Consumers must use named table contracts rather than infer schema from totals. The live catalog is 788 categories, 89 brands, 4,712 products, and 4,712 search rows. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified full-database restore path.
+The accepted active `it_tech_db` snapshot on `2026-07-13` contains 288 physical tables: 160 InnoDB and 128 MyISAM. It has no importer stage/restore/recovery tables and no Latin-1 tables or columns. Consumers must still use named table contracts rather than infer schema from totals. The live inventory is 788 product categories, 90 brands, 4,712 products/search rows, 4 article categories, 668 articles/content rows, and 705 article-category links. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified restore path.
 
 ## Media security
 

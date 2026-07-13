@@ -4,6 +4,7 @@ dist/
 build/
 tmp/
 web-admin/var/imports/
+web-admin/var/migrations/
 **/.local-*.log
 
 # Local secrets. Keep only sanitized examples in version control.
@@ -21,3 +22,4 @@ web-admin/var/imports/
 # Editor and generated output
 .vscode/
 font-end/out.html
+font-end/test-results/

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import SearchClient, { type SearchClientProps } from "./SearchClient";
 import { internalApiUrl } from "@/lib/apiUrl";
+import { CATALOG_PAGE_SIZE, normalizeCatalogPage } from "@/lib/pagination";
 
 type SearchApiResponse = SearchClientProps["initialData"]["products"] & {
   attributes?: SearchClientProps["initialData"]["attributes"]["data"];
@@ -36,8 +37,8 @@ export default async function SearchPage(props: {
         }
       });
       productUrl.searchParams.set("q", query);
-      productUrl.searchParams.set("page", "1");
-      productUrl.searchParams.set("limit", "24");
+      productUrl.searchParams.set("page", String(normalizeCatalogPage(searchParams?.page)));
+      productUrl.searchParams.set("limit", String(CATALOG_PAGE_SIZE));
 
       const productsRes = await fetch(productUrl.toString(), { next: { revalidate: 30 } });
 

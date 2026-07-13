@@ -1,6 +1,6 @@
 # Project Progress
 
-Last updated: `2026-07-13`
+Last updated: `2026-07-14`
 
 `AI_HANDOFF.md` is the canonical continuation guide. This file records completion evidence, open verification, and the prioritized backlog.
 
@@ -24,15 +24,39 @@ Last updated: `2026-07-13`
 | Admin content/catalog | Implemented first production-oriented pass | Product/category/article/menu/banner/collection/voucher/customer/order/user/role management |
 | Search | Implemented | Runtime search in `web-admin`, prewarm/single-flight, signed webhook; `search-tool` is reference only |
 | Runtime topology | Implemented as configuration | Caddy, PM2, readiness/liveness, two API workers, storefront, background worker |
-| Database cutover | Applied to `it_tech_db` | Original 285-table empty schema retained; safe-config run 1 copied 5,170 whitelisted rows; `hanoi23_db` remained read only; current 342 physical tables include retained run-scoped recovery tables |
+| Database cutover and runtime collation | Applied and accepted on `it_tech_db` | Runtime points to `it_tech_db`; accepted recovery cleanup leaves zero Latin-1 tables/columns and 288 physical tables; `hanoi23_db` remained untouched |
 | PCMarket category import | Applied to `it_tech_db` | Run 2 imported 788 categories and 788 unique routes; 60 roots, depth 3, 722/66 status; run 3 applied all 162 category-attribute links |
+| Product category routes/tree scope | Applied and locally verified | 788/788 routes are canonical with zero hash/orphan/duplicate failures; enabled descendant scope is shared by product/count/price/filter APIs; category 521 returns 34 distinct enabled products |
+| Storefront catalog pagination | Implemented and browser-tested | Category/search pagination is URL-driven and SSR-safe; page-two reload/history works, filters reset to page one, and API failures render an inline retry instead of the route error boundary |
+| Progressive image hydration | Implemented and production-smoked | Cached success and failure are reconciled after hydration across the shared image component; 16/16 Playwright and category/product/news smoke report zero loaded images stuck blurred |
 | PCMarket product import | Applied to `it_tech_db` | Run 3 imported 4,712 products/search rows, 14,455 category links, 17,603 attribute links, 91 brands, 45 attributes, and 426 values; images remain remote HTTPS PCMarket URLs; incomplete variant/config/combo data remains audit-only pending |
-| PCMarket brand sync | Applied to `it_tech_db` | Corrected run 5 retains 91 source audit records and 89 runtime brands after E-DRA/TEAMGROUP merges; 89 UTF-8 info rows, 1,209 brand-category rows, 13 remote logos, 80 homepage brands, and zero alias references |
-| Database transfer | Locally verified | Full SQL archive restored into a disposable database with 342 tables, 152,141 rows, 1 routine, 2 triggers, and matching critical catalog counts; destination-version compatibility still requires target testing |
-| Functional verification | Passed for imported catalog | Both typecheck/lint/build pipelines pass; 66/66 unit tests, default integration suite, disposable category/product/brand apply+rollback, and transitional 15/15 runtime healthcheck passed; strict mode is 13/15 because collections remain intentionally absent/404 |
+| PCMarket brand sync | Run 8 applied and accepted on `it_tech_db` | Public PCM policy maps `0 -> 96`; E-DRA/TEAMGROUP keep `34 -> 25` and `57 -> 31`; runtime has 90 brand/info rows, 1,587 brand-category rows, PCM 2,276/849 products, and zero noncanonical references |
+| PCMarket article-category import | Applied to `it_tech_db` | Run 6 imported 4 enabled UTF-8 root categories with source IDs, `.html` routes, registry/map/record audit rows, and no article/menu writes; clone apply/verify/rollback and live smoke passed |
+| PCMarket article import | Applied to `it_tech_db` | Run 7 imported 668 articles/content rows, 705 unique category links and 668 routes/registry/maps; ID 83 is quarantined and no menu was created |
+| Database transfer | Final lean backup locally restore-verified | Final bundle has 288 tables, 84,040 rows, 1 routine, 2 triggers, SHA-256 `941f3b5a...`; destination-version compatibility still requires target testing |
+| Functional verification | Passed for category-route cutover | Both typecheck/lint/build pipelines pass; 88/88 unit tests, default integration suite, destructive category fixture, route clone apply/rollback/re-apply, visible storefront smoke, and 15/15 runtime healthcheck passed |
 | 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
 ## Completed implementation highlights
+
+- Replaced the mount-time progressive-image reset with source-bound state plus cached DOM reconciliation, preserving callbacks/fallbacks while preventing cached hard refreshes from remaining at `blur-sm`/`blur-md` loading styles.
+- Replaced invalid client-side `new URL('/api/...')` construction in category/search pagination with same-origin rewritten requests, canonical `?page=N` state, bounded SSR page parsing, request cancellation, local retry UX, and accessible pagination controls.
+- Repaired all 788 live product-category routes from legacy type `0` to `product:category` with exact preimage hash `7ad32ed2cbdc7ccc99b3f89703d637c8592a28b8209b21074eec70cc6ada18c7`; no route hash, orphan, or duplicate changed.
+- Added exact-prefix catalog resolution, canonical route writes in the importer/admin, read-only applied-route assertions, guarded external-artifact repair/rollback, shared enabled-descendant scope, category cache invalidation, and the measured `(parentId,status,id)` index.
+- Category 521 now resolves through 29 enabled nodes to 34 distinct enabled products across pagination, price bounds, brand and attribute filters. Its storefront and a child route render on port 3001; disabled category 71 stays 404 and product/news detail stays 200.
+- Restore-verified pre/post cutover backups (`e47e5232...` / `4d7c5249...`) preserve the 288-table, 84,049-row database. Source verification still matches categories/products/brands/article categories; article source has two new, unimported records (682/683) under hash `aaeda512...`.
+- Added public PCM fallback policy (`0 -> 96`), future source-ID collision protection, durable audit mapping, read-only `--verify-applied`, rollback-window closure, and guarded exact-name recovery cleanup.
+- Clone trial applied run 8, verified all relations/API counts, rolled back to the exact baseline, applied again, added measured news indexes, dropped 88 clone recovery tables, and passed healthcheck on the 288-table lean schema.
+- Live run 8 applied the stable brand hash, added four news indexes, closed runs 2-8 after a restore-verified 362-table backup, and removed exactly 74 recovery tables. Final live state is 288 tables (160 InnoDB/128 MyISAM), zero Latin-1/recovery/stage/restore objects, and `ADMIN_WRITE_ENABLED=false`.
+- Replaced news category `OR` membership/dependent subqueries with `UNION DISTINCT`; EXPLAIN selects the status/date, URL/status, and both covering junction indexes.
+
+- Added guarded `pcmarket/article-categories` dry-run/apply/rollback with strict Zod validation, bounded HTTPS-only double snapshots, canonical SHA-256 locking, source-tree/route/media validation, advisory locking, exact empty-target guards, and retained run-scoped backups.
+- Restored the fresh pre-import dump into `it_tech_db_article_category_test_20260713_203630`; clone run 6 applied and verified all four categories/routes/audit relations, then rollback restored the exact empty state while retaining the imported snapshot.
+- Applied live run `6` with snapshot `0a3d22d053ec9feb5f6eadf752b4191a240b5e0010515f671a84fd0a34204b04`. The database now has 4 article categories, 4 canonical routes, 4 registry/map/record entries, 0 articles/links/menu references, 346 tables, and 152,162 exact rows; catalog/search/full-text/routine/trigger counts are unchanged.
+- Restarted web-admin, storefront, and worker with persisted `ADMIN_WRITE_ENABLED=false`; all four `/api/news-category/<slug>` and `/tin-tuc/<slug>` paths return 200 with correct UTF-8 names and `totalNews=0`, and the healthcheck passed 15/15.
+- Added guarded `pcmarket/articles` dry-run/apply/rollback with strict two-pass snapshots, ID 83 quarantine, duplicate-category removal, HTML/HTTPS normalization, MyISAM staging/swap, InnoDB compensation and exact run backups.
+- Applied live run `7` with hash `0ef9d19c682182113ce43d70b9cb6eb21045a0fb7041287a288716c78b1fab13`: 668 article/content rows, 705 unique links, 668 routes/registry/maps and 669 audit records. Catalog/search/full-text/routine/trigger invariants remained unchanged.
+- Replaced demo news UI with active-only paginated APIs/pages, absolute PCMarket images, true 404s, local canonical/Open Graph metadata, bounded related news and defense-in-depth HTML sanitization.
 
 - Added dynamic product/news category trails to existing API payloads, fixed the legacy news-category join, and replaced four breadcrumb implementations with one accessible responsive component.
 - Split the product-detail related-content placeholder into similar, recently viewed, and related-post sections; added bounded recommendation and batch-card contracts without schema changes.
@@ -59,16 +83,16 @@ Last updated: `2026-07-13`
 | `font-end` ESLint `--quiet` | Pass |
 | `web-admin` production build | Pass |
 | `font-end` production build | Pass |
-| Web-admin unit tests | 66/66 pass; rerun during the 2026-07-13 documentation audit |
-| Default DB integration suite | 3 pass, 4 environment-gated skips; rerun during the 2026-07-13 documentation audit |
+| Web-admin unit tests | 84/84 pass after PCM policy and cleanup implementation |
+| Default DB integration suite | 3 pass, 6 environment-gated skips; article apply/rollback also passed on the disposable clone |
 | Destructive importer integration | Category, product, and brand apply/rollback passed independently on disposable databases, then the databases were dropped |
 | npm audit in both apps | 0 known vulnerabilities |
-| Local healthcheck | `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true`: 15/15 pass; strict default: 13/15 because API/storefront collection routes intentionally return 404 |
-| Full database restore | Pass: 342 tables, 152,141 rows, 1 routine, 2 triggers; 788 categories, 89 brands, 4,712 products/search rows |
+| Local healthcheck | `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` with PCM probe: 15/15 pass; strict default: 14/15 because the configured legacy API collection slug returns 404 while its storefront route returns 200 |
+| Full database restore | Final lean bundle pass: 288 tables, 84,040 rows, 1 routine, 2 triggers; 788 categories, 90 brands, 4,712 products/search rows and 668 articles/content rows |
 | Liveness/readiness/storefront | HTTP 200 |
 | Invalid quote/origin/order-key/webhook probes | Expected safe 4xx/5xx responses |
 | Full k6 1,500 VU | Not run on production-like host |
-| Playwright + axe | Desktop 2/2 and mobile 2/2 pass |
+| Playwright + axe | 16/16 pass: desktop 8/8 and mobile 8/8, including pagination, cached hard-refresh images, one-shot fallback and existing accessibility journeys |
 | Lighthouse CI | Configuration added; local Windows Chrome run was inconclusive because the temporary profile cleanup failed with `EPERM`, so staging artifacts remain required |
 | Regression bundle budget | Pass: product 219.9 KB; commerce 157.5-167.0 KB |
 | Strict release bundle budget | Product detail fails 219.9 KB >205 KB; commerce passes <170 KB |
@@ -90,10 +114,9 @@ These results are development-machine observations and must not be used as produ
 1. Import missing variant/config-group/comboset definitions only after complete source exports are available and reconcile the pending audit records.
 2. Run the complete read/commerce/abuse k6 scenarios on an isolated target-like host and capture application, MySQL, CPU, RAM, pool, and slow-query metrics.
 3. Validate production reCAPTCHA hostnames/actions/scores in shadow mode, then enable enforcement in a coordinated frontend/backend release.
-4. Exercise database restore, graceful PM2/Caddy restart, worker crash recovery, outbox retry/backoff, and cleanup against staging.
+4. Exercise destination-version database restore, graceful PM2/Caddy restart, worker crash recovery, and outbox retry/backoff against staging.
 5. Add integration/E2E coverage for remaining write-route groups and forms; focus on upload, RBAC, OTP/session revoke, concurrent vouchers, `429`, keyboard/focus, and offline failures.
 6. Audit remaining legacy admin screens for API parity, canonical Zod schemas, and uniform field-level error UX.
-7. Define retention and tested cleanup for import backup tables after formal catalog acceptance.
 
 ## Known risks and blockers
 
@@ -101,8 +124,8 @@ These results are development-machine observations and must not be used as produ
 - CAPTCHA enforcement depends on production site/secret keys and allowed hostnames; a missing or mismatched configuration can block real users.
 - Search webhook updates depend on a shared strong `SEARCH_WEBHOOK_SECRET`.
 - MySQL shares the target host with the applications. If CPU/RAM/pool/SLO targets fail, separate MySQL or add another host.
-- The database still mixes InnoDB and MyISAM and mostly contains legacy latin1 data; transaction/encoding behavior cannot be assumed across all old tables.
-- Run-scoped import backups intentionally inflate physical table/engine counts; deleting them without a run-aware retention and rollback plan can remove the fastest recovery path.
+- The database still mixes InnoDB and MyISAM; transaction behavior cannot be assumed across all legacy tables even though character data is now fully UTF-8.
+- Runs 2-8 no longer have in-database rollback tables. Recovery now depends on the verified external backup artifacts, which must be protected and periodically restore-tested.
 - PCMarket variant/config/comboset references are audit-only pending data, not complete sellable runtime configuration.
 - Shared validation/security foundations cover the highest-risk routes, but the project should not claim every legacy admin field has been converted to canonical Zod without a route-by-route follow-up audit.
 

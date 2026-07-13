@@ -10,6 +10,10 @@ export const PCM_ATTRIBUTE_SOURCE = 'https://pcmarket.vn/export/attribute.php';
 export const PCM_PRODUCT_CONFIRMATION = 'IMPORT_PCMARKET_PRODUCTS';
 export const PCM_BRAND_CONFIRMATION = 'SYNC_PCMARKET_BRANDS';
 export const PCM_BRAND_ALIASES = new Map<number, number>([[34, 25], [57, 31]]);
+export const PCM_FALLBACK_BRAND_ID = 96;
+export const PCM_FALLBACK_BRAND_INDEX = 'pcm';
+export const PCM_FALLBACK_BRAND_NAME = 'PCM';
+export const PCM_FALLBACK_BRAND_POLICY_VERSION = 'pcm-v1';
 
 const text = z.union([z.string(), z.number()]).nullable().transform((value) => String(value ?? ''));
 const money = z.coerce.number().finite().nonnegative();
@@ -192,6 +196,7 @@ export type BrandImportReport = {
   metaKeywords: number;
   metaDescriptions: number;
   merges: Array<{ sourceId: number; targetId: number }>;
+  fallbackBrand: { sourceId: 0; targetId: number; policyVersion: string };
 };
 
 export type NormalizedAttribute = {
@@ -280,6 +285,7 @@ export function parseLegacyTimestamp(value: string) {
 }
 
 export function canonicalPcmarketBrandId(id: number) {
+  if (id === 0) return PCM_FALLBACK_BRAND_ID;
   return PCM_BRAND_ALIASES.get(id) || id;
 }
 
@@ -309,6 +315,13 @@ export function canonicalBrandSnapshot(items: PcmarketBrand[]) {
 export function normalizePcmarketBrands(input: unknown[], productCounts = new Map<number, number>()) {
   const sourceBrands = input.map((item) => pcmarketBrandSchema.parse(item)).sort((a, b) => a.id - b.id);
   if (new Set(sourceBrands.map((item) => item.id)).size !== sourceBrands.length) throw new Error('Duplicate brand IDs detected');
+  const reservedSourceBrand = sourceBrands.find((brand) => brand.id === PCM_FALLBACK_BRAND_ID);
+  if (reservedSourceBrand) {
+    const reservedIndex = brandIndexFromUrl(reservedSourceBrand.url, reservedSourceBrand.id);
+    if (reservedIndex !== PCM_FALLBACK_BRAND_INDEX || reservedSourceBrand.name.trim().toUpperCase() !== PCM_FALLBACK_BRAND_NAME) {
+      throw new Error(`PCMarket brand ID ${PCM_FALLBACK_BRAND_ID} conflicts with reserved PCM fallback brand`);
+    }
+  }
   for (const [aliasId, canonicalId] of PCM_BRAND_ALIASES) {
     if (sourceBrands.some((brand) => brand.id === aliasId) && !sourceBrands.some((brand) => brand.id === canonicalId)) {
       throw new Error(`Missing canonical brand ${canonicalId}`);
@@ -360,6 +373,34 @@ export function normalizePcmarketBrands(input: unknown[], productCounts = new Ma
     };
   });
 
+  const existingFallback = brands.find((brand) => brand.id === PCM_FALLBACK_BRAND_ID);
+  if (existingFallback) {
+    existingFallback.sourceIds = [...new Set([0, ...existingFallback.sourceIds])].sort((a, b) => a - b);
+    existingFallback.index = PCM_FALLBACK_BRAND_INDEX;
+    existingFallback.name = PCM_FALLBACK_BRAND_NAME;
+    existingFallback.status = 1;
+    existingFallback.ordering = 8_388_607;
+    existingFallback.productCount = productCounts.get(PCM_FALLBACK_BRAND_ID) || 0;
+  } else {
+    brands.push({
+      id: PCM_FALLBACK_BRAND_ID,
+      sourceIds: [0],
+      index: PCM_FALLBACK_BRAND_INDEX,
+      name: PCM_FALLBACK_BRAND_NAME,
+      summary: '',
+      description: '',
+      image: '',
+      status: 1,
+      ordering: 8_388_607,
+      lastUpdate: null,
+      productCount: productCounts.get(PCM_FALLBACK_BRAND_ID) || 0,
+      metaTitle: '',
+      metaKeyword: '',
+      metaDescription: '',
+    });
+    brands.sort((left, right) => left.id - right.id);
+  }
+
   const runtimeIndexes = new Map<string, number>();
   for (const brand of brands) {
     const previous = runtimeIndexes.get(brand.index);
@@ -379,6 +420,7 @@ export function normalizePcmarketBrands(input: unknown[], productCounts = new Ma
     metaKeywords: sourceBrands.filter((brand) => Boolean(brand.meta_keyword.trim())).length,
     metaDescriptions: sourceBrands.filter((brand) => Boolean(brand.meta_description.trim())).length,
     merges: [...PCM_BRAND_ALIASES.entries()].map(([sourceId, targetId]) => ({ sourceId, targetId })),
+    fallbackBrand: { sourceId: 0, targetId: PCM_FALLBACK_BRAND_ID, policyVersion: PCM_FALLBACK_BRAND_POLICY_VERSION },
   };
   return { sourceBrands, brands, report };
 }

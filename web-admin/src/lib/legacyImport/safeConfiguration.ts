@@ -299,8 +299,9 @@ export async function rollbackSafeConfigurationBootstrap(input: { runId: number;
     const [locks] = await connection.query<RowDataPacket[]>('SELECT GET_LOCK(?,0) AS acquired', [LOCK_NAME]);
     lockHeld = Number(locks[0]?.acquired) === 1;
     if (!lockHeld) throw new Error('Another safe-configuration bootstrap is running');
-    const [runs] = await connection.query<RowDataPacket[]>("SELECT status FROM web_admin_import_runs WHERE id=? AND entity='safe-configuration'", [input.runId]);
+    const [runs] = await connection.query<RowDataPacket[]>("SELECT status,rollback_closed_at FROM web_admin_import_runs WHERE id=? AND entity='safe-configuration'", [input.runId]);
     if (String(runs[0]?.status || '') !== 'applied') throw new Error(`Run ${input.runId} is not applied safe configuration`);
+    if (runs[0]?.rollback_closed_at) throw new Error(`Run ${input.runId} rollback window is closed`);
     await connection.query("UPDATE web_admin_import_runs SET status='rolling_back',completed_at=NULL WHERE id=?", [input.runId]);
     await connection.beginTransaction();
     try {

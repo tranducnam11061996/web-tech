@@ -69,6 +69,21 @@ test('rejects missing brand, mismatched attribute values and off-domain images',
   assert.throws(() => normalizePcmarketProductCatalog({ products: [product(1, { main_image: 'https://example.com/a.jpg' })], brands: [brand()], attributes: [attribute()], categoryAttributes: [] }), /HTTPS on pcmarket/);
 });
 
+test('maps the PCMarket unassigned brand sentinel to the managed PCM brand', () => {
+  const result = normalizePcmarketProductCatalog({
+    products: [product(1, { brandId: 0 })],
+    brands: [brand()],
+    attributes: [attribute()],
+    categoryAttributes: [],
+  });
+  assert.equal(result.products[0].brandId, 96);
+  const pcm = result.brands.find((item) => item.id === 96);
+  assert.ok(pcm);
+  assert.equal(pcm.name, 'PCM');
+  assert.equal(pcm.productCount, 1);
+  assert.deepEqual(pcm.sourceIds, [0]);
+});
+
 test('validates envelope limits and canonical hash ordering', () => {
   assert.throws(() => pcmarketProductEnvelopeSchema.parse({ current_page: 1, size: 501, total_page: 1, total_item: 0, items: [] }));
   const a = product(1) as any;

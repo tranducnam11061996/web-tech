@@ -33,7 +33,7 @@ import {
 import { normalizeImages, serializeProductImages } from './images';
 import { buildPagination, parsePaginationParams } from './pagination';
 import { deleteBuyingGuideForEntity, ensureBuyingGuideTables } from '@/lib/buyingGuides';
-import { clearPublicCatalogDetailCache } from '@/lib/publicProductCache';
+import { clearPublicCatalogDetailCache, clearPublicProductResponseCache } from '@/lib/publicProductCache';
 import { invalidateVoucherCategoryCache } from '@/lib/vouchers';
 import { ensureProductGroupIndexes } from '@/lib/productGroups';
 import { invalidateProductPromotionCategoryCache } from '@/lib/productPromotions';
@@ -65,25 +65,31 @@ async function assertSlugUnique(connection: PoolConnection, slug: string, idPath
   if (rows.length > 0) throw new AdminApiError(409, 'CONFLICT', 'URL đã tồn tại');
 }
 
-async function upsertUrl(connection: PoolConnection, idPath: string, slug: string, targetPath = '') {
+async function upsertUrl(
+  connection: PoolConnection,
+  idPath: string,
+  slug: string,
+  urlType: 'product:category' | 'product:product-detail',
+  targetPath = '',
+) {
   const requestPath = `/${slug}`;
   await assertSlugUnique(connection, slug, idPath);
   const [updateResult] = await connection.query(
     `
       UPDATE idv_url
-      SET request_path = ?, request_path_index = ?, target_path = ?
+      SET request_path = ?, request_path_index = ?, target_path = ?, url_type = ?
       WHERE id_path = ?
     `,
-    [requestPath, requestPathIndex(slug), targetPath, idPath],
+    [requestPath, requestPathIndex(slug), targetPath, urlType, idPath],
   );
   if ((updateResult as { affectedRows?: number }).affectedRows) return;
 
   await connection.query(
     `
-      INSERT INTO idv_url (request_path, request_path_index, id_path, target_path, redirect_code)
-      VALUES (?, ?, ?, ?, '')
+      INSERT INTO idv_url (request_path, request_path_index, id_path, target_path, redirect_code, url_type)
+      VALUES (?, ?, ?, ?, '', ?)
     `,
-    [requestPath, requestPathIndex(slug), idPath, targetPath],
+    [requestPath, requestPathIndex(slug), idPath, targetPath, urlType],
   );
 }
 
@@ -576,7 +582,7 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
       }
     }
 
-    await upsertUrl(connection, `module:product/view:product-detail/view_id:${productId}`, slug);
+    await upsertUrl(connection, `module:product/view:product-detail/view_id:${productId}`, slug, 'product:product-detail');
     if (!id) await markRegistry(connection, 'product', productId);
 
     return { id: productId, slug, sku, name, isUpdate };
@@ -649,7 +655,7 @@ export async function updateProductSection(productId: number, section: ProductSe
         video_code: maybeText(data.videoCode || data.video_code),
         spec: maybeText(data.spec),
       });
-      await upsertUrl(connection, `module:product/view:product-detail/view_id:${productId}`, slug);
+      await upsertUrl(connection, `module:product/view:product-detail/view_id:${productId}`, slug, 'product:product-detail');
       const categoryIds = data.categoryIds === undefined
         ? optionalIdList(existing.product_cat, 100)
         : optionalIdList(data.categoryIds ?? data.categories ?? data.categoryId, 100);
@@ -1010,7 +1016,7 @@ async function saveCategory(options: {
       );
       await rebuildNewsCategoryCache(connection);
     } else {
-      await upsertUrl(connection, `${slugPrefix}${id}`, slug);
+      await upsertUrl(connection, `${slugPrefix}${id}`, slug, 'product:category');
       await saveCategoryFeatureBox(Number(id), payload.featureBox, connection);
     }
     return { id, slug };
@@ -1040,6 +1046,7 @@ export async function saveProductCategory(payload: Record<string, unknown>, id?:
   const result = await saveCategory({ table: 'idv_seller_category', entityType: 'product-category', slugPrefix: 'module:product/view:category/view_id:', payload, id });
   invalidateVoucherCategoryCache();
   invalidateProductPromotionCategoryCache();
+  clearPublicProductResponseCache();
   clearPublicCatalogDetailCache();
   return result;
 }
@@ -1127,6 +1134,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
       : [];
     invalidateProductCardAttributeCaches();
     invalidateCategoryFeatureBoxCaches(id);
+    clearPublicProductResponseCache();
     clearPublicCatalogDetailCache();
     invalidateVoucherCategoryCache();
     invalidateProductPromotionCategoryCache();
@@ -1135,6 +1143,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
     invalidateCategoryFeatureBoxCaches(id);
     invalidateVoucherCategoryCache();
     invalidateProductPromotionCategoryCache();
+    clearPublicProductResponseCache();
     clearPublicCatalogDetailCache();
   }
 
@@ -1151,6 +1160,7 @@ export async function bulkCategoryStatus(table: string, ids: number[], action: s
     invalidateCategoryFeatureBoxCaches();
     invalidateVoucherCategoryCache();
     invalidateProductPromotionCategoryCache();
+    clearPublicProductResponseCache();
     clearPublicCatalogDetailCache();
   }
   return result;

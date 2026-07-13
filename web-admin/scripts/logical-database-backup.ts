@@ -170,9 +170,10 @@ async function capture(connection: PoolConnection, database: string): Promise<Ba
   };
 }
 
-async function restoreAndVerify(connection: PoolConnection, bundle: BackupBundle) {
-  const suffix = `${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
-  const temporaryDatabase = `${bundle.database}_backup_test_${suffix}`;
+async function restoreAndVerify(connection: PoolConnection, bundle: BackupBundle, keepRestore = false) {
+  const suffix = `backup_test_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
+  const prefixLength = 64 - suffix.length - 1;
+  const temporaryDatabase = `${bundle.database.slice(0, prefixLength)}_${suffix}`;
   if (!temporaryDatabase.includes('test')) throw new Error('Restore database name must contain test');
   const [modeRows] = await connection.query<RowDataPacket[]>('SELECT @@SESSION.sql_mode AS sqlMode');
   const originalSqlMode = String(modeRows[0]?.sqlMode || '');
@@ -223,7 +224,7 @@ async function restoreAndVerify(connection: PoolConnection, bundle: BackupBundle
     await connection.query(`USE ${quote(bundle.database)}`).catch(() => undefined);
     await connection.query('SET FOREIGN_KEY_CHECKS=1').catch(() => undefined);
     await connection.query('SET SESSION sql_mode=?', [originalSqlMode]).catch(() => undefined);
-    await connection.query(`DROP DATABASE IF EXISTS ${quote(temporaryDatabase)}`).catch(() => undefined);
+    if (!keepRestore) await connection.query(`DROP DATABASE IF EXISTS ${quote(temporaryDatabase)}`).catch(() => undefined);
   }
 }
 
@@ -245,10 +246,23 @@ async function main() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupPath = path.join(outputDirectory, `${database}-${label}-${timestamp}.json`);
     const manifestPath = `${backupPath}.sha256`;
-    const verification = await restoreAndVerify(connection, bundle);
+    const verificationManifestPath = `${backupPath}.manifest.json`;
+    const verification = await restoreAndVerify(connection, bundle, args['keep-restore'] === true);
     await fs.writeFile(backupPath, json, { encoding: 'utf8', flag: 'wx' });
     await fs.writeFile(manifestPath, `${digest}  ${path.basename(backupPath)}\n`, { encoding: 'ascii', flag: 'wx' });
-    console.log(JSON.stringify({ database, backupPath, manifestPath, sha256: digest, tables: bundle.tables.length, rows: bundle.tables.reduce((total, table) => total + table.rows.length, 0), routines: bundle.routines.length, triggers: bundle.triggers.length, verification }, null, 2));
+    await fs.writeFile(verificationManifestPath, `${JSON.stringify({
+      format: 'web-tech-logical-backup-manifest-v1',
+      database,
+      createdAt: bundle.createdAt,
+      backupFile: path.basename(backupPath),
+      sha256: digest,
+      tables: bundle.tables.length,
+      rows: bundle.tables.reduce((total, table) => total + table.rows.length, 0),
+      routines: bundle.routines.length,
+      triggers: bundle.triggers.length,
+      verification,
+    }, null, 2)}\n`, { encoding: 'utf8', flag: 'wx' });
+    console.log(JSON.stringify({ database, backupPath, manifestPath, verificationManifestPath, sha256: digest, tables: bundle.tables.length, rows: bundle.tables.reduce((total, table) => total + table.rows.length, 0), routines: bundle.routines.length, triggers: bundle.triggers.length, verification }, null, 2));
   } finally {
     connection.release();
   }

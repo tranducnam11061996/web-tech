@@ -1,194 +1,67 @@
-import React from "react";
-import Link from "next/link";
-import Header from "../../../components/Header";
-import Footer from "../../../components/Footer";
-import ProgressiveImage from "../../../components/ProgressiveImage";
-import CategorySidebar from "../../../components/CategorySidebar";
-import Breadcrumb from "../../../components/Breadcrumb";
-import type { CategoryTrailItem } from "../../../types/breadcrumb";
+import Link from 'next/link';
+import Header from '../../../components/Header';
+import Footer from '../../../components/Footer';
+import ProgressiveImage from '../../../components/ProgressiveImage';
+import Breadcrumb from '../../../components/Breadcrumb';
+import { formatNewsDate, type NewsItem } from '../../../lib/news';
 
-export default function CategoryView({ category, categoryNews, formatDate, page, totalNews }: { category: any, categoryNews: any[], formatDate: (d: string) => string, page?: number, totalNews?: number }) {
-    
-    const itemsPerPage = 21;
-    const totalPages = totalNews ? Math.ceil(totalNews / itemsPerPage) : Math.ceil(categoryNews.length / itemsPerPage);
-    const currentPage = page || 1;
-    const currentItems = categoryNews;
+type Category = {
+  id: number;
+  name: string;
+  url: string;
+  summary?: string;
+  description?: string;
+  categoryTrail?: Array<{ id: number; name: string; slug: string }>;
+};
 
-    const topNews = currentPage === 1 ? currentItems.slice(0, 3) : [];
-    const remainingNews = currentPage === 1 ? currentItems.slice(3) : currentItems;
-    const categoryTrail: CategoryTrailItem[] = Array.isArray(category.categoryTrail) ? category.categoryTrail : [];
-    const breadcrumbItems = [
-      { label: "Tin tức", href: "/tin-tuc" },
-      ...(categoryTrail.length > 0
-        ? categoryTrail.map((item, index) => ({
-            label: item.name,
-            href: index < categoryTrail.length - 1 ? `/tin-tuc/${item.slug}` : undefined,
-          }))
-        : [{ label: category.name || "Danh mục" }]),
-    ];
+export default function CategoryView({ category, categoryNews, page, totalNews }: {
+  category: Category;
+  categoryNews: NewsItem[];
+  page: number;
+  totalNews: number;
+}) {
+  const totalPages = Math.ceil(totalNews / 21);
+  const trail = Array.isArray(category.categoryTrail) ? category.categoryTrail : [];
+  return (
+    <>
+      <Header />
+      <main className="mx-auto min-h-[60vh] max-w-[1400px] px-4 py-8">
+        <Breadcrumb items={[
+          { label: 'Tin tức', href: '/tin-tuc' },
+          ...trail.map((entry, index) => ({ label: entry.name, href: index < trail.length - 1 ? `/tin-tuc/${entry.slug}` : undefined })),
+        ]} />
+        <header className="mt-8 border-b border-[#27272a] pb-7">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-blue-400">Danh mục bài viết</p>
+          <h1 className="mt-2 text-3xl font-black text-white sm:text-5xl">{category.name}</h1>
+          {(category.summary || category.description) && <p className="mt-4 max-w-3xl text-base leading-7 text-gray-400">{category.summary || category.description}</p>}
+          <p className="mt-3 text-sm text-gray-500">{totalNews.toLocaleString('vi-VN')} bài viết</p>
+        </header>
 
-    return (
-      <>     
-        <Header />
-        <div className="max-w-[1400px] mx-auto px-4 py-8 space-y-8 bg-[#0a0a0c]">
-          
-          <Breadcrumb items={breadcrumbItems} />
+        <section className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {categoryNews.map((article) => (
+            <Link href={`/tin-tuc/${article.url}`} key={article.id} className="group overflow-hidden rounded-2xl border border-[#202027] bg-[#111115]">
+              <div className="relative aspect-video bg-[#18181d]">
+                {article.thumnail && <ProgressiveImage src={article.thumnail} alt={article.title} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105" />}
+              </div>
+              <div className="p-5">
+                <p className="text-xs text-gray-500">{formatNewsDate(article.createDate)}</p>
+                <h2 className="mt-2 text-lg font-bold leading-snug text-white group-hover:text-blue-300">{article.title}</h2>
+                {article.summary && <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-400">{article.summary}</p>}
+              </div>
+            </Link>
+          ))}
+        </section>
+        {categoryNews.length === 0 && <div className="mt-8 rounded-2xl border border-[#27272a] bg-[#111115] py-16 text-center text-gray-500">Danh mục này chưa có bài viết công khai.</div>}
 
-          {/* Header Section */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 mb-8 border-b border-[#1a1a1e]">
-            <div className="max-w-2xl">
-               <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-tight mb-3 leading-tight">{category.name || "TIN TỨC"}</h1>
-               <p className="text-gray-400 text-[15px] leading-relaxed">{category.description || "Cập nhật xu hướng công nghệ mới nhất, đánh giá phần cứng chuyên sâu và phân tích thị trường chuẩn xác."}</p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0 mb-1">
-               <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Chia sẻ:</span>
-               <button className="w-8 h-8 rounded-full bg-[#111115] border border-[#2a2a32] flex items-center justify-center text-gray-400 hover:text-white hover:bg-[#1877F2] hover:border-[#1877F2] transition">
-                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-               </button>
-               <button className="w-8 h-8 rounded-full bg-[#111115] border border-[#2a2a32] flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 hover:border-gray-700 transition">
-                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-               </button>
-            </div>
-          </div>
-
-          {/* TOP 3 NEWS - FULL WIDTH */}
-          {topNews.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:auto-rows-[420px] mb-10">
-              {topNews.map((newsItem, index) => {
-                const isBig = index === 0;
-                const badgeText = index === 0 ? "TIÊU ĐIỂM" : index === 1 ? "HOT" : "PHÂN TÍCH";
-                const badgeColor = index === 0 ? "bg-blue-600" : index === 1 ? "bg-red-600" : "bg-green-600";
-                const fallbackGradient = index === 0 ? "from-blue-900 to-blue-800" : index === 1 ? "from-red-900 to-red-800" : "from-green-900 to-green-800";
-                
-                return (
-                  <Link href={`/tin-tuc/${newsItem.url}`} key={newsItem.id} className={`relative group overflow-hidden rounded-[16px] flex flex-col justify-end ${isBig ? 'lg:col-span-2' : 'lg:col-span-1'} min-h-[350px]`}>
-                    {/* Background Image / Gradient */}
-                    <div className={`absolute inset-0 bg-gradient-to-br ${fallbackGradient} z-0`}></div>
-                    {newsItem.thumnail && (
-                      <ProgressiveImage 
-                        src={`https://hacom.vn/media/news/${newsItem.thumnail}`} 
-                        alt={newsItem.title}
-                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 z-0"
-                      />
-                    )}
-                    {/* Gradient Overlay for Text Visibility */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/50 to-transparent z-10"></div>
-                    
-                    {/* Content */}
-                    <div className="relative z-20 p-8">
-                      <span className={`${badgeColor} text-white text-[11px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wider mb-5 inline-block`}>
-                        {badgeText}
-                      </span>
-                      <h3 className={`font-bold text-white mb-4 group-hover:text-blue-400 transition leading-tight ${isBig ? 'text-3xl md:text-[34px]' : 'text-xl md:text-[22px]'}`}>
-                        {newsItem.title}
-                      </h3>
-                      {isBig && (
-                        <p className="text-gray-300 text-base line-clamp-2 mb-6 leading-relaxed max-w-2xl">{newsItem.summary}</p>
-                      )}
-                      <div className="flex items-center gap-5 text-[13px] text-gray-400">
-                        <div className="flex items-center gap-1.5">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
-                          <span>{newsItem.createBy === 1 ? "Admin" : "Author"}</span>
-                        </div>
-                        {isBig && (
-                          <div className="flex items-center gap-1.5">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-                            <span>{formatDate(newsItem.createDate)}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
-          {/* MAIN CONTENT SPLIT (70% - 30%) */}
-          <div className="flex flex-col lg:flex-row gap-8">
-            <div className="lg:w-[70%] space-y-10">
-              {/* REMAINING NEWS LIST */}
-              {remainingNews.length > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
-                  {remainingNews.map((newsItem) => (
-                    <Link href={`/tin-tuc/${newsItem.url}`} key={newsItem.id} className="group flex flex-col bg-transparent cursor-pointer">
-                      <div className="relative w-full aspect-[16/10] rounded-[16px] overflow-hidden mb-5 bg-[#111115]">
-                        {newsItem.thumnail ? (
-                          <ProgressiveImage 
-                            src={`https://hacom.vn/media/news/${newsItem.thumnail}`} 
-                            alt={newsItem.title}
-                            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-gray-700 font-bold text-xl">NO IMAGE</div>
-                        )}
-                        <span className="absolute top-3 left-3 bg-[#111115]/80 backdrop-blur text-white text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider border border-[#2a2a32] z-10">
-                          {newsItem.category_name || category.name || "TIN TỨC"}
-                        </span>
-                      </div>
-                      
-                      <h3 className="text-[18px] font-bold text-white mb-3 group-hover:text-blue-400 transition leading-snug">
-                        {newsItem.title}
-                      </h3>
-                      <p className="text-sm text-gray-400 line-clamp-2 mb-4 leading-relaxed">
-                        {newsItem.summary}
-                      </p>
-                      
-                      <div className="flex items-center justify-between text-[12px] text-gray-500 mt-auto pt-2">
-                        <div className="flex items-center gap-1.5">
-                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
-                          <span>{newsItem.createBy === 1 ? "Admin" : "Author"}</span>
-                        </div>
-                        <div>{formatDate(newsItem.createDate)}</div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
-
-              {categoryNews.length === 0 && (
-                <div className="py-20 text-center text-gray-500 bg-[#111115] rounded-xl border border-[#1a1a1e]">
-                  Chưa có bài viết nào trong danh mục này.
-                </div>
-              )}
-
-              {totalPages > 0 && (
-                <div className="flex items-center justify-center gap-2 mt-12 pt-8 border-t border-[#1a1a1e]">
-                  {currentPage > 1 && (
-                    <Link href={`?page=${currentPage - 1}`} className="w-10 h-10 flex items-center justify-center rounded-lg bg-[#111115] border border-[#2a2a32] text-gray-400 hover:text-white hover:border-blue-500 transition">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-                    </Link>
-                  )}
-                  
-                  {Array.from({ length: totalPages }).map((_, i) => {
-                    const p = i + 1;
-                    if (p === 1 || p === totalPages || (p >= currentPage - 1 && p <= currentPage + 1)) {
-                      return (
-                        <Link key={p} href={`?page=${p}`} className={`w-10 h-10 flex items-center justify-center rounded-lg border transition ${p === currentPage ? 'bg-blue-600 border-blue-600 text-white font-bold' : 'bg-[#111115] border-[#2a2a32] text-gray-400 hover:text-white hover:border-blue-500'}`}>
-                          {p}
-                        </Link>
-                      );
-                    }
-                    if (p === currentPage - 2 || p === currentPage + 2) {
-                      return <span key={p} className="text-gray-500 px-1">...</span>;
-                    }
-                    return null;
-                  })}
-
-                  {currentPage < totalPages && (
-                    <Link href={`?page=${currentPage + 1}`} className="w-10 h-10 flex items-center justify-center rounded-lg bg-[#111115] border border-[#2a2a32] text-gray-400 hover:text-white hover:border-blue-500 transition">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-                    </Link>
-                  )}
-                </div>
-              )}
-
-            </div>
-            
-            <CategorySidebar />
-          </div>
-        </div>
-        <Footer />    
-      </>
-    );
+        {totalPages > 1 && (
+          <nav aria-label="Phân trang danh mục" className="mt-10 flex items-center justify-center gap-3">
+            {page > 1 && <Link className="rounded-lg border border-[#30303a] px-4 py-2 text-sm text-gray-300 hover:border-blue-500" href={`?page=${page - 1}`}>Trang trước</Link>}
+            <span className="text-sm text-gray-500">Trang {page}/{totalPages}</span>
+            {page < totalPages && <Link className="rounded-lg border border-[#30303a] px-4 py-2 text-sm text-gray-300 hover:border-blue-500" href={`?page=${page + 1}`}>Trang sau</Link>}
+          </nav>
+        )}
+      </main>
+      <Footer />
+    </>
+  );
 }

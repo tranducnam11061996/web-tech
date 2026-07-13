@@ -1,8 +1,20 @@
 # Database Export, Restore, and Machine Transfer
 
-Last verified: `2026-07-13`
+Last verified: `2026-07-14`
 
-This runbook transfers the complete active `it_tech_db` database to another machine. It preserves table definitions/data, mixed InnoDB/MyISAM engines, collations, the search routine, triggers, import audit, and run-scoped recovery tables. `hanoi23_db` is out of scope and must remain untouched.
+This runbook transfers the complete active `it_tech_db` database to another machine. It preserves table definitions/data, mixed InnoDB/MyISAM engines, collations, the search routine, triggers, and import audit. Accepted runs 2-8 no longer have in-database recovery tables; their recovery boundary is the verified external artifacts below. `hanoi23_db` is out of scope and must remain untouched.
+
+## Current finalization artifacts
+
+| Stage | Bundle / SHA-256 | Verified inventory |
+|---|---|---|
+| Pre-finalization | `it_tech_db-pre-pcm-finalization-2026-07-13T15-50-38-991Z.json` / `639935bccebf4d323b215aa6099add3696421ed5b4253605881d195b274b5ec6` | 352 tables / 156,881 rows; retained clone passed run-8 apply, rollback, re-apply, index and cleanup trial |
+| Post-run-8, pre-cleanup | `it_tech_db-post-run8-pre-cleanup-2026-07-13T16-01-00-579Z.json` / `13339649231447567a6e499212076f8ff66c0f4ea0a2954e5b9e26fa3a401e27` | 362 tables / 194,067 rows; restore-verified manifest authorized live cleanup |
+| Final lean | `it_tech_db-final-lean-post-cleanup-2026-07-13T16-02-29-692Z.json` / `941f3b5abcfd30db21f913d9741c68d32c69aa068a4a646b7c1ea60f4c37456a` | 288 tables / 84,040 rows / 1 routine / 2 triggers; disposable restore verified |
+| Pre-category-route repair | `it_tech_db-pre-catalog-route-repair-2026-07-13T17-26-35-738Z.json` / `e47e523256f7eaa94156ee81007ecc8b75d9bea0fba41779d88431cae52dab21` | 288 tables / 84,049 rows; retained clone passed route apply/rollback/re-apply, index and API checks |
+| Post-category-route repair | `it_tech_db-post-catalog-route-repair-2026-07-13T17-35-18-760Z.json` / `4d7c52495957b1072627c5c9bbf7326b08fee6e595b43ace37f93f3f991472ef` | 288 tables / 84,049 rows / 1 routine / 2 triggers; disposable restore verified after live cutover |
+
+All files live under `D:\web-tech\tmp\db-backups` and are ignored by Git. Protect at least the latest post-category-route repair, final lean, and post-run-8/pre-cleanup bundles in approved encrypted storage. The logical backup tool writes a `.sha256` file and a `.manifest.json` whose restore result and database-bound hash are checked by guarded cleanup/repair commands.
 
 ## Verified local artifact
 
@@ -20,6 +32,45 @@ The following archive was generated outside Git and restored successfully into a
 Restore verification matched 342 tables, 152,141 exact rows across all tables, 1 routine, 2 triggers, 0 events, 788 categories, 89 brands, 4,712 products, and 4,712 search rows. The disposable database was then removed.
 
 Do not commit these artifacts: a full database archive can contain admin credentials, configuration, operational history, or personal data. Transfer it through an approved encrypted channel and remove temporary copies after acceptance.
+
+## Phase-1 collation rollback artifact
+
+The maintenance-window source was freshly exported before collation conversion and restored into `it_tech_db_collation_test_20260713_195854` before any live ALTER:
+
+| Artifact | Value |
+|---|---|
+| SQL | `D:\web-tech\tmp\db-backups\it_tech_db-pre-collation-20260713-195854.sql` |
+| SQL size / SHA-256 | 105,255,739 bytes / `cc0b1d36f07ee8262e8209e0c769cacc3bf9e62624fa24eb2d1cdcf7d7884839` |
+| ZIP | `D:\web-tech\tmp\db-backups\it_tech_db-pre-collation-20260713-195854.zip` |
+| ZIP size / SHA-256 | 13,806,911 bytes / `8e0b929be2517a05219bcf0eb167fb3175e98772b96d5a1baef50e150cdad489` |
+
+The clone matched 342 tables, 152,141 rows, 1 routine, 2 triggers and critical catalog counts, then passed phase-1 apply/verify with 31 recovery tables/108 Latin-1 columns left intentionally. It was removed after live acceptance. The live apply used the independently database-bound plan hash documented in the migration guide. If rollback is required, keep services stopped, restore this archive into a disposable database and fully verify it before replacing `it_tech_db`; do not ALTER the converted database back to Latin-1.
+
+## Pre-article-category rollback artifact
+
+Services were stopped and a fresh MySQL 8.4 dump was created immediately before article-category run 6:
+
+| Artifact | Value |
+|---|---|
+| SQL | `D:\web-tech\tmp\db-backups\it_tech_db-pre-article-categories-20260713-203630.sql` |
+| SQL size / SHA-256 | 105,287,376 bytes / `63d0944ac73a19b35d2e675952f9541dda4b0def459ddaed0db430f9e25ce569` |
+| ZIP | `D:\web-tech\tmp\db-backups\it_tech_db-pre-article-categories-20260713-203630.zip` |
+| ZIP size / SHA-256 | 13,807,458 bytes / `f0d4e19879353edf5ca21bf1bcf75bc14cf402174b4613f809299770289cf993` |
+
+The SQL was restored into `it_tech_db_article_category_test_20260713_203630`. The clone matched the pre-run catalog invariants and passed dry-run, guarded apply, exact category/route/registry/map/record verification, and run-ID rollback to zero article-category state. Live run 6 then applied the same source hash. Post-run live state is 346 tables, 152,162 exact rows, 1 routine, 2 triggers, 25 full-text indexes, and critical counts `788 / 89 / 4,712 / 4,712`; article-category state is `4 categories / 4 routes / 0 articles / 0 menu references`.
+
+## Pre-article rollback artifact and clone trial
+
+Immediately before run 7, the post-run-6 database was captured with the guarded logical backup tool and restore-verified:
+
+| Artifact | Value |
+|---|---|
+| Bundle | `D:\web-tech\tmp\db-backups\it_tech_db-pre-pcmarket-articles-trial2-2026-07-13T14-35-27-969Z.json` |
+| SHA-256 | `5c2dd8c9e8fcc3b5cef7e157d69e8e60c8142f481294fcde25bee35e55486847` |
+| Baseline | 346 tables / 152,162 exact rows / 1 routine / 2 triggers |
+| Clone | `it_tech_db_backup_test_1783953327970_b83c6b` |
+
+The clone passed article apply, guarded rollback to zero articles/content/links/routes/maps while retaining run 6, and a second apply with the final quality checks. Live run 7 then used the same fresh canonical source hash. The bundle remains historical recovery evidence; run-7 in-database recovery tables were removed only after final acceptance and newer restore verification.
 
 ## Recommended export method
 
@@ -101,7 +152,7 @@ SELECT
   (SELECT COUNT(*) FROM it_tech_db.product_data_search) AS search_rows;
 ```
 
-Expected for the verified archive: `342 / 207 / 135` tables by engine, 1 routine, 2 triggers, and critical counts `788 / 89 / 4712 / 4712`. Also compare import runs 1–5, admin login/RBAC/menu counts, and application readiness.
+Expected for the current accepted database: `288 / 160 / 128` total/InnoDB/MyISAM tables, 1 routine, 2 triggers, and critical counts `788 / 90 / 4712 / 4712`. Also compare import runs 1–8, non-null acceptance/rollback-closure/cleanup fields for runs 2–8, zero recovery/stage/restore tables, zero Latin-1 tables/columns, 4 article categories, 668 articles/content rows, 705 unique category links, 668 article routes/maps, 669 run-7 records, zero article-menu references, PCM 2,276 total/849 enabled products, admin login/RBAC/menu counts, and application readiness. Older archive sections retain their own documented pre-run expectations.
 
 Then run both applications' required typecheck/lint/test/build matrix and `npm.cmd run local:healthcheck`. Only switch DNS/proxy/traffic after database and application checks pass.
 

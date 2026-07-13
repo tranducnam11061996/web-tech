@@ -1,6 +1,6 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-13`
+Last verified: `2026-07-14`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
@@ -60,12 +60,16 @@ npm.cmd run local:benchmark
 npm.cmd run storefront:benchmark
 npm.cmd run db:indexes
 npm.cmd run db:explain-hot
+npm.cmd run db:repair-catalog-routes -- --dry-run --expected-database=it_tech_db
+npm.cmd run db:collation -- --audit --expected-database=it_tech_db
 npm.cmd run test:unit
 npm.cmd run test:integration
 npm.cmd run load:k6
 ```
 
 Run `load:k6` only against an approved isolated target. It is not a local smoke test.
+
+`db:collation` owns the audited Latin-1-to-UTF-8 workflow. `--apply` additionally requires `ADMIN_WRITE_ENABLED=true`, a locked `--baseline-plan`, its `--expected-plan-hash`, `--backup-confirmed`, `--maintenance-window`, and `--confirm=CONVERT_LATIN1_TO_UTF8MB4`. Phase 1 and the accepted run 2-8 recovery cleanup are complete; the live schema has no Latin-1 or importer recovery tables. Artifacts are written under ignored `var/migrations/collation`.
 
 ## PCMarket legacy category import
 
@@ -103,9 +107,20 @@ Rollback also requires the write gate and exact database name:
 npm.cmd run import:legacy -- --source=pcmarket --entity=product-categories --rollback --run-id=<id> --expected-database=<name>
 ```
 
-Do not delete `web_admin_import_b_<run-id>_*` tables until acceptance. Restart API/background workers after apply or rollback. The category integration test is skipped unless `LEGACY_IMPORT_TEST_DATABASE_URL` points to a disposable database whose name contains `test`, `import`, or `disposable`, and `LEGACY_IMPORT_DESTRUCTIVE_TEST=true`.
+Before acceptance, do not manually delete `web_admin_import_b_<run-id>_*`; use only the guarded cleanup after restore verification. Runs 2-8 have already completed that lifecycle. Restart API/background workers after apply or rollback. The category integration test is skipped unless `LEGACY_IMPORT_TEST_DATABASE_URL` points to a disposable database whose name contains `test`, `import`, or `disposable`, and `LEGACY_IMPORT_DESTRUCTIVE_TEST=true`.
 
 Local cutover completed on `2026-07-13`: safe configuration is run `1`, PCMarket categories are run `2`, and PCMarket products are run `3`. Never reuse a documented snapshot hash for another apply because the source may change; use the hash printed by the immediately preceding dry-run.
+
+All live product-category routes were canonicalized on `2026-07-14`. The repair command is dry-run by default and lists every exact row/conflict. Apply requires `ADMIN_WRITE_ENABLED=true`, the exact preimage hash, a restore-verified backup containing the same `idv_url` category-route hash, a maintenance window, and `--confirm=REPAIR_PRODUCT_CATEGORY_ROUTE_TYPES`. Rollback requires the database-bound preimage artifact and `--confirm=ROLLBACK_PRODUCT_CATEGORY_ROUTE_TYPES`:
+
+```powershell
+npm.cmd run db:repair-catalog-routes -- --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run db:repair-catalog-routes -- --apply --expected-database=it_tech_db --expected-preimage-hash=<sha256> --backup-manifest=<verified-manifest.json> --maintenance-window --confirm=REPAIR_PRODUCT_CATEGORY_ROUTE_TYPES
+npm.cmd run db:repair-catalog-routes -- --rollback --expected-database=it_tech_db --artifact=<preimage.json> --maintenance-window --confirm=ROLLBACK_PRODUCT_CATEGORY_ROUTE_TYPES
+```
+
+The command updates only routes joined exactly to `idv_seller_category`, uses importer/repair advisory locks, refuses active imports, stores the rollback preimage outside MySQL, and bumps product/catalog cache versions. Live state is 788 canonical routes, zero invalid hashes/orphans/duplicates; the persisted write gate is back to `false`.
 
 ## PCMarket legacy product import
 
@@ -128,16 +143,63 @@ Run `3` applied hash `5f1f22c6756c862131f9f46926d9d3f4c47835159a82ad4fb70891fa0b
 
 ## PCMarket legacy brand sync
 
-The standalone brand entity preserves remote `https://pcmarket.vn/...` logos, merges source IDs 34/57 into canonical IDs 25/31, converts the two live brand tables to UTF-8, refreshes product references/search/cache state, and retains all 91 source records in audit:
+The standalone brand entity preserves remote `https://pcmarket.vn/...` logos, maps the unassigned source sentinel `0` to the public PCM brand ID `96`, merges source IDs 34/57 into canonical IDs 25/31, refreshes product references/search/cache state, and retains every source mapping in audit:
 
 ```powershell
 npm.cmd run import:legacy -- --source=pcmarket --entity=brands --dry-run --expected-database=it_tech_db
+npm.cmd run import:legacy -- --source=pcmarket --entity=brands --verify-applied --expected-database=it_tech_db
 $env:ADMIN_WRITE_ENABLED='true'
 npm.cmd run import:legacy -- --source=pcmarket --entity=brands --apply --expected-database=it_tech_db --expected-hash=<fresh-sha256> --confirm=SYNC_PCMARKET_BRANDS --backup-confirmed --maintenance-window
 npm.cmd run import:legacy -- --source=pcmarket --entity=brands --rollback --run-id=<id> --expected-database=it_tech_db
 ```
 
-Applied run `5` uses hash `4ace3a4c0cc7ba7c2270e10463ce7f31e653d7c86915cdc2b13db6eeacf43eef`. Run `4` is intentionally retained as `rolled_back` after an acceptance correction. Rollback run `5` before attempting to roll back product run `3`; later applied import runs block brand rollback.
+Applied live run `8` uses hash `4ace3a4c0cc7ba7c2270e10463ce7f31e653d7c86915cdc2b13db6eeacf43eef` and produces 90 brands/info rows, 1,587 brand-category rows, and PCM counts 2,276 total/849 enabled. Runs 2-8 are accepted and their rollback windows are closed; the rollback command now refuses them.
+
+## PCMarket article-category import
+
+This entity imports only the news taxonomy from the PCMarket article-category exporter. It preserves source IDs and `.html` slugs, keeps validated `https://pcmarket.vn/...` media remote, and does not create articles or menus. Initial apply is intentionally blocked unless the article-category, article, junction, category-route, registry, and menu-reference target state is empty:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=article-categories --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=article-categories --apply --expected-database=it_tech_db --expected-hash=<fresh-sha256> --confirm=IMPORT_ARTICLE_CATEGORIES --backup-confirmed --maintenance-window
+npm.cmd run import:legacy -- --source=pcmarket --entity=article-categories --rollback --run-id=<id> --expected-database=it_tech_db
+```
+
+Live run `6` applied snapshot `0a3d22d053ec9feb5f6eadf752b4191a240b5e0010515f671a84fd0a34204b04` after a disposable-clone apply/verify/rollback. It created 4 categories and 4 canonical route/registry/map/record rows. Its accepted recovery tables were removed after run-8 finalization; audit and external restore artifacts remain.
+
+## PCMarket article import
+
+The article entity imports the bounded paginated PCMarket news export, keeps remote HTTPS thumbnails/body media, quarantines source ID 83, and uses a staged MyISAM junction swap plus transactional InnoDB article/content/route/audit writes. Always create and restore-verify a current backup first:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=articles --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=articles --apply --expected-database=it_tech_db --expected-hash=<fresh-sha256> --expected-quarantined=83 --confirm=IMPORT_PCMARKET_ARTICLES --backup-confirmed --maintenance-window
+npm.cmd run import:legacy -- --source=pcmarket --entity=articles --rollback --run-id=<id> --expected-database=it_tech_db --confirm=ROLLBACK_PCMARKET_ARTICLES
+```
+
+Live run `7` applied hash `0ef9d19c682182113ce43d70b9cb6eb21045a0fb7041287a288716c78b1fab13` after disposable-clone apply/rollback/re-apply. It created 668 articles, 668 content rows, 705 unique category links, 668 routes/registry/maps and 669 records; 654 articles are public, 14 inactive, and ID 83 remains pending. Its accepted recovery tables were removed after a verified external backup.
+
+Read-only verification on `2026-07-14` observed source hash `aaeda512473de728ba04eff924ea07f1c31587a5cf0194ea1a69220428760784`: it adds IDs 682 and 683 without changing/removing prior source rows. Those records are not live and require a separate reviewed article-import cutover; they were intentionally excluded from the catalog-route repair.
+
+## Applied-source verification and recovery cleanup
+
+Every PCMarket entity supports read-only source/runtime verification:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=<product-categories|products|brands|article-categories|articles> --verify-applied --expected-database=it_tech_db
+```
+
+Recovery cleanup is dry-run by default and lists exact table names, rows, engines, and sizes. Apply requires a restore-verified manifest newer than the selected runs and closes rollback permanently:
+
+```powershell
+npm.cmd run db:import-recovery-cleanup -- --dry-run --expected-database=it_tech_db --run-ids=2,3,4,5,6,7,8
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run db:import-recovery-cleanup -- --apply --expected-database=it_tech_db --run-ids=2,3,4,5,6,7,8 --backup-manifest=<verified-manifest.json> --maintenance-window --confirm=DROP_ACCEPTED_IMPORT_RECOVERY
+```
+
+Live runs 2-8 are already cleaned. The final schema has no `web_admin_import_b_*`, stage, or restore tables; do not rerun cleanup against those IDs.
 
 The post-import runtime healthcheck uses category ID 30. Set `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` only to accept the expected collection 404s (collection definitions were not imported); product list/search/detail and cart quote still run and must pass:
 
@@ -165,7 +227,7 @@ Product-detail performance contracts:
 - `/api/categories/*`, `/api/collections/[slug]`.
 - `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
-- `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
+- `/api/news`, `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
 
 Product detail/category responses and news detail/category responses include `categoryTrail: Array<{ id, name, slug }>` for storefront breadcrumbs. `/api/products?category_id=...` exposes the same trail under `layoutMeta.categoryTrail`. Trails are resolved from the legacy hierarchy with bounded recursion, cycle protection, partial results for missing parents, and legacy-link fallbacks; no storefront route reads MySQL directly.
 
@@ -178,6 +240,8 @@ Product detail also returns up to 50 active, in-window, non-exhausted voucher su
 Product detail returns `productPromotions` with at most 50 active display-only records. Direct SKU and category-root scopes are combined with OR, category roots include descendants dynamically, duplicates are removed, and ordering is manual priority then end time then id. Promotions never affect quote or order totals.
 
 Public read APIs use bounded inputs, reduced response shapes, local single-flight caches, ETags, and cross-worker invalidation where applicable.
+
+For `category_id=X`, product list/count, price bounds, brand filters, attribute definitions/counts and category child counts use the same enabled scope: X plus every enabled descendant. Duplicate product links are collapsed. Category metadata, breadcrumbs, feature boxes and buying guides still belong to the category being viewed; inactive roots and unknown slugs remain 404.
 
 ### Commerce writes
 
@@ -253,10 +317,10 @@ Responses include `X-Request-ID`. Rate-limit responses use HTTP `429` plus `Retr
 
 ## Database status
 
-The active local database is `it_tech_db`; `hanoi23_db` remains the read-only legacy source. The live catalog has 788 categories, 89 brands, 4,712 products, and 4,712 search rows. Read-only verification on `2026-07-13` found 342 physical tables: 207 InnoDB and 135 MyISAM. The 57 tables above the pre-import baseline are 3 import audit/map tables and 54 run-scoped recovery tables; they are not permanent schema contracts and must not be removed casually.
+The active local database is `it_tech_db`; `hanoi23_db` remains the read-only legacy source. The accepted live catalog has 788 categories, 90 brands, 4,712 products, and 4,712 search rows. Read-only verification on `2026-07-13` found 288 physical tables: 160 InnoDB and 128 MyISAM, with no importer recovery/stage/restore tables and no Latin-1 tables or columns. PCM is the canonical target for source brand `0` and owns 2,276 products, including 849 enabled products.
 
 This does not prove migration state in any other environment. Follow `database-docs/ADMIN_MIGRATION_GUIDE.md`, and use `database-docs/DATABASE_TRANSFER.md` for full export/import or machine migration.
 
 ## Verification status
 
-Latest full catalog verification passed both application TypeScript/ESLint/build pipelines, 66/66 web-admin unit tests, the default integration suite, disposable destructive category/product/brand apply-and-rollback fixtures, and 15/15 runtime checks with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true`. The documentation audit reran unit tests (66 pass), the default integration suite (3 pass, 4 environment-gated skips), strict healthcheck (13/15; only the two intentionally absent collection routes returned 404), and transitional healthcheck (15/15). A full SQL archive also restored successfully into a disposable database with matching schema objects and critical catalog counts. Full 1,500-VU target testing remains pending.
+Latest full catalog verification passed both application TypeScript/ESLint/build pipelines, 84/84 web-admin unit tests, the default integration suite (3 pass, 6 environment-gated skips), and the disposable run-8 apply/rollback/re-apply, index, cleanup, and healthcheck trial. The final live healthcheck passes 15/15 with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` and PCM as the brand probe; strict mode is 14/15 because the configured legacy API collection slug returns 404 while its storefront route returns 200. The final 288-table lean backup restored successfully with matching rows, routine, triggers, and catalog/news assertions. Full 1,500-VU target testing remains pending.

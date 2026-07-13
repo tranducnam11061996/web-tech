@@ -2,6 +2,8 @@ import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql
 import pool from '@/lib/db';
 import { rebuildProductSearchData } from '@/lib/searchInfrastructure';
 import {
+  PCM_FALLBACK_BRAND_ID,
+  PCM_FALLBACK_BRAND_POLICY_VERSION,
   canonicalPcmarketBrandId,
   type BrandImportReport,
   type NormalizedBrand,
@@ -11,7 +13,6 @@ import {
 import { ensureLegacyImportTables } from './tables';
 
 const LOCK_NAME = 'web_admin:legacy_import:brands';
-const ALIAS_IDS = [34, 57] as const;
 const BRAND_ID_TABLES = ['idv_brand_category', 'idv_movie', 'idv_product_category', 'idv_product_category_for_seo', 'idv_sell_product_price', 'idv_sell_product_store'] as const;
 const RELATION_BACKUPS = ['idv_sell_product_store', 'idv_sell_product_price', 'idv_product_category', 'idv_product_category_for_seo', 'product_data_search', 'web_admin_import_entity_map'] as const;
 type Db = Pool | PoolConnection;
@@ -76,7 +77,7 @@ async function backupWhole(connection: PoolConnection, runId: number, table: str
 }
 
 function aliasCase(column = 'brandId') {
-  return `CASE ${quote(column)} WHEN 34 THEN 25 WHEN 57 THEN 31 ELSE ${quote(column)} END`;
+  return `CASE ${quote(column)} WHEN 0 THEN ${PCM_FALLBACK_BRAND_ID} WHEN 34 THEN 25 WHEN 57 THEN 31 ELSE ${quote(column)} END`;
 }
 
 export async function preflightBrandImport(sourceBrands: PcmarketBrand[], brands: NormalizedBrand[], db: Db = pool): Promise<BrandImportPreflight> {
@@ -105,11 +106,11 @@ export async function preflightBrandImport(sourceBrands: PcmarketBrand[], brands
   const unexpectedBrandIdTables = [...new Set(columnRows.map((row) => String(row.TABLE_NAME)).filter((table) => !known.has(table)))].sort();
 
   const aliasReferences: Record<string, number> = {};
-  for (const table of BRAND_ID_TABLES) aliasReferences[table] = await count(db, table, 'WHERE brandId IN (34,57)');
-  const sourceIds = sourceBrands.map((brand) => brand.id);
+  for (const table of BRAND_ID_TABLES) aliasReferences[table] = await count(db, table, 'WHERE brandId IN (0,34,57)');
+  const managedIds = [...new Set([...sourceBrands.map((brand) => brand.id), ...brands.map((brand) => brand.id)])];
   const targetOnlyBrandIds: number[] = [];
-  if (sourceIds.length) {
-    const [rows] = await db.query<RowDataPacket[]>(`SELECT id FROM idv_brand WHERE id NOT IN (${sourceIds.map(() => '?').join(',')}) ORDER BY id`, sourceIds);
+  if (managedIds.length) {
+    const [rows] = await db.query<RowDataPacket[]>(`SELECT id FROM idv_brand WHERE id NOT IN (${managedIds.map(() => '?').join(',')}) ORDER BY id`, managedIds);
     targetOnlyBrandIds.push(...rows.map((row) => Number(row.id)));
   }
   const sourceIndexes = new Set(brands.map((brand) => brand.index));
@@ -126,7 +127,7 @@ export async function preflightBrandImport(sourceBrands: PcmarketBrand[], brands
   const [brandCategoryRows] = await db.query<RowDataPacket[]>(`
     SELECT COUNT(*) AS total FROM (
       SELECT ${aliasCase('brandId')} AS canonical_brand_id,category_id
-      FROM idv_product_category WHERE brandId>0 GROUP BY canonical_brand_id,category_id
+      FROM idv_product_category WHERE ${aliasCase('brandId')}>0 GROUP BY canonical_brand_id,category_id
     ) grouped
   `);
   return {
@@ -168,17 +169,17 @@ async function createBrandStages(connection: PoolConnection, runId: number, sour
   await connection.query(`CREATE TABLE ${quote(categoryStage)} LIKE idv_brand_category`);
   await connection.query(`CREATE TABLE ${quote(movieStage)} LIKE idv_movie`);
   await connection.query(`INSERT INTO ${quote(movieStage)} SELECT * FROM idv_movie`);
-  await connection.query(`UPDATE ${quote(movieStage)} SET brandId=${aliasCase('brandId')} WHERE brandId IN (34,57)`);
+  await connection.query(`UPDATE ${quote(movieStage)} SET brandId=${aliasCase('brandId')} WHERE brandId IN (0,34,57)`);
 
-  const sourceIds = sourceBrands.map((brand) => brand.id);
-  if (sourceIds.length) {
-    const placeholders = sourceIds.map(() => '?').join(',');
-    await connection.query(`INSERT INTO ${quote(brandStage)} SELECT * FROM idv_brand WHERE id NOT IN (${placeholders})`, sourceIds);
-    await connection.query(`INSERT INTO ${quote(infoStage)} SELECT * FROM idv_brand_info WHERE id NOT IN (${placeholders})`, sourceIds);
+  const managedIds = [...new Set([...sourceBrands.map((brand) => brand.id), ...brands.map((brand) => brand.id)])];
+  if (managedIds.length) {
+    const placeholders = managedIds.map(() => '?').join(',');
+    await connection.query(`INSERT INTO ${quote(brandStage)} SELECT * FROM idv_brand WHERE id NOT IN (${placeholders})`, managedIds);
+    await connection.query(`INSERT INTO ${quote(infoStage)} SELECT * FROM idv_brand_info WHERE id NOT IN (${placeholders})`, managedIds);
   }
   const [localRows] = await connection.query<RowDataPacket[]>(`SELECT id,is_featured,brand_page_view FROM idv_brand WHERE id IN (${brands.map(() => '?').join(',')})`, brands.map((brand) => brand.id));
   const local = new Map(localRows.map((row) => [Number(row.id), { featured: Number(row.is_featured || 0), views: Number(row.brand_page_view || 0) }]));
-  const [countRows] = await connection.query<RowDataPacket[]>(`SELECT ${aliasCase('brandId')} AS canonical_brand_id,COUNT(*) AS total FROM idv_sell_product_store WHERE brandId>0 GROUP BY ${aliasCase('brandId')}`);
+  const [countRows] = await connection.query<RowDataPacket[]>(`SELECT ${aliasCase('brandId')} AS canonical_brand_id,COUNT(*) AS total FROM idv_sell_product_store WHERE ${aliasCase('brandId')}>0 GROUP BY ${aliasCase('brandId')}`);
   const productCounts = new Map(countRows.map((row) => [Number(row.canonical_brand_id), Number(row.total || 0)]));
   await insertBatches(brands, 100, (batch) => connection.query(
     `INSERT INTO ${quote(brandStage)}(id,brand_index,name,summary,image,product,status,is_featured,ordering,letter,lastUpdate,brand_page_view) VALUES ${batch.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?)').join(',')}`,
@@ -194,7 +195,7 @@ async function createBrandStages(connection: PoolConnection, runId: number, sour
   await connection.query(`
     INSERT INTO ${quote(categoryStage)}(brandId,catId,proCount,proDtCount)
     SELECT ${aliasCase('brandId')},category_id,COUNT(DISTINCT pro_id),COUNT(DISTINCT pro_id)
-    FROM idv_product_category WHERE brandId>0 GROUP BY ${aliasCase('brandId')},category_id
+    FROM idv_product_category WHERE ${aliasCase('brandId')}>0 GROUP BY ${aliasCase('brandId')},category_id
   `);
   return {
     brandStage,
@@ -232,19 +233,28 @@ async function restoreSwappedTables(connection: PoolConnection, runId: number, l
 
 async function updateAliasReferences(connection: PoolConnection) {
   for (const table of ['idv_sell_product_store', 'idv_sell_product_price', 'idv_product_category', 'idv_product_category_for_seo']) {
-    await connection.query(`UPDATE ${quote(table)} SET brandId=${aliasCase('brandId')} WHERE brandId IN (34,57)`);
+    await connection.query(`UPDATE ${quote(table)} SET brandId=${aliasCase('brandId')} WHERE brandId IN (0,34,57)`);
   }
 }
 
 async function insertAudit(connection: PoolConnection, runId: number, sourceBrands: PcmarketBrand[], brands: NormalizedBrand[]) {
   const targetBySource = new Map<number, NormalizedBrand>();
   for (const brand of brands) for (const sourceId of brand.sourceIds) targetBySource.set(sourceId, brand);
-  const records = sourceBrands.map((source) => {
+  const records: Array<{ sourceId: string; targetId: string; json: string; hash: string }> = sourceBrands.map((source) => {
     const target = targetBySource.get(source.id)!;
     const payload = { source, normalized: target, mergedInto: source.id === target.id ? null : target.id };
     const json = JSON.stringify(payload);
     return { sourceId: String(source.id), targetId: String(target.id), json, hash: productCatalogSha256(json) };
   });
+  const fallbackTarget = targetBySource.get(0);
+  if (!fallbackTarget || fallbackTarget.id !== PCM_FALLBACK_BRAND_ID) throw new Error('PCM fallback brand normalization is missing');
+  const fallbackJson = JSON.stringify({
+    source: { id: 0, meaning: 'PCMarket unassigned brand sentinel' },
+    normalized: fallbackTarget,
+    mergedInto: PCM_FALLBACK_BRAND_ID,
+    policyVersion: PCM_FALLBACK_BRAND_POLICY_VERSION,
+  });
+  records.push({ sourceId: '0', targetId: String(PCM_FALLBACK_BRAND_ID), json: fallbackJson, hash: productCatalogSha256(fallbackJson) });
   await insertBatches(records, 50, (batch) => connection.query(
     `INSERT INTO web_admin_import_records(run_id,entity,source_id,target_id,payload_hash,normalized_json,relation_status) VALUES ${batch.map(() => "(?,'brand',?,?,?,?, 'applied')").join(',')}`,
     batch.flatMap((record) => [runId, record.sourceId, record.targetId, record.hash, record.json]),
@@ -271,7 +281,7 @@ async function restoreRelations(connection: PoolConnection, runId: number) {
 
 async function countAliasReferences(db: Db) {
   let total = 0;
-  for (const table of BRAND_ID_TABLES) total += await count(db, table, 'WHERE brandId IN (34,57)');
+  for (const table of BRAND_ID_TABLES) total += await count(db, table, 'WHERE brandId IN (0,34,57)');
   return total;
 }
 
@@ -376,8 +386,9 @@ export async function rollbackBrandImport(input: { runId: number; expectedDataba
     const [locks] = await connection.query<RowDataPacket[]>('SELECT GET_LOCK(?,0) AS acquired', [LOCK_NAME]);
     if (Number(locks[0]?.acquired) !== 1) throw new Error('Another brand import is running');
     lockHeld = true;
-    const [runs] = await connection.query<RowDataPacket[]>("SELECT status FROM web_admin_import_runs WHERE id=? AND source='pcmarket' AND entity='brands' LIMIT 1", [input.runId]);
+    const [runs] = await connection.query<RowDataPacket[]>("SELECT status,rollback_closed_at FROM web_admin_import_runs WHERE id=? AND source='pcmarket' AND entity='brands' LIMIT 1", [input.runId]);
     if (!runs[0] || !['applied', 'apply_failed'].includes(String(runs[0].status))) throw new Error(`Run ${input.runId} cannot be rolled back`);
+    if (runs[0].rollback_closed_at) throw new Error(`Run ${input.runId} rollback window is closed`);
     const [later] = await connection.query<RowDataPacket[]>("SELECT id,entity FROM web_admin_import_runs WHERE status='applied' AND id>? ORDER BY id ASC LIMIT 1", [input.runId]);
     if (later.length) throw new Error(`Rollback later applied import run ${later[0].id} (${later[0].entity}) first`);
     await connection.query("UPDATE web_admin_import_runs SET status='rolling_back',completed_at=NULL,error_message='' WHERE id=?", [input.runId]);

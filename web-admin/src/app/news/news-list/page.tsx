@@ -2,6 +2,7 @@ import { ArticleListFilter } from '@/components/article-list/ArticleListFilter';
 import { ArticleListTable } from '@/components/article-list/ArticleListTable';
 import pool from '@/lib/db';
 import { parsePaginationParams } from '@/lib/admin/pagination';
+import { resolveNewsImageUrl } from '@/lib/newsImageUrl';
 
 export const revalidate = 0;
 const storefrontUrl = process.env.STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || 'http://localhost:3001';
@@ -43,7 +44,7 @@ export default async function ArticleListPage({
 
     articles = (rows as any[]).map(row => ({
       id: row.id.toString(),
-      thumbnail: row.thumnail ? `https://hacom.vn/media/news/${row.thumnail}` : '',
+      thumbnail: resolveNewsImageUrl(row.thumnail),
       title: row.title,
       url: `${storefrontUrl}/tin-tuc/${row.url}`,
       publishDate: formatDate(row.createDate),

@@ -33,14 +33,18 @@ test('merges E-DRA and TEAMGROUP into canonical runtime IDs with content fallbac
     brand(57, 'TEAMGROUP', 'teamgroup', { meta_title: 'TEAMGROUP', meta_description: 'Nội dung tiếng Việt' }),
   ], new Map([[25, 63], [31, 7]]));
   assert.equal(result.report.sourceBrands, 4);
-  assert.equal(result.report.runtimeBrands, 2);
-  assert.deepEqual(result.brands.map((item) => item.id), [25, 31]);
+  assert.equal(result.report.runtimeBrands, 3);
+  assert.deepEqual(result.brands.map((item) => item.id), [25, 31, 96]);
   assert.deepEqual(result.brands[0].sourceIds, [25, 34]);
+  assert.deepEqual(result.brands[2].sourceIds, [0]);
+  assert.equal(result.brands[2].index, 'pcm');
+  assert.equal(result.brands[2].ordering, 8_388_607);
   assert.equal(result.brands[0].productCount, 63);
   assert.equal(result.brands[1].metaTitle, 'TEAMGROUP');
   assert.equal(result.brands[1].metaDescription, 'Nội dung tiếng Việt');
   assert.equal(canonicalPcmarketBrandId(34), 25);
   assert.equal(canonicalPcmarketBrandId(57), 31);
+  assert.equal(canonicalPcmarketBrandId(0), 96);
 });
 
 test('preserves UTF-8 content, remote PCMarket images and zero-date audit semantics', () => {
@@ -61,6 +65,7 @@ test('rejects missing canonical aliases, unsafe URLs and off-domain images', () 
   assert.throws(() => normalizePcmarketBrands([brand(34, 'E-DRA', 'e-dra')]), /Missing canonical brand 25/);
   assert.throws(() => normalizePcmarketBrands([{ ...brand(2, 'Intel', 'intel'), url: 'https://example.com/brand/intel' }]), /Invalid brand URL/);
   assert.throws(() => normalizePcmarketBrands([brand(2, 'Intel', 'intel', { image: 'https://example.com/intel.png' })]), /HTTPS on pcmarket/);
+  assert.throws(() => normalizePcmarketBrands([brand(96, 'Conflicting source', 'conflict')]), /reserved PCM fallback/);
 });
 
 test('canonical brand hash is independent of source order', () => {

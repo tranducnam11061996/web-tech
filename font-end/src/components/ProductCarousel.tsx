@@ -425,6 +425,7 @@ export default function ProductCarousel({
           <button
             type="button"
             className="product-gallery-rail-arrow is-left"
+            aria-label="Cuộn ảnh sang trái"
             onClick={() => {
               if (railRef.current) {
                 railRef.current.scrollBy({ left: -300, behavior: "smooth" });
@@ -487,6 +488,7 @@ export default function ProductCarousel({
           <button
             type="button"
             className="product-gallery-rail-arrow is-right"
+            aria-label="Cuộn ảnh sang phải"
             onClick={() => {
               if (railRef.current) {
                 railRef.current.scrollBy({ left: 300, behavior: "smooth" });

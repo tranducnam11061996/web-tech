@@ -15,6 +15,12 @@ Read this before any schema-changing command. The configured local database has 
 
 ## Configured local database state
 
+### Collation migration
+
+Phase 1 completed on `it_tech_db` with plan `15f0f236257b0214617d6b3f0ec8b04d02aad19989d91f04f8044665fc5782e6`. Audit/apply/verify artifacts live outside Git under `var/migrations/collation`. The apply command must use the exact audit file as `--baseline-plan`; it verifies the stored plan hash and safely skips tables already at target on resume. A session-only permissive SQL mode is used during legacy table rebuilds so existing zero-date defaults remain byte/contract compatible, then the original session mode is restored.
+
+Do not run phase 2 casually. Once import runs 1–5 are accepted and rollback retention is closed: stop all services, create and checksum a new full dump, restore a disposable clone, audit/apply/verify with `--include-recovery`, and only then repeat against `it_tech_db`. Acceptance requires zero Latin-1 tables/columns and otherwise unchanged engines, rows, indexes, routine, triggers, and catalog counts. Rollback is restore-from-verified-archive, never an ALTER back to Latin-1.
+
 ### Combo migration
 
 The combo migration ran twice successfully against identified local database `hanoi23_db` on `2026-07-12`. It verified that `(product_id,set_id)` had no duplicates, then added two `combo_set_product` indexes and three combo-order metadata columns with two indexes. For other environments, retain the same preflight. Roll back application code first; only then, if no combo orders depend on the metadata, drop `idx_web_admin_order_meta_combo`, `idx_web_admin_order_meta_type`, the three metadata columns, `idx_combo_set_product_set_product`, and `uq_combo_set_product_product_set`. Do not remove orphan legacy rows as part of this rollback.
@@ -259,6 +265,44 @@ npm.cmd run import:legacy -- --source=pcmarket --entity=brands --rollback --run-
 ```
 
 The brand rollback restores the prior UTF-8/latin1 table definitions, MyISAM tables and InnoDB references. It is blocked while any later import run remains applied.
+
+## PCMarket article-category import
+
+The article-category entity is an initial import, not a merge with `hanoi23_db`. Dry-run fetches the PCMarket HTTPS endpoint twice, validates the strict paginated envelope and field limits, canonicalizes by source ID, requires equal SHA-256 hashes, and checks the identified target schema, engine, collation, `AUTO_INCREMENT`, routes, FK/triggers, and catalog invariants. Apply is blocked unless categories, articles, article links, article-category routes/registry, and article-category menu references are all empty.
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=article-categories --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=article-categories --apply --expected-database=it_tech_db --expected-hash=<fresh-sha256> --confirm=IMPORT_ARTICLE_CATEGORIES --backup-confirmed --maintenance-window
+```
+
+Apply preserves source IDs and `.html` slugs, writes category/canonical-route/registry/import-record/map state transactionally under an advisory lock, and retains run-scoped backups. It never imports articles, synthesizes menus/SEO content, or downloads media. Any future source media must remain a validated absolute `https://pcmarket.vn/...` URL. Rollback requires the same write/database guard and restores the exact pre-run state while retaining the imported rows for investigation:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=article-categories --rollback --run-id=<id> --expected-database=it_tech_db
+```
+
+Live run `6` applied snapshot `0a3d22d053ec9feb5f6eadf752b4191a240b5e0010515f671a84fd0a34204b04` after clone apply/verify/rollback. Acceptance matched 4 categories/routes/registry/maps/records, 0 articles/links/menu references, `AUTO_INCREMENT=76`, unchanged catalog/search/full-text/routine/trigger counts, correct UTF-8 API/storefront rendering, and 15/15 local health. The fresh rollback archive is recorded in `DATABASE_TRANSFER.md`; restore from it instead of hand-editing the live graph if run-scoped rollback cannot be used.
+
+## PCMarket article import
+
+The article entity requires the run-6 taxonomy, an empty article/content/junction/route/map target, a fresh two-pass source hash, and an explicit quarantine set:
+
+```powershell
+npm.cmd run import:legacy -- --source=pcmarket --entity=articles --dry-run --expected-database=it_tech_db
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=articles --apply --expected-database=it_tech_db --expected-hash=<fresh-sha256> --expected-quarantined=83 --confirm=IMPORT_PCMARKET_ARTICLES --backup-confirmed --maintenance-window
+```
+
+Apply stages and verifies 705 deduplicated links before atomically swapping MyISAM `idv_article_category`, then transactionally writes 668 article/content/routes/registry/maps and 669 records. If the InnoDB transaction fails, the importer restores the original junction. Live run `7` used hash `0ef9d19c682182113ce43d70b9cb6eb21045a0fb7041287a288716c78b1fab13`; do not reuse it for a later source snapshot.
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run import:legacy -- --source=pcmarket --entity=articles --rollback --run-id=7 --expected-database=it_tech_db --confirm=ROLLBACK_PCMARKET_ARTICLES
+```
+
+Rollback is blocked by a newer applied article run. It restores article/content/routes/registry/maps and the four pre-run category hashes transactionally, swaps back the original MyISAM junction, and retains imported/audit tables for investigation.
 
 ## Full database transfer
 

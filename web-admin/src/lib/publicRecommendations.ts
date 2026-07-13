@@ -4,6 +4,7 @@ import pool from '@/lib/db';
 import { getProductCardBadgesForProductIds, type ProductCardBadge } from '@/lib/productCardAttributes';
 import type { CategoryTrailItem } from '@/lib/publicBreadcrumbs';
 import { resolveProductImageUrl } from '@/lib/productImageUrl';
+import { resolveNewsImageUrl } from '@/lib/newsImageUrl';
 
 export type PublicProductCard = {
   id: number;
@@ -309,7 +310,7 @@ function toRelatedPost(row: NewsRow): RelatedPost {
     id: Number(row.id),
     title: decodeHtmlEntities(row.title).trim(),
     slug: String(row.url || '').replace(/^\/+|\/+$/g, ''),
-    thumbnail: row.thumnail ? `https://hacom.vn/media/news/${row.thumnail}` : '',
+    thumbnail: resolveNewsImageUrl(row.thumnail),
     summary: decodeHtmlEntities(row.summary).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(),
     publishedAt: row.createDate,
   };

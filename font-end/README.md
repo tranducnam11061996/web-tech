@@ -30,6 +30,8 @@ npm.cmd audit
 
 The default port is 3001. Production routing should expose backend APIs through the approved origin/proxy contract.
 
+The storefront CSP permits `unsafe-eval` only under `next dev`, because React's development diagnostics require it. Production builds keep `script-src` without `unsafe-eval`.
+
 ## Main journeys
 
 - Product detail renders the API-provided Product Group only when at least two valid sellable SKUs include the current product. It shows four SKU cards per slide, uses each SKU's real thumbnail plus prices/slugs, and issues no extra group request.

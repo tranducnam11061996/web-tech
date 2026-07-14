@@ -10,8 +10,12 @@ export async function GET() {
     const [rows] = await pool.query<RowDataPacket[]>(`SELECT
       (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='web_admin_order_requests') order_requests,
       (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='web_admin_request_limits') request_limits,
-      (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='web_admin_email_outbox') email_outbox`);
-    const databaseReady = Number(rows[0]?.order_requests) === 1 && Number(rows[0]?.request_limits) === 1 && Number(rows[0]?.email_outbox) === 1;
+      (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='web_admin_email_outbox') email_outbox,
+      (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='web_admin_customer_favorites') customer_favorites`);
+    const databaseReady = Number(rows[0]?.order_requests) === 1
+      && Number(rows[0]?.request_limits) === 1
+      && Number(rows[0]?.email_outbox) === 1
+      && Number(rows[0]?.customer_favorites) === 1;
     const prewarm = getRuntimePrewarmState();
     const ready = databaseReady && prewarm.ready;
     const status = !databaseReady ? 'migration_required' : prewarm.ready ? 'ready' : 'warming';

@@ -6,6 +6,7 @@ import ProgressiveImage from "@/components/ProgressiveImage";
 import { CommercePageFrame } from "@/components/commerce/CommercePageFrame";
 import { formatCurrency } from "@/lib/cart";
 import { setComboCart, toComboApiPayload, useComboCart } from "@/lib/comboCart";
+import { apiErrorSummary, parseStorefrontResponse } from "@/lib/storefrontApi";
 
 type QuoteItem = {
   groupIndex: number; productId: number; quantity: number; name: string; sku: string; slug: string;
@@ -45,7 +46,7 @@ function ComboCartRow({ item, fixed, onUpdate, onRemove }: {
           {fixed ? <p className="text-center text-sm text-gray-400">x1</p> : <div className="flex h-8 max-w-20 overflow-hidden rounded border border-[#27272a]">
             <button type="button" onClick={() => onUpdate?.(-1)} disabled={quantity <= 1} aria-label={`Giảm số lượng ${item.name}`} className="w-7 bg-[#0d0d10] text-gray-400 hover:bg-[#1a1a1e] disabled:cursor-not-allowed disabled:opacity-40">−</button>
             <span className="flex-1 border-x border-[#27272a] text-center text-xs font-medium leading-8 text-white">{quantity}</span>
-            <button type="button" onClick={() => onUpdate?.(1)} aria-label={`Tăng số lượng ${item.name}`} className="w-7 bg-[#0d0d10] text-gray-400 hover:bg-[#1a1a1e]">+</button>
+            <button type="button" onClick={() => onUpdate?.(1)} disabled={quantity >= 99} aria-label={`Tăng số lượng ${item.name}`} className="w-7 bg-[#0d0d10] text-gray-400 hover:bg-[#1a1a1e] disabled:cursor-not-allowed disabled:opacity-40">+</button>
           </div>}
         </div>
         <div className="hidden w-28 shrink-0 text-right lg:block"><p className="text-sm font-bold text-red-500">{formatCurrency(fixed ? item.price : (item as QuoteItem).lineTotal)}</p></div>
@@ -64,9 +65,9 @@ export default function ComboCartClient() {
     if (!cart || cart.items.length === 0) { setQuote(null); setLoading(false); return; }
     const controller = new AbortController(); setLoading(true); setError("");
     const timer = window.setTimeout(() => fetch("/api/combo-cart/quote", { method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal, body: JSON.stringify(toComboApiPayload(cart)) })
-      .then(async (response) => { const payload = await response.json(); if (!response.ok || !payload.success) throw new Error(payload?.error?.message || "Combo không còn khả dụng."); return payload.data as Quote; })
+      .then((response) => parseStorefrontResponse<Quote>(response))
       .then((data) => setQuote(data))
-      .catch((cause) => { if (!controller.signal.aborted) { setError(cause instanceof Error ? cause.message : "Không thể báo giá combo."); } })
+      .catch((cause) => { if (!controller.signal.aborted) setError(apiErrorSummary(cause)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); })
     , 250);
     return () => { window.clearTimeout(timer); controller.abort(); };

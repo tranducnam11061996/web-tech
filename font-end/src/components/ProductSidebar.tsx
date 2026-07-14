@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { addCartItem, clampQuantity } from "@/lib/cart";
 import { sanitizeLegacyHtml } from "@/lib/sanitizeHtml";
+import { normalizeProductSummaryLines } from "@/lib/productSummary";
 import type { ProductDetailData, ProductVoucherSummary } from "@/types/product-detail";
 import ProgressiveImage from "./ProgressiveImage";
 
@@ -59,12 +60,16 @@ const voucherSummary = (voucher: ProductVoucherSummary) => {
 const formatNumber = (value: number) =>
   new Intl.NumberFormat("vi-VN").format(Math.max(0, Math.round(value || 0)));
 
+const PRODUCT_SUMMARY_PREVIEW_LIMIT = 5;
+
 function ProductInformationColumn({ productData }: { productData: ProductDetailData }) {
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
   const price = Number(productData.price || 0);
   const marketPrice = Number(productData.marketPrice || 0);
   const savings = Math.max(0, Number(productData.savings || marketPrice - price || 0));
   const discountPercent = marketPrice > price && marketPrice > 0 ? Math.round((savings / marketPrice) * 100) : 0;
-  const summaryLines = (productData.proSummary || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const summaryLines = normalizeProductSummaryLines(productData.proSummary);
+  const hasSummaryOverflow = summaryLines.length > PRODUCT_SUMMARY_PREVIEW_LIMIT;
 
   return (
     <section className="product-information-column" aria-labelledby="product-detail-title">
@@ -79,10 +84,27 @@ function ProductInformationColumn({ productData }: { productData: ProductDetailD
         {productData.sku ? <span>SKU: {productData.sku}</span> : null}
         {productData.views != null ? <span>Lượt xem: {productData.views}</span> : null}
       </div>
-      {summaryLines.length > 0 ? <details className="product-summary product-summary-disclosure" id="sec-specs">
-        <summary className="product-inline-toggle"><span className="product-summary-more">Xem thêm thông số kỹ thuật</span><span className="product-summary-less">Thu gọn thông số</span><ChevronDown aria-hidden="true" /></summary>
-        <ul id="product-summary-list">{summaryLines.map((line, index) => <li key={`${line}-${index}`}><Check aria-hidden="true" /><span dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(line) }} /></li>)}</ul>
-      </details> : null}
+      {summaryLines.length > 0 ? <div className="product-summary" id="sec-specs">
+        <ul id="product-summary-list">{summaryLines.map((line, index) => (
+          <li
+            key={`${line}-${index}`}
+            hidden={hasSummaryOverflow && !isSummaryExpanded && index >= PRODUCT_SUMMARY_PREVIEW_LIMIT}
+          >
+            <Check aria-hidden="true" />
+            <span dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(line) }} />
+          </li>
+        ))}</ul>
+        {hasSummaryOverflow ? <button
+          type="button"
+          className="product-inline-toggle"
+          aria-expanded={isSummaryExpanded}
+          aria-controls="product-summary-list"
+          onClick={() => setIsSummaryExpanded((expanded) => !expanded)}
+        >
+          {isSummaryExpanded ? "Thu gọn thông số" : "Xem thêm thông số kỹ thuật"}
+          <ChevronDown aria-hidden="true" />
+        </button> : null}
+      </div> : null}
       <div className="purchase-price-card block lg:hidden mb-4">
         <div className="purchase-price-heading"><span className="purchase-price-icon-wrapper"><Flame aria-hidden="true" /></span>Giá khuyến mãi :</div>
         <div className="purchase-price-body"><strong className="purchase-price-main">{formatNumber(price)}<sup className="purchase-price-dong">đ</sup></strong>{marketPrice > price ? <div className="purchase-price-savings"><span className="purchase-price-old">{formatNumber(marketPrice)}<sup>đ</sup></span><span className="purchase-price-discount">Tiết kiệm: {formatNumber(savings)}<sup>đ</sup> ({discountPercent}%)</span></div> : null}</div>
@@ -374,5 +396,5 @@ export default function ProductSidebar({
 }: {
   productData: ProductDetailData;
 }) {
-  return <><ProductInformationColumn productData={productData} /><ProductPurchaseColumn productData={productData} /></>;
+  return <><ProductInformationColumn key={productData.id} productData={productData} /><ProductPurchaseColumn productData={productData} /></>;
 }

@@ -45,6 +45,8 @@ export function PasswordInput({
   describedBy,
   invalid,
   minLength,
+  name,
+  onBlur,
 }: {
   id: string;
   value: string;
@@ -54,6 +56,8 @@ export function PasswordInput({
   describedBy?: string;
   invalid?: boolean;
   minLength?: number;
+  name?: string;
+  onBlur?: () => void;
 }) {
   const [visible, setVisible] = useState(false);
   return (
@@ -66,12 +70,14 @@ export function PasswordInput({
       </span>
       <input
         id={id}
+        name={name}
         required
         minLength={minLength}
         type={visible ? "text" : "password"}
         autoComplete={autoComplete}
         value={value}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         aria-describedby={describedBy}
         aria-invalid={invalid || undefined}

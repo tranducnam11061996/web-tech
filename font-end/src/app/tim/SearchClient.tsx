@@ -665,12 +665,15 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                 <input
                   ref={sidebarSearchInputRef}
                   type="text"
+                  maxLength={100}
                   placeholder="Nhập từ khóa tìm kiếm bộ lọc ..."
                   className="w-full bg-[#18181b] border border-[#27272a] rounded-lg py-2 pl-8 pr-8 text-sm text-gray-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
                   value={sidebarSearchKeyword}
                   onChange={(event) => setSidebarSearchKeyword(event.target.value)}
                 />
                 <button
+                  type="button"
+                  aria-label="Đóng tìm kiếm bộ lọc"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs transition"
                   onClick={() => {
                     setIsSidebarSearchOpen(false);
@@ -736,6 +739,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                       <div className="dual-range-track" style={priceTrackStyles}></div>
                       <input
                         type="range"
+                        aria-label="Giá tối thiểu"
                         className="dual-range-slider"
                         min={priceBounds.min}
                         max={priceBounds.max}
@@ -747,6 +751,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                       />
                       <input
                         type="range"
+                        aria-label="Giá tối đa"
                         className="dual-range-slider"
                         min={priceBounds.min}
                         max={priceBounds.max}

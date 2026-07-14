@@ -18,11 +18,11 @@ Active `it_tech_db` contains the combo schema but currently has 0 `combo_set` an
 
 | Metric | Value |
 |---|---:|
-| Total physical tables | 288 |
-| InnoDB tables | 160 |
+| Total physical tables | 289 |
+| InnoDB tables | 161 |
 | MyISAM tables | 128 |
 
-After accepted cleanup of runs 2-8, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; other character tables use `utf8mb4_unicode_ci`. The 288-table total is the current lean application/audit schema.
+After accepted cleanup of runs 2-8 and the additive customer-favorites migration, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; other character tables use `utf8mb4_unicode_ci`. The 289-table total is the current lean application/audit schema.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
@@ -45,6 +45,7 @@ The additive admin migration was applied to the configured local database on `20
 - `web_admin_vouchers`, `web_admin_voucher_categories`, `web_admin_voucher_redemptions`
 - `web_admin_product_promotions`, `web_admin_product_promotion_products`, `web_admin_product_promotion_categories`
 - Storefront customer password/session/OTP/address/order-link/metrics tables
+- `web_admin_customer_favorites`
 - `web_admin_order_requests`
 - `web_admin_request_limits`
 - `web_admin_email_outbox`
@@ -246,6 +247,9 @@ Legacy `idv_customer*` tables remain read-only references. Modern storefront aut
 - `web_admin_customer_oauth_identities`: reserved for future Google/Facebook/Zalo/GitHub identity links.
 - `web_admin_storefront_order_customer`: links new signed-in storefront orders to a customer without changing `build_buy`.
 - `web_admin_storefront_customer_metrics`: transactional read model for CRM list performance (order counts, completed spend, pending orders, and latest order); it is refreshed whenever a linked order is created or changes status.
+- `web_admin_customer_favorites`: one row per saved storefront customer/product pair. `customer_id bigint unsigned` has an InnoDB FK to `web_admin_storefront_customers.id` with `ON DELETE CASCADE`; `product_id int unsigned` remains a logical reference to the legacy catalog. `id bigint unsigned` provides newest-first cursor pagination, unique `(customer_id,product_id)` prevents duplicates, `(customer_id,id)` serves lists, and `(product_id,customer_id)` serves permanent-product cleanup. Names, prices, images, and visibility are never snapshotted; reads join current public catalog rows.
+
+The favorites migration was applied on `2026-07-14` after restore-verifying `it_tech_db-pre-customer-favorites-2026-07-14T09-41-52-044Z.json` (SHA-256 `c04b1515f44b0a0e4c7b4161ac08059fdda37fa84b1ea8a86cc677f63da2d852`). The retained clone produced stable DDL SHA-256 `7cb8100fdec1f9bb2e4ac122fd9306a4a332d29b730935022a51326d75a722d7` across two migration runs and passed FK/index/EXPLAIN plus dedupe, customer isolation, cursor and cascade checks before removal. The live table initially contains 0 rows.
 
 Location names are read from `province_list`, `province_district_list`, and `province_ward_list`; the customer tables store only their ids.
 

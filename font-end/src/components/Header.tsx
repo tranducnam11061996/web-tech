@@ -405,6 +405,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                 <input
                   ref={mobileSearchRef}
                   type="text"
+                  maxLength={100}
                   placeholder={'T\u00ecm ki\u1ebfm...'}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -459,6 +460,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                   <input
                     ref={desktopSearchRef}
                     type="text"
+                    maxLength={100}
                     placeholder={'T\u00ecm s\u1ea3n ph\u1ea9m, trang v\u00e0 b\u00e0i vi\u1ebft...'}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -479,9 +481,9 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                 <ShoppingCart className="h-5 w-5" aria-hidden="true" />
                 <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
               </Link>
-              <button type="button" className="hover:text-white transition-colors" aria-label={'Y\u00eau th\u00edch'}>
+              <Link href="/yeu-thich" className="hover:text-white transition-colors" aria-label={'Y\u00eau th\u00edch'}>
                 <Heart className="h-5 w-5" aria-hidden="true" />
-              </button>
+              </Link>
               <button type="button" className="hover:text-white transition-colors" aria-label={'Tr\u1ee3 l\u00fd'}>
                 <Bot className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -751,11 +753,11 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
           </svg>
           <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
         </Link>
-        <button type="button" aria-label="Sản phẩm yêu thích" className="text-gray-400 hover:text-white transition-colors">
+        <Link href="/yeu-thich" aria-label="Sản phẩm yêu thích" className="text-gray-400 hover:text-white transition-colors">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
           </svg>
-        </button>
+        </Link>
         <button type="button" aria-label="Hỗ trợ khách hàng" className="text-gray-400 hover:text-white transition-colors">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>

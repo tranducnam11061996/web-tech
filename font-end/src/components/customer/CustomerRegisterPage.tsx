@@ -2,12 +2,25 @@
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
+import { FieldError } from "@/components/forms/FieldError";
 import { CustomerApiError, customerFetch } from "@/lib/customer";
 import {
   getCustomerRecaptchaToken,
   getRegistrationRecaptchaToken,
   loadCustomerRecaptcha,
 } from "@/lib/customerRecaptcha";
+import { apiErrorSummary } from "@/lib/storefrontApi";
+import {
+  compactErrors,
+  focusFirstInvalidField,
+  validateEmail,
+  validateName,
+  validateOtp,
+  validatePassword,
+  validatePasswordConfirmation,
+  validateVietnamPhone,
+  type FieldErrors,
+} from "@/lib/storefrontValidation";
 import {
   ArrowRight,
   AtSign,
@@ -20,14 +33,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthNotice,
   PasswordInput,
   PasswordRequirements,
   REGISTRATION_LOGIN_HINT,
   authInputClass,
-  passwordChecks,
 } from "./CustomerAuthShared";
 
 const SUCCESS_DURATION = 6000;
@@ -130,6 +142,36 @@ export function RegisterPage() {
   const [completed, setCompleted] = useState(false);
   const [website, setWebsite] = useState("");
   const [rateLimitUntil, setRateLimitUntil] = useState(0);
+  const [captchaStatus, setCaptchaStatus] = useState<"loading" | "ready" | "unconfigured" | "error">(
+    process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY?.trim() ? "loading" : "unconfigured",
+  );
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [serverFields, setServerFields] = useState<FieldErrors>({});
+  const registrationFormRef = useRef<HTMLFormElement>(null);
+  const verificationFormRef = useRef<HTMLFormElement>(null);
+
+  const registrationErrors = useMemo(() => compactErrors({
+    name: validateName(form.name),
+    email: validateEmail(form.email),
+    phone: validateVietnamPhone(form.phone),
+    password: validatePassword(form.password),
+    confirm: validatePasswordConfirmation(form.password, form.confirm),
+  }), [form]);
+  const visibleRegistrationErrors = useMemo(() => {
+    const visible: FieldErrors = { ...serverFields };
+    for (const [field, message] of Object.entries(registrationErrors)) if (touched[field]) visible[field] = message;
+    return visible;
+  }, [registrationErrors, serverFields, touched]);
+  const updateRegistrationField = (field: keyof typeof form, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+    setServerFields((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+  const touch = (field: string) => setTouched((current) => ({ ...current, [field]: true }));
 
   useEffect(() => {
     if (step !== "verify" && rateLimitUntil <= Date.now()) return;
@@ -137,7 +179,9 @@ export function RegisterPage() {
     return () => window.clearInterval(timer);
   }, [step, rateLimitUntil]);
   useEffect(() => {
-    void loadCustomerRecaptcha().catch(() => undefined);
+    void loadCustomerRecaptcha()
+      .then(() => setCaptchaStatus(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY?.trim() ? "ready" : "unconfigured"))
+      .catch(() => setCaptchaStatus("error"));
   }, []);
   const applyChallenge = (value: {
     expiresAt?: number;
@@ -160,12 +204,11 @@ export function RegisterPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
-    if (!passwordChecks(form.password).every((item) => item.valid)) {
-      setError("Mật khẩu chưa đáp ứng đầy đủ các yêu cầu bảo mật.");
-      return;
-    }
-    if (form.password !== form.confirm) {
-      setError("Mật khẩu nhập lại chưa khớp.");
+    setServerFields({});
+    setTouched({ name: true, email: true, phone: true, password: true, confirm: true });
+    if (Object.keys(registrationErrors).length) {
+      setError("Vui lòng sửa các trường được đánh dấu bên dưới.");
+      window.setTimeout(() => focusFirstInvalidField(registrationFormRef.current, registrationErrors));
       return;
     }
     setBusy(true);
@@ -177,15 +220,13 @@ export function RegisterPage() {
       })) as { expiresAt?: number; resendAvailableAt?: number };
       applyChallenge(result);
       setCode("");
+      setServerFields({});
       setStep("verify");
       setSuccess(`Mã xác minh đã được gửi tới ${form.email}.`);
     } catch (reason) {
       if (reason instanceof CustomerApiError && reason.retryAfter > 0) setRateLimitUntil(Date.now() + reason.retryAfter * 1000);
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Không thể tạo yêu cầu đăng ký.",
-      );
+      if (reason instanceof CustomerApiError) setServerFields(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -195,6 +236,12 @@ export function RegisterPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
+    const otpError = validateOtp(code);
+    if (otpError) {
+      setServerFields({ code: otpError });
+      window.setTimeout(() => focusFirstInvalidField(verificationFormRef.current, { code: otpError }));
+      return;
+    }
     setBusy(true);
     try {
       const recaptchaToken = await getCustomerRecaptchaToken("verify_email");
@@ -208,9 +255,8 @@ export function RegisterPage() {
       );
       setCompleted(true);
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Không thể xác minh mã OTP.",
-      );
+      if (reason instanceof CustomerApiError) setServerFields(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -293,7 +339,9 @@ export function RegisterPage() {
             </div>
             {step === "form" ? (
               <form
+                ref={registrationFormRef}
                 onSubmit={register}
+                noValidate
                 className="space-y-5 p-5 sm:p-8"
                 aria-busy={busy}
               >
@@ -310,21 +358,21 @@ export function RegisterPage() {
                   />
                   <input
                     id="register-name"
+                    name="name"
                     required
                     minLength={2}
                     maxLength={150}
                     autoComplete="name"
                     value={form.name}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
+                    onChange={(event) => updateRegistrationField("name", event.target.value)}
+                    onBlur={() => touch("name")}
+                    aria-invalid={Boolean(visibleRegistrationErrors.name) || undefined}
+                    aria-describedby={visibleRegistrationErrors.name ? "register-name-error" : undefined}
                     placeholder="Nguyễn Văn An"
                     className={authInputClass}
                   />
                 </div>
+                <FieldError id="register-name-error" message={visibleRegistrationErrors.name} />
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>
                     <label
@@ -340,21 +388,21 @@ export function RegisterPage() {
                       />
                       <input
                         id="register-email"
+                        name="email"
                         required
                         type="email"
                         maxLength={255}
                         autoComplete="email"
                         value={form.email}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            email: event.target.value,
-                          }))
-                        }
+                        onChange={(event) => updateRegistrationField("email", event.target.value)}
+                        onBlur={() => touch("email")}
+                        aria-invalid={Boolean(visibleRegistrationErrors.email) || undefined}
+                        aria-describedby={visibleRegistrationErrors.email ? "register-email-error" : undefined}
                         placeholder="ban@example.com"
                         className={authInputClass}
                       />
                     </div>
+                    <FieldError id="register-email-error" message={visibleRegistrationErrors.email} />
                   </div>
                   <div>
                     <label
@@ -370,23 +418,22 @@ export function RegisterPage() {
                       />
                       <input
                         id="register-phone"
+                        name="phone"
                         required
                         type="tel"
-                        maxLength={16}
-                        pattern="(?:0|\+84)[0-9\s.-]{9,14}"
+                        maxLength={20}
                         inputMode="tel"
                         autoComplete="tel"
                         value={form.phone}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            phone: event.target.value,
-                          }))
-                        }
+                        onChange={(event) => updateRegistrationField("phone", event.target.value)}
+                        onBlur={() => touch("phone")}
+                        aria-invalid={Boolean(visibleRegistrationErrors.phone) || undefined}
+                        aria-describedby={visibleRegistrationErrors.phone ? "register-phone-error" : undefined}
                         placeholder="09xx xxx xxx"
                         className={authInputClass}
                       />
                     </div>
+                    <FieldError id="register-phone-error" message={visibleRegistrationErrors.phone} />
                   </div>
                 </div>
                 <div className="grid gap-5 sm:grid-cols-2">
@@ -399,14 +446,16 @@ export function RegisterPage() {
                     </label>
                     <PasswordInput
                       id="register-password"
+                      name="password"
                       minLength={8}
                       value={form.password}
-                      onChange={(value) =>
-                        setForm((current) => ({ ...current, password: value }))
-                      }
+                      onChange={(value) => updateRegistrationField("password", value)}
+                      onBlur={() => touch("password")}
                       autoComplete="new-password"
-                      describedBy="register-password-hint"
+                      describedBy={`register-password-hint${visibleRegistrationErrors.password ? " register-password-error" : ""}`}
+                      invalid={Boolean(visibleRegistrationErrors.password)}
                     />
+                    <FieldError id="register-password-error" message={visibleRegistrationErrors.password} />
                   </div>
                   <div>
                     <label
@@ -418,16 +467,16 @@ export function RegisterPage() {
                     </label>
                     <PasswordInput
                       id="register-confirm"
+                      name="confirm"
                       minLength={8}
                       value={form.confirm}
-                      onChange={(value) =>
-                        setForm((current) => ({ ...current, confirm: value }))
-                      }
+                      onChange={(value) => updateRegistrationField("confirm", value)}
+                      onBlur={() => touch("confirm")}
                       autoComplete="new-password"
-                      invalid={Boolean(
-                        form.confirm && form.confirm !== form.password,
-                      )}
+                      invalid={Boolean(visibleRegistrationErrors.confirm)}
+                      describedBy={visibleRegistrationErrors.confirm ? "register-confirm-error" : undefined}
                     />
+                    <FieldError id="register-confirm-error" message={visibleRegistrationErrors.confirm} />
                   </div>
                 </div>
                 <PasswordRequirements password={form.password} id="register-password-hint" />
@@ -435,7 +484,7 @@ export function RegisterPage() {
                   <label htmlFor="register-website">Website</label>
                   <input id="register-website" tabIndex={-1} autoComplete="off" value={website} onChange={(event) => setWebsite(event.target.value)} />
                 </div>
-                <div className="flex items-center gap-4 rounded-xl border border-[#2c394c] bg-[#0a0e16] p-4">
+                <div className="flex items-center gap-4 rounded-xl border border-[#2c394c] bg-[#0a0e16] p-4" role="status" aria-live="polite">
                   <div className="flex items-center gap-3">
                     <ShieldCheck
                       className="h-5 w-5 text-[#77caff]"
@@ -445,8 +494,14 @@ export function RegisterPage() {
                       <p className="text-xs font-bold text-slate-300">
                         Được bảo vệ bởi reCAPTCHA
                       </p>
-                      <p className="mt-1 text-[11px] text-slate-600">
-                        Hệ thống tự động phát hiện hành vi bất thường và giới hạn yêu cầu spam.
+                      <p className={`mt-1 text-[11px] ${captchaStatus === "error" || serverFields.recaptchaToken ? "text-red-300" : captchaStatus === "unconfigured" ? "text-amber-300" : "text-slate-600"}`}>
+                        {serverFields.recaptchaToken || (captchaStatus === "loading"
+                          ? "Đang tải hệ thống chống bot..."
+                          : captchaStatus === "ready"
+                            ? "Hệ thống chống bot đã sẵn sàng."
+                            : captchaStatus === "error"
+                              ? "Không thể tải hệ thống chống bot. Hãy kiểm tra kết nối hoặc trình chặn nội dung."
+                              : "Chưa cấu hình site key reCAPTCHA. Chỉ có thể gửi nếu backend local đang bật development bypass.")}
                       </p>
                     </div>
                   </div>
@@ -461,7 +516,7 @@ export function RegisterPage() {
                 <AuthNotice error={error} success={success} />
               </form>
             ) : (
-              <form onSubmit={verify} className="p-5 sm:p-8" aria-busy={busy}>
+              <form ref={verificationFormRef} onSubmit={verify} noValidate className="p-5 sm:p-8" aria-busy={busy}>
                 <div className="mx-auto max-w-md text-center">
                   <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-[#56bffb]/40 bg-[#56bffb]/10 text-[#80d0ff]">
                     <MailCheck className="h-7 w-7" aria-hidden="true" />
@@ -481,17 +536,22 @@ export function RegisterPage() {
                   </label>
                   <input
                     id="registration-code"
+                    name="code"
                     required
                     inputMode="numeric"
                     pattern="[0-9]{6}"
                     autoComplete="one-time-code"
                     value={code}
                     onChange={(event) =>
-                      setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                      { setCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setServerFields((current) => { const next = { ...current }; delete next.code; return next; }); }
                     }
+                    onBlur={() => setServerFields((current) => ({ ...current, code: validateOtp(code) }))}
+                    aria-invalid={Boolean(serverFields.code) || undefined}
+                    aria-describedby={serverFields.code ? "registration-code-error" : undefined}
                     placeholder="000000"
                     className="auth-otp-input mt-2 w-full rounded-xl border border-[#314158] bg-[#080c13] px-4 py-4 text-center font-mono text-2xl font-black tracking-[.48em] text-white outline-none focus:border-[#55b8ff] focus:ring-2 focus:ring-[#55b8ff]/20"
                   />
+                  <FieldError id="registration-code-error" message={serverFields.code} />
                   <p
                     className={`mt-3 text-xs ${remainingSeconds > 0 ? "text-slate-500" : "text-amber-300"}`}
                   >

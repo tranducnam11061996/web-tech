@@ -2,8 +2,11 @@
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-import { customerFetch, useCustomerSession } from "@/lib/customer";
+import { FieldError } from "@/components/forms/FieldError";
+import { CustomerApiError, customerFetch, useCustomerSession } from "@/lib/customer";
 import { getCustomerRecaptchaToken } from "@/lib/customerRecaptcha";
+import { apiErrorSummary } from "@/lib/storefrontApi";
+import { focusFirstInvalidField, validateEmail, validateVietnamPhone, type FieldErrors } from "@/lib/storefrontValidation";
 import {
   AtSign,
   Check,
@@ -80,7 +83,14 @@ function LoginWelcomeModal({ name }: { name: string }) {
   </div>;
 }
 
-export function LoginPage() {
+export function LoginPage({
+  favoriteProductId = null,
+  returnTo = null,
+}: {
+  favoriteProductId?: number | null;
+  returnTo?: string | null;
+}) {
+  const router = useRouter();
   const { reload } = useCustomerSession();
   const [mode, setMode] = useState<LoginMode>("email");
   const [identifier, setIdentifier] = useState("");
@@ -90,6 +100,22 @@ export function LoginPage() {
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   const [welcomeName, setWelcomeName] = useState("");
+  const [favoriteContinuationError, setFavoriteContinuationError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const identifierError = mode === "email" ? validateEmail(identifier) : validateVietnamPhone(identifier);
+  const passwordError = password ? "" : "Vui lòng nhập mật khẩu.";
+  const visibleIdentifierError = fieldErrors.identifier || (touched.identifier ? identifierError : "");
+  const visiblePasswordError = fieldErrors.password || (touched.password ? passwordError : "");
+
+  const completeLoginContinuation = useCallback(async () => {
+    if (favoriteProductId) {
+      await customerFetch(`/api/customer/favorites/${favoriteProductId}`, { method: "PUT" });
+    }
+    router.replace(returnTo || "/yeu-thich");
+  }, [favoriteProductId, returnTo, router]);
 
   useEffect(() => {
     try {
@@ -112,6 +138,17 @@ export function LoginPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
+    setFavoriteContinuationError("");
+    setFieldErrors({});
+    setTouched({ identifier: true, password: true });
+    const clientErrors: FieldErrors = {};
+    if (identifierError) clientErrors.identifier = identifierError;
+    if (passwordError) clientErrors.password = passwordError;
+    if (Object.keys(clientErrors).length) {
+      setError("Vui lòng sửa các trường được đánh dấu bên dưới.");
+      window.setTimeout(() => focusFirstInvalidField(formRef.current, clientErrors));
+      return;
+    }
     setBusy(true);
     try {
       const recaptchaToken = await getCustomerRecaptchaToken("customer_login");
@@ -120,11 +157,21 @@ export function LoginPage() {
         body: JSON.stringify({ identifier, password, rememberMe, recaptchaToken }),
       });
       const nextUser = await reload();
-      setWelcomeName(nextUser?.name?.trim() || "bạn");
+      if (favoriteProductId || returnTo) {
+        try {
+          await completeLoginContinuation();
+        } catch (reason) {
+          setSuccess("Đăng nhập thành công.");
+          setFavoriteContinuationError(
+            reason instanceof Error ? reason.message : "Không thể lưu sản phẩm yêu thích.",
+          );
+        }
+      } else {
+        setWelcomeName(nextUser?.name?.trim() || "bạn");
+      }
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Không thể đăng nhập.",
-      );
+      if (reason instanceof CustomerApiError) setFieldErrors(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -228,6 +275,8 @@ export function LoginPage() {
                   onClick={() => {
                     setMode("email");
                     setIdentifier("");
+                    setFieldErrors({});
+                    setTouched({});
                   }}
                   className={`flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${mode === "email" ? "bg-[#182337] text-[#8bd2ff] shadow-inner" : "text-slate-500 hover:text-slate-300"}`}
                 >
@@ -241,6 +290,8 @@ export function LoginPage() {
                   onClick={() => {
                     setMode("phone");
                     setIdentifier("");
+                    setFieldErrors({});
+                    setTouched({});
                   }}
                   className={`flex items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 ${mode === "phone" ? "bg-[#182337] text-[#8bd2ff] shadow-inner" : "text-slate-500 hover:text-slate-300"}`}
                 >
@@ -249,7 +300,9 @@ export function LoginPage() {
                 </button>
               </div>
               <form
+                ref={formRef}
                 onSubmit={submit}
+                noValidate
                 className="mt-6 space-y-5"
                 aria-busy={busy}
               >
@@ -270,21 +323,24 @@ export function LoginPage() {
                   </span>
                   <input
                     id="login-identifier"
+                    name="identifier"
                     required
                     maxLength={255}
-                    aria-invalid={Boolean(error) || undefined}
-                    aria-describedby={error ? "login-form-error" : undefined}
+                    aria-invalid={Boolean(visibleIdentifierError) || undefined}
+                    aria-describedby={visibleIdentifierError ? "login-identifier-error" : undefined}
                     type={mode === "email" ? "email" : "tel"}
                     inputMode={mode === "email" ? "email" : "tel"}
                     autoComplete={mode === "email" ? "email" : "tel"}
                     value={identifier}
-                    onChange={(event) => setIdentifier(event.target.value)}
+                    onChange={(event) => { setIdentifier(event.target.value); setFieldErrors((current) => { const next = { ...current }; delete next.identifier; return next; }); }}
+                    onBlur={() => setTouched((current) => ({ ...current, identifier: true }))}
                     placeholder={
                       mode === "email" ? "ban@example.com" : "09xx xxx xxx"
                     }
                     className={authInputClass}
                   />
                 </div>
+                <FieldError id="login-identifier-error" message={visibleIdentifierError} />
                 <label
                   htmlFor="login-password"
                   className="block text-sm font-semibold text-slate-200"
@@ -294,11 +350,16 @@ export function LoginPage() {
                 <div className="-mt-3">
                   <PasswordInput
                     id="login-password"
+                    name="password"
                     value={password}
-                    onChange={setPassword}
+                    onChange={(value) => { setPassword(value); setFieldErrors((current) => { const next = { ...current }; delete next.password; return next; }); }}
+                    onBlur={() => setTouched((current) => ({ ...current, password: true }))}
+                    invalid={Boolean(visiblePasswordError)}
+                    describedBy={visiblePasswordError ? "login-password-error" : undefined}
                     autoComplete="current-password"
                   />
                 </div>
+                <FieldError id="login-password-error" message={visiblePasswordError} />
                 <div className="flex items-center justify-between gap-4 text-sm">
                   <label className="inline-flex cursor-pointer items-center gap-2 text-slate-400">
                     <input
@@ -324,6 +385,39 @@ export function LoginPage() {
                 </button>
                 <div id="login-form-error"><AuthNotice error={error} success={success} /></div>
               </form>
+              {favoriteContinuationError ? (
+                <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-400/5 p-4" role="alert">
+                  <p className="text-sm font-bold text-amber-100">{favoriteContinuationError}</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">Tài khoản đã đăng nhập. Bạn có thể thử lưu lại hoặc mở danh sách hiện có.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setFavoriteContinuationError("");
+                        try {
+                          await completeLoginContinuation();
+                        } catch (reason) {
+                          setFavoriteContinuationError(reason instanceof Error ? reason.message : "Không thể lưu sản phẩm yêu thích.");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                      className="rounded-lg bg-amber-300 px-3 py-2 text-xs font-black text-slate-950 outline-none focus-visible:ring-2 focus-visible:ring-amber-100 disabled:opacity-60"
+                    >
+                      {busy ? "Đang thử lại..." : "Thử lưu lại"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.replace("/yeu-thich")}
+                      className="rounded-lg border border-slate-500 px-3 py-2 text-xs font-bold text-slate-200 outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                    >
+                      Mở danh sách yêu thích
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <button
                 type="button"
                 disabled

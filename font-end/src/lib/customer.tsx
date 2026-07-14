@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { StorefrontApiError } from "@/lib/storefrontApi";
 
 export type CustomerAddress = {
   id: number;
@@ -39,13 +40,17 @@ export type CustomerUser = {
   defaultAddress: CustomerAddress | null;
 };
 
-export class CustomerApiError extends Error {
+export class CustomerApiError extends StorefrontApiError {
   constructor(
     message: string,
-    public code = "REQUEST_FAILED",
-    public retryAfter = 0,
+    code = "REQUEST_FAILED",
+    retryAfter = 0,
+    status = 0,
+    fields: Record<string, string> = {},
+    requestId = "",
   ) {
-    super(message);
+    super(message, status, code, fields, requestId, retryAfter);
+    this.name = "CustomerApiError";
   }
 }
 
@@ -69,6 +74,9 @@ export async function customerFetch(path: string, init?: RequestInit) {
       payload?.error?.message || "Không thể xử lý yêu cầu.",
       payload?.error?.code,
       Number(payload?.error?.retryAfter || response.headers.get("retry-after") || 0),
+      response.status,
+      payload?.error?.fields || {},
+      String(payload?.requestId || payload?.error?.requestId || response.headers.get("x-request-id") || ""),
     );
   return payload.data;
 }

@@ -795,6 +795,9 @@ export async function deleteProduct(id: number, mode: string) {
     if (await tableExists(connection, 'web_admin_product_images')) {
       await connection.query('DELETE FROM web_admin_product_images WHERE product_id = ?', [id]);
     }
+    if (await tableExists(connection, 'web_admin_customer_favorites')) {
+      await connection.query('DELETE FROM web_admin_customer_favorites WHERE product_id = ?', [id]);
+    }
     await deleteBuyingGuideForEntity(connection, 'product', id);
     await connection.query('DELETE FROM idv_sell_product_info WHERE id = ?', [id]);
     await connection.query('DELETE FROM idv_sell_product_price WHERE id = ?', [id]);

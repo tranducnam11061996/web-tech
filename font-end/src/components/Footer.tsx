@@ -29,12 +29,13 @@ export default function Footer() {
           <div className="bg-dark-card border border-dark-border rounded-2xl p-6 shadow-sm">
             <h4 className="text-white font-bold text-base mb-1">Stay updated</h4>
             <p className="text-xs text-gray-500 mb-5">Get the latest deals and tech news</p>
-            <div className="flex gap-3">
-              <input type="email" placeholder="Your Email Address"
-                className="bg-transparent border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white w-full focus:outline-none focus:border-cyan-500 transition-colors placeholder-gray-600" />
-              <button
-                className="bg-transparent border border-cyan-500 text-cyan-400 hover:bg-cyan-500 hover:text-white rounded-lg px-5 py-2.5 text-sm font-semibold transition-all whitespace-nowrap shadow-sm shadow-cyan-500/10">Subscribe</button>
+            <div className="flex gap-3" aria-describedby="newsletter-unavailable">
+              <input type="email" disabled aria-label="Email nhận bản tin" placeholder="Your Email Address"
+                className="bg-transparent border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-white w-full disabled:cursor-not-allowed disabled:opacity-50 placeholder-gray-600" />
+              <button type="button" disabled aria-describedby="newsletter-unavailable"
+                className="cursor-not-allowed rounded-lg border border-cyan-500/40 bg-transparent px-5 py-2.5 text-sm font-semibold text-cyan-400/60 opacity-70 whitespace-nowrap">Sắp ra mắt</button>
             </div>
+            <p id="newsletter-unavailable" className="mt-2 text-[11px] text-gray-500">Tính năng đăng ký nhận tin đang được phát triển.</p>
           </div>
         </div>
 

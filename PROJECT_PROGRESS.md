@@ -20,26 +20,40 @@ Last updated: `2026-07-14`
 | Product promotion display | Code/schema implemented; active catalog unpopulated | Admin CRUD, scope/schedule/priority resolver, and detail rendering exist; `it_tech_db` currently has 0 product promotions |
 | Product video and specification utilities | Implemented locally | Detail payload safely normalizes legacy YouTube video data, utility cards are data-conditional, and the video/specification dialogs support keyboard close, focus containment, and trigger-focus restoration |
 | Customer accounts | Implemented | Registration/OTP/login/reset/profile/address/order flows and admin CRM surfaces exist |
+| Customer product favorites | Implemented, migrated, and browser-tested | Additive customer/product relation, authenticated bounded APIs, batched mounted-card status, login continuation, and standalone cursor-paginated `/yeu-thich` page; live table starts empty |
 | Admin auth and RBAC | Implemented | Session, role/permission checks, write gate, audit surfaces, login throttling |
 | Admin content/catalog | Implemented first production-oriented pass | Product/category/article/menu/banner/collection/voucher/customer/order/user/role management |
 | Search | Implemented | Runtime search in `web-admin`, prewarm/single-flight, signed webhook; `search-tool` is reference only |
 | Runtime topology | Implemented as configuration | Caddy, PM2, readiness/liveness, two API workers, storefront, background worker |
-| Database cutover and runtime collation | Applied and accepted on `it_tech_db` | Runtime points to `it_tech_db`; accepted recovery cleanup leaves zero Latin-1 tables/columns and 288 physical tables; `hanoi23_db` remained untouched |
+| Database cutover and runtime collation | Applied and accepted on `it_tech_db` | Runtime points to `it_tech_db`; accepted recovery cleanup plus additive favorites migration leaves zero Latin-1 tables/columns and 289 physical tables; `hanoi23_db` remained untouched |
 | PCMarket category import | Applied to `it_tech_db` | Run 2 imported 788 categories and 788 unique routes; 60 roots, depth 3, 722/66 status; run 3 applied all 162 category-attribute links |
 | Product category routes/tree scope | Applied and locally verified | 788/788 routes are canonical with zero hash/orphan/duplicate failures; enabled descendant scope is shared by product/count/price/filter APIs; category 521 returns 34 distinct enabled products |
+| Product-description disclosure | Implemented and browser-tested | Long descriptions keep their visible bounded preview and expand/collapse with a native accessible control; the article body is never hidden in the initial state |
+| Product-description missing-article fallback | Implemented and browser-tested | Products without article HTML reuse the existing disclosure/content structure, show their name without the `Đánh giá:` prefix plus the existing thumbnail and an unmarked normalized `proSummary` list; the collapse-height reference and article path are retained |
+| Responsive product technical specifications | Implemented and production-tested | On desktop, a naturally taller specification table clips to the description's collapsed height and keeps the modal action; the independent outer boundary follows the current description height so `top-6` sticky persists until its bottom. A fitting table renders fully without an overlay/action. Mobile retains the existing `66vh` behavior |
+| Empty similar-product detail section | Implemented and browser-tested | The entire similar-products region is omitted when the supplemental recommendation list is empty; other product-detail related sections remain independent |
+| Product-detail quick specifications | Implemented and browser-tested | Summaries with at most five non-empty rows show in full without a toggle; longer summaries show five rows initially and expand/collapse through an accessible native button |
 | Storefront catalog pagination | Implemented and browser-tested | Category/search pagination is URL-driven and SSR-safe; page-two reload/history works, filters reset to page one, and API failures render an inline retry instead of the route error boundary |
 | Progressive image hydration | Implemented and production-smoked | Cached success and failure are reconciled after hydration across the shared image component; 16/16 Playwright and category/product/news smoke report zero loaded images stuck blurred |
+| Product-card image framing | Implemented and production-tested | Real product cards use a non-shrinking square frame with centered `object-fit: contain`; portrait/landscape/square assets and all supported card surfaces pass desktop/mobile and four-breakpoint checks |
 | PCMarket product import | Applied to `it_tech_db` | Run 3 imported 4,712 products/search rows, 14,455 category links, 17,603 attribute links, 91 brands, 45 attributes, and 426 values; images remain remote HTTPS PCMarket URLs; incomplete variant/config/combo data remains audit-only pending |
 | PCMarket brand sync | Run 8 applied and accepted on `it_tech_db` | Public PCM policy maps `0 -> 96`; E-DRA/TEAMGROUP keep `34 -> 25` and `57 -> 31`; runtime has 90 brand/info rows, 1,587 brand-category rows, PCM 2,276/849 products, and zero noncanonical references |
 | PCMarket article-category import | Applied to `it_tech_db` | Run 6 imported 4 enabled UTF-8 root categories with source IDs, `.html` routes, registry/map/record audit rows, and no article/menu writes; clone apply/verify/rollback and live smoke passed |
 | PCMarket article import | Applied to `it_tech_db` | Run 7 imported 668 articles/content rows, 705 unique category links and 668 routes/registry/maps; ID 83 is quarantined and no menu was created |
 | Database transfer | Final lean backup locally restore-verified | Final bundle has 288 tables, 84,040 rows, 1 routine, 2 triggers, SHA-256 `941f3b5a...`; destination-version compatibility still requires target testing |
-| Functional verification | Passed for category-route cutover | Both typecheck/lint/build pipelines pass; 88/88 unit tests, default integration suite, destructive category fixture, route clone apply/rollback/re-apply, visible storefront smoke, and 15/15 runtime healthcheck passed |
+| Functional verification | Validation change passed; two unrelated UI assertions remain | Both typecheck/lint/build pipelines pass; 94/94 unit tests, default integration 3 pass/6 fixture-gated skips, and the focused validation/accessibility Playwright run passes 14/14. The full storefront run is 56 pass/2 expected skips/2 existing product-description fallback width failures; the last temporary-production healthcheck remains 15/15 and was not rerun against the currently active development servers. |
 | 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
 ## Completed implementation highlights
 
+- Added customer product favorites end to end: an InnoDB relation with customer cascade and logical product cleanup, session-only list/status/idempotent mutation APIs, mounted-card status batching, optimistic synchronized hearts, login-save continuation, a noindex `/yeu-thich` grid with retry/load-more/remove, and header entry points. A restore-verified pre-migration backup and disposable clone trial preceded the live migration.
+- Repaired product-description disclosure so its preview is visible while collapsed; a focused client wrapper owns only the expand state and preserves the server-rendered sanitized article body.
+- Added a server-rendered no-article product-description fallback: it reuses the thumbnail and normalized summary lines in semantic but visually unmarked list markup, while retaining the normal article disclosure whenever article HTML exists.
+- Added a minimal client-only height controller around server-rendered technical specifications. It batches live DOM measurements, handles streamed node replacement and responsive changes, retries transient zero-size startup measurements, keeps the visible preview tied to the collapsed description height, and drives an independent current-height sticky boundary plus CSS-only `pending`/`clipped`/`full` states without serializing the specification HTML.
+- Removed the product-detail similar-products empty state: no recommendation cards now means no heading, card frame, grid, or section semantics in the rendered page.
+- Replaced the broken closed `<details>` summary with a five-row preview and native ARIA disclosure; all rows remain in the DOM, hidden overflow is removed from the accessibility tree, and product changes reset the preview to collapsed.
 - Replaced the mount-time progressive-image reset with source-bound state plus cached DOM reconciliation, preserving callbacks/fallbacks while preventing cached hard refreshes from remaining at `blur-sm`/`blur-md` loading styles.
+- Standardized real product-card media on one CSS-only square/contain contract and aligned its loading skeleton; `flex-shrink: 0` preserves the square inside constrained legacy mobile cards.
 - Replaced invalid client-side `new URL('/api/...')` construction in category/search pagination with same-origin rewritten requests, canonical `?page=N` state, bounded SSR page parsing, request cancellation, local retry UX, and accessible pagination controls.
 - Repaired all 788 live product-category routes from legacy type `0` to `product:category` with exact preimage hash `7ad32ed2cbdc7ccc99b3f89703d637c8592a28b8209b21074eec70cc6ada18c7`; no route hash, orphan, or duplicate changed.
 - Added exact-prefix catalog resolution, canonical route writes in the importer/admin, read-only applied-route assertions, guarded external-artifact repair/rollback, shared enabled-descendant scope, category cache invalidation, and the measured `(parentId,status,id)` index.
@@ -83,7 +97,7 @@ Last updated: `2026-07-14`
 | `font-end` ESLint `--quiet` | Pass |
 | `web-admin` production build | Pass |
 | `font-end` production build | Pass |
-| Web-admin unit tests | 84/84 pass after PCM policy and cleanup implementation |
+| Web-admin unit tests | 94/94 pass |
 | Default DB integration suite | 3 pass, 6 environment-gated skips; article apply/rollback also passed on the disposable clone |
 | Destructive importer integration | Category, product, and brand apply/rollback passed independently on disposable databases, then the databases were dropped |
 | npm audit in both apps | 0 known vulnerabilities |
@@ -92,7 +106,7 @@ Last updated: `2026-07-14`
 | Liveness/readiness/storefront | HTTP 200 |
 | Invalid quote/origin/order-key/webhook probes | Expected safe 4xx/5xx responses |
 | Full k6 1,500 VU | Not run on production-like host |
-| Playwright + axe | 16/16 pass: desktop 8/8 and mobile 8/8, including pagination, cached hard-refresh images, one-shot fallback and existing accessibility journeys |
+| Playwright + axe | Validation/accessibility subset 14/14 pass across desktop/mobile. Full suite: 56 pass, 2 expected project-specific skips, and 2 product-description fallback width assertions fail independently of the validation change (image is 7.8–17.3 px narrower than its container). |
 | Lighthouse CI | Configuration added; local Windows Chrome run was inconclusive because the temporary profile cleanup failed with `EPERM`, so staging artifacts remain required |
 | Regression bundle budget | Pass: product 219.9 KB; commerce 157.5-167.0 KB |
 | Strict release bundle budget | Product detail fails 219.9 KB >205 KB; commerce passes <170 KB |
@@ -117,6 +131,13 @@ These results are development-machine observations and must not be used as produ
 4. Exercise destination-version database restore, graceful PM2/Caddy restart, worker crash recovery, and outbox retry/backoff against staging.
 5. Add integration/E2E coverage for remaining write-route groups and forms; focus on upload, RBAC, OTP/session revoke, concurrent vouchers, `429`, keyboard/focus, and offline failures.
 6. Audit remaining legacy admin screens for API parity, canonical Zod schemas, and uniform field-level error UX.
+
+## Storefront validation status (2026-07-14)
+
+- Added shared client validators and structured API errors retaining HTTP status, code, field paths, retry delay, and request ID.
+- Registration and customer/commerce forms now report specific field, CAPTCHA, network, and server errors with accessible associations; checkout receiver/invoice/delivery validation is canonical on the backend.
+- Quantity/voucher/search/price controls are bounded before navigation or quote calls. Newsletter and comments are explicitly unavailable instead of presenting fake submissions.
+- No database schema or data changed. Production reCAPTCHA/SMTP environment verification remains a release gate.
 
 ## Known risks and blockers
 

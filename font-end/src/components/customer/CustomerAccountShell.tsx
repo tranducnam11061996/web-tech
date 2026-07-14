@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
-import { KeyRound, LayoutList, LogOut, MapPin, UserRound } from "lucide-react";
+import { Heart, KeyRound, LayoutList, LogOut, MapPin, UserRound } from "lucide-react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import { useCustomerSession } from "@/lib/customer";
@@ -11,6 +11,7 @@ import { useCustomerSession } from "@/lib/customer";
 const items = [
   { href: "/tai-khoan", label: "Thông tin tài khoản", icon: UserRound },
   { href: "/tai-khoan/don-hang", label: "Đơn hàng của tôi", icon: LayoutList },
+  { href: "/yeu-thich", label: "Sản phẩm đã lưu", icon: Heart, newTab: true },
   { href: "/tai-khoan/so-dia-chi", label: "Sổ địa chỉ", icon: MapPin },
   { href: "/tai-khoan/doi-mat-khau", label: "Đổi mật khẩu", icon: KeyRound },
 ];
@@ -61,6 +62,8 @@ export default function CustomerAccountShell({
                 <Link
                   key={item.href}
                   href={item.href}
+                  target={item.newTab ? "_blank" : undefined}
+                  rel={item.newTab ? "noopener noreferrer" : undefined}
                   className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium outline-none transition focus:ring-2 focus:ring-cyan-400 ${active ? "bg-cyan-400/10 text-cyan-200" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />

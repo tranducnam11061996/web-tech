@@ -6,6 +6,7 @@ import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import ProductGridCard, { type ProductGridCardData } from "@/components/ProductGridCard";
 import { internalApiUrl } from "@/lib/apiUrl";
+import { BrandCatalogFilters } from "@/components/catalog/BrandCatalogFilters";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type BrandPayload = {
@@ -90,12 +91,7 @@ export default async function BrandPage({ params, searchParams }: { params: Prom
         </div>
       </section>
 
-      <form method="get" className="mt-6 grid gap-3 rounded-xl border border-zinc-800 bg-zinc-950/80 p-4 sm:grid-cols-[1fr_1fr_1fr_auto]" aria-label="Lọc sản phẩm thương hiệu">
-        <label className="text-xs font-semibold text-zinc-400">Sắp xếp<select name="sort" defaultValue={currentSort} className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-white"><option value="newest">Mới nhất</option><option value="price_asc">Giá tăng dần</option><option value="price_desc">Giá giảm dần</option></select></label>
-        <label className="text-xs font-semibold text-zinc-400">Giá từ<input name="min-price" type="number" min="0" defaultValue={first(resolvedSearch["min-price"]) || ""} placeholder={String(priceBounds.min)} className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-white" /></label>
-        <label className="text-xs font-semibold text-zinc-400">Giá đến<input name="max-price" type="number" min="0" defaultValue={first(resolvedSearch["max-price"]) || ""} placeholder={String(priceBounds.max)} className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-white" /></label>
-        <button type="submit" className="self-end rounded-lg bg-cyan-400 px-5 py-2.5 text-sm font-black text-slate-950 hover:bg-cyan-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300">Áp dụng</button>
-      </form>
+      <BrandCatalogFilters sort={currentSort} minPrice={first(resolvedSearch["min-price"]) || ""} maxPrice={first(resolvedSearch["max-price"]) || ""} bounds={priceBounds} />
 
       {products.length ? <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6" aria-label={`Sản phẩm ${brand.name}`}>{products.map((product) => <ProductGridCard key={product.id} product={product} />)}</section> : <section className="mt-6 rounded-2xl border border-dashed border-zinc-700 px-6 py-20 text-center"><h2 className="text-xl font-bold">Chưa có sản phẩm phù hợp</h2><p className="mt-2 text-zinc-400">Hãy bỏ khoảng giá hoặc quay lại sau khi catalog được cập nhật.</p><Link href={`/brand/${brand.slug}`} className="mt-5 inline-flex rounded-lg border border-zinc-600 px-4 py-2 text-sm font-semibold hover:border-cyan-400">Xóa bộ lọc</Link></section>}
 

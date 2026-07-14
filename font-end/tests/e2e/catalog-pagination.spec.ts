@@ -73,6 +73,19 @@ test("category pagination is URL-driven, reloadable, and resets for filters", as
   expect(pageErrors).toEqual([]);
 });
 
+test("opening a product card from a category starts at the product header", async ({ page }) => {
+  await page.goto(categoryPath);
+  const productLink = page.locator("#productGrid article a[href^='/']").first();
+  await expect(productLink).toBeVisible();
+
+  await page.evaluate(() => window.scrollTo(0, 700));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+  await productLink.click();
+  await page.waitForURL((url) => url.pathname !== categoryPath);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+});
+
 test("category pagination failure stays local and retry succeeds", async ({ page }) => {
   const pageErrors = capturePageErrors(page);
   let failedOnce = false;
@@ -199,5 +212,10 @@ test("a failed progressive image switches once to a clear placeholder", async ({
   await expect(firstImage).toHaveAttribute("src", /^data:image\/svg\+xml/);
   await expect(firstImage).toHaveClass(/opacity-100/);
   await expect(firstImage).toHaveClass(/blur-0/);
+  const fallbackFrame = firstImage.locator("xpath=parent::*");
+  await expect(fallbackFrame).toHaveClass(/product-card-image-frame/);
+  const fallbackBox = await fallbackFrame.boundingBox();
+  expect(fallbackBox).not.toBeNull();
+  expect(Math.abs((fallbackBox?.width || 0) - (fallbackBox?.height || 0))).toBeLessThanOrEqual(1);
   expect(failedRequests).toBe(1);
 });

@@ -19,5 +19,5 @@ export default function DeferredRecentlyViewed({ currentProduct }: { currentProd
     observer.observe(ref.current);
     return () => observer.disconnect();
   }, []);
-  return <div ref={ref} className="min-h-1">{visible ? <RecentlyViewedProducts currentProduct={currentProduct} /> : null}</div>;
+  return <div ref={ref} data-testid="deferred-recently-viewed" className="min-h-1">{visible ? <RecentlyViewedProducts currentProduct={currentProduct} /> : null}</div>;
 }

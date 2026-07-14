@@ -1,4 +1,5 @@
 import { sanitizeLegacyHtml } from '@/lib/sanitizeHtml';
+import ProductSpecificationsHeightController from './ProductSpecificationsHeightController';
 import ProductSpecificationsOpenButton from './ProductSpecificationsOpenButton';
 
 interface ProductSpecificationsProps {
@@ -14,16 +15,19 @@ export default function ProductSpecifications({ productName, specs, hasSpecifica
   return (
     <>
       <div className="lg:w-[30%]" id="cot-thongsokythuat">
-        <div className="lg:sticky lg:top-6">
-          <div id="specCol" className="pt-6 relative" style={{ maxHeight: '66vh', overflow: 'hidden' }}>
-            <div className="pb-4 border-b border-[#1a1a1e]">
-              <h3 className="font-bold text-lg text-white">Thông số kỹ thuật</h3>
+        <div className="product-specifications-sticky lg:sticky">
+          <div id="specCol" className="product-specifications-preview relative" data-preview-state="pending">
+            <div className="pt-6" data-specifications-natural-content>
+              <div className="pb-4 border-b border-[#1a1a1e]">
+                <h3 className="font-bold text-lg text-white">Thông số kỹ thuật</h3>
+              </div>
+              <div className="px-2 product-spec-list" dangerouslySetInnerHTML={{ __html: safeSpecs }} />
             </div>
-            <div className="px-2 product-spec-list" dangerouslySetInnerHTML={{ __html: safeSpecs }} />
-            <div className="absolute bottom-0 left-0 right-0 h-[150px] bg-gradient-to-t from-[#111115] via-[#111115]/80 to-transparent pointer-events-none" />
-            <div className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
+            <div data-specifications-overflow-only className="absolute bottom-0 left-0 right-0 h-[150px] bg-gradient-to-t from-[#111115] via-[#111115]/80 to-transparent pointer-events-none" />
+            <div data-specifications-overflow-only className="absolute bottom-4 left-0 right-0 flex justify-center z-10">
               <ProductSpecificationsOpenButton />
             </div>
+            <ProductSpecificationsHeightController productKey={productName} />
           </div>
         </div>
       </div>

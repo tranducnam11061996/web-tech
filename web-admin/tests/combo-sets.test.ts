@@ -54,7 +54,7 @@ test('combo order permits an empty token to reach the explicit local CAPTCHA byp
     website: '',
     customer: { name: 'Test User', phone: '0985266959', email: 'test@example.com' },
     receiver: {},
-    delivery: { method: 'shipping', province: 'Hà Nội', ward: 'Bạch Mai', address: '124 Minh Khai', note: '' },
+    delivery: { method: 'shipping', provinceCode: '01', province: 'Hà Nội', wardCode: '00001', ward: 'Bạch Mai', address: '124 Minh Khai', note: '' },
     paymentMethod: 'bank_transfer',
     invoice: {},
     note: '',

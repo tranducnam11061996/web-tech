@@ -199,6 +199,13 @@ export default async function ProductPage(props: any) {
     brand: productData.brand || "",
     cardBadges: [],
   };
+  const productDescriptionThumbnail =
+    productData.thumbnail ||
+    productData.imageGroups?.product?.[0]?.url ||
+    (typeof productData.images?.[0] === "string"
+      ? productData.images[0]
+      : productData.images?.[0]?.url) ||
+    "";
   const supplementalPromise = fetchSupplementalData(slug);
 
   return (
@@ -218,10 +225,12 @@ export default async function ProductPage(props: any) {
         className="max-w-[1800px] mx-auto border-t border-[#202027] px-4 md:py-8 md:border-t-0 md:px-6"
         id="content-sanpham"
       >
-        <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+        <div className="flex flex-col lg:flex-row gap-6 items-stretch lg:items-start">
           <ProductDescription
             productName={productData.name}
             description={productData.description}
+            thumbnail={productDescriptionThumbnail}
+            proSummary={productData.proSummary}
           />
           <ProductSpecifications
             productName={productData.name}

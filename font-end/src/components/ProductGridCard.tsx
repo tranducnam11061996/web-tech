@@ -1,11 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import type { MouseEvent } from "react";
 import { addCartItem } from "@/lib/cart";
+import { SHOW_PRODUCT_CARD_FAVORITES } from "@/lib/storefrontFeatureFlags";
 import ProgressiveImage from "./ProgressiveImage";
 import ProductCardAttributeBadges, { type ProductCardAttributeBadge } from "./ProductCardAttributeBadges";
+import FavoriteButton from "./FavoriteButton";
+import ProductCardLink from "./ProductCardLink";
 
 export interface ProductGridCardData {
   id: number;
@@ -21,6 +23,7 @@ export interface ProductGridCardData {
 
 interface ProductGridCardProps {
   product: ProductGridCardData;
+  onFavoriteChange?: (favorited: boolean) => void;
 }
 
 function formatPrice(value: number) {
@@ -48,7 +51,7 @@ function CurrencyValue({
   );
 }
 
-export default function ProductGridCard({ product }: ProductGridCardProps) {
+export default function ProductGridCard({ product, onFavoriteChange }: ProductGridCardProps) {
   const [justAdded, setJustAdded] = useState(false);
   const price = Number(product.price || 0);
   const marketPrice = Number(product.marketPrice || 0);
@@ -77,19 +80,26 @@ export default function ProductGridCard({ product }: ProductGridCardProps) {
   };
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-[#27272a] bg-gradient-to-b from-[#1a1a1d] to-[#111113] shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-all duration-300 hover:-translate-y-1.5 hover:border-[#3f3f46] hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-[#27272a] bg-gradient-to-b from-[#1a1a1d] to-[#111113] shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-[border-color,box-shadow] duration-200 ease-out hover:border-[#3f3f46] hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]">
       {hasDiscount && (
         <div className="absolute right-3 top-3 z-30 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-orange-500 px-3.5 py-1.5 text-[12px] font-black tracking-wide text-white shadow-[0_10px_26px_rgba(239,68,68,0.3)] ring-1 ring-white/10">
           Giảm {discountPercent}%
         </div>
       )}
 
-      <Link href={`/${productSlug}`} className="flex h-full flex-1 flex-col">
-        <div className="relative flex aspect-[4/3] w-full items-center justify-center bg-[#151518]">
+      {SHOW_PRODUCT_CARD_FAVORITES ? (
+        <FavoriteButton
+          productId={Number(product.id)}
+          onChange={onFavoriteChange}
+        />
+      ) : null}
+
+      <ProductCardLink href={`/${productSlug}`} className="flex h-full flex-1 flex-col">
+        <div className="product-card-image-frame bg-[#151518]">
           <ProgressiveImage
             src={product.thumbnail || ""}
             alt={product.name}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-contain object-center"
           />
           <ProductCardAttributeBadges badges={product.cardBadges} />
         </div>
@@ -125,7 +135,7 @@ export default function ProductGridCard({ product }: ProductGridCardProps) {
             </div>
           </div>
         </div>
-      </Link>
+      </ProductCardLink>
 
       {hasPrice && (
         <button

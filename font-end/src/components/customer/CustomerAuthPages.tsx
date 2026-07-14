@@ -2,18 +2,20 @@
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-import { customerFetch } from "@/lib/customer";
+import { FieldError } from "@/components/forms/FieldError";
+import { CustomerApiError, customerFetch } from "@/lib/customer";
 import { getCustomerRecaptchaToken } from "@/lib/customerRecaptcha";
+import { apiErrorSummary } from "@/lib/storefrontApi";
+import { focusFirstInvalidField, validateEmail, validateOtp, validatePassword, validatePasswordConfirmation, type FieldErrors } from "@/lib/storefrontValidation";
 import { KeyRound, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import {
   AuthNotice,
   PasswordInput,
   PasswordRequirements,
   authInputClass,
-  passwordChecks,
 } from "./CustomerAuthShared";
 
 export function ForgotPasswordPage() {
@@ -26,11 +28,17 @@ export function ForgotPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const emailFormRef = useRef<HTMLFormElement>(null);
+  const resetFormRef = useRef<HTMLFormElement>(null);
   const requestCode = async (event: FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError("");
     setSuccess("");
+    setFieldErrors({});
+    const emailError = validateEmail(email);
+    if (emailError) { setFieldErrors({ email: emailError }); setBusy(false); window.setTimeout(() => focusFirstInvalidField(emailFormRef.current, { email: emailError })); return; }
     try {
       const recaptchaToken = await getCustomerRecaptchaToken("password_reset_request");
       await customerFetch("/api/customer/auth/forgot-password/request", {
@@ -40,9 +48,8 @@ export function ForgotPasswordPage() {
       setStep("confirm");
       setSuccess("Nếu email tồn tại, mã xác thực đã được gửi.");
     } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "Không thể gửi mã xác thực.",
-      );
+      if (reason instanceof CustomerApiError) setFieldErrors(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -51,12 +58,13 @@ export function ForgotPasswordPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
-    if (!passwordChecks(password).every((item) => item.valid)) {
-      setError("Mật khẩu chưa đáp ứng đầy đủ các yêu cầu bảo mật.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Mật khẩu nhập lại chưa khớp.");
+    setFieldErrors({});
+    const errors: FieldErrors = { code: validateOtp(code), password: validatePassword(password), confirm: validatePasswordConfirmation(password, confirm) };
+    for (const field of Object.keys(errors)) if (!errors[field]) delete errors[field];
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      setError("Vui lòng sửa các trường được đánh dấu bên dưới.");
+      window.setTimeout(() => focusFirstInvalidField(resetFormRef.current, errors));
       return;
     }
     setBusy(true);
@@ -68,11 +76,8 @@ export function ForgotPasswordPage() {
       });
       router.replace("/tai-khoan/dang-nhap");
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "Không thể đặt lại mật khẩu.",
-      );
+      if (reason instanceof CustomerApiError) setFieldErrors(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -101,7 +106,7 @@ export function ForgotPasswordPage() {
               : "Nhập OTP và mật khẩu mới có ít nhất 8 ký tự."}
           </p>
           {step === "email" ? (
-            <form onSubmit={requestCode} className="mt-7" aria-busy={busy}>
+            <form ref={emailFormRef} onSubmit={requestCode} noValidate className="mt-7" aria-busy={busy}>
               <label
                 htmlFor="forgot-email"
                 className="text-sm font-semibold text-slate-200"
@@ -115,16 +120,21 @@ export function ForgotPasswordPage() {
                 />
                 <input
                   id="forgot-email"
+                  name="email"
                   required
                   type="email"
                   maxLength={255}
                   autoComplete="email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => { setEmail(event.target.value); setFieldErrors({}); }}
+                  onBlur={() => setFieldErrors({ email: validateEmail(email) })}
+                  aria-invalid={Boolean(fieldErrors.email) || undefined}
+                  aria-describedby={fieldErrors.email ? "forgot-email-error" : undefined}
                   className={authInputClass}
                   placeholder="ban@example.com"
                 />
               </div>
+              <FieldError id="forgot-email-error" message={fieldErrors.email} />
               <button
                 disabled={busy}
                 className="auth-primary-button mt-5 w-full rounded-xl py-3.5 text-sm font-black text-white disabled:opacity-50"
@@ -134,7 +144,7 @@ export function ForgotPasswordPage() {
               <AuthNotice error={error} success={success} />
             </form>
           ) : (
-            <form onSubmit={reset} className="mt-7 space-y-5" aria-busy={busy}>
+            <form ref={resetFormRef} onSubmit={reset} noValidate className="mt-7 space-y-5" aria-busy={busy}>
               <label
                 htmlFor="forgot-code"
                 className="block text-sm font-semibold text-slate-200"
@@ -143,6 +153,7 @@ export function ForgotPasswordPage() {
               </label>
               <input
                 id="forgot-code"
+                name="code"
                 required
                 inputMode="numeric"
                 pattern="[0-9]{6}"
@@ -150,11 +161,15 @@ export function ForgotPasswordPage() {
                 autoComplete="one-time-code"
                 value={code}
                 onChange={(event) =>
-                  setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  { setCode(event.target.value.replace(/\D/g, "").slice(0, 6)); setFieldErrors((current) => { const next = { ...current }; delete next.code; return next; }); }
                 }
+                onBlur={() => setFieldErrors((current) => ({ ...current, code: validateOtp(code) }))}
+                aria-invalid={Boolean(fieldErrors.code) || undefined}
+                aria-describedby={fieldErrors.code ? "forgot-code-error" : undefined}
                 className={`${authInputClass} -mt-3 text-center font-mono tracking-[.35em]`}
                 placeholder="000000"
               />
+              <FieldError id="forgot-code-error" message={fieldErrors.code} />
               <div>
                 <label
                   htmlFor="forgot-password"
@@ -164,12 +179,16 @@ export function ForgotPasswordPage() {
                 </label>
                 <PasswordInput
                   id="forgot-password"
+                  name="password"
                   minLength={8}
                   value={password}
-                  onChange={setPassword}
+                  onChange={(value) => { setPassword(value); setFieldErrors((current) => { const next = { ...current }; delete next.password; return next; }); }}
+                  onBlur={() => setFieldErrors((current) => ({ ...current, password: validatePassword(password) }))}
                   autoComplete="new-password"
-                  describedBy="forgot-password-hint"
+                  describedBy={`forgot-password-hint${fieldErrors.password ? " forgot-password-error" : ""}`}
+                  invalid={Boolean(fieldErrors.password)}
                 />
+                <FieldError id="forgot-password-error" message={fieldErrors.password} />
               </div>
               <div>
                 <label
@@ -180,12 +199,16 @@ export function ForgotPasswordPage() {
                 </label>
                 <PasswordInput
                   id="forgot-confirm"
+                  name="confirm"
                   minLength={8}
                   value={confirm}
-                  onChange={setConfirm}
+                  onChange={(value) => { setConfirm(value); setFieldErrors((current) => { const next = { ...current }; delete next.confirm; return next; }); }}
+                  onBlur={() => setFieldErrors((current) => ({ ...current, confirm: validatePasswordConfirmation(password, confirm) }))}
                   autoComplete="new-password"
-                  invalid={Boolean(confirm && confirm !== password)}
+                  invalid={Boolean(fieldErrors.confirm)}
+                  describedBy={fieldErrors.confirm ? "forgot-confirm-error" : undefined}
                 />
+                <FieldError id="forgot-confirm-error" message={fieldErrors.confirm} />
               </div>
               <PasswordRequirements password={password} id="forgot-password-hint" />
               <button

@@ -17,6 +17,8 @@ import {
   useCartItems,
 } from "@/lib/cart";
 import { getAppliedVoucherCode, setAppliedVoucherCode } from "@/lib/voucher";
+import { validateVoucher } from "@/lib/storefrontValidation";
+import { apiErrorSummary, parseStorefrontResponse } from "@/lib/storefrontApi";
 
 type QuoteItem = {
   productId: number;
@@ -134,6 +136,9 @@ function CartRow({
           <div className="mt-2 flex flex-wrap gap-2">
             {saved ? (
               <button
+                type="button"
+                aria-label={`Giảm số lượng ${item.name}`}
+                disabled={item.quantity <= 1}
                 onClick={() => setCartItemSavedForLater(item.productId, false)}
                 className="text-[11px] font-medium border border-emerald-700 bg-emerald-900/20 text-emerald-300 hover:text-white px-2.5 py-1 rounded-full transition flex items-center gap-1 w-fit"
               >
@@ -171,12 +176,19 @@ function CartRow({
                 -
               </button>
               <input
-                type="text"
+                type="number"
+                min={1}
+                max={99}
+                inputMode="numeric"
+                aria-label={`Số lượng ${item.name}`}
                 value={item.quantity}
-                onChange={(event) => updateCartQuantity(item.productId, Number(event.target.value))}
+                onChange={(event) => { const quantity = event.target.valueAsNumber; if (Number.isInteger(quantity) && quantity >= 1 && quantity <= 99) updateCartQuantity(item.productId, quantity); }}
                 className="w-full text-center bg-transparent text-xs text-white font-medium border-x border-[#27272a] outline-none"
               />
               <button
+                type="button"
+                aria-label={`Tăng số lượng ${item.name}`}
+                disabled={item.quantity >= 99}
                 onClick={() => updateCartQuantity(item.productId, item.quantity + 1)}
                 className="w-6 md:w-8 flex items-center justify-center bg-[#0d0d10] hover:bg-[#1a1a1e] text-gray-400"
               >
@@ -216,6 +228,7 @@ export default function CartClient() {
   const [message, setMessage] = useState("");
   const [voucherInput, setVoucherInput] = useState(() => getAppliedVoucherCode());
   const [appliedVoucherCode, setAppliedVoucherCodeState] = useState(() => getAppliedVoucherCode());
+  const [voucherError, setVoucherError] = useState("");
   const [voucherQuote, setVoucherQuote] = useState<VoucherQuoteResponse | null>(null);
   const [isVoucherQuoting, setIsVoucherQuoting] = useState(false);
 
@@ -245,18 +258,17 @@ export default function CartClient() {
       body: JSON.stringify({ items: quoteRequestItems }),
       signal: controller.signal,
     })
-      .then((response) => response.json())
-      .then((json) => {
-        if (!json.success) return;
+      .then((response) => parseStorefrontResponse<{ items: QuoteItem[] }>(response))
+      .then((data) => {
         const nextQuoteMap: Record<number, QuoteItem> = {};
-        for (const item of json.data.items as QuoteItem[]) {
+        for (const item of data.items) {
           nextQuoteMap[item.productId] = item;
         }
         setQuoteMap(nextQuoteMap);
       })
       .catch((error) => {
         if (error.name !== "AbortError") {
-          setMessage("Chưa thể cập nhật giá mới nhất. Vui lòng thử lại.");
+          setMessage(apiErrorSummary(error));
         }
       })
       .finally(() => {
@@ -291,9 +303,9 @@ export default function CartClient() {
       body: JSON.stringify({ items: voucherRequestItems, voucherCode: appliedVoucherCode }),
       signal: controller.signal,
     })
-      .then((response) => response.json())
-      .then((json) => { if (json.success) setVoucherQuote(json.data as VoucherQuoteResponse); })
-      .catch((error) => { if (error.name !== 'AbortError') setMessage('Không thể kiểm tra voucher. Vui lòng thử lại.'); })
+      .then((response) => parseStorefrontResponse<VoucherQuoteResponse>(response))
+      .then(setVoucherQuote)
+      .catch((error) => { if (error.name !== 'AbortError') setVoucherError(apiErrorSummary(error)); })
       .finally(() => { if (!controller.signal.aborted) setIsVoucherQuoting(false); });
     return () => controller.abort();
   }, [voucherQuoteKey, voucherRequestItems]);
@@ -328,6 +340,9 @@ export default function CartClient() {
 
   const applyVoucher = () => {
     const code = voucherInput.trim().toUpperCase();
+    const validationError = validateVoucher(code);
+    setVoucherError(validationError);
+    if (validationError) return;
     setAppliedVoucherCodeState(code);
     setAppliedVoucherCode(code);
   };
@@ -337,6 +352,7 @@ export default function CartClient() {
     setAppliedVoucherCodeState('');
     setAppliedVoucherCode('');
     setVoucherQuote(null);
+    setVoucherError("");
   };
 
   return (
@@ -413,7 +429,8 @@ export default function CartClient() {
             <div className="lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-4">
               <div className="bg-[#111115] border border-[#1a1a1e] rounded-xl p-4 bg-gradient-to-r from-[#111115] to-[#16161a]">
                 <div className="flex items-center gap-3"><div className="w-10 h-10 bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center text-xl">%</div><div><p className="font-bold text-sm text-white">Voucher giảm giá</p><p className="text-[11px] text-gray-500">Áp dụng cho sản phẩm đang chọn</p></div></div>
-                <div className="mt-3 flex gap-2"><input value={voucherInput} onChange={(event) => setVoucherInput(event.target.value.toUpperCase())} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); applyVoucher(); } }} placeholder="Nhập mã voucher" className="min-w-0 flex-1 rounded-lg border border-[#303036] bg-[#0d0d10] px-3 py-2 text-sm font-mono text-white outline-none focus:border-red-500" /><button onClick={applyVoucher} disabled={!voucherInput.trim() || isVoucherQuoting} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-500 disabled:opacity-50">{isVoucherQuoting ? 'Đang kiểm tra' : 'Áp dụng'}</button></div>
+                <div className="mt-3 flex gap-2"><input aria-label="Mã voucher" aria-invalid={Boolean(voucherError) || undefined} aria-describedby={voucherError ? "cart-voucher-error" : undefined} maxLength={64} value={voucherInput} onChange={(event) => { setVoucherInput(event.target.value.toUpperCase()); setVoucherError(""); }} onBlur={() => { if (voucherInput.trim()) setVoucherError(validateVoucher(voucherInput)); }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); applyVoucher(); } }} placeholder="Nhập mã voucher" className="min-w-0 flex-1 rounded-lg border border-[#303036] bg-[#0d0d10] px-3 py-2 text-sm font-mono text-white outline-none focus:border-red-500" /><button type="button" onClick={applyVoucher} disabled={!voucherInput.trim() || isVoucherQuoting} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-500 disabled:opacity-50">{isVoucherQuoting ? 'Đang kiểm tra' : 'Áp dụng'}</button></div>
+                {voucherError ? <p id="cart-voucher-error" role="alert" className="mt-2 text-xs text-red-300">{voucherError}</p> : null}
                 {appliedVoucherCode && <div className={`mt-3 rounded-lg border p-3 text-xs ${voucherQuote?.voucher.status === 'applied' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-red-500/30 bg-red-500/10 text-red-200'}`}><div className="flex items-start justify-between gap-3"><span>{voucherQuote?.voucher.message || 'Đang kiểm tra voucher...'}</span><button onClick={clearVoucher} className="shrink-0 underline">Bỏ mã</button></div>{voucherQuote?.voucher.status === 'applied' && voucherQuote.voucher.note && <p className="mt-1 text-emerald-300">{voucherQuote.voucher.note}</p>}</div>}
               </div>
 

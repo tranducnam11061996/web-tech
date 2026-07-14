@@ -2,6 +2,8 @@ import type { ProductGridCardData } from "./ProductGridCard";
 import ProductGridCardStatic from "./ProductGridCardStatic";
 
 export default function SimilarProducts({ products = [] }: { products?: ProductGridCardData[] }) {
+  if (products.length === 0) return null;
+
   const initialProducts = products.slice(0, 5);
   const additionalProducts = products.slice(5, 15);
 
@@ -14,15 +16,9 @@ export default function SimilarProducts({ products = [] }: { products?: ProductG
           </h2>
         </div>
 
-        {initialProducts.length > 0 ? (
-          <div id="similar-products-grid" className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {initialProducts.map((product) => <ProductGridCardStatic key={product.id} product={product} />)}
-          </div>
-        ) : (
-          <p role="status" className="rounded-xl border border-dashed border-[#27272a] py-10 text-center text-sm text-zinc-500">
-            Chưa có sản phẩm tương tự phù hợp.
-          </p>
-        )}
+        <div id="similar-products-grid" className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {initialProducts.map((product) => <ProductGridCardStatic key={product.id} product={product} />)}
+        </div>
 
         {additionalProducts.length > 0 ? (
           <details className="group mt-4 flex flex-col">

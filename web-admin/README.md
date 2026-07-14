@@ -255,6 +255,8 @@ Order creation performs final quote, voucher locking, order/items, customer link
 - `/api/customer/auth/register`, `/verify-email`, `/resend-verification`, `/login`, `/logout`.
 - `/api/customer/auth/forgot-password/request`, `/confirm`, `/change-password`.
 - `/api/customer/me`, `/addresses`, `/orders`, and `/locations/*`.
+- `GET /api/customer/favorites?cursor=&limit=` returns at most 24 newest live product cards without a count query; `GET /api/customer/favorites/status?ids=` checks at most 100 unique IDs in one batch.
+- `PUT` and `DELETE /api/customer/favorites/[productId]` are idempotent authenticated writes with same-origin enforcement and per-customer throttling. PUT accepts only currently public catalog products.
 
 Anonymous high-risk actions use action-specific reCAPTCHA and IP/identifier rate limits. Authenticated writes use customer session, origin/ownership checks, and route limits.
 
@@ -301,6 +303,19 @@ Responses include `X-Request-ID`. Rate-limit responses use HTTP `429` plus `Retr
 - Production session cookies are `Secure`, `HttpOnly`, `SameSite=Lax`, path `/`, and prefer `__Host-*` names.
 - reCAPTCHA verification checks success, expected action, configurable score, allowed hostname, and two-minute challenge age. Use shadow mode before production enforcement.
 
+Configure the secret and verifier policy only in `D:\web-tech\web-admin\.env.local`:
+
+```env
+RECAPTCHA_SECRET_KEY=your_private_secret_key
+RECAPTCHA_SCORE_THRESHOLD=0.5
+RECAPTCHA_ALLOWED_HOSTNAMES=localhost,storefront.example.com
+RECAPTCHA_SHADOW_MODE=false
+RECAPTCHA_DEVELOPMENT_BYPASS=false
+STOREFRONT_ORIGIN=http://localhost:3001
+```
+
+For local development without Google, leave the frontend site key empty and set `RECAPTCHA_DEVELOPMENT_BYPASS=true` here. The verifier ignores this bypass when `NODE_ENV=production`. SMTP-backed OTP additionally requires `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`; SMTP does not replace CAPTCHA. Restart both applications after environment changes and never copy `RECAPTCHA_SECRET_KEY` into the storefront.
+
 ## Cache and search
 
 - Worker-local public caches are bounded and use normalized keys.
@@ -317,10 +332,10 @@ Responses include `X-Request-ID`. Rate-limit responses use HTTP `429` plus `Retr
 
 ## Database status
 
-The active local database is `it_tech_db`; `hanoi23_db` remains the read-only legacy source. The accepted live catalog has 788 categories, 90 brands, 4,712 products, and 4,712 search rows. Read-only verification on `2026-07-13` found 288 physical tables: 160 InnoDB and 128 MyISAM, with no importer recovery/stage/restore tables and no Latin-1 tables or columns. PCM is the canonical target for source brand `0` and owns 2,276 products, including 849 enabled products.
+The active local database is `it_tech_db`; `hanoi23_db` remains the read-only legacy source. The accepted live catalog has 788 categories, 90 brands, 4,712 products, and 4,712 search rows. After the additive favorites migration on `2026-07-14`, read-only verification found 289 physical tables: 161 InnoDB and 128 MyISAM, with no importer recovery/stage/restore tables and no Latin-1 tables or columns. PCM is the canonical target for source brand `0` and owns 2,276 products, including 849 enabled products.
 
 This does not prove migration state in any other environment. Follow `database-docs/ADMIN_MIGRATION_GUIDE.md`, and use `database-docs/DATABASE_TRANSFER.md` for full export/import or machine migration.
 
 ## Verification status
 
-Latest full catalog verification passed both application TypeScript/ESLint/build pipelines, 84/84 web-admin unit tests, the default integration suite (3 pass, 6 environment-gated skips), and the disposable run-8 apply/rollback/re-apply, index, cleanup, and healthcheck trial. The final live healthcheck passes 15/15 with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` and PCM as the brand probe; strict mode is 14/15 because the configured legacy API collection slug returns 404 while its storefront route returns 200. The final 288-table lean backup restored successfully with matching rows, routine, triggers, and catalog/news assertions. Full 1,500-VU target testing remains pending.
+Latest local verification passed both application TypeScript/ESLint/build pipelines, 94/94 web-admin unit tests, the default integration suite (3 pass, 6 environment-gated skips), and 14/14 focused storefront validation/accessibility Playwright checks. The full storefront suite currently reports 56 pass, 2 expected skips, and 2 independent product-description fallback width failures. The last temporary-production healthcheck passed 15/15 using the documented empty-collection allowance; it was not rerun against the currently active development servers. Customer favorites additionally passed a restore-verified backup, two idempotent clone migrations, exact DDL/index/FK/EXPLAIN inspection, functional relation/cursor/cascade checks, and the live additive migration. The historical final 288-table lean backup and the new pre-favorites backup both restore successfully. Full 1,500-VU target testing remains pending.

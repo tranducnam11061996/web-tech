@@ -8,6 +8,7 @@ import { ensureCategoryFeatureBoxTable } from '../src/lib/categoryFeatureBoxes';
 import { ensureVoucherTables } from '../src/lib/vouchers';
 import { ensureStorefrontOrderTables } from '../src/lib/storefrontOrders';
 import { ensureCustomerAccountTables } from '../src/lib/customerAccounts';
+import { ensureCustomerFavoriteTable } from '../src/lib/customerFavorites';
 import { ensureAdminAccessTables } from '../src/lib/admin/auth';
 import { ensurePerformanceInfrastructure } from '../src/lib/performanceInfrastructure';
 import { ensureBuyingGuideTables } from '../src/lib/buyingGuides';
@@ -28,6 +29,7 @@ async function main() {
   await ensureVoucherTables();
   await ensureStorefrontOrderTables();
   await ensureCustomerAccountTables();
+  await ensureCustomerFavoriteTable();
   await ensurePerformanceInfrastructure();
   await ensureBuyingGuideTables();
   await ensureComboIndexes();

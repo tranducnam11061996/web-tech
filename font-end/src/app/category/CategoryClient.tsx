@@ -731,6 +731,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                 <input
                   ref={sidebarSearchInputRef}
                   type="text"
+                  maxLength={100}
                   id="sidebar-search-input"
                   placeholder="Nhập từ khóa tìm kiếm bộ lọc ..."
                   className="w-full bg-[#18181b] border border-[#27272a] rounded-lg py-2 pl-8 pr-8 text-sm text-gray-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
@@ -738,6 +739,8 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                   onChange={(event) => setSidebarSearchKeyword(event.target.value)}
                 />
                 <button
+                  type="button"
+                  aria-label="Đóng tìm kiếm bộ lọc"
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs transition"
                   onClick={() => {
                     setIsSidebarSearchOpen(false);
@@ -829,6 +832,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                   <input
                     type="range"
                     id="price-min"
+                    aria-label="Giá tối thiểu"
                     className="dual-range-slider"
                     min={priceBounds.min}
                     max={priceBounds.max}
@@ -841,6 +845,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                   <input
                     type="range"
                     id="price-max"
+                    aria-label="Giá tối đa"
                     className="dual-range-slider"
                     min={priceBounds.min}
                     max={priceBounds.max}

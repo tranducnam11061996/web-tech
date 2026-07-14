@@ -16,12 +16,16 @@ import {
   Trash2,
 } from "lucide-react";
 import {
+  CustomerApiError,
   customerFetch,
   type CustomerAddress,
   useCustomerSession,
 } from "@/lib/customer";
 import { VietnamLocationSelector } from "@/components/location/VietnamLocationSelector";
-import { PasswordRequirements, passwordChecks } from "./CustomerAuthShared";
+import { FieldError } from "@/components/forms/FieldError";
+import { apiErrorSummary } from "@/lib/storefrontApi";
+import { focusFirstInvalidField, validateAddress, validateBirthday, validateName, validatePassword, validatePasswordConfirmation, validateVietnamPhone, type FieldErrors } from "@/lib/storefrontValidation";
+import { PasswordRequirements } from "./CustomerAuthShared";
 
 const panel = "rounded-2xl border border-[#252532] bg-[#111116]";
 const input =
@@ -60,6 +64,8 @@ export function CustomerProfilePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [profileFields, setProfileFields] = useState<FieldErrors>({});
+  const profileFormRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (user)
       setForm({
@@ -70,6 +76,10 @@ export function CustomerProfilePage() {
   }, [user]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    const errors: FieldErrors = { name: validateName(form.name), birthday: validateBirthday(form.birthday) };
+    for (const field of Object.keys(errors)) if (!errors[field]) delete errors[field];
+    setProfileFields(errors);
+    if (Object.keys(errors).length) { setError("Vui lòng sửa các trường được đánh dấu bên dưới."); window.setTimeout(() => focusFirstInvalidField(profileFormRef.current, errors)); return; }
     setBusy(true);
     setError("");
     try {
@@ -79,8 +89,9 @@ export function CustomerProfilePage() {
       });
       await reload();
       setSuccess("Đã lưu thông tin tài khoản.");
-    } catch (reason: any) {
-      setError(reason.message);
+    } catch (reason) {
+      if (reason instanceof CustomerApiError) setProfileFields(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -97,7 +108,9 @@ export function CustomerProfilePage() {
         </p>
       </header>
       <form
+        ref={profileFormRef}
         onSubmit={submit}
+        noValidate
         className={`${panel} p-5 sm:p-7`}
         aria-busy={busy}
       >
@@ -105,11 +118,16 @@ export function CustomerProfilePage() {
           <label className="text-sm font-medium">
             Họ và tên
             <input
+              name="name"
               required
               value={form.name}
-              onChange={(e) => setForm((x) => ({ ...x, name: e.target.value }))}
+              onChange={(e) => { setForm((x) => ({ ...x, name: e.target.value })); setProfileFields((current) => { const next = { ...current }; delete next.name; return next; }); }}
+              onBlur={() => setProfileFields((current) => ({ ...current, name: validateName(form.name) }))}
+              aria-invalid={Boolean(profileFields.name) || undefined}
+              aria-describedby={profileFields.name ? "profile-name-error" : undefined}
               className={input}
             />
+            <FieldError id="profile-name-error" message={profileFields.name} />
           </label>
           <label className="text-sm font-medium">
             Số điện thoại
@@ -136,6 +154,7 @@ export function CustomerProfilePage() {
           <label className="text-sm font-medium">
             Giới tính
             <select
+              name="gender"
               value={form.gender}
               onChange={(e) =>
                 setForm((x) => ({ ...x, gender: e.target.value }))
@@ -151,13 +170,18 @@ export function CustomerProfilePage() {
           <label className="text-sm font-medium md:col-span-2">
             Ngày sinh
             <input
+              name="birthday"
               type="date"
               value={form.birthday}
               onChange={(e) =>
-                setForm((x) => ({ ...x, birthday: e.target.value }))
+                { setForm((x) => ({ ...x, birthday: e.target.value })); setProfileFields((current) => { const next = { ...current }; delete next.birthday; return next; }); }
               }
+              onBlur={() => setProfileFields((current) => ({ ...current, birthday: validateBirthday(form.birthday) }))}
+              aria-invalid={Boolean(profileFields.birthday) || undefined}
+              aria-describedby={profileFields.birthday ? "profile-birthday-error" : undefined}
               className={input}
             />
+            <FieldError id="profile-birthday-error" message={profileFields.birthday} />
           </label>
         </div>
         <div className="mt-6 flex justify-end">
@@ -345,6 +369,8 @@ export function CustomerAddressPage() {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [addressFields, setAddressFields] = useState<FieldErrors>({});
+  const addressFormRef = useRef<HTMLFormElement>(null);
   const load = async () => {
     const addressData = await customerFetch("/api/customer/addresses");
     setAddresses(addressData.items);
@@ -372,8 +398,18 @@ export function CustomerAddressPage() {
   };
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    if (!draft.provinceCode || !draft.wardCode) {
-      setError("Vui lòng chọn tỉnh/thành phố và phường/xã/đặc khu.");
+    const errors: FieldErrors = {
+      recipientName: validateName(String(draft.recipientName || ""), "Họ tên người nhận"),
+      phone: validateVietnamPhone(String(draft.phone || "")),
+      provinceCode: draft.provinceCode ? "" : "Vui lòng chọn tỉnh/thành phố.",
+      wardCode: draft.wardCode ? "" : "Vui lòng chọn phường/xã/đặc khu.",
+      address: validateAddress(String(draft.address || "")),
+    };
+    for (const field of Object.keys(errors)) if (!errors[field]) delete errors[field];
+    setAddressFields(errors);
+    if (Object.keys(errors).length) {
+      setError("Vui lòng sửa các trường được đánh dấu bên dưới.");
+      window.setTimeout(() => focusFirstInvalidField(addressFormRef.current, errors));
       return;
     }
     setBusy(true);
@@ -392,8 +428,9 @@ export function CustomerAddressPage() {
       });
       await load();
       setOpen(false);
-    } catch (reason: any) {
-      setError(reason.message);
+    } catch (reason) {
+      if (reason instanceof CustomerApiError) setAddressFields(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -443,7 +480,7 @@ export function CustomerAddressPage() {
       </header>
       <Notice error={error} success="" />
       {open ? (
-        <form onSubmit={save} className={`${panel} mb-5 p-5 sm:p-6`}>
+        <form ref={addressFormRef} onSubmit={save} noValidate className={`${panel} mb-5 p-5 sm:p-6`}>
           <div className="mb-5 flex items-center justify-between">
             <h2 className="font-bold">
               {editing ? "Sửa địa chỉ" : "Thêm địa chỉ mới"}
@@ -469,27 +506,35 @@ export function CustomerAddressPage() {
             <label className="text-sm font-medium">
               Họ tên người nhận
               <input
+                name="recipientName"
                 required
                 value={draft.recipientName}
                 onChange={(e) =>
-                  setDraft((x: any) => ({
+                  { setDraft((x: any) => ({
                     ...x,
                     recipientName: e.target.value,
-                  }))
+                  })); setAddressFields((current) => { const next = { ...current }; delete next.recipientName; return next; }); }
                 }
+                onBlur={() => setAddressFields((current) => ({ ...current, recipientName: validateName(String(draft.recipientName || ""), "Họ tên người nhận") }))}
+                aria-invalid={Boolean(addressFields.recipientName) || undefined}
+                aria-describedby={addressFields.recipientName ? "address-recipient-error" : undefined}
                 className={input}
               />
+              <FieldError id="address-recipient-error" message={addressFields.recipientName} />
             </label>
             <label className="text-sm font-medium">
               Số điện thoại
               <input
+                name="phone"
                 required
                 value={draft.phone}
-                onChange={(e) =>
-                  setDraft((x: any) => ({ ...x, phone: e.target.value }))
-                }
+                onChange={(e) => { setDraft((x: any) => ({ ...x, phone: e.target.value })); setAddressFields((current) => { const next = { ...current }; delete next.phone; return next; }); }}
+                onBlur={() => setAddressFields((current) => ({ ...current, phone: validateVietnamPhone(String(draft.phone || "")) }))}
+                aria-invalid={Boolean(addressFields.phone) || undefined}
+                aria-describedby={addressFields.phone ? "address-phone-error" : undefined}
                 className={input}
               />
+              <FieldError id="address-phone-error" message={addressFields.phone} />
             </label>
             <VietnamLocationSelector
               idPrefix="customer-address"
@@ -499,26 +544,31 @@ export function CustomerAddressPage() {
                 wardCode: draft.wardCode || "",
                 wardName: "",
               }}
-              onChange={(location) =>
+              error={addressFields.provinceCode || addressFields.wardCode || undefined}
+              onChange={(location) => {
+                setAddressFields((current) => { const next = { ...current }; delete next.provinceCode; delete next.wardCode; return next; });
                 setDraft((current: any) => ({
                   ...current,
                   provinceCode: location.provinceCode,
                   wardCode: location.wardCode,
-                }))
-              }
+                }));
+              }}
               className="contents"
             />
             <label className="text-sm font-medium md:col-span-2">
               Địa chỉ cụ thể
               <textarea
+                name="address"
                 required
                 value={draft.address}
-                onChange={(e) =>
-                  setDraft((x: any) => ({ ...x, address: e.target.value }))
-                }
+                onChange={(e) => { setDraft((x: any) => ({ ...x, address: e.target.value })); setAddressFields((current) => { const next = { ...current }; delete next.address; return next; }); }}
+                onBlur={() => setAddressFields((current) => ({ ...current, address: validateAddress(String(draft.address || "")) }))}
+                aria-invalid={Boolean(addressFields.address) || undefined}
+                aria-describedby={addressFields.address ? "address-detail-error" : undefined}
                 className={`${input} min-h-24 resize-y`}
                 placeholder="Số nhà, tên đường, tòa nhà..."
               />
+              <FieldError id="address-detail-error" message={addressFields.address} />
             </label>
           </div>
           <fieldset className="mt-5">
@@ -888,14 +938,20 @@ export function CustomerChangePasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!passwordChecks(form.newPassword).every((item) => item.valid)) {
-      setError("Mật khẩu chưa đáp ứng đầy đủ các yêu cầu bảo mật.");
-      return;
-    }
-    if (form.newPassword !== form.confirm) {
-      setError("Mật khẩu nhập lại chưa khớp.");
+    const errors: FieldErrors = {
+      currentPassword: form.currentPassword ? "" : "Vui lòng nhập mật khẩu hiện tại.",
+      newPassword: form.currentPassword === form.newPassword && form.newPassword ? "Mật khẩu mới phải khác mật khẩu hiện tại." : validatePassword(form.newPassword),
+      confirm: validatePasswordConfirmation(form.newPassword, form.confirm),
+    };
+    for (const field of Object.keys(errors)) if (!errors[field]) delete errors[field];
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) {
+      setError("Vui lòng sửa các trường được đánh dấu bên dưới.");
+      window.setTimeout(() => focusFirstInvalidField(formRef.current, errors));
       return;
     }
     setBusy(true);
@@ -907,8 +963,9 @@ export function CustomerChangePasswordPage() {
       });
       setSuccess("Đã đổi mật khẩu. Vui lòng đăng nhập lại.");
       setForm({ currentPassword: "", newPassword: "", confirm: "" });
-    } catch (reason: any) {
-      setError(reason.message);
+    } catch (reason) {
+      if (reason instanceof CustomerApiError) setFieldErrors(reason.fields);
+      setError(apiErrorSummary(reason));
     } finally {
       setBusy(false);
     }
@@ -924,49 +981,63 @@ export function CustomerChangePasswordPage() {
           Sau khi đổi, các phiên đăng nhập cũ sẽ được đăng xuất.
         </p>
       </header>
-      <form onSubmit={submit} className={`${panel} max-w-xl p-5 sm:p-7`}>
+      <form ref={formRef} onSubmit={submit} noValidate className={`${panel} max-w-xl p-5 sm:p-7`}>
         <div className="space-y-4">
           <label className="block text-sm font-medium">
             Mật khẩu hiện tại
             <input
+              name="currentPassword"
               required
               type="password"
               autoComplete="current-password"
               value={form.currentPassword}
               onChange={(e) =>
-                setForm((x) => ({ ...x, currentPassword: e.target.value }))
+                { setForm((x) => ({ ...x, currentPassword: e.target.value })); setFieldErrors((current) => { const next = { ...current }; delete next.currentPassword; return next; }); }
               }
+              onBlur={() => setFieldErrors((current) => ({ ...current, currentPassword: form.currentPassword ? "" : "Vui lòng nhập mật khẩu hiện tại." }))}
+              aria-invalid={Boolean(fieldErrors.currentPassword) || undefined}
+              aria-describedby={fieldErrors.currentPassword ? "account-current-password-error" : undefined}
               className={input}
             />
+            <FieldError id="account-current-password-error" message={fieldErrors.currentPassword} />
           </label>
           <label className="block text-sm font-medium">
             Mật khẩu mới
             <input
+              name="newPassword"
               required
               minLength={8}
               type="password"
               autoComplete="new-password"
-              aria-describedby="account-password-hint"
               value={form.newPassword}
               onChange={(e) =>
-                setForm((x) => ({ ...x, newPassword: e.target.value }))
+                { setForm((x) => ({ ...x, newPassword: e.target.value })); setFieldErrors((current) => { const next = { ...current }; delete next.newPassword; return next; }); }
               }
+              onBlur={() => setFieldErrors((current) => ({ ...current, newPassword: form.currentPassword === form.newPassword && form.newPassword ? "Mật khẩu mới phải khác mật khẩu hiện tại." : validatePassword(form.newPassword) }))}
+              aria-invalid={Boolean(fieldErrors.newPassword) || undefined}
+              aria-describedby={`account-password-hint${fieldErrors.newPassword ? " account-new-password-error" : ""}`}
               className={input}
             />
+            <FieldError id="account-new-password-error" message={fieldErrors.newPassword} />
           </label>
           <label className="block text-sm font-medium">
             Nhập lại mật khẩu
             <input
+              name="confirm"
               required
               minLength={8}
               type="password"
               autoComplete="new-password"
               value={form.confirm}
               onChange={(e) =>
-                setForm((x) => ({ ...x, confirm: e.target.value }))
+                { setForm((x) => ({ ...x, confirm: e.target.value })); setFieldErrors((current) => { const next = { ...current }; delete next.confirm; return next; }); }
               }
+              onBlur={() => setFieldErrors((current) => ({ ...current, confirm: validatePasswordConfirmation(form.newPassword, form.confirm) }))}
+              aria-invalid={Boolean(fieldErrors.confirm) || undefined}
+              aria-describedby={fieldErrors.confirm ? "account-confirm-password-error" : undefined}
               className={input}
             />
+            <FieldError id="account-confirm-password-error" message={fieldErrors.confirm} />
           </label>
         </div>
         <PasswordRequirements

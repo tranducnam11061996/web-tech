@@ -16,6 +16,10 @@ import {
   type CustomerAddress,
   useCustomerSession,
 } from "@/lib/customer";
+import { FieldError } from "@/components/forms/FieldError";
+import { mapCheckoutServerFields, validateCheckoutForm } from "@/lib/checkoutValidation";
+import { apiErrorSummary, parseStorefrontResponse, StorefrontApiError } from "@/lib/storefrontApi";
+import { focusFirstInvalidField, type FieldErrors } from "@/lib/storefrontValidation";
 
 const VietnamLocationSelector = dynamic(
   () => import("@/components/location/VietnamLocationSelector").then((module) => module.VietnamLocationSelector),
@@ -196,6 +200,12 @@ export default function CheckoutClient() {
   const orderIdempotencyKey = useRef<string | null>(null);
   const quoteRequestId = useRef(0);
   const [website, setWebsite] = useState("");
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const checkoutFormRef = useRef<HTMLFormElement>(null);
+  const clientErrors = useMemo(() => validateCheckoutForm(form), [form]);
+  const visibleError = (field: string) => fieldErrors[field] || (touched[field] ? clientErrors[field] : "");
+  const touchField = (field: string) => setTouched((current) => ({ ...current, [field]: true }));
 
   useEffect(() => {
     if (!user || accountPrefilled.current) return;
@@ -263,21 +273,20 @@ export default function CheckoutClient() {
       body: JSON.stringify({ items: quoteRequestItems, voucherCode }),
       signal: controller.signal,
     })
-      .then((response) => response.json())
-      .then((json) => {
+      .then((response) => parseStorefrontResponse<{ items: QuoteItem[]; totals?: QuoteTotals; voucher?: VoucherQuote | null }>(response))
+      .then((data) => {
         if (requestId !== quoteRequestId.current) return;
-        if (!json.success) throw new Error(json?.error?.message || "Không thể xác nhận giá.");
         const nextQuoteMap: Record<number, QuoteItem> = {};
-        for (const item of json.data.items as QuoteItem[]) {
+        for (const item of data.items) {
           nextQuoteMap[item.productId] = item;
         }
         setQuoteMap(nextQuoteMap);
-        setQuoteTotals(json.data.totals || { voucherDiscount: 0, total: 0 });
-        setVoucher(json.data.voucher || null);
+        setQuoteTotals(data.totals || { voucherDiscount: 0, total: 0 });
+        setVoucher(data.voucher || null);
       })
       .catch((requestError) => {
         if (requestError.name !== "AbortError") {
-          setQuoteError("Chưa thể cập nhật giá mới nhất. Vui lòng thử lại.");
+          setQuoteError(apiErrorSummary(requestError));
         }
       })
       .finally(() => {
@@ -331,6 +340,12 @@ export default function CheckoutClient() {
     value: CheckoutForm[K],
   ) => {
     setForm((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
   };
 
   const applySavedAddress = (address: CustomerAddress) => {
@@ -359,19 +374,12 @@ export default function CheckoutClient() {
     event.preventDefault();
     setError("");
     setDeliveryError("");
-
-    if (!form.customerName.trim() || !form.customerPhone.trim()) {
-      setError("Vui lòng nhập họ tên và số điện thoại người đặt hàng.");
-      return;
-    }
-
-    if (
-      form.deliveryMethod === "shipping" &&
-      (!form.provinceCode || !form.wardCode || !form.address.trim())
-    ) {
-      setDeliveryError(
-        "Vui lòng chọn tỉnh/thành phố, phường/xã/đặc khu và nhập địa chỉ giao hàng.",
-      );
+    setFieldErrors({});
+    setTouched(Object.fromEntries(Object.keys(clientErrors).map((field) => [field, true])));
+    if (Object.keys(clientErrors).length) {
+      setError("Vui lòng sửa các trường được đánh dấu trước khi đặt hàng.");
+      setDeliveryError(clientErrors.provinceCode || clientErrors.wardCode || "");
+      window.setTimeout(() => focusFirstInvalidField(checkoutFormRef.current, clientErrors));
       return;
     }
 
@@ -408,7 +416,9 @@ export default function CheckoutClient() {
           },
           delivery: {
             method: form.deliveryMethod,
+            provinceCode: form.provinceCode,
             province: form.province.trim(),
+            wardCode: form.wardCode,
             ward: form.ward.trim(),
             address: form.address.trim(),
             note: form.note.trim(),
@@ -425,20 +435,21 @@ export default function CheckoutClient() {
         }),
       });
 
-      const json = await response.json();
-      if (!json.success) {
-        if (response.status >= 400 && response.status < 500 && json?.error?.code !== "ORDER_PROCESSING") orderIdempotencyKey.current = null;
-        json.message = json?.error?.message || json.message;
-        throw new Error(json.message || "Không thể tạo đơn hàng");
-      }
+      const data = await parseStorefrontResponse<{ orderId: number; total: number }>(response);
 
       removePurchasedCartItems(availableItems.map((item) => item.productId));
       setAppliedVoucherCode("");
-      setSuccess({ orderId: json.data.orderId, total: json.data.total });
-    } catch (submitError: any) {
-      setError(
-        submitError.message || "Không thể tạo đơn hàng. Vui lòng thử lại.",
-      );
+      setSuccess({ orderId: data.orderId, total: data.total });
+    } catch (submitError) {
+      if (submitError instanceof StorefrontApiError) {
+        if (submitError.status >= 400 && submitError.status < 500 && submitError.code !== "ORDER_PROCESSING") orderIdempotencyKey.current = null;
+        const mapped = mapCheckoutServerFields(submitError.fields);
+        setFieldErrors(mapped);
+        setTouched((current) => ({ ...current, ...Object.fromEntries(Object.keys(mapped).map((field) => [field, true])) }));
+        setDeliveryError(mapped.provinceCode || mapped.wardCode || "");
+        window.setTimeout(() => focusFirstInvalidField(checkoutFormRef.current, mapped));
+      }
+      setError(apiErrorSummary(submitError));
     } finally {
       setIsSubmitting(false);
     }
@@ -480,7 +491,7 @@ export default function CheckoutClient() {
 
   return (
     <div className="bg-[#0a0a0c] min-h-screen text-white font-sans">
-      <form onSubmit={handleSubmit}>
+      <form ref={checkoutFormRef} onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
         <div className="sr-only" aria-hidden="true">
           <label htmlFor="checkout-website">Website</label>
           <input id="checkout-website" tabIndex={-1} autoComplete="off" value={website} onChange={(event) => setWebsite(event.target.value)} />
@@ -546,7 +557,8 @@ export default function CheckoutClient() {
                     Thông tin người đặt hàng
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input
+                    <div><input
+                      name="customerName"
                       aria-label="Họ và tên người đặt hàng"
                       required
                       maxLength={150}
@@ -555,25 +567,33 @@ export default function CheckoutClient() {
                       onChange={(e) =>
                         updateForm("customerName", e.target.value)
                       }
+                      onBlur={() => touchField("customerName")}
+                      aria-invalid={Boolean(visibleError("customerName")) || undefined}
+                      aria-describedby={visibleError("customerName") ? "checkout-customer-name-error" : undefined}
                       type="text"
                       placeholder="Họ và tên"
                       className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                    />
-                    <input
+                    /><FieldError id="checkout-customer-name-error" message={visibleError("customerName")} /></div>
+                    <div><input
+                      name="customerPhone"
                       aria-label="Số điện thoại người đặt hàng"
                       required
                       type="tel"
                       inputMode="tel"
-                      maxLength={16}
+                      maxLength={20}
                       autoComplete="tel"
                       value={form.customerPhone}
                       onChange={(e) =>
                         updateForm("customerPhone", e.target.value)
                       }
+                      onBlur={() => touchField("customerPhone")}
+                      aria-invalid={Boolean(visibleError("customerPhone")) || undefined}
+                      aria-describedby={visibleError("customerPhone") ? "checkout-customer-phone-error" : undefined}
                       placeholder="Số điện thoại"
                       className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                    />
-                    <input
+                    /><FieldError id="checkout-customer-phone-error" message={visibleError("customerPhone")} /></div>
+                    <div><input
+                      name="customerEmail"
                       aria-label="Email người đặt hàng"
                       maxLength={255}
                       autoComplete="email"
@@ -581,17 +601,18 @@ export default function CheckoutClient() {
                       onChange={(e) =>
                         updateForm("customerEmail", e.target.value)
                       }
+                      onBlur={() => touchField("customerEmail")}
+                      aria-invalid={Boolean(visibleError("customerEmail")) || undefined}
+                      aria-describedby={visibleError("customerEmail") ? "checkout-customer-email-error" : undefined}
                       type="email"
                       placeholder="Email (Không bắt buộc)"
                       className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                    />
+                    /><FieldError id="checkout-customer-email-error" message={visibleError("customerEmail")} /></div>
                   </div>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       checked={form.receiverEnabled}
-                      onChange={(e) =>
-                        updateForm("receiverEnabled", e.target.checked)
-                      }
+                      onChange={(e) => { updateForm("receiverEnabled", e.target.checked); if (!e.target.checked) setFieldErrors((current) => { const next = { ...current }; delete next.receiverName; delete next.receiverPhone; return next; }); }}
                       type="checkbox"
                       className="w-4 h-4 accent-blue-500 cursor-pointer"
                     />
@@ -601,7 +622,8 @@ export default function CheckoutClient() {
                   </label>
                   {form.receiverEnabled && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <input
+                      <div><input
+                        name="receiverName"
                         aria-label="Họ và tên người nhận"
                         maxLength={150}
                         autoComplete="name"
@@ -609,23 +631,30 @@ export default function CheckoutClient() {
                         onChange={(e) =>
                           updateForm("receiverName", e.target.value)
                         }
+                        onBlur={() => touchField("receiverName")}
+                        aria-invalid={Boolean(visibleError("receiverName")) || undefined}
+                        aria-describedby={visibleError("receiverName") ? "checkout-receiver-name-error" : undefined}
                         type="text"
                         placeholder="Họ và tên người nhận"
                         className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                      />
-                      <input
+                      /><FieldError id="checkout-receiver-name-error" message={visibleError("receiverName")} /></div>
+                      <div><input
+                        name="receiverPhone"
                         aria-label="Số điện thoại người nhận"
                         type="tel"
                         inputMode="tel"
-                        maxLength={16}
+                        maxLength={20}
                         autoComplete="tel"
                         value={form.receiverPhone}
                         onChange={(e) =>
                           updateForm("receiverPhone", e.target.value)
                         }
+                        onBlur={() => touchField("receiverPhone")}
+                        aria-invalid={Boolean(visibleError("receiverPhone")) || undefined}
+                        aria-describedby={visibleError("receiverPhone") ? "checkout-receiver-phone-error" : undefined}
                         placeholder="Số điện thoại người nhận"
                         className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                      />
+                      /><FieldError id="checkout-receiver-phone-error" message={visibleError("receiverPhone")} /></div>
                     </div>
                   )}
                 </div>
@@ -746,6 +775,7 @@ export default function CheckoutClient() {
                     triggerClassName="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
                     onChange={(location) => {
                       setDeliveryError("");
+                      setFieldErrors((current) => { const next = { ...current }; delete next.provinceCode; delete next.wardCode; return next; });
                       setSelectedAddressId("");
                       setForm((current) => ({
                         ...current,
@@ -757,30 +787,41 @@ export default function CheckoutClient() {
                     }}
                   />
                   <input
+                    name="address"
+                    aria-label="Địa chỉ giao hàng"
                     value={form.address}
                     onChange={(e) => {
                       setDeliveryError("");
                       updateForm("address", e.target.value);
                     }}
+                    onBlur={() => touchField("address")}
                     type="text"
                     placeholder="Số nhà, tên đường"
-                    aria-invalid={Boolean(deliveryError) || undefined}
+                    aria-invalid={Boolean(visibleError("address")) || undefined}
                     aria-describedby={
-                      deliveryError ? "checkout-delivery-error" : undefined
+                      visibleError("address") ? "checkout-address-error" : undefined
                     }
                     className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
                   />
+                  <FieldError id="checkout-address-error" message={visibleError("address")} />
                   <textarea
+                    name="note"
+                    aria-label="Ghi chú đơn hàng"
                     value={form.note}
                     onChange={(e) =>
-                      updateForm("note", e.target.value.slice(0, 128))
+                      updateForm("note", e.target.value.slice(0, 1000))
                     }
+                    onBlur={() => touchField("note")}
+                    maxLength={1000}
+                    aria-invalid={Boolean(visibleError("note")) || undefined}
+                    aria-describedby={visibleError("note") ? "checkout-note-error checkout-note-count" : "checkout-note-count"}
                     rows={4}
                     placeholder="Ghi chú"
                     className="resize-y bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
                   />
-                  <p className="text-right text-[11px] text-gray-600 -mt-3">
-                    {form.note.length}/128
+                  <FieldError id="checkout-note-error" message={visibleError("note")} />
+                  <p id="checkout-note-count" className="text-right text-[11px] text-gray-600 -mt-3">
+                    {form.note.length}/1000
                   </p>
                 </div>
 
@@ -792,9 +833,8 @@ export default function CheckoutClient() {
                     <label className="relative w-[48px] h-[26px] cursor-pointer inline-block">
                       <input
                         checked={form.invoiceEnabled}
-                        onChange={(e) =>
-                          updateForm("invoiceEnabled", e.target.checked)
-                        }
+                        aria-label="Xuất hóa đơn công ty"
+                        onChange={(e) => { updateForm("invoiceEnabled", e.target.checked); if (!e.target.checked) setFieldErrors((current) => { const next = { ...current }; delete next.companyName; delete next.taxCode; delete next.invoiceAddress; delete next.invoiceEmail; return next; }); }}
                         type="checkbox"
                         className="peer sr-only"
                       />
@@ -804,44 +844,64 @@ export default function CheckoutClient() {
                   {form.invoiceEnabled && (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input
+                        <div><input
+                          name="companyName"
+                          aria-label="Tên công ty"
                           value={form.companyName}
                           onChange={(e) =>
                             updateForm("companyName", e.target.value)
                           }
+                          onBlur={() => touchField("companyName")}
+                          aria-invalid={Boolean(visibleError("companyName")) || undefined}
+                          aria-describedby={visibleError("companyName") ? "checkout-company-error" : undefined}
                           type="text"
                           placeholder="Tên công ty"
                           className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                        />
-                        <input
+                        /><FieldError id="checkout-company-error" message={visibleError("companyName")} /></div>
+                        <div><input
+                          name="taxCode"
+                          aria-label="Mã số thuế"
                           value={form.taxCode}
                           onChange={(e) =>
                             updateForm("taxCode", e.target.value)
                           }
+                          onBlur={() => touchField("taxCode")}
+                          aria-invalid={Boolean(visibleError("taxCode")) || undefined}
+                          aria-describedby={visibleError("taxCode") ? "checkout-tax-code-error" : undefined}
                           type="text"
                           placeholder="Mã số thuế"
                           className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                        />
+                        /><FieldError id="checkout-tax-code-error" message={visibleError("taxCode")} /></div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <input
+                        <div><input
+                          name="invoiceAddress"
+                          aria-label="Địa chỉ xuất hóa đơn"
                           value={form.invoiceAddress}
                           onChange={(e) =>
                             updateForm("invoiceAddress", e.target.value)
                           }
+                          onBlur={() => touchField("invoiceAddress")}
+                          aria-invalid={Boolean(visibleError("invoiceAddress")) || undefined}
+                          aria-describedby={visibleError("invoiceAddress") ? "checkout-invoice-address-error" : undefined}
                           type="text"
                           placeholder="Địa chỉ xuất hóa đơn"
                           className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                        />
-                        <input
+                        /><FieldError id="checkout-invoice-address-error" message={visibleError("invoiceAddress")} /></div>
+                        <div><input
+                          name="invoiceEmail"
+                          aria-label="Email nhận hóa đơn"
                           value={form.invoiceEmail}
                           onChange={(e) =>
                             updateForm("invoiceEmail", e.target.value)
                           }
+                          onBlur={() => touchField("invoiceEmail")}
+                          aria-invalid={Boolean(visibleError("invoiceEmail")) || undefined}
+                          aria-describedby={visibleError("invoiceEmail") ? "checkout-invoice-email-error" : undefined}
                           type="email"
                           placeholder="Email nhận hóa đơn"
                           className="bg-[#0d0d10] border border-[#27272a] rounded-lg px-[14px] py-[10px] text-white text-[13px] outline-none w-full transition-colors duration-200 focus:border-blue-500 placeholder-[#555]"
-                        />
+                        /><FieldError id="checkout-invoice-email-error" message={visibleError("invoiceEmail")} /></div>
                       </div>
                     </>
                   )}

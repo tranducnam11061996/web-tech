@@ -5,7 +5,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardList,
-  Heart,
   Pause,
   Play,
   Share2,
@@ -25,6 +24,7 @@ import type {
   ProductGalleryImage,
 } from "@/types/product-detail";
 import ProgressiveImage from "./ProgressiveImage";
+import FavoriteButton from "./FavoriteButton";
 import { openProductSpecifications } from "./ProductSpecificationsOpenButton";
 
 const ProductVideoModal = dynamic(() => import("./ProductVideoModal"), { ssr: false });
@@ -72,7 +72,6 @@ export default function ProductCarousel({
   const [activeImageTab, setActiveImageTab] = useState<"product" | "customer">(
     "product",
   );
-  const [isFavorite, setIsFavorite] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const currentGallery =
     activeImageTab === "customer" && customerImages.length > 0
@@ -310,26 +309,15 @@ export default function ProductCarousel({
         }}
       >
         <div className="product-gallery-actions">
-          <button
-            type="button"
-            className={`product-gallery-icon-button ${isFavorite ? "is-active" : ""}`}
-            aria-label={
-              isFavorite
-                ? "Bỏ sản phẩm khỏi danh sách yêu thích"
-                : "Thêm sản phẩm vào danh sách yêu thích"
-            }
-            aria-pressed={isFavorite}
-            onClick={() => {
-              setIsFavorite((current) => !current);
-              showMessage(
-                isFavorite
-                  ? "Đã bỏ khỏi danh sách yêu thích"
-                  : "Đã lưu sản phẩm trên thiết bị này",
-              );
-            }}
-          >
-            <Heart aria-hidden="true" />
-          </button>
+          <FavoriteButton
+            productId={Number(productData.id)}
+            variant="gallery"
+            onChange={(favorited) => showMessage(
+              favorited
+                ? "Đã thêm sản phẩm vào danh sách yêu thích"
+                : "Đã bỏ sản phẩm khỏi danh sách yêu thích",
+            )}
+          />
           <button
             type="button"
             className="product-gallery-icon-button"

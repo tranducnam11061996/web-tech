@@ -135,6 +135,7 @@ sequenceDiagram
 - Customer sessions store hashed tokens, absolute expiry, idle window, and sliding idle expiry. Session touch is throttled.
 - Anonymous high-risk actions use action-specific reCAPTCHA v3, honeypot/minimum-fill signals, and atomic rate-limit buckets by IP plus hashed identifier.
 - Authenticated customer writes require session/origin checks and rate limits; CAPTCHA is reserved for anomalous/step-up behavior.
+- Customer favorites use additive relation rows keyed by `(customer_id, product_id)`. The browser registers only mounted real catalog IDs after `/api/customer/me` succeeds, batches up to 100 status checks, keeps one in-memory customer-scoped state store, and performs optimistic idempotent PUT/DELETE. The separate `/yeu-thich` list joins current public catalog data and paginates by descending favorite ID without `COUNT(*)`; hidden products are omitted and customer deletion cascades.
 - Admin writes require session, RBAC, same-origin handling, audit logging, and the write gate. Admin login adds account/IP throttling and risk-based CAPTCHA.
 
 ## API and error contract
@@ -157,6 +158,8 @@ Public write failures use:
 - Order creation additionally requires `Idempotency-Key` and `recaptchaToken`.
 - Signed search webhook requires `X-Webhook-Timestamp`, `X-Webhook-Nonce`, and `X-Webhook-Signature`.
 - Public CORS is restricted to the configured storefront origin; preflight does not emit wildcard origins.
+- Storefront write forms mirror canonical backend validation for immediate UX, preserve structured `status/code/fields/requestId/retryAfter`, and focus/announce field errors. Customer, order, and combo CAPTCHA token schemas intentionally allow an empty browser token to reach the verifier so the explicit non-production bypass can operate; the verifier remains authoritative and production rejects missing tokens.
+- Checkout delivery now carries additive `provinceCode` and `wardCode` values beside display names. Receiver and invoice payloads use typed conditional schemas rather than open records; order transaction and idempotency boundaries are unchanged.
 
 ## Database model
 
@@ -164,9 +167,9 @@ Public write failures use:
 - New transactional/security/runtime state lives in additive InnoDB `web_admin_*` tables.
 - No code should assume a physical FK exists between legacy tables.
 - Search uses `product_data_search` plus the normalize function, insert/update triggers, and FK to products.
-- Customer, voucher, product-promotion, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
+- Customer, customer-favorite, voucher, product-promotion, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
 
-The accepted active `it_tech_db` snapshot on `2026-07-13` contains 288 physical tables: 160 InnoDB and 128 MyISAM. It has no importer stage/restore/recovery tables and no Latin-1 tables or columns. Consumers must still use named table contracts rather than infer schema from totals. The live inventory is 788 product categories, 90 brands, 4,712 products/search rows, 4 article categories, 668 articles/content rows, and 705 article-category links. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified restore path.
+The active `it_tech_db` snapshot contains 289 physical tables: 161 InnoDB and 128 MyISAM after the additive customer-favorites migration on `2026-07-14`. It has no importer stage/restore/recovery tables and no Latin-1 tables or columns. Consumers must still use named table contracts rather than infer schema from totals. The live inventory is 788 product categories, 90 brands, 4,712 products/search rows, 4 article categories, 668 articles/content rows, and 705 article-category links. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified restore path.
 
 ## Media security
 

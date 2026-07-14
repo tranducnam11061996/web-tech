@@ -1,5 +1,8 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import FavoriteButton from "../FavoriteButton";
+import ProductCardLink from "../ProductCardLink";
+import { SHOW_PRODUCT_CARD_FAVORITES } from "@/lib/storefrontFeatureFlags";
 
 export type HomepageProductSectionTitleLine = {
   text: string;
@@ -80,38 +83,41 @@ function ProductCard({ product }: { product: HomepageProductSectionProduct }) {
   const productName = product.name || "Sản phẩm";
 
   return (
-    <Link className="product-card" href={getProductHref(product)} title={productName}>
-      <div className="product-img">
-        {product.thumbnail ? (
-          <img
-            src={product.thumbnail}
-            alt={productName}
-            loading="lazy"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="placeholder-text">{productName}</span>
-        )}
-      </div>
-      <div className="product-info">
-        <span className="product-brand">{brand}</span>
-        <span className="product-name">{productName}</span>
-        <div className="product-footer">
-          <span className="product-price">
-            {priceText ? (
-              <>
-                {priceText} <span>&#8363;</span>
-              </>
-            ) : (
-              "Liên hệ"
-            )}
-          </span>
-          <div className="product-menu">
-            <span>&#8942;</span>
+    <article className="product-card relative">
+      {SHOW_PRODUCT_CARD_FAVORITES ? <FavoriteButton productId={Number(product.id)} /> : null}
+      <ProductCardLink className="product-card-link flex h-full flex-1 flex-col" href={getProductHref(product)} title={productName}>
+        <div className="product-img product-card-image-frame">
+          {product.thumbnail ? (
+            <img
+              src={product.thumbnail}
+              alt={productName}
+              loading="lazy"
+              className="h-full w-full object-contain object-center"
+            />
+          ) : (
+            <span className="placeholder-text">{productName}</span>
+          )}
+        </div>
+        <div className="product-info">
+          <span className="product-brand">{brand}</span>
+          <span className="product-name">{productName}</span>
+          <div className="product-footer">
+            <span className="product-price">
+              {priceText ? (
+                <>
+                  {priceText} <span>&#8363;</span>
+                </>
+              ) : (
+                "Liên hệ"
+              )}
+            </span>
+            <div className="product-menu">
+              <span>&#8942;</span>
+            </div>
           </div>
         </div>
-      </div>
-    </Link>
+      </ProductCardLink>
+    </article>
   );
 }
 

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import ProductGridCard, { type ProductGridCardData } from "@/components/ProductGridCard";
+import { validatePriceRange } from "@/lib/storefrontValidation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 const PAGE_SIZE = 24;
@@ -138,7 +139,7 @@ function ProductSkeletonGrid() {
     <>
       {SKELETON_KEYS.map((key) => (
         <div key={key} className="min-h-[360px] animate-pulse rounded-xl border border-[#1f1f24] bg-[#111115]">
-          <div className="aspect-[4/3] rounded-t-xl bg-[#18181b]" />
+          <div className="aspect-square rounded-t-xl bg-[#18181b]" />
           <div className="space-y-3 p-4">
             <div className="mx-auto h-4 w-4/5 rounded bg-[#202026]" />
             <div className="mx-auto h-4 w-2/3 rounded bg-[#202026]" />
@@ -161,6 +162,7 @@ export default function CollectionClient({ slug, initialData }: CollectionClient
   const [pagination, setPagination] = useState(initialData.pagination || { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 });
   const [isLoading, setIsLoading] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [priceError, setPriceError] = useState("");
   const [draftPrice, setDraftPrice] = useState(() => ({
     min: initialData.priceBounds?.min || 0,
     max: initialData.priceBounds?.max || 0,
@@ -237,6 +239,10 @@ export default function CollectionClient({ slug, initialData }: CollectionClient
     if (!hasBounds) return;
     const nextMin = clampPrice(draftPrice.min, priceBounds);
     const nextMax = clampPrice(draftPrice.max, priceBounds);
+    const validation = validatePriceRange(nextMin, nextMax, priceBounds);
+    const message = validation.minPrice || validation.maxPrice || "";
+    setPriceError(message);
+    if (message) return;
     pushQuery({
       "min-price": nextMin > priceBounds.min ? String(nextMin) : null,
       "max-price": nextMax < priceBounds.max ? String(nextMax) : null,
@@ -245,6 +251,7 @@ export default function CollectionClient({ slug, initialData }: CollectionClient
   };
 
   const clearPriceFilter = () => {
+    setPriceError("");
     pushQuery({ "min-price": null, "max-price": null, page: "1" });
   };
 
@@ -329,7 +336,9 @@ export default function CollectionClient({ slug, initialData }: CollectionClient
                   step={PRICE_STEP}
                   disabled={!hasBounds}
                   value={draftPrice.min}
-                  onChange={(event) => setDraftPrice((current) => ({ ...current, min: Number(event.target.value) }))}
+                  onChange={(event) => { setPriceError(""); setDraftPrice((current) => ({ ...current, min: Number(event.target.value) })); }}
+                  aria-invalid={Boolean(priceError) || undefined}
+                  aria-describedby={priceError ? "collection-price-error" : undefined}
                   className="h-11 w-full rounded-xl border border-[#27272a] bg-[#18181b] px-4 text-sm font-bold text-white outline-none transition focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 disabled:opacity-50"
                 />
               </label>
@@ -342,10 +351,13 @@ export default function CollectionClient({ slug, initialData }: CollectionClient
                   step={PRICE_STEP}
                   disabled={!hasBounds}
                   value={draftPrice.max}
-                  onChange={(event) => setDraftPrice((current) => ({ ...current, max: Number(event.target.value) }))}
+                  onChange={(event) => { setPriceError(""); setDraftPrice((current) => ({ ...current, max: Number(event.target.value) })); }}
+                  aria-invalid={Boolean(priceError) || undefined}
+                  aria-describedby={priceError ? "collection-price-error" : undefined}
                   className="h-11 w-full rounded-xl border border-[#27272a] bg-[#18181b] px-4 text-sm font-bold text-white outline-none transition focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600 disabled:opacity-50"
                 />
               </label>
+              {priceError ? <p id="collection-price-error" role="alert" className="text-xs text-red-300 md:col-span-2">{priceError}</p> : null}
               <button
                 type="button"
                 disabled={!hasBounds || isPending}

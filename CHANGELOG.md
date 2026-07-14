@@ -6,6 +6,58 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 
 ## 2026-07-14
 
+### Storefront form validation and error clarity
+
+- Added shared Vietnamese phone, email, password, OTP, birthday, address, tax-code, quantity, voucher, search, and price-range validation plus a structured storefront API error model retaining status, code, fields, retry delay, and request ID.
+- Added field-level blur/change validation, focus/ARIA error handling, and clear CAPTCHA/network/server failures to registration, login, recovery, profile/address/password, cart, and checkout flows. Standard and combo orders now send canonical location codes.
+- Replaced open receiver/invoice records with conditional backend schemas, preserved order idempotency/transaction protections, and moved empty CAPTCHA-token enforcement to the authoritative verifier so only the explicit non-production bypass can accept it.
+- Bounded cart/search/filter controls, added validated brand/collection price ranges, and marked newsletter/comments honestly unavailable because no persistence/moderation API exists.
+- Added backend validation coverage and storefront Playwright coverage for normalization, conditional checkout groups, field mapping, and registration phone errors.
+- Verification passed both application typecheck/lint/build pipelines, 94/94 backend unit tests, the default integration suite (3 pass/6 environment-gated skips), and 14/14 focused desktop/mobile validation/accessibility checks. The full storefront run is 56 pass/2 expected skips/2 unrelated product-description fallback width failures; no production healthcheck was claimed against the active development servers.
+
+### Customer product favorites
+
+- Added additive InnoDB `web_admin_customer_favorites` with unique customer/product membership, stable cursor ID, customer cascade, list/product indexes, readiness gating, and same-transaction cleanup during permanent admin product deletion. The live migration followed a restore-verified backup and two-pass disposable-clone trial; live state is 289 tables (161 InnoDB/128 MyISAM), zero favorite rows, and `ADMIN_WRITE_ENABLED=false`.
+- Added authenticated, no-store customer APIs for a 24-item cursor list, a deduplicated 100-ID status batch, and idempotent PUT/DELETE mutations with origin validation, per-customer rate limiting, fixed route metrics, request IDs, and safe errors. List/product validation uses the current public catalog rather than storing stale snapshots.
+- Added a customer-scoped external favorite store beside the session provider, mounted-card batching with no guest favorite requests, optimistic synchronized hearts, accessible busy/pressed/live states, login-save continuation, header links, and the standalone noindex `/yeu-thich` search-style grid with skeleton, empty/error/retry, load-more, and direct removal.
+- Added backend migration/parser coverage and desktop/mobile Playwright coverage for guest redirects and zero requests, single deduplicated status batching, list load-more, and immediate removal.
+
+### Product-description fallback for missing articles
+
+- Product details with no article HTML now retain the existing description disclosure/content markup, render only the product name in its heading, and show the existing thumbnail above every normalized `proSummary` line without list markers or sidebar check icons. Both branches retain the collapsed-height reference used by the technical-specification column; article markup remains unchanged.
+- Centralized non-empty `proSummary` line normalization for the product-detail fallback and quick-specification sidebar, avoiding separate parsing behavior.
+- Added desktop/mobile Playwright and scoped Axe coverage for the article and no-article branches. The full storefront suite passes 40 tests with 2 expected project-specific skips; both application validation pipelines and the temporary-production healthcheck passed 15/15.
+- Removed the fallback image wrapper so the thumbnail is the direct full-width image element, and restored desktop sticky behavior for the technical-specification panel: its visible preview remains tied to the collapsed description height while the outer boundary follows the current description height and releases at its bottom.
+
+### Responsive product technical-specification height
+
+- Replaced the unconditional `66vh` desktop technical-specification crop with a measured `pending`/`clipped`/`full` contract. A naturally taller table now clips to the exact collapsed description-column height; a fitting table renders completely without the gradient or modal action.
+- Kept specification HTML sanitized and server-rendered, adding only a small client controller that survives streamed DOM replacement, batches resize/intersection/mutation measurements and preserves the collapsed reference while the description is expanded. Mobile retains the existing `66vh` modal preview.
+- Added bounded animation-frame retries for transient zero-size startup measurements, preventing a clean Next dev load from remaining `pending`; removed the nested product-bundle modal chunk waterfall so direct Chromium acceptance no longer reports its stale hash 404.
+- Added desktop/mobile Playwright coverage for both desktop branches, live resize, description expansion, modal keyboard/focus behavior, scoped Axe checks and the unchanged mobile behavior. The stable full run passes 36 tests with 2 expected project-specific skips; both application pipelines and temporary-production healthcheck pass 15/15.
+
+### Product-description preview disclosure
+
+- Replaced the closed native `<details>` pattern that hid the complete product article with a bounded visible preview and native accessible “Xem thêm” / “Thu gọn” button.
+- Added desktop/mobile Playwright coverage that confirms visible initial content, expansion, collapse, focus retention, and the correct ARIA state on a long PC description. The full suite passes 34/34; both app pipelines and transitional local health 15/15 also pass.
+
+### Empty similar-product sections
+
+- Product detail now omits the entire “Sản phẩm tương tự” region when the supplemental API returns no recommendations, instead of rendering an empty-state card.
+- Added desktop/mobile Playwright coverage for the empty-recommendation product detail route, including absence of the section, heading, and grid. These checks remain green within the expanded 34/34 suite; both app pipelines and transitional local health 15/15 also pass.
+
+### Product-detail quick-specification disclosure
+
+- Fixed the product-detail `proSummary` preview so one to five non-empty rows render in full without a control, while longer summaries render exactly five rows before an expand/collapse action.
+- Replaced the closed `<details>` structure that hid every row with a native button using `aria-expanded` and `aria-controls`; overflow rows remain in the DOM with the semantic `hidden` state and the control retains keyboard focus while toggling.
+- Added desktop/mobile Playwright coverage for the 3-row, 5-row and 8-row boundaries, exact Vietnamese labels, Enter/Space interaction, focus retention and scoped Axe checks. These checks remain green within the expanded 34/34 suite; both app pipelines and transitional local health 15/15 also pass.
+
+### Canonical square product-card media
+
+- Added one final component-level `product-card-image-frame` contract: every real product-card media area is a non-shrinking `1:1` square and every child image uses centered `object-fit: contain`, so portrait, landscape and square assets remain fully visible without JavaScript orientation checks.
+- Applied the contract to shared client/SSR product cards and dynamic homepage cards, and aligned the collection loading skeleton while leaving product galleries, cart/checkout thumbnails, news, banners and placeholder demo sections unchanged.
+- Added desktop/mobile Playwright coverage for portrait/landscape/square fixtures, fallback SVG, homepage/category/brand, similar/recently-viewed cards and 320/768/1024/1440 widths. These checks remain green within the expanded 34/34 suite; both app pipelines and local health also pass.
+
 ### Progressive image hydration repair
 
 - Fixed a shared `ProgressiveImage` hydration race where cached images could complete before React attached handlers and then remain stuck in the loading blur after an effect reset. Image state is now bound to the active source and reconciles the DOM `complete`/`naturalWidth` result after hydration.

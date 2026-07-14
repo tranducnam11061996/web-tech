@@ -1,6 +1,6 @@
 # HACOM Architecture
 
-Last verified: `2026-07-14`
+Last verified: `2026-07-15`
 
 ## System boundaries and runtime
 
@@ -88,6 +88,8 @@ sequenceDiagram
 ```
 
 - Menu, banner, homepage, product, category, and search routes return runtime-only fields.
+- Managed menus use `web_admin_menus -> web_admin_menu_versions -> web_admin_menu_items`. Header, homepage, Footer, and Bottom Footer have separate draft/publish owners and public endpoints. Publication bumps the matching cache version; storefront Footer consumers retain code fallback data so a read outage does not change the established DOM structure.
+- Category attribute metadata and product filtering share one versioned resolver. Stored `idv_attribute_value.api_key` is the public value identity. Global attributes apply without materialized category links; Local mappings are preferred, with a read-only fallback that admits only values actually assigned to enabled products in the enabled category/descendant scope.
 - Product/news detail and category payloads carry a bounded root-to-leaf `categoryTrail`; the storefront renders it with one shared semantic breadcrumb component and does not issue a follow-up breadcrumb request.
 - Product-detail payloads carry server-resolved similar products and related articles. Recently viewed IDs/snapshots remain in browser `localStorage`; the client performs one bounded batch refresh through `/api/products?ids=...`, while checkout continues to requote all prices server-side.
 - Product-detail payloads carry up to 50 currently active, non-exhausted voucher summaries that apply globally or through a selected category ancestor. These summaries are discovery data only; cart quote and order creation re-check time, quota, minimum order, eligible items, and current prices.

@@ -75,9 +75,12 @@ async function getProductAttributes(productId: number, productCat: string) {
     const placeholders = catIds.map(() => '?').join(',');
     const [attrRows] = await pool.query(`
       SELECT DISTINCT a.id, a.name, a.attribute_code, a.isSearch, a.in_summary, a.ordering
-      FROM idv_attribute_category ac
-      JOIN idv_attribute a ON ac.attr_id = a.id
-      WHERE ac.category_id IN (${placeholders})
+      FROM idv_attribute a
+      WHERE a.status = 1
+        AND (a.scope = 1 OR EXISTS (
+          SELECT 1 FROM idv_attribute_category ac
+          WHERE ac.attr_id = a.id AND ac.category_id IN (${placeholders}) AND ac.status = 1
+        ))
       ORDER BY a.ordering ASC, a.id ASC
     `, catIds);
     const attributes = attrRows as any[];

@@ -1,6 +1,6 @@
 # Database Statistics
 
-Last verified: `2026-07-13`
+Last verified: `2026-07-15`
 
 - Active database: `it_tech_db`.
 - Retained legacy source: `hanoi23_db`.
@@ -11,16 +11,16 @@ Use this file for operational orientation, not as a substitute for preflight que
 
 | Metric | Value | Qualification |
 |---|---:|---|
-| Physical tables | 288 | Lean accepted schema; no recovery/stage/restore objects |
-| InnoDB tables | 160 | Runtime and durable audit tables |
+| Physical tables | 289 | Lean accepted schema plus customer favorites; no recovery/stage/restore objects |
+| InnoDB tables | 161 | Runtime, customer favorites, and durable audit tables |
 | MyISAM tables | 128 | Legacy runtime tables |
 | `latin1_swedish_ci` tables | 0 | Accepted recovery objects removed |
-| `utf8mb4_unicode_ci` tables | 286 | Runtime/default collation |
+| `utf8mb4_unicode_ci` tables | 287 | Runtime/default collation, including customer favorites |
 | `utf8mb4_0900_ai_ci` tables | 2 | Preserved MySQL-default objects |
 | Stored routines | 1 | Search normalization function |
 | Triggers | 2 | Product-search insert/update triggers |
 
-After live run 8 and accepted cleanup of exactly 74 recovery tables, the active database has 288 physical tables: 160 InnoDB and 128 MyISAM. There are zero Latin-1/utf8mb3 columns and no import recovery/stage/restore tables.
+After live run 8, accepted cleanup of exactly 74 recovery tables, and the additive customer-favorites migration, the active database has 289 physical tables: 161 InnoDB and 128 MyISAM. There are zero Latin-1/utf8mb3 columns and no import recovery/stage/restore tables.
 
 The empty pre-import `it_tech_db` baseline had 285 tables: 157 InnoDB and 128 MyISAM. The current three additional InnoDB tables are the durable importer run/record/entity-map audit contract.
 
@@ -53,6 +53,7 @@ The empty pre-import `it_tech_db` baseline had 285 tables: 157 InnoDB and 128 My
 | Article-category menu references | 0 |
 | Article/category entity registry rows | 668 / 4 |
 | `web_admin_sequence` | 0 |
+| `web_admin_customer_favorites` | 0 at migration acceptance; may grow through real customer use |
 
 Imported product/category/brand images remain in their legacy fields as validated absolute `https://pcmarket.vn/...` URLs. The legacy image-name/stock/folder-counter tables and modern product-image metadata table remain empty in `it_tech_db`.
 

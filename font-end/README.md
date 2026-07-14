@@ -1,6 +1,6 @@
 # HACOM Storefront
 
-Last verified: `2026-07-14`
+Last verified: `2026-07-15`
 
 `font-end` is the customer-facing Next.js 16.2.9/React 19.2.4 storefront. It consumes `web-admin` APIs and must never access MySQL or backend secrets directly.
 
@@ -45,6 +45,7 @@ The storefront CSP permits `unsafe-eval` only under `next dev`, because React's 
 - Shared progressive images reconcile cached success/failure after hydration: loaded images always clear their loading classes, failed images fall back once to the local SVG placeholder, and source changes cannot be overwritten by stale load events.
 - Real product cards use the shared `product-card-image-frame`: the media box is always a non-shrinking `1:1` square and portrait/landscape/square images remain centered and uncropped through `object-fit: contain`. Galleries, commerce thumbnails, news and banners keep their specialized layouts.
 - Product-category and search pagination use canonical URL state: page one omits `page`, while later pages use `?page=N`. Direct loads and browser Back/Forward restore the requested page; filter/sort changes return to page one, and client API failures stay inside the product grid with a retry action.
+- Category headings and SSR document titles use `metaTitle` only when its trimmed value has at least five characters; invalid legacy values such as `0` fall back to the category name. The catalog control bar provides sorting only, without a standalone text search control.
 - Product-category pages keep the requested category's metadata/breadcrumb/feature box while backend list, count, price, brand and attribute data includes that enabled category plus all enabled descendants. `/pc-van-phong.html` is the verified reference route: category 521 renders 34 distinct enabled products; inactive categories remain 404.
 - Canonical brand pages at `/brand/[slug]`; homepage brands use backend-provided canonical IDs/slugs and remote PCMarket logos with a text fallback.
 - Shared dynamic breadcrumbs on product, product-category, article, and news-category pages. `/` and `/tin-tuc` intentionally omit them; narrow viewports scroll the trail locally without widening the document.
@@ -133,4 +134,6 @@ For established homepage `Section*.tsx` markup, bind dynamic data into existing 
 
 ## Verification status
 
-Latest local TypeScript, ESLint `--quiet`, and production build pass. The focused validation/accessibility Playwright run passes 14/14 across desktop/mobile; the full suite currently reports 56 pass, 2 expected project-specific skips, and 2 independent product-description fallback width failures. The last temporary-production healthcheck passed 15/15 with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true`; it was not rerun while the active processes were development servers. Coverage includes favorites guest zero-request/login continuation, one-batch status, list pagination/removal, field-level registration validation, conditional checkout validation, article and no-article description branches, responsive technical specifications, empty similar-product omission, product-summary boundaries, and product-card fixtures. Header payload was reduced to about 51 KB and homepage bootstrap to about 97 KB in the latest recorded measurement. These are regression observations, not proof of production Web Vitals or 1,500-user capacity.
+The `2026-07-15` working-tree audit passed TypeScript, ESLint `--quiet`, production build, and npm audit with zero known vulnerabilities. The focused category-title/mega-menu run passed 8 tests with 2 expected project/device skips using one worker. The full 76-test run with 12 workers was resource-inconclusive: 44 pass, 4 skip, and 28 failures dominated by `ERR_INSUFFICIENT_RESOURCES`, navigation timeouts, and cascading selector failures. Rerun with controlled concurrency before classifying product regressions.
+
+Current referenced JavaScript exceeds both regression and release budgets for product detail (236.8 KB), cart (175.5 KB), checkout (190.8 KB), and combo checkout (187.4 KB). Combo cart passes at 167.7 KB. Strict local health is 13/15 because the configured collection API/page are absent; empty-catalog mode passed 15/15 while MySQL was healthy. These are local regression observations, not production Web Vitals or 1,500-user capacity evidence. See `../PROJECT_AUDIT_2026-07-15.md`.

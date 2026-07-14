@@ -1,6 +1,6 @@
 # Admin and Search Migration Guide
 
-Last verified: `2026-07-13`
+Last verified: `2026-07-15`
 
 Read this before any schema-changing command. The configured local database has received the latest additive admin migration; no other environment should be assumed migrated.
 
@@ -19,7 +19,7 @@ Read this before any schema-changing command. The configured local database has 
 
 Phase 1 completed on `it_tech_db` with plan `15f0f236257b0214617d6b3f0ec8b04d02aad19989d91f04f8044665fc5782e6`. Audit/apply/verify artifacts live outside Git under `var/migrations/collation`. The apply command must use the exact audit file as `--baseline-plan`; it verifies the stored plan hash and safely skips tables already at target on resume. A session-only permissive SQL mode is used during legacy table rebuilds so existing zero-date defaults remain byte/contract compatible, then the original session mode is restored.
 
-Do not run phase 2 casually. Once import runs 1–5 are accepted and rollback retention is closed: stop all services, create and checksum a new full dump, restore a disposable clone, audit/apply/verify with `--include-recovery`, and only then repeat against `it_tech_db`. Acceptance requires zero Latin-1 tables/columns and otherwise unchanged engines, rows, indexes, routine, triggers, and catalog counts. Rollback is restore-from-verified-archive, never an ALTER back to Latin-1.
+Phase 2 and accepted recovery cleanup are complete. Runs 2–8 have closed rollback windows, their run-scoped recovery tables were removed through the guarded cleanup, and the accepted runtime has zero Latin-1/utf8mb3 columns. Do not recreate recovery objects or attempt an ALTER back to Latin-1; rollback is restore from a verified external artifact.
 
 ### Combo migration
 
@@ -31,7 +31,7 @@ The product-group migration ran twice successfully against local `hanoi23_db` on
 
 The 285-table count (157 InnoDB and 128 MyISAM) was the empty `it_tech_db` pre-import baseline and also reflects the additive migration set present during cutover. Buying-guide and product-promotion migrations had previously completed twice against identified `hanoi23_db` to prove idempotency. Product-promotion fixtures were removed after verifying UTF-8 tables, relation FKs/indexes, mixed-scope resolution, and cascade deletion.
 
-Active `it_tech_db` now has 342 physical tables (207 InnoDB and 135 MyISAM): the 285-table baseline, 3 import audit/map tables, and 54 retained run-scoped backups. Its current catalog contains 788 categories, 89 brands, 4,712 products, and 4,712 search rows. These totals must not be copied into a migration as expected permanent objects.
+Active accepted `it_tech_db` has 289 physical tables (161 InnoDB and 128 MyISAM): the 288-table lean post-import schema plus the additive customer-favorites table. It contains 788 categories, 90 brands, 4,712 products, and 4,712 search rows, with no importer recovery/stage/restore tables and no Latin-1/utf8mb3 columns. These totals are verification evidence, not permission to migrate an unidentified target.
 
 - Admin sequence/entity registry, access/RBAC/audit infrastructure.
 - Product images, managed menus, banner metadata, product-card rules, and category feature boxes.
@@ -112,6 +112,7 @@ WHERE table_schema = DATABASE()
     'web_admin_product_promotion_categories',
     'web_admin_storefront_customers',
     'web_admin_customer_sessions',
+    'web_admin_customer_favorites',
     'web_admin_order_requests',
     'web_admin_request_limits',
     'web_admin_email_outbox',

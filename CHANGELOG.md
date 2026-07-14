@@ -4,7 +4,71 @@ Notable workspace changes are grouped by implementation/audit date.
 
 Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and `PROJECT_PROGRESS.md`, not an older “Known Gaps” section, for current status.
 
+## 2026-07-15
+
+### Whole-workspace documentation and continuation audit
+
+- Re-audited Git state, application boundaries, route/config inventory, database runbooks, environment usage, runtime health, security audit, browser coverage, and frontend JavaScript budgets.
+- Replaced the stale/duplicated canonical handoff with a concise current-state `AI_HANDOFF.md`, added `NEW_MACHINE_SETUP.md`, and recorded detailed evidence in `PROJECT_AUDIT_2026-07-15.md`.
+- Corrected current repository HEAD, the post-favorites 289-table database state, accepted external recovery boundary, strict 13/15 versus empty-catalog 15/15 health behavior, and current verification counts across root/app/database documentation.
+- Recorded that the current dirty working tree and ignored database/media/secrets require separate transfer; a Git clone alone cannot reproduce the active source-machine state.
+- Recorded current frontend budget failures and classified the 12-worker full Playwright run as resource-inconclusive; the focused new specs pass with controlled single-worker execution.
+- Did not modify application code, database schema, or database data during this documentation audit.
+
+### Expanded offline TinyMCE controls
+
+- Enabled the standard `File`, `Edit`, `View`, `Insert`, `Format`, `Tools`, `Table`, and `Help` menubar for the shared admin rich-text editor.
+- Expanded the wrapping toolbar with text colors, links, images, media, tables, source code and fullscreen while retaining all existing formatting controls.
+- Disabled TinyMCE's `Get all features` promotion through the supported configuration flag and collapsed the empty generated promotion container so the header no longer reserves that CTA area.
+- Restored the editor header grid after hiding promotion by making the menubar and direct/wrapped toolbar span the full editor width; wide screens stay one row and narrow screens wrap horizontally instead of producing a right-hand toolbar column.
+- Preserved the local `/tinymce.min.js` GPL integration, bundled plugins, dark skin/content background, content synchronization and vertical-only resize behavior.
+
+### Category SEO-title fallback
+
+- Added a shared storefront title resolver: category `meta_title` is used only after trimming to at least five characters; legacy blanks and `0` now use the category name, with a final `Danh mục sản phẩm` fallback.
+- Applied that resolver to the category catalog heading and `generateMetadata` only, so `/pc-ssd-512gb` now renders `PC SSD 512GB` in both locations while valid SEO titles remain unchanged.
+- Removed the unused standalone catalog search control while preserving existing sort-query behavior and its layout/classes.
+
+### Attribute value ApiKeys
+
+- Backfilled all 426 `idv_attribute_value.api_key` rows in `it_tech_db` with canonical, collision-free lowercase slugs; `AMD Ryzen 7` is now `amd-ryzen-7` and no value remains blank.
+- Made ApiKey required and editable in the existing attribute form, with shared Vietnamese slug generation, format/length/duplicate validation, transactional persistence and cache invalidation.
+- Added `apiKey` to category/search facet values and switched storefront URL state plus category/search backend matching to the stored key. Changed keys take effect immediately; display-name slugs are not retained as aliases.
+- Added a default-dry-run, write-gated backfill command with database/count/confirmation locks and post-apply verification.
+
+### Category attribute filter recovery
+
+- Added one shared public category-attribute resolver for sidebar metadata and product query filtering. Active searchable Global attributes and mapped Local attributes retain their existing behavior; an unmapped Local value is now eligible only when a sellable product in the enabled category scope actually uses it.
+- Restored `PC SSD 512GB` (category 1106) from brand-only filtering to 9 attribute groups / 39 assigned values without backfilling `idv_attribute_category` or changing storefront markup/CSS.
+- Added unit and read-only integration coverage for inferred, mapped, Global, inactive and unsafe values, plus live filter smokes for CPU, RAM, GPU and SSD.
+
+### Attribute management CRUD
+
+- Connected `/product/attribute-list` and `/product/attribute/edit` to the live legacy attribute schema without changing their existing layout or CSS.
+- Added validated, RBAC/write-gated create/update, bulk status and cascading delete APIs. Attribute/value/category reconciliation is transactional and refreshes shared catalog/search caches.
+- Added real list search, sorting, pagination selection, bulk actions, category counts, edit navigation, value management and category-tree assignment. Active/search/global attribute semantics are now applied consistently by public filters and product selectors.
+- Added validation tests plus a destructive integration scenario that can run only against an explicitly named disposable database with its separate gate.
+
+### Bottom Footer managed content
+
+- Added a separately versioned `Bottom Footer` menu with the `/content/menu/bottom-footer` admin screen, RBAC/write-gated draft and publish APIs, public `GET /api/menu/bottom-footer`, ETag response support, and cache invalidation after publication.
+- Seeded and published `Trusted Partners` to `it_tech_db` as one fixed group with 19 active desktop/mobile `#` links: Adata through Einarex in the existing Footer order.
+- Bound only the existing Trusted Partners heading and 19 `partner-link` anchors to public data; no Footer elements, class names, or CSS rules were added, removed, or restyled.
+
 ## 2026-07-14
+
+### Footer Menu managed content
+
+- Added a separately versioned `Footer Menu` with the existing draft/publish workflow, the `/content/menu/footer` admin screen, RBAC/write-gated save and publish routes, audit trail, and public `GET /api/menu/footer` with ETag support.
+- Seeded and published the four required groups (`Shop`, `Support`, `Info`, `Build`) with 26 active desktop/mobile links, all initially targeting `#`.
+- Bound the existing Footer's four headings, icon, labels and hrefs to the public menu data without adding, removing, or restyling any Footer HTML/CSS elements.
+- Verified the public API and storefront rewrite return the published 4-group/26-link payload (including a conditional `304`); both applications passed typecheck, ESLint, build, and the backend unit/integration suites.
+
+### Admin local-development login recovery
+
+- Scoped React/Turbopack's required `unsafe-eval` allowance to the non-production CSP only; production retains the existing strict script policy.
+- Restored the explicit local reCAPTCHA development bypass, restarted the admin development server, and verified the admin login API returns `200` with the local-only empty-token path.
+- Recovered the existing local superadmin account through an audited password reset, revoked prior sessions, and required a password change after the next successful sign-in. No credential is stored in source control.
 
 ### Storefront form validation and error clarity
 

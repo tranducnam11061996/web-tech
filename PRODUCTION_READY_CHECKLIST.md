@@ -1,6 +1,6 @@
 # Production Readiness Checklist
 
-Last updated: `2026-07-13`
+Last updated: `2026-07-15`
 
 Do not deploy until every applicable item is complete and evidence is retained.
 
@@ -15,7 +15,7 @@ Do not deploy until every applicable item is complete and evidence is retained.
 ## Database and runtime
 
 - [ ] Apply additive migrations with the explicit write flag; verify readiness and all required tables/indexes afterward.
-- [ ] Confirm import run state and retention of run-scoped recovery tables; never delete them as generic schema clutter.
+- [ ] Confirm import run state and the external recovery boundary. Accepted runs 2–8 have closed rollback windows and no in-database recovery tables; protect and restore-test the documented external artifacts.
 - [ ] Configure Caddy TLS/HTTP2/compression, request body limits, security headers, route-specific timeouts, and overwritten forwarding headers.
 - [ ] Run two API workers with at most 12 DB connections each, one storefront worker, and one background worker.
 - [ ] Reserve at least 30% of MySQL connections for operations; enable slow-query logging and monitor pool queue/timeouts.
@@ -31,6 +31,8 @@ Do not deploy until every applicable item is complete and evidence is retained.
 
 ## Load and release gate
 
+- [ ] Restore green frontend regression/release JS budgets; the `2026-07-15` build exceeds limits on product, cart, checkout, and combo-checkout.
+- [ ] Obtain a controlled full Playwright result against a stable runtime; the latest 12-worker local run was resource-inconclusive.
 - [ ] Run `npm.cmd run load:k6` on an isolated 8 vCPU/16 GB production-like host using the documented traffic mix and full ramp/hold duration.
 - [ ] Require error rate <0.5%, public read p95 <300 ms/p99 <800 ms, quote p95 <500 ms, and order p95 <1.5 s excluding email.
 - [ ] Require no duplicate orders, no oversold vouchers, CPU sustained <75%, at least 20% free RAM, no pool timeout, and no hot MySQL query >500 ms.

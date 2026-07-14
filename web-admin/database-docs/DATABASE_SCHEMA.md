@@ -1,6 +1,6 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-14`
+Verified: `2026-07-15`
 Active local database: `it_tech_db`. Retained legacy source: `hanoi23_db` (read only during the 2026-07-13 cutover).
 Source: live `information_schema` inspection
 
@@ -30,7 +30,7 @@ Most legacy relations are logical, not physical. Do not assume FK/cascade exists
 
 The dedicated collation migration applied live plan `15f0f236257b0214617d6b3f0ec8b04d02aad19989d91f04f8044665fc5782e6`: 187 runtime tables were rebuilt with `CONVERT TO CHARACTER SET`, 53 changed only their default, and 54 verified banner-location strings were repaired. Engines, row counts, primary/unique/full-text index structures, routine, and triggers were preserved. The remaining Latin-1 recovery objects were later removed by accepted run cleanup.
 
-The `2026-07-14` catalog-route repair changed only `idv_url.url_type` for the 788 exact category routes, from `0` to `product:category`, and added `idv_seller_category.idx_webtech_category_parent_status(parentId,status,id)`. Category route hashes, paths, IDs, engines and row counts were unchanged. The schema remains 288 tables; post-repair logical inventory is 84,049 rows, 1 routine and 2 triggers.
+The `2026-07-14` catalog-route repair changed only `idv_url.url_type` for the 788 exact category routes, from `0` to `product:category`, and added `idv_seller_category.idx_webtech_category_parent_status(parentId,status,id)`. Category route hashes, paths, IDs, engines and row counts were unchanged. Immediately after that repair the schema had 288 tables and 84,049 rows, 1 routine and 2 triggers; the later favorites migration raised the current table total to 289.
 
 PCMarket article-category run `6` inserted source IDs `1–4`. Article run `7` then inserted 668 article/content rows, 705 unique MyISAM category links, 668 canonical routes/registry/maps and 669 records. It quarantined source ID 83, retained remote HTTPS media, and corrected the four category `request_path_index` hashes. Brand run `8` added managed PCM ID 96 and removed every runtime brand 0 reference. Recovery for runs 2-8 is now external-backup-only.
 
@@ -149,6 +149,12 @@ idv_attribute.id
 ```
 
 Legacy attribute values/icons can contain URLs or script-like values. Public APIs must sanitize them.
+
+Admin attribute CRUD uses these legacy tables without a migration. Attribute and value IDs are auto-incremented; `value_count` is recomputed from `idv_attribute_value` after every save. Local attributes (`scope=0`) use `idv_attribute_category`, while Global attributes (`scope=1`) are resolved by readers without materializing a row for every category. `idv_attribute_value` has no status column, so the admin editor treats every retained value as active. Permanent deletion explicitly removes product/category/SEO/card-rule relations in the owning transaction because these logical relations do not provide a complete FK cascade.
+
+`idv_attribute_value.api_key varchar(200)` is indexed and is the canonical public URL slug for a value. As of `2026-07-15`, all 426 rows in `it_tech_db` are populated with 426 distinct `(attributeId,LOWER(api_key))` pairs and zero blanks. Application writes require the lowercase pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$` and enforce uniqueness inside each attribute while holding the attribute transaction lock; no unique index or legacy-table migration was added.
+
+Public category filters share a read-time resolver between metadata and product queries. For a Local attribute without an active category mapping, only values with a real `idv_product_attribute` assignment to a sellable product in the enabled category/descendant scope are eligible. No fallback relation is persisted and no schema migration is required.
 
 ## News Tables
 
@@ -512,7 +518,7 @@ The additive admin migration creates three UTF-8 InnoDB tables. They do not modi
 
 Apply creates run-scoped `web_admin_import_b_<run-id>_*` backup tables plus temporary staging objects. Before acceptance they are not stable schema. The guarded cleanup requires exact run IDs, all importer locks, a newer restore-verified manifest, the maintenance/write/confirmation gates, and exact generated names; it then closes rollback and records the cleanup report. Runs 2-8 have completed cleanup and no such table remains.
 
-Current `it_tech_db` audit state: runs `1`/`2`/`3` are the applied safe-configuration, category and product imports. Brand run `4` is `rolled_back`; corrected brand run `5` is applied with 91 source audit records and many-to-one maps `34 -> 25`, `57 -> 31`. Run 2 stores 788 normalized category records; its 37 records containing 162 attribute links are now `applied`. Run 3 stores 4,712 products, 91 original brand records, 45 attributes, and 426 values as applied records. It also retains 11,735 variant references, 3 config occurrences, and 1,121 comboset occurrences as pending audit data.
+Current `it_tech_db` audit state: runs `1`/`2`/`3` are the applied safe-configuration, category and product imports. Brand run `4` is `rolled_back`; corrected brand run `5` remains applied in audit history and is superseded by accepted finalization run `8`. Run 2 stores 788 normalized category records; its 37 records containing 162 attribute links are now `applied`. Run 3 stores 4,712 products, 91 original brand records, 45 attributes, and 426 values as applied records. It also retains 11,735 variant references, 3 config occurrences, and 1,121 comboset occurrences as pending audit data.
 
 Run 3 populated 4,712 rows in each legacy product store/price/info table, 14,455 `idv_product_category` rows, 17,603 `idv_product_attribute` rows, 162 `idv_attribute_category` rows, 1,218 MyISAM `idv_brand_category` rows, and 4,712 search rows. Product image fields retain absolute `https://pcmarket.vn/...` URLs; no media binary is stored in the database or workspace.
 

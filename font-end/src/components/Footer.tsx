@@ -1,4 +1,26 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { fallbackBottomFooterMenu, loadBottomFooterMenu } from '@/lib/bottomFooterMenu';
+import { fallbackFooterMenu, loadFooterMenu } from '@/lib/footerMenu';
+
 export default function Footer() {
+  const [footerMenu, setFooterMenu] = useState(fallbackFooterMenu);
+  const [bottomFooterMenu, setBottomFooterMenu] = useState(fallbackBottomFooterMenu);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([loadFooterMenu(), loadBottomFooterMenu()]).then(([menu, bottomMenu]) => {
+      if (!cancelled) {
+        setFooterMenu(menu);
+        setBottomFooterMenu(bottomMenu);
+      }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const [shop, support, info, build] = footerMenu.groups;
+
   return (
     <>
       {/*  START footer  */}
@@ -41,56 +63,56 @@ export default function Footer() {
 
         {/*  Col 2: SHOP  */}
         <div className="lg:col-span-1">
-          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Shop</h4>
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">{shop.label}</h4>
           <ul className="space-y-4 text-[13px] font-medium">
-            <li><a href="#" className="text-white flex items-center gap-2 hover:text-cyan-400 transition-colors"><span
-                  className="text-orange-500">🔥</span> Best Sellers</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">PCs</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Laptops</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Graphics Cards</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Monitors</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Chairs</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Upgrade Kits</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Gaming Accessories</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Components</a></li>
+            <li><a href={shop.links[0].url} className="text-white flex items-center gap-2 hover:text-cyan-400 transition-colors"><span
+                  className="text-orange-500">{shop.links[0].suffixText}</span> {shop.links[0].label}</a></li>
+            <li><a href={shop.links[1].url} className="hover:text-white transition-colors">{shop.links[1].label}</a></li>
+            <li><a href={shop.links[2].url} className="hover:text-white transition-colors">{shop.links[2].label}</a></li>
+            <li><a href={shop.links[3].url} className="hover:text-white transition-colors">{shop.links[3].label}</a></li>
+            <li><a href={shop.links[4].url} className="hover:text-white transition-colors">{shop.links[4].label}</a></li>
+            <li><a href={shop.links[5].url} className="hover:text-white transition-colors">{shop.links[5].label}</a></li>
+            <li><a href={shop.links[6].url} className="hover:text-white transition-colors">{shop.links[6].label}</a></li>
+            <li><a href={shop.links[7].url} className="hover:text-white transition-colors">{shop.links[7].label}</a></li>
+            <li><a href={shop.links[8].url} className="hover:text-white transition-colors">{shop.links[8].label}</a></li>
           </ul>
         </div>
 
         {/*  Col 3: SUPPORT  */}
         <div className="lg:col-span-1">
-          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Support</h4>
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">{support.label}</h4>
           <ul className="space-y-4 text-[13px] font-medium">
-            <li><a href="#" className="hover:text-white transition-colors">Terms & Conditions</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Credit Card Security</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Contact Us</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">My Orders</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">FAQs</a></li>
+            <li><a href={support.links[0].url} className="hover:text-white transition-colors">{support.links[0].label}</a></li>
+            <li><a href={support.links[1].url} className="hover:text-white transition-colors">{support.links[1].label}</a></li>
+            <li><a href={support.links[2].url} className="hover:text-white transition-colors">{support.links[2].label}</a></li>
+            <li><a href={support.links[3].url} className="hover:text-white transition-colors">{support.links[3].label}</a></li>
+            <li><a href={support.links[4].url} className="hover:text-white transition-colors">{support.links[4].label}</a></li>
           </ul>
         </div>
 
         {/*  Col 4: INFO  */}
         <div className="lg:col-span-1">
-          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Info</h4>
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">{info.label}</h4>
           <ul className="space-y-4 text-[13px] font-medium">
-            <li><a href="#" className="hover:text-white transition-colors">About Us</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Why Buy From Us?</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Shipping</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Payment Options</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Ordering Info</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Careers (Jobs)</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">EveZone</a></li>
+            <li><a href={info.links[0].url} className="hover:text-white transition-colors">{info.links[0].label}</a></li>
+            <li><a href={info.links[1].url} className="hover:text-white transition-colors">{info.links[1].label}</a></li>
+            <li><a href={info.links[2].url} className="hover:text-white transition-colors">{info.links[2].label}</a></li>
+            <li><a href={info.links[3].url} className="hover:text-white transition-colors">{info.links[3].label}</a></li>
+            <li><a href={info.links[4].url} className="hover:text-white transition-colors">{info.links[4].label}</a></li>
+            <li><a href={info.links[5].url} className="hover:text-white transition-colors">{info.links[5].label}</a></li>
+            <li><a href={info.links[6].url} className="hover:text-white transition-colors">{info.links[6].label}</a></li>
           </ul>
         </div>
 
         {/*  Col 5: BUILD  */}
         <div className="lg:col-span-1">
-          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">Build</h4>
+          <h4 className="text-cyan-400 font-bold text-xs tracking-[0.15em] uppercase mb-6">{build.label}</h4>
           <ul className="space-y-4 text-[13px] font-medium">
-            <li><a href="#" className="hover:text-white transition-colors">AI PC Builder</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">AI Laptop Finder</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Specials</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Laptops Deals</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Brands we Supply</a></li>
+            <li><a href={build.links[0].url} className="hover:text-white transition-colors">{build.links[0].label}</a></li>
+            <li><a href={build.links[1].url} className="hover:text-white transition-colors">{build.links[1].label}</a></li>
+            <li><a href={build.links[2].url} className="hover:text-white transition-colors">{build.links[2].label}</a></li>
+            <li><a href={build.links[3].url} className="hover:text-white transition-colors">{build.links[3].label}</a></li>
+            <li><a href={build.links[4].url} className="hover:text-white transition-colors">{build.links[4].label}</a></li>
           </ul>
         </div>
 
@@ -181,27 +203,27 @@ export default function Footer() {
 
       {/*  ROW 3: Trusted Partners  */}
       <div className="mb-10 text-center">
-        <h4 className="text-[11px] text-cyan-400 font-semibold tracking-[0.2em] uppercase mb-6">Trusted Partners</h4>
+        <h4 className="text-[11px] text-cyan-400 font-semibold tracking-[0.2em] uppercase mb-6">{bottomFooterMenu.heading}</h4>
         <div className="flex flex-wrap justify-center gap-x-6 gap-y-3 text-[11px] font-bold uppercase tracking-wider">
-          <a href="#" className="partner-link">Adata</a>
-          <a href="#" className="partner-link">Alienware</a>
-          <a href="#" className="partner-link">AMD</a>
-          <a href="#" className="partner-link">Antec</a>
-          <a href="#" className="partner-link">AOC</a>
-          <a href="#" className="partner-link">Apple</a>
-          <a href="#" className="partner-link">Arozzi</a>
-          <a href="#" className="partner-link">ASRock</a>
-          <a href="#" className="partner-link">Asus</a>
-          <a href="#" className="partner-link">AutoFull</a>
-          <a href="#" className="partner-link">Cololight</a>
-          <a href="#" className="partner-link">Cooler Master</a>
-          <a href="#" className="partner-link">Corsair</a>
-          <a href="#" className="partner-link">Cougar</a>
-          <a href="#" className="partner-link">Cudy</a>
-          <a href="#" className="partner-link">Dahua</a>
-          <a href="#" className="partner-link">Deepcool</a>
-          <a href="#" className="partner-link">Dell</a>
-          <a href="#" className="partner-link">Einarex</a>
+          <a href={bottomFooterMenu.links[0].url} className="partner-link">{bottomFooterMenu.links[0].label}</a>
+          <a href={bottomFooterMenu.links[1].url} className="partner-link">{bottomFooterMenu.links[1].label}</a>
+          <a href={bottomFooterMenu.links[2].url} className="partner-link">{bottomFooterMenu.links[2].label}</a>
+          <a href={bottomFooterMenu.links[3].url} className="partner-link">{bottomFooterMenu.links[3].label}</a>
+          <a href={bottomFooterMenu.links[4].url} className="partner-link">{bottomFooterMenu.links[4].label}</a>
+          <a href={bottomFooterMenu.links[5].url} className="partner-link">{bottomFooterMenu.links[5].label}</a>
+          <a href={bottomFooterMenu.links[6].url} className="partner-link">{bottomFooterMenu.links[6].label}</a>
+          <a href={bottomFooterMenu.links[7].url} className="partner-link">{bottomFooterMenu.links[7].label}</a>
+          <a href={bottomFooterMenu.links[8].url} className="partner-link">{bottomFooterMenu.links[8].label}</a>
+          <a href={bottomFooterMenu.links[9].url} className="partner-link">{bottomFooterMenu.links[9].label}</a>
+          <a href={bottomFooterMenu.links[10].url} className="partner-link">{bottomFooterMenu.links[10].label}</a>
+          <a href={bottomFooterMenu.links[11].url} className="partner-link">{bottomFooterMenu.links[11].label}</a>
+          <a href={bottomFooterMenu.links[12].url} className="partner-link">{bottomFooterMenu.links[12].label}</a>
+          <a href={bottomFooterMenu.links[13].url} className="partner-link">{bottomFooterMenu.links[13].label}</a>
+          <a href={bottomFooterMenu.links[14].url} className="partner-link">{bottomFooterMenu.links[14].label}</a>
+          <a href={bottomFooterMenu.links[15].url} className="partner-link">{bottomFooterMenu.links[15].label}</a>
+          <a href={bottomFooterMenu.links[16].url} className="partner-link">{bottomFooterMenu.links[16].label}</a>
+          <a href={bottomFooterMenu.links[17].url} className="partner-link">{bottomFooterMenu.links[17].label}</a>
+          <a href={bottomFooterMenu.links[18].url} className="partner-link">{bottomFooterMenu.links[18].label}</a>
         </div>
       </div>
 

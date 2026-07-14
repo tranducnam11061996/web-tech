@@ -20,6 +20,7 @@ import ProductSidebar from "../../components/ProductSidebar";
 import Breadcrumb from "../../components/Breadcrumb";
 import { internalApiUrl } from "@/lib/apiUrl";
 import { CATALOG_PAGE_SIZE, normalizeCatalogPage } from "@/lib/pagination";
+import { getCategoryDisplayTitle } from "@/lib/categoryTitle";
 import type { ProductSupplementalData } from "@/types/product-detail";
 
 async function fetchSlugData(slug: string) {
@@ -46,7 +47,9 @@ export async function generateMetadata(props: any) {
   if (status === 404) notFound();
   if (!data) return {};
   return {
-    title: data.metaTitle || data.name || 'TrucTiepGAME',
+    title: data.type === 'category'
+      ? getCategoryDisplayTitle(data.metaTitle, data.name)
+      : data.metaTitle || data.name || 'TrucTiepGAME',
     description: data.metaDescription || data.summary || undefined,
   };
 }

@@ -100,6 +100,8 @@ export const menuGroups = [
       { name: 'Danh sách ảnh khách hàng', path: '#' },
       { name: 'Danh sách media', path: '#' },
       { name: 'Menu header', path: '/content/menu/header' },
+      { name: 'Footer Menu', path: '/content/menu/footer' },
+      { name: 'Bottom Footer', path: '/content/menu/bottom-footer' },
       { name: 'Kh\u1ed1i menu trang ch\u1ee7', path: '/content/menu/homepage' }
     ]
   },

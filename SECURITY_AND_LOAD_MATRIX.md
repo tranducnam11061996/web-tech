@@ -1,6 +1,6 @@
 # Security and Load Coverage Matrix
 
-Last updated: `2026-07-13`
+Last updated: `2026-07-15`
 
 Status meanings: **Implemented** is present in code and locally checked; **Partial** needs route/form coverage or staging evidence; **Not verified** exists as a plan/script but has not passed the target environment gate.
 
@@ -47,6 +47,6 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Correctness | <0.5% errors, no duplicate order, no oversold voucher | Idempotency test passes; concurrent voucher load pending |
 | Host | CPU <75%, free RAM ≥20%, no pool timeout/hot query >500 ms | Not verified on target host |
 | Web UX | LCP p75 <2.5 s, INP <200 ms, CLS <0.1 | Production-like measurement pending |
-| JS budget | Product detail <=205 KB; commerce <=170 KB referenced route JS | Commerce passes; product detail is 219.9 KB (down from 233.6 KB) and remains a release blocker |
+| JS budget | Product detail <=205 KB; commerce <=170 KB referenced route JS | Current build: product 236.8 KB, cart 175.5 KB, checkout 190.8 KB, combo-cart 167.7 KB, combo-checkout 187.4 KB. Only combo-cart passes the strict release target |
 
 Run the maintained `npm.cmd run load:k6:read`, `load:k6:commerce`, and `load:k6:abuse` commands only against an approved isolated staging host. Preserve every result bundle and treat any failed threshold as a release blocker. `scripts/load-1500-users.js` is a historical helper, not the canonical release command.

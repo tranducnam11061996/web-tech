@@ -35,12 +35,13 @@ export interface Attribute {
   icon: string | null;
   filter_code: string;
   attribute_code: string;
-  values: { id: number; name: string; productCount: number }[];
+  values: { id: number; name: string; apiKey?: string; productCount: number }[];
 }
 
 interface AttributeValue {
   id: number;
   name: string;
+  apiKey?: string;
   productCount: number;
 }
 
@@ -147,8 +148,8 @@ function AttributeFilterBlock({
     isFilterSearchActive,
   ]);
 
-  const handleToggle = (valName: string) => {
-    const valSlug = slugify(valName);
+  const handleToggle = (value: AttributeValue) => {
+    const valSlug = value.apiKey || slugify(value.name);
     const newParams = new URLSearchParams(searchParams.toString());
     let newValues = [...currentValues];
 
@@ -191,7 +192,7 @@ function AttributeFilterBlock({
       <div className="filter-content mt-3" style={!isExpanded ? { display: "none" } : {}}>
         <div className="space-y-2">
           {displayValues.map((val) => {
-            const valSlug = slugify(val.name);
+            const valSlug = val.apiKey || slugify(val.name);
             const isChecked = currentValues.includes(valSlug);
 
             return (
@@ -207,7 +208,7 @@ function AttributeFilterBlock({
                   type="checkbox"
                   value={val.id}
                   checked={isChecked}
-                  onChange={() => handleToggle(val.name)}
+                  onChange={() => handleToggle(val)}
                   className="sr-only"
                 />
                 <div
@@ -429,6 +430,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
           sectionName: attr.name || "",
           selectedSlugs,
           slugify,
+          getValueSlug: (value: AttributeValue) => value.apiKey || slugify(value.name),
         });
 
         if (!sectionVisibility.shouldRenderSection) return null;
@@ -458,7 +460,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
       const values = new Map<string, string>();
 
       for (const val of attr.values || []) {
-        values.set(slugify(val.name), val.name);
+        values.set(val.apiKey || slugify(val.name), val.name);
       }
 
       attributeLookup.set(key, { attrName: attr.name, values });

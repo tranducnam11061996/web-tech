@@ -9,6 +9,7 @@ import { getProductsByIds, parseProductIdsParam } from '@/lib/publicRecommendati
 import { recordRouteMetric } from '@/lib/runtimeMetrics';
 import { resolveProductImageUrl } from '@/lib/productImageUrl';
 import { effectivePublicCategoryScope, loadEnabledPublicCategoryScope } from '@/lib/publicCategoryScope';
+import { buildPublicAttributeFilterIndex, getPublicCategoryAttributeRows } from '@/lib/publicCategoryAttributes';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,8 +23,6 @@ const publicCacheHeaders = {
 };
 
 const reservedFilterKeys = new Set(['category_id', 'limit', 'page', 'id', 'ids', 'min-price', 'max-price', 'brand', 'sort', 'feature_scope']);
-const attributeRowsCache = new Map<string, { expiresAt: number; rows: any[] }>();
-const attributeRowsFlights = new Map<string, Promise<any[]>>();
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -40,28 +39,6 @@ function slugify(str: string) {
     .replace(/[^a-z0-9\- ]/g, '')
     .trim()
     .replace(/\s+/g, '-');
-}
-
-async function getAttributeRows(categoryScope: number[] | null) {
-  const key = categoryScope?.join(',') || '0';
-  const cached = attributeRowsCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.rows;
-  const running = attributeRowsFlights.get(key);
-  if (running) return running;
-  const flight = pool.query(
-    `SELECT DISTINCT a.id AS attr_id,a.name AS attr_name,a.filter_code,a.attribute_code,v.id AS val_id,v.value AS val_name
-     FROM idv_attribute a
-     ${categoryScope ? 'JOIN idv_attribute_category ac ON ac.attr_id=a.id AND ac.category_id IN (?)' : ''}
-     JOIN idv_attribute_value v ON a.id=v.attributeId`,
-    categoryScope ? [categoryScope] : [],
-  ).then(([rows]) => {
-    const value = rows as any[];
-    attributeRowsCache.set(key, { rows: value, expiresAt: Date.now() + 5 * 60_000 });
-    while (attributeRowsCache.size > 50) attributeRowsCache.delete(attributeRowsCache.keys().next().value!);
-    return value;
-  }).finally(() => attributeRowsFlights.delete(key));
-  attributeRowsFlights.set(key, flight);
-  return flight;
 }
 
 function buildProductsCacheKey(searchParams: URLSearchParams) {
@@ -137,25 +114,9 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   const filterKeys = Array.from(searchParams.keys()).filter((key) => !reservedFilterKeys.has(key));
   if (filterKeys.length > 8) return { success: false, message: 'Too many filters', status: 400 };
   if (filterKeys.length > 0) {
-    const attrRows = await getAttributeRows(categoryScope);
+    const attrRows = await getPublicCategoryAttributeRows(categoryScope);
 
-    const attributesByKey = new Map<string, { attrId: number; valuesBySlug: Map<string, number[]> }>();
-
-    for (const row of attrRows) {
-      const rowKey = row.filter_code || row.attribute_code || slugify(row.attr_name);
-      if (!rowKey) continue;
-
-      let entry = attributesByKey.get(rowKey);
-      if (!entry) {
-        entry = { attrId: Number(row.attr_id), valuesBySlug: new Map() };
-        attributesByKey.set(rowKey, entry);
-      }
-
-      const valueSlug = slugify(row.val_name);
-      const valueIds = entry.valuesBySlug.get(valueSlug) || [];
-      valueIds.push(Number(row.val_id));
-      entry.valuesBySlug.set(valueSlug, valueIds);
-    }
+    const attributesByKey = buildPublicAttributeFilterIndex(attrRows);
 
     for (const key of filterKeys) {
       const urlValues = (searchParams.get(key)?.split(',') || []).slice(0, 20);
@@ -165,8 +126,8 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
       if (!attribute) continue;
 
       const matchedVals: number[] = [];
-      for (const valueSlug of urlValues) {
-        matchedVals.push(...(attribute.valuesBySlug.get(valueSlug) || []));
+      for (const valueApiKey of urlValues) {
+        matchedVals.push(...(attribute.valuesByApiKey.get(valueApiKey) || []));
       }
 
       if (matchedVals.length > 0) {

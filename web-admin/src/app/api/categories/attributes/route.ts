@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import { effectivePublicCategoryScope, loadEnabledPublicCategoryScope } from '@/lib/publicCategoryScope';
+import { getPublicCategoryAttributeRows, groupPublicCategoryAttributeRows } from '@/lib/publicCategoryAttributes';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,19 +13,6 @@ const publicCacheHeaders = {
   ...corsHeaders,
   'Cache-Control': 'public, max-age=0, s-maxage=300, stale-while-revalidate=600',
 };
-
-const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
-
-function normalizeAttributeIcon(value: unknown) {
-  const icon = String(value || '').trim();
-  if (!icon || unsafeFilterValuePattern.test(icon) || icon.length > 16) return null;
-  return icon;
-}
-
-function isDisplayableFilterValue(value: unknown) {
-  const label = String(value || '').trim();
-  return label.length > 0 && !unsafeFilterValuePattern.test(label);
-}
 
 export async function OPTIONS() {
   return NextResponse.json({}, { headers: corsHeaders });
@@ -40,33 +28,7 @@ export async function GET(request: Request) {
     }
     const categoryScope = effectivePublicCategoryScope(await loadEnabledPublicCategoryScope(categoryId));
 
-    const attributesPromise = pool.query(`
-      SELECT
-        a.id as attribute_id,
-        a.name as attribute_name,
-        a.icon as attribute_icon,
-        a.filter_code,
-        a.attribute_code,
-        v.id as value_id,
-        v.value as value_name,
-        COALESCE(product_counts.product_count, 0) as product_count,
-        MAX(ac.ordering) as category_ordering,
-        v.ordering as value_ordering
-      FROM idv_attribute_category ac
-      JOIN idv_attribute a ON ac.attr_id = a.id
-      JOIN idv_attribute_value v ON a.id = v.attributeId
-      LEFT JOIN (
-        SELECT pa.attr_id, pa.attr_value_id, COUNT(DISTINCT pa.pro_id) as product_count
-          FROM idv_product_attribute pa
-          JOIN idv_product_category pc ON pa.pro_id = pc.pro_id AND pc.category_id IN (?)
-          JOIN idv_sell_product_price pr ON pa.pro_id = pr.id AND pr.isOn = 1
-          GROUP BY pa.attr_id,pa.attr_value_id
-      ) product_counts ON product_counts.attr_id=a.id AND product_counts.attr_value_id = v.id
-      WHERE ac.category_id IN (?)
-      GROUP BY a.id,a.name,a.icon,a.filter_code,a.attribute_code,v.id,v.value,
-               product_counts.product_count,v.ordering
-      ORDER BY category_ordering DESC, value_ordering ASC
-    `, [categoryScope, categoryScope]);
+    const attributesPromise = getPublicCategoryAttributeRows(categoryScope);
 
     const brandsPromise = pool.query(`
       SELECT MIN(b.id) as value_id, MIN(b.name) as value_name, COUNT(DISTINCT p.id) as product_count
@@ -79,32 +41,8 @@ export async function GET(request: Request) {
       ORDER BY product_count DESC
     `, [categoryScope]);
 
-    const [[rows], [brandRows]] = await Promise.all([attributesPromise, brandsPromise]);
-
-    // Group the flat results into a nested structure
-    const attributesMap = new Map();
-    
-    (rows as any[]).forEach(row => {
-      if (!isDisplayableFilterValue(row.value_name)) return;
-
-      if (!attributesMap.has(row.attribute_id)) {
-        attributesMap.set(row.attribute_id, {
-          id: row.attribute_id,
-          name: row.attribute_name,
-          icon: normalizeAttributeIcon(row.attribute_icon),
-          filter_code: row.filter_code,
-          attribute_code: row.attribute_code,
-          values: []
-        });
-      }
-      attributesMap.get(row.attribute_id).values.push({
-        id: row.value_id,
-        name: row.value_name,
-        productCount: row.product_count
-      });
-    });
-
-    const attributes = Array.from(attributesMap.values()).filter(attribute => attribute.values.length > 0);
+    const [rows, [brandRows]] = await Promise.all([attributesPromise, brandsPromise]);
+    const attributes = groupPublicCategoryAttributeRows(rows);
 
     if ((brandRows as any[]).length > 0) {
       attributes.unshift({

@@ -407,6 +407,8 @@ type HeaderMenuManagerProps = {
   title?: string;
   sectionLabel?: string;
   verifyEndpoint?: string;
+  adminEndpoint?: string;
+  publishEndpoint?: string;
 };
 
 export function HeaderMenuManager({
@@ -415,6 +417,8 @@ export function HeaderMenuManager({
   title = 'Quản lý nội dung menu',
   sectionLabel = 'Khu vực menu',
   verifyEndpoint = '/api/menu/header',
+  adminEndpoint = '/api/admin/menus/header',
+  publishEndpoint = '/api/admin/menus/header/publish',
 }: HeaderMenuManagerProps) {
   const [menu, setMenu] = useState<MenuDraft>(() => normalizeMenu(initialData.menu));
   const [settings, setSettings] = useState<MenuSettings>(() => normalizeSettings(initialData.settings));
@@ -511,7 +515,7 @@ export function HeaderMenuManager({
     setErrorText('');
     startTransition(async () => {
       try {
-        const response = await fetch('/api/admin/menus/header', {
+        const response = await fetch(adminEndpoint, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ menu: menuForSave(menu), settings }),
@@ -529,14 +533,14 @@ export function HeaderMenuManager({
     setErrorText('');
     startTransition(async () => {
       try {
-        const saveResponse = await fetch('/api/admin/menus/header', {
+        const saveResponse = await fetch(adminEndpoint, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ menu: menuForSave(menu), settings }),
         });
         const savePayload = await saveResponse.json();
         if (!saveResponse.ok || !savePayload.success) throw new Error(savePayload?.error?.message || 'Khong the luu nhap truoc khi xuat ban');
-        const response = await fetch('/api/admin/menus/header/publish', { method: 'POST' });
+        const response = await fetch(publishEndpoint, { method: 'POST' });
         const payload = await response.json();
         if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể xuất bản');
         const publicResponse = await fetch(verifyEndpoint, { cache: 'no-store' });
@@ -554,7 +558,7 @@ export function HeaderMenuManager({
     setErrorText('');
     startTransition(async () => {
       try {
-        const response = await fetch('/api/admin/menus/header');
+        const response = await fetch(adminEndpoint);
         const payload = await response.json();
         if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể tải lại');
         setMenu(normalizeMenu(payload.data.menu));

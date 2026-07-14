@@ -162,7 +162,7 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
   if (pathname.includes('/api/admin/migrate')) return 'admin.migrations.execute';
   if (pathname.includes('/api/admin/storefront-orders')) return `sales.orders.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/storefront-customers')) return `crm.customers.${action}` as AdminPermission;
-  if (pathname.includes('/api/admin/menus/header/publish')) return 'content.menus.publish';
+  if (pathname.includes('/api/admin/menus/') && pathname.endsWith('/publish')) return 'content.menus.publish';
 
   const resource = pathname.includes('/api/admin/article-categories') ? 'content.article_categories'
     : pathname.includes('/api/admin/articles') ? 'content.articles'

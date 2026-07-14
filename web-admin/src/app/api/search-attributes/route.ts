@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
+import { isAttributeValueApiKey } from '@/lib/attributeValueApiKey';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,8 +61,8 @@ export async function GET(request: Request) {
       const params = [...batch];
 
       // Nếu có categoryId, thêm join để chỉ lấy attributes thuộc category đó
-      const categoryJoin = categoryIdParam
-        ? 'JOIN idv_attribute_category ac ON ac.attr_id = a.id AND ac.category_id = ?'
+      const categoryCondition = categoryIdParam
+        ? 'AND (a.scope = 1 OR EXISTS (SELECT 1 FROM idv_attribute_category ac WHERE ac.attr_id = a.id AND ac.category_id = ? AND ac.status = 1))'
         : '';
       if (categoryIdParam) params.push(parseInt(categoryIdParam, 10));
 
@@ -74,12 +75,14 @@ export async function GET(request: Request) {
           a.attribute_code,
           v.id as value_id,
           v.value as value_name,
+          v.api_key as value_api_key,
           COUNT(DISTINCT pa.pro_id) as product_count
         FROM idv_product_attribute pa
         JOIN idv_attribute a ON pa.attr_id = a.id
         JOIN idv_attribute_value v ON a.id = v.attributeId
-        ${categoryJoin}
         WHERE pa.pro_id IN (${placeholders})
+          AND a.status = 1 AND a.isSearch = 1
+          ${categoryCondition}
         GROUP BY v.id
         ORDER BY a.id, v.ordering ASC
       `, params);
@@ -112,13 +115,13 @@ export async function GET(request: Request) {
       icon: string | null;
       filter_code: string;
       attribute_code: string;
-      values: { id: number; name: string; productCount: number }[];
+      values: { id: number; name: string; apiKey?: string; productCount: number }[];
     }>();
 
     const processedValueIds = new Set<number>();
 
     for (const row of allRows) {
-      if (!isDisplayableFilterValue(row.value_name)) continue;
+      if (!isDisplayableFilterValue(row.value_name) || !isAttributeValueApiKey(row.value_api_key)) continue;
 
       // Deduplicate: mỗi value_id chỉ xử lý 1 lần (vì batch query có thể overlap)
       if (processedValueIds.has(row.value_id)) continue;
@@ -142,6 +145,7 @@ export async function GET(request: Request) {
         attr.values.push({
           id: row.value_id,
           name: row.value_name,
+          apiKey: row.value_api_key,
           productCount: row.product_count || 0,
         });
       }

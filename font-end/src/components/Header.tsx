@@ -264,6 +264,11 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
       }
       showSubMenuRef.current = visible;
       setShowSubMenu(visible);
+      if (!visible && window.matchMedia('(min-width: 768px)').matches && isMenuOpenRef.current) {
+        isMenuOpenRef.current = false;
+        setIsMenuOpen(false);
+        setActiveMobileMenuId(null);
+      }
       transitionLockedUntil.current = lock ? now + SUBMENU_TRANSITION_COOLDOWN_MS : 0;
       resetScrollIntent();
     };
@@ -275,7 +280,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
       const delta = currentScrollY - lastScrollY.current;
       lastScrollY.current = currentScrollY;
 
-      if (currentScrollY < SUBMENU_TOP_ZONE_PX || isMenuOpenRef.current) {
+      if (currentScrollY < SUBMENU_TOP_ZONE_PX || (isMenuOpenRef.current && window.innerWidth < 768)) {
         resetScrollIntent();
         lastScrollAt.current = now;
         setSubMenuVisibility(true, now, false);
@@ -331,15 +336,24 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
     scrollDistance.current = 0;
     scrollDirection.current = null;
     transitionLockedUntil.current = performance.now() + SUBMENU_TRANSITION_COOLDOWN_MS;
-    if (isMenuOpen && !showSubMenuRef.current) {
+    if (isMenuOpen && window.innerWidth < 768 && !showSubMenuRef.current) {
       showSubMenuRef.current = true;
       setShowSubMenu(true);
     }
   }, [isMenuOpen]);
 
   useEffect(() => {
-    document.body.classList.toggle('mobile-menu-open', isMenuOpen);
-    return () => document.body.classList.remove('mobile-menu-open');
+    const mobileViewport = window.matchMedia('(max-width: 767px)');
+    const syncBodyScrollLock = () => {
+      document.body.classList.toggle('mobile-menu-open', isMenuOpen && mobileViewport.matches);
+    };
+
+    syncBodyScrollLock();
+    mobileViewport.addEventListener('change', syncBodyScrollLock);
+    return () => {
+      mobileViewport.removeEventListener('change', syncBodyScrollLock);
+      document.body.classList.remove('mobile-menu-open');
+    };
   }, [isMenuOpen]);
 
   useEffect(() => {
@@ -366,7 +380,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
     });
   };
 
-  const isSubMenuVisible = showSubMenu || isMenuOpen;
+  const isSubMenuVisible = showSubMenu;
   const menuLabels = {
     zones: cleanHeaderText(headerMenu.labels?.zones || fallbackHeaderMenu.labels.zones),
     faves: cleanHeaderText(headerMenu.labels?.faves || fallbackHeaderMenu.labels.faves),

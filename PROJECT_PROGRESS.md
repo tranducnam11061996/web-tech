@@ -1,6 +1,6 @@
 # Project Progress
 
-Last updated: `2026-07-14`
+Last updated: `2026-07-15`
 
 `AI_HANDOFF.md` is the canonical continuation guide. This file records completion evidence, open verification, and the prioritized backlog.
 
@@ -9,8 +9,8 @@ Last updated: `2026-07-14`
 | Area | Status | Evidence / qualification |
 |---|---|---|
 | Real combo sets / combo cart / combo orders | Code/schema implemented; active catalog unpopulated | Combo API/UI/quote/order behavior exists, but `it_tech_db` has 0 combo sets/relations; 1,121 imported comboset occurrences remain pending audit because source runtime configuration is incomplete |
-| Storefront catalog/search/collections | Implemented and locally verified | Bounded APIs, ETag, reduced payloads, cache/single-flight, responsive image behavior |
-| Performance/UX optimization | Implemented; strict product bundle target pending | Core/supplemental streaming, byte-bounded SWR cache, ETag/timing/metrics, same-origin browser APIs, quote debounce, image/motion improvements, desktop/mobile axe checks |
+| Storefront catalog/search/collections | Implemented and locally verified | Bounded APIs, ETag, reduced payloads, cache/single-flight, responsive image behavior; category headings and SSR titles fall back from invalid SEO titles to the category name, and the catalog bar retains sorting without a standalone search input |
+| Performance/UX optimization | Implemented foundation; current JS budgets failing | Core/supplemental streaming, byte-bounded SWR cache, ETag/timing/metrics, same-origin browser APIs, quote debounce, image/motion improvements; current build exceeds regression/release limits on product, cart, checkout, and combo-checkout |
 | Dynamic breadcrumbs | Implemented and locally verified | Shared semantic component; bounded product/news hierarchy resolver; no extra storefront request or document overflow |
 | Product related content | Implemented | Similar products with direct-parent fallback, title-ranked/fallback news, and versioned browser-local recently viewed history |
 | Product/category buying guides | Code/schema implemented; active catalog unpopulated | Independent admin-managed content, detail-only API payload, accessible storefront accordion, and selective cache invalidation exist; `it_tech_db` currently has 0 guides |
@@ -21,8 +21,13 @@ Last updated: `2026-07-14`
 | Product video and specification utilities | Implemented locally | Detail payload safely normalizes legacy YouTube video data, utility cards are data-conditional, and the video/specification dialogs support keyboard close, focus containment, and trigger-focus restoration |
 | Customer accounts | Implemented | Registration/OTP/login/reset/profile/address/order flows and admin CRM surfaces exist |
 | Customer product favorites | Implemented, migrated, and browser-tested | Additive customer/product relation, authenticated bounded APIs, batched mounted-card status, login continuation, and standalone cursor-paginated `/yeu-thich` page; live table starts empty |
-| Admin auth and RBAC | Implemented | Session, role/permission checks, write gate, audit surfaces, login throttling |
+| Admin auth and RBAC | Implemented and local-login recovered | Session, role/permission checks, write gate, audit surfaces, login throttling; development CSP permits React/Turbopack `unsafe-eval` only outside production, local CAPTCHA bypass and a `200` admin login regression check passed |
+| Footer Menu | Implemented, published, and locally verified | Dedicated draft/publish menu `footer`, admin screen/API, public ETag endpoint, and 4 fixed footer groups / 26 active `#` links; existing Footer markup/CSS is unchanged |
+| Bottom Footer | Implemented, published, and locally verified | Dedicated draft/publish menu `bottom_footer`, admin screen/API, public ETag endpoint, and one fixed Trusted Partners group / 19 active `#` links; existing Footer markup/CSS is unchanged |
 | Admin content/catalog | Implemented first production-oriented pass | Product/category/article/menu/banner/collection/voucher/customer/order/user/role management |
+| Admin rich-text editor | Implemented and locally verified | Shared offline GPL TinyMCE keeps its dark theme, hides the promotion CTA/container, and exposes a full-width horizontal menubar plus wrapping toolbar for formatting, links, media, tables, source code, fullscreen and help across every admin editor |
+| Admin attribute management | Implemented and locally verified | Real list/search/sort/bulk controls and transactional attribute/value/category CRUD; all 426 value ApiKeys are populated, editable, slug-validated and authoritative for public filters; destructive integration test is disposable-database gated and was not run against `it_tech_db` |
+| Category attribute filters | Implemented and locally verified | Sidebar metadata and product filtering share one versioned resolver and the stored value ApiKey; unmapped Local values fall back to actual sellable product assignments. Category 1106 returns brand + 9 groups / 39 values, and `cpu=amd-ryzen-7` reduces the 423-product scope to 79 products |
 | Search | Implemented | Runtime search in `web-admin`, prewarm/single-flight, signed webhook; `search-tool` is reference only |
 | Runtime topology | Implemented as configuration | Caddy, PM2, readiness/liveness, two API workers, storefront, background worker |
 | Database cutover and runtime collation | Applied and accepted on `it_tech_db` | Runtime points to `it_tech_db`; accepted recovery cleanup plus additive favorites migration leaves zero Latin-1 tables/columns and 289 physical tables; `hanoi23_db` remained untouched |
@@ -40,12 +45,13 @@ Last updated: `2026-07-14`
 | PCMarket brand sync | Run 8 applied and accepted on `it_tech_db` | Public PCM policy maps `0 -> 96`; E-DRA/TEAMGROUP keep `34 -> 25` and `57 -> 31`; runtime has 90 brand/info rows, 1,587 brand-category rows, PCM 2,276/849 products, and zero noncanonical references |
 | PCMarket article-category import | Applied to `it_tech_db` | Run 6 imported 4 enabled UTF-8 root categories with source IDs, `.html` routes, registry/map/record audit rows, and no article/menu writes; clone apply/verify/rollback and live smoke passed |
 | PCMarket article import | Applied to `it_tech_db` | Run 7 imported 668 articles/content rows, 705 unique category links and 668 routes/registry/maps; ID 83 is quarantined and no menu was created |
-| Database transfer | Final lean backup locally restore-verified | Final bundle has 288 tables, 84,040 rows, 1 routine, 2 triggers, SHA-256 `941f3b5a...`; destination-version compatibility still requires target testing |
-| Functional verification | Validation change passed; two unrelated UI assertions remain | Both typecheck/lint/build pipelines pass; 94/94 unit tests, default integration 3 pass/6 fixture-gated skips, and the focused validation/accessibility Playwright run passes 14/14. The full storefront run is 56 pass/2 expected skips/2 existing product-description fallback width failures; the last temporary-production healthcheck remains 15/15 and was not rerun against the currently active development servers. |
+| Database transfer | Historical lean/pre-favorites backups restore-verified; fresh current export required | Final lean bundle has 288 tables and the pre-favorites bundle covers the last pre-migration state; current accepted schema has 289 tables, so create and restore-verify a fresh export before moving machines. Destination-version compatibility still requires target testing |
+| Functional verification | Required compile/test/build matrix passes; browser/performance rerun pending | Both typecheck/lint/build pipelines pass; 104/104 unit tests and default integration 6 pass/7 fixture- or safety-gated skips. Focused new Playwright specs pass 8 with 2 expected skips at one worker. The full 12-worker run was resource-inconclusive at 44 pass/4 skip/28 fail. Strict health is 13/15 and empty-catalog mode 15/15 while MySQL is healthy. |
 | 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
 ## Completed implementation highlights
 
+- Backfilled all 426 legacy attribute values with collision-free canonical ApiKeys, made the admin field required/editable, and changed category/search payloads, URL state and backend matching to use the stored key instead of rebuilding a slug from the display name.
 - Added customer product favorites end to end: an InnoDB relation with customer cascade and logical product cleanup, session-only list/status/idempotent mutation APIs, mounted-card status batching, optimistic synchronized hearts, login-save continuation, a noindex `/yeu-thich` grid with retry/load-more/remove, and header entry points. A restore-verified pre-migration backup and disposable clone trial preceded the live migration.
 - Repaired product-description disclosure so its preview is visible while collapsed; a focused client wrapper owns only the expand state and preserves the server-rendered sanitized article body.
 - Added a server-rendered no-article product-description fallback: it reuses the thumbnail and normalized summary lines in semantic but visually unmarked list markup, while retaining the normal article disclosure whenever article HTML exists.
@@ -97,19 +103,20 @@ Last updated: `2026-07-14`
 | `font-end` ESLint `--quiet` | Pass |
 | `web-admin` production build | Pass |
 | `font-end` production build | Pass |
-| Web-admin unit tests | 94/94 pass |
-| Default DB integration suite | 3 pass, 6 environment-gated skips; article apply/rollback also passed on the disposable clone |
+| Web-admin unit tests | 104/104 pass, including ApiKey normalization/validation, strict stored-key matching and public category-attribute eligibility/grouping validation |
+| Admin local login regression | Pass: CSP development header includes `unsafe-eval`, local CAPTCHA bypass accepts the empty development token, and `POST /api/admin/auth/login` returned `200` |
+| Default DB integration suite | 6 pass, 7 environment- or safety-gated skips; read-only category 1106 inference, stored CPU ApiKeys and mapped-category regression pass, attribute destructive CRUD correctly skips on `it_tech_db`, and article apply/rollback previously passed on the disposable clone |
 | Destructive importer integration | Category, product, and brand apply/rollback passed independently on disposable databases, then the databases were dropped |
 | npm audit in both apps | 0 known vulnerabilities |
-| Local healthcheck | `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` with PCM probe: 15/15 pass; strict default: 14/15 because the configured legacy API collection slug returns 404 while its storefront route returns 200 |
+| Local healthcheck | `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true`: 15/15 pass while MySQL was healthy; strict default: 13/15 because both configured collection API/page return 404 |
 | Full database restore | Final lean bundle pass: 288 tables, 84,040 rows, 1 routine, 2 triggers; 788 categories, 90 brands, 4,712 products/search rows and 668 articles/content rows |
-| Liveness/readiness/storefront | HTTP 200 |
+| Liveness/readiness/storefront | Initially HTTP 200; MySQL was no longer listening at audit end, so readiness then returned 503 and requires a runtime rerun after database restart |
 | Invalid quote/origin/order-key/webhook probes | Expected safe 4xx/5xx responses |
 | Full k6 1,500 VU | Not run on production-like host |
-| Playwright + axe | Validation/accessibility subset 14/14 pass across desktop/mobile. Full suite: 56 pass, 2 expected project-specific skips, and 2 product-description fallback width assertions fail independently of the validation change (image is 7.8–17.3 px narrower than its container). |
+| Playwright + axe | Focused category-title/mega-menu rerun with one worker: 8 pass/2 expected skips. Full 76-test run with 12 workers: resource-inconclusive at 44 pass/4 skip/28 fail due to insufficient resources, navigation timeouts, and cascading failures. |
 | Lighthouse CI | Configuration added; local Windows Chrome run was inconclusive because the temporary profile cleanup failed with `EPERM`, so staging artifacts remain required |
-| Regression bundle budget | Pass: product 219.9 KB; commerce 157.5-167.0 KB |
-| Strict release bundle budget | Product detail fails 219.9 KB >205 KB; commerce passes <170 KB |
+| Regression bundle budget | Fail: product 236.8 KB, cart 175.5 KB, checkout 190.8 KB, combo-checkout 187.4 KB; combo-cart passes at 167.7 KB |
+| Strict release bundle budget | Same four routes fail their stricter limits; combo-cart passes 167.7 KB <170 KB |
 
 ## Latest local performance observations
 
@@ -125,12 +132,14 @@ These results are development-machine observations and must not be used as produ
 
 ## Prioritized next work
 
-1. Import missing variant/config-group/comboset definitions only after complete source exports are available and reconcile the pending audit records.
-2. Run the complete read/commerce/abuse k6 scenarios on an isolated target-like host and capture application, MySQL, CPU, RAM, pool, and slow-query metrics.
-3. Validate production reCAPTCHA hostnames/actions/scores in shadow mode, then enable enforcement in a coordinated frontend/backend release.
-4. Exercise destination-version database restore, graceful PM2/Caddy restart, worker crash recovery, and outbox retry/backoff against staging.
-5. Add integration/E2E coverage for remaining write-route groups and forms; focus on upload, RBAC, OTP/session revoke, concurrent vouchers, `429`, keyboard/focus, and offline failures.
-6. Audit remaining legacy admin screens for API parity, canonical Zod schemas, and uniform field-level error UX.
+1. Preserve/transfer the dirty working tree plus ignored database/media/secrets using `NEW_MACHINE_SETUP.md`; restore-verify the destination.
+2. Restore local MySQL readiness, then rerun runtime/database assertions.
+3. Fix the current frontend JS-budget regressions and rerun the full Playwright suite with controlled concurrency.
+4. Import missing variant/config-group/comboset definitions only after complete source exports are available and reconcile the pending audit records.
+5. Run the complete read/commerce/abuse k6 scenarios on an isolated target-like host and capture application, MySQL, CPU, RAM, pool, and slow-query metrics.
+6. Validate production reCAPTCHA hostnames/actions/scores in shadow mode, then enable enforcement in a coordinated frontend/backend release.
+7. Exercise destination-version database restore, graceful PM2/Caddy restart, worker crash recovery, and outbox retry/backoff against staging.
+8. Add integration/E2E coverage for remaining write-route groups/forms and audit legacy admin parity, canonical schemas, RBAC, accessibility, and error UX.
 
 ## Storefront validation status (2026-07-14)
 
@@ -149,6 +158,8 @@ These results are development-machine observations and must not be used as produ
 - Runs 2-8 no longer have in-database rollback tables. Recovery now depends on the verified external backup artifacts, which must be protected and periodically restore-tested.
 - PCMarket variant/config/comboset references are audit-only pending data, not complete sellable runtime configuration.
 - Shared validation/security foundations cover the highest-risk routes, but the project should not claim every legacy admin field has been converted to canonical Zod without a route-by-route follow-up audit.
+- Current frontend regression/release JS budgets are red on four routes.
+- The latest full Playwright run is not a clean baseline; rerun it with controlled concurrency and stable MySQL/runtime before triage.
 
 ## Verification commands
 

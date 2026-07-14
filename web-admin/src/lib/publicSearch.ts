@@ -4,6 +4,7 @@ import { getProductCardBadgesForProductIds } from './productCardAttributes';
 import { withPublicProductResponseCache } from './publicProductCache';
 import { rankLexicalSearch } from './searchLexicalCache';
 import { resolveProductImageUrl } from './productImageUrl';
+import { isAttributeValueApiKey } from './attributeValueApiKey';
 
 export interface SearchFacet {
   id: number;
@@ -11,10 +12,10 @@ export interface SearchFacet {
   icon: string | null;
   filter_code: string;
   attribute_code: string;
-  values: Array<{ id: number; name: string; productCount: number }>;
+  values: Array<{ id: number; name: string; apiKey?: string; productCount: number }>;
 }
 
-type FilterValue = { id: number; name: string; slug: string; ordering: number };
+type FilterValue = { id: number; name: string; apiKey: string; ordering: number };
 type FilterDefinition = { id: number; name: string; icon: string | null; filterCode: string; attributeCode: string; values: FilterValue[] };
 type SearchMetadata = { filters: Map<string, FilterDefinition> };
 type CandidateRow = RowDataPacket & { id: number; price: number | null; market_price: number | null };
@@ -34,6 +35,8 @@ const METADATA_TTL_MS = 5 * 60_000;
 const reservedParams = new Set(['q', 'page', 'limit', 'sort', 'min-price', 'max-price', 'brand']);
 let metadataCache: { value: SearchMetadata; expiresAt: number } | null = null;
 let metadataFlight: Promise<SearchMetadata> | null = null;
+let metadataSharedVersion = 0;
+let nextMetadataVersionCheckAt = 0;
 
 function normalizeText(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd')
@@ -45,14 +48,27 @@ function slugify(value: string) {
 }
 
 async function getSearchMetadata() {
+  if (Date.now() >= nextMetadataVersionCheckAt) {
+    nextMetadataVersionCheckAt = Date.now() + 5_000;
+    try {
+      const [versionRows] = await pool.query<RowDataPacket[]>(
+        "SELECT version FROM web_admin_cache_versions WHERE cache_key = 'search' LIMIT 1",
+      );
+      const version = Number(versionRows[0]?.version || 0);
+      if (metadataSharedVersion && version && version !== metadataSharedVersion) metadataCache = null;
+      metadataSharedVersion = version;
+    } catch { /* performance infrastructure may not have run yet */ }
+  }
   if (metadataCache && metadataCache.expiresAt > Date.now()) return metadataCache.value;
   if (metadataFlight) return metadataFlight;
 
   metadataFlight = pool.query<RowDataPacket[]>(`
     SELECT a.id AS attribute_id, a.name AS attribute_name, a.icon AS attribute_icon,
-      a.filter_code, a.attribute_code, v.id AS value_id, v.value AS value_name, v.ordering AS value_ordering
+      a.filter_code, a.attribute_code, v.id AS value_id, v.value AS value_name,
+      v.api_key AS value_api_key, v.ordering AS value_ordering
     FROM idv_attribute a
     JOIN idv_attribute_value v ON v.attributeId = a.id
+    WHERE a.status = 1 AND a.isSearch = 1
     ORDER BY a.ordering ASC, a.id ASC, v.ordering ASC, v.id ASC
   `).then(([rows]) => {
     const filters = new Map<string, FilterDefinition>();
@@ -60,13 +76,14 @@ async function getSearchMetadata() {
       const name = String(row.attribute_name || '').trim();
       const key = String(row.filter_code || row.attribute_code || slugify(name));
       const valueName = String(row.value_name || '').trim();
-      if (!key || !name || !valueName) continue;
+      const apiKey = String(row.value_api_key || '').trim();
+      if (!key || !name || !valueName || !isAttributeValueApiKey(apiKey)) continue;
       let filter = filters.get(key);
       if (!filter) {
         filter = { id: Number(row.attribute_id), name, icon: row.attribute_icon ? String(row.attribute_icon) : null, filterCode: key, attributeCode: String(row.attribute_code || ''), values: [] };
         filters.set(key, filter);
       }
-      filter.values.push({ id: Number(row.value_id), name: valueName, slug: slugify(valueName), ordering: Number(row.value_ordering || 0) });
+      filter.values.push({ id: Number(row.value_id), name: valueName, apiKey, ordering: Number(row.value_ordering || 0) });
     }
     const value = { filters };
     metadataCache = { value, expiresAt: Date.now() + METADATA_TTL_MS };
@@ -109,7 +126,7 @@ function buildFilteredCandidateQuery(
     const filter = metadata.filters.get(key);
     if (!filter) continue;
     const wanted = new Set(rawValue.split(',').map((value) => value.trim()).filter(Boolean));
-    const valueIds = filter.values.filter((value) => wanted.has(value.slug)).map((value) => value.id);
+    const valueIds = filter.values.filter((value) => wanted.has(value.apiKey)).map((value) => value.id);
     if (valueIds.length === 0) continue;
     whereParts.push('EXISTS (SELECT 1 FROM idv_product_attribute pa_filter WHERE pa_filter.pro_id = p.id AND pa_filter.attr_id = ? AND pa_filter.attr_value_id IN (?))');
     params.push(filter.id, valueIds);
@@ -245,7 +262,7 @@ export async function loadPublicSearchPayload(searchParams: URLSearchParams) {
   }
   for (const filter of metadata.filters.values()) {
     const values = filter.values
-      .map((value) => ({ id: value.id, name: value.name, productCount: facetCounts.get(`${filter.id}:${value.id}`) || 0, ordering: value.ordering }))
+      .map((value) => ({ id: value.id, name: value.name, apiKey: value.apiKey, productCount: facetCounts.get(`${filter.id}:${value.id}`) || 0, ordering: value.ordering }))
       .filter((value) => value.productCount > 0)
       .sort((a, b) => a.ordering - b.ordering || a.name.localeCompare(b.name, 'vi'))
       .map(({ ordering: _ordering, ...value }) => value);

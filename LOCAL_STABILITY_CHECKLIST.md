@@ -1,6 +1,6 @@
 # Local Stability Checklist
 
-Last updated: `2026-07-13`
+Last updated: `2026-07-15`
 
 Use this before merging meaningful changes or promoting a build to staging.
 
@@ -26,6 +26,8 @@ Use this before merging meaningful changes or promoting a build to staging.
 - [ ] Run `npm.cmd audit` in both applications and review any nonzero result.
 - [ ] Run `npm.cmd run local:healthcheck`. Until collection data exists, set `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` and require 15/15; strict mode is expected to be 13/15 only because both collection routes return 404.
 - [ ] Run `git diff --check` and inspect `git status --short` before handoff.
+- [ ] Run storefront regression and release JS budgets; record failures instead of treating a successful build as a budget pass.
+- [ ] Run Playwright with a worker count the local runtime can sustain; resource exhaustion is inconclusive and must be rerun before triage.
 
 ## Manual functional/security smoke
 

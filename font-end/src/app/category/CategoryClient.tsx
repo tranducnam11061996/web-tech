@@ -6,6 +6,7 @@ import Footer from "../../components/Footer";
 import WhyBuyFaq from "../../components/WhyBuyFaq";
 import ProgressiveImage from "../../components/ProgressiveImage";
 import CategoryFeatureProductGrid from "../../components/CategoryFeatureProductGrid";
+import CategoryPromoCards from "../../components/CategoryPromoCards";
 import Breadcrumb from "../../components/Breadcrumb";
 import Link from "next/link";
 import type { CategoryTrailItem } from "../../types/breadcrumb";
@@ -19,6 +20,7 @@ import {
   CATALOG_PAGE_SIZE,
   normalizeCatalogPage,
 } from "../../lib/pagination";
+import { getCategoryDisplayTitle } from "../../lib/categoryTitle";
 
 const slugify = (str: string) => {
   if (!str) return "";
@@ -54,6 +56,7 @@ const isDisplayableFilterValue = (value: unknown) => {
 interface AttributeValue {
   id: number;
   name: string;
+  apiKey?: string;
   productCount: number;
 }
 
@@ -103,8 +106,8 @@ function AttributeFilterBlock({
     isFilterSearchActive,
   ]);
 
-  const handleToggle = (valName: string) => {
-    const valSlug = slugify(valName);
+  const handleToggle = (value: AttributeValue) => {
+    const valSlug = value.apiKey || slugify(value.name);
     const newParams = new URLSearchParams(searchParams.toString());
 
     let newValues = [...currentValues];
@@ -155,7 +158,7 @@ function AttributeFilterBlock({
       >
         <div className="space-y-2">
           {displayValues.map((val: any) => {
-            const valSlug = slugify(val.name);
+            const valSlug = val.apiKey || slugify(val.name);
             const isChecked = currentValues.includes(valSlug);
             return (
               <label
@@ -169,7 +172,7 @@ function AttributeFilterBlock({
                   type="checkbox"
                   value={val.id}
                   checked={isChecked}
-                  onChange={() => handleToggle(val.name)}
+                  onChange={() => handleToggle(val)}
                   className="sr-only"
                 />
                 <div className={`w-[18px] h-[18px] rounded-[6px] border-2 flex items-center justify-center shrink-0 shadow-sm transition-colors ${isChecked ? 'border-cyan-500 bg-cyan-500' : 'border-[#4b4b4b] bg-transparent'}`}>
@@ -220,6 +223,7 @@ function AttributeFilterBlock({
 
 export default function CategoryContent({ categoryId, params, searchParams, initialData, categoryInfo }: any) {
   const rawCategoryTrail = categoryInfo?.categoryTrail || initialData?.products?.layoutMeta?.categoryTrail || [];
+  const catalogTitle = getCategoryDisplayTitle(categoryInfo?.metaTitle, categoryInfo?.name);
   const categoryTrail: CategoryTrailItem[] = Array.isArray(rawCategoryTrail) ? rawCategoryTrail : [];
   const categoryBreadcrumbItems = categoryTrail.length > 0
     ? categoryTrail.map((category, index) => ({
@@ -284,7 +288,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
       const values = new Map<string, string>();
 
       for (const val of attr.values || []) {
-        values.set(slugify(val.name), val.name);
+        values.set(val.apiKey || slugify(val.name), val.name);
       }
 
       attributeLookup.set(key, { attrName: attr.name, values });
@@ -339,6 +343,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
           sectionName: attr.name || "",
           selectedSlugs,
           slugify,
+          getValueSlug: (value: AttributeValue) => value.apiKey || slugify(value.name),
         });
 
         if (!sectionVisibility.shouldRenderSection) return null;
@@ -637,22 +642,10 @@ export default function CategoryContent({ categoryId, params, searchParams, init
         {/* Sort and Search Bar */}
         <div className="flex flex-col md:flex-row items-center justify-between bg-[#111115] border border-[#1a1a1e] rounded-2xl p-4 mb-4 shadow-sm">
            <h2 className="text-[15px] font-extrabold text-white mb-4 md:mb-0 pl-1 tracking-wide">
-             {categoryInfo?.metaTitle || categoryInfo?.name || "Danh mục sản phẩm"} ({totalProducts} sản phẩm)
+             {catalogTitle} ({totalProducts} sản phẩm)
            </h2>
            
            <div className="flex items-center gap-4 w-full md:w-auto">
-              {/* Search */}
-              <div className="relative flex-1 md:w-[240px]">
-                 <svg className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                 </svg>
-                 <input 
-                    type="text" 
-                    placeholder="Search..." 
-                    className="w-full bg-[#18181b] border border-[#27272a] text-[15px] font-medium text-white rounded-xl pl-10 pr-4 py-2.5 focus:outline-none focus:border-cyan-700 focus:ring-1 focus:ring-cyan-700 transition-all"
-                 />
-              </div>
-              
               {/* Sort Dropdown */}
               <div className="relative shrink-0 min-w-[170px]">
                  <select 
@@ -952,152 +945,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
             ))}
           </div>
 
-          {/*  Promo Box 1: AI Laptop Finder  */}
-          <div
-            className="promo-box"
-            style={{
-              background:
-                "linear-gradient(135deg, #0c1a12 0%, #111115 50%, #1a0f10 100%)",
-              borderColor: "#1a2e1f",
-            }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="bg-red-500/20 text-red-400 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
-                ⚡ AI-Powered
-              </span>
-              <span className="text-xl">🤖</span>
-            </div>
-            <h3 className="text-[22px] font-extrabold leading-tight mb-1">
-              Your perfect
-            </h3>
-            <h3 className="text-[22px] font-extrabold leading-tight mb-1">
-              <span className="text-emerald-400">laptop match</span> awaits
-            </h3>
-            <p className="text-[11px] text-gray-500 leading-relaxed mb-4">
-              Tell our AI what you need. Budget, purpose, done. Matched in
-              seconds.
-            </p>
-            <div className="flex gap-2 mb-5">
-              <span className="bg-[#1a1a1e] text-[10px] text-gray-400 px-3 py-1.5 rounded-full flex items-center gap-1">
-                🎮 Gaming
-              </span>
-              <span className="bg-[#1a1a1e] text-[10px] text-gray-400 px-3 py-1.5 rounded-full flex items-center gap-1">
-                💼 Work
-              </span>
-              <span className="bg-[#1a1a1e] text-[10px] text-gray-400 px-3 py-1.5 rounded-full flex items-center gap-1">
-                📚 Study
-              </span>
-            </div>
-            <button className="w-full bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2">
-              ✦ Launch Finder →
-            </button>
-          </div>
-
-          {/*  Promo Box 2: Build Smart  */}
-          <div
-            className="promo-box"
-            style={{
-              background: "linear-gradient(135deg, #111115 0%, #0f1117 100%)",
-              borderColor: "#1a1a2e",
-            }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h3 className="text-xl font-extrabold leading-tight">
-                  Don't guess.
-                </h3>
-                <h3 className="text-xl font-extrabold leading-tight">
-                  <span className="text-cyan-400">Build smart.</span>
-                </h3>
-              </div>
-              <span className="text-xl">👍</span>
-            </div>
-            <p className="text-[11px] text-gray-500 leading-relaxed mb-4">
-              Your budget & games in → perfectly optimized build out. No tech
-              knowledge needed.
-            </p>
-            <div className="flex gap-2 mb-5">
-              <span className="bg-[#1a1a1e] text-[11px] text-gray-400 px-3 py-1.5 rounded-full font-bold">
-                50K+
-              </span>
-              <span className="bg-[#1a1a1e] text-[11px] text-gray-400 px-3 py-1.5 rounded-full font-bold">
-                ~60s
-              </span>
-              <span className="bg-[#1a1a1e] text-[11px] text-gray-400 px-3 py-1.5 rounded-full font-bold">
-                #1
-              </span>
-            </div>
-            <button className="w-full bg-[#1a1a1e] hover:bg-[#27272a] text-white text-sm font-bold py-2.5 rounded-xl transition border border-[#27272a]">
-              Start Building →
-            </button>
-          </div>
-
-          {/*  Promo Box 3: App Only Deals  */}
-          <div
-            className="promo-box"
-            style={{
-              background: "linear-gradient(135deg, #0f1117 0%, #111115 100%)",
-              borderColor: "#1a1a2e",
-            }}
-          >
-            <span className="bg-blue-500/20 text-blue-400 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 w-fit mb-3">
-              📱 Mobile App
-            </span>
-            <h3 className="text-xl font-extrabold leading-tight mb-0.5">
-              Unlock
-            </h3>
-            <h3 className="text-xl font-extrabold leading-tight mb-2">
-              <span className="text-blue-400">App Only</span> Deals
-            </h3>
-            <p className="text-[11px] text-gray-500 leading-relaxed mb-4">
-              Prices you won't find on desktop. Download and save.
-            </p>
-            <div className="flex gap-3">
-              <button className="flex-1 bg-[#1a1a1e] hover:bg-[#27272a] text-white text-[11px] font-bold py-2 rounded-lg transition border border-[#27272a] flex items-center justify-center gap-1.5">
-                {" "}
-                App Store
-              </button>
-              <button className="flex-1 bg-[#1a1a1e] hover:bg-[#27272a] text-white text-[11px] font-bold py-2 rounded-lg transition border border-[#27272a] flex items-center justify-center gap-1.5">
-                ▶ Google Play
-              </button>
-            </div>
-          </div>
-
-          {/*  Promo Box 4: Know More  */}
-          <div
-            className="promo-box"
-            style={{ background: "#111115", borderColor: "#1a1a1e" }}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <div>
-                <h3 className="text-xl font-extrabold leading-tight">
-                  Know more.
-                </h3>
-                <h3 className="text-xl font-extrabold leading-tight">
-                  <span className="text-purple-400">Game better.</span>
-                </h3>
-              </div>
-              <span className="text-gray-600 text-sm">OG</span>
-            </div>
-            <p className="text-[11px] text-gray-500 leading-relaxed mb-4">
-              Reviews, guides & benchmarks from the Evetech team. Read before
-              you buy.
-            </p>
-            <div className="flex gap-2 mb-5">
-              <span className="bg-[#1a1a1e] text-[11px] text-gray-400 px-3 py-1.5 rounded-full font-bold">
-                100+
-              </span>
-              <span className="bg-[#1a1a1e] text-[11px] text-gray-400 px-3 py-1.5 rounded-full font-bold">
-                50+
-              </span>
-              <span className="bg-[#1a1a1e] text-[11px] text-gray-400 px-3 py-1.5 rounded-full font-bold">
-                REAL
-              </span>
-            </div>
-            <button className="w-full bg-[#1a1a1e] hover:bg-[#27272a] text-white text-sm font-bold py-2.5 rounded-xl transition border border-[#27272a]">
-              Explore Evezone →
-            </button>
-          </div>
+          <CategoryPromoCards />
         </aside>
 
         {/*  ===== PRODUCT GRID RIGHT =====  */}

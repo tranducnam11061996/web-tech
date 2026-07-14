@@ -17,6 +17,7 @@ interface BuildSidebarSectionVisibilityArgs<T> {
   sectionName: string;
   selectedSlugs: Set<string>;
   slugify: (value: string) => string;
+  getValueSlug?: (value: T) => string;
   visibleLimit?: number;
 }
 
@@ -55,6 +56,7 @@ export function buildSidebarSectionVisibility<T extends SidebarFilterValue>({
   sectionName,
   selectedSlugs,
   slugify,
+  getValueSlug,
   visibleLimit = 4,
 }: BuildSidebarSectionVisibilityArgs<T>): SidebarSectionVisibility<T> {
   const normalizedKeyword = normalizeKeyword(keyword);
@@ -77,7 +79,7 @@ export function buildSidebarSectionVisibility<T extends SidebarFilterValue>({
   const matchedValues = values.filter((value) => textMatches(value.name, normalizedKeyword));
   const selectedValues = values.filter(
     (value) =>
-      !matchedValues.includes(value) && selectedSlugs.has(slugify(value.name)),
+      !matchedValues.includes(value) && selectedSlugs.has(getValueSlug ? getValueSlug(value) : slugify(value.name)),
   );
 
   if (!sectionNameMatches && matchedValues.length === 0 && selectedValues.length === 0) {

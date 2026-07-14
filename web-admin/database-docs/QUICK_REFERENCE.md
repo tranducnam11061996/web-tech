@@ -1,6 +1,6 @@
 # Database Quick Reference
 
-Verified: `2026-07-13`
+Verified: `2026-07-15`
 Active database: `it_tech_db`; retained legacy source: `hanoi23_db`
 
 ## Core Product Read Model
@@ -195,6 +195,8 @@ Runtime split:
 
 - `/api/menu/header`: all-site header data.
 - `/api/menu/homepage`: homepage-only Circle Story and Shop by Category.
+- `/api/menu/footer`: four fixed storefront footer groups backed by managed draft/publish data.
+- `/api/menu/bottom-footer`: one fixed `Trusted Partners` link group backed by managed draft/publish data.
 
 Important menu item columns:
 
@@ -302,11 +304,28 @@ Exact active values captured on `2026-07-13`:
 | `idv_product_image_stock` | 0 |
 | `web_admin_entity_registry` | 0 |
 
+## Customer favorites
+
+```text
+web_admin_customer_favorites(
+  id, customer_id, product_id, created_at,
+  UNIQUE(customer_id, product_id),
+  INDEX(customer_id, id),
+  INDEX(product_id, customer_id)
+)
+```
+
+The customer FK cascades on customer deletion. Product identity is a logical reference to the legacy catalog; list/status reads join current public product state and never trust snapshotted price/name data.
+
+## Attribute URL filters
+
+`idv_attribute_value.api_key` is the canonical lowercase hyphen-delimited URL value. Public category metadata and product filtering share one resolver. Global attributes apply to all scopes; Local mappings are preferred; an unmapped Local value is eligible only when an enabled product in the enabled category/descendant scope actually uses it.
+
 ## Cautions
 
 - Many legacy tables have no physical FK.
 - DB mixes InnoDB and MyISAM.
-- Most legacy tables use `latin1_swedish_ci`; `product_data_search` uses `utf8mb4_unicode_ci`.
+- The accepted runtime has no Latin-1/utf8mb3 columns. Historical backups may retain older collations; preserve their definitions when verifying those artifacts.
 - Attribute/icon/filter data can contain URL/script-like legacy values.
 - Do not add indexes or migrations without measuring query plans and having backup/rollback.
 

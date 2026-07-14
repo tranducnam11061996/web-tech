@@ -113,6 +113,7 @@ export function RichTextEditor({
       window.tinymce.init({
         target: editorRef.current,
         license_key: 'gpl',
+        promotion: false,
         height: minHeight,
         skin: 'oxide-dark',
         content_css: 'dark',
@@ -133,7 +134,8 @@ export function RichTextEditor({
           a:hover { color: #60a5fa; text-decoration: underline; text-shadow: 0 0 8px rgba(59,130,246,0.5); }
           img { max-width: 100%; height: auto; }
         `,
-        menubar: false,
+        menubar: 'file edit view insert format tools table help',
+        toolbar_mode: 'wrap',
         resize: resizable ? 'vertical' : false,
         plugins: [
           'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
@@ -141,9 +143,9 @@ export function RichTextEditor({
           'insertdatetime', 'media', 'table', 'help', 'wordcount'
         ],
         toolbar: 'undo redo | blocks | ' +
-          'bold italic backcolor | alignleft aligncenter ' +
+          'bold italic forecolor backcolor | link | alignleft aligncenter ' +
           'alignright alignjustify | bullist numlist outdent indent | ' +
-          'removeformat | help',
+          'removeformat | image media table | code fullscreen | help',
         setup: (editor: any) => {
           tinyEditorRef.current = editor;
           if (editorHandleRef) {
@@ -234,6 +236,18 @@ export function RichTextEditor({
         .tinymce-gaming-wrapper .tox-tinymce:focus-within {
           border-color: rgba(239, 68, 68, 0.5) !important;
           box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.3) !important;
+        }
+        .tinymce-gaming-wrapper .tox .tox-promotion {
+          display: none !important;
+        }
+        .tinymce-gaming-wrapper .tox .tox-promotion + .tox-menubar,
+        .tinymce-gaming-wrapper .tox .tox-menubar + .tox-toolbar,
+        .tinymce-gaming-wrapper .tox .tox-menubar + .tox-toolbar-overlord {
+          grid-column: 1 / -1 !important;
+        }
+        .tinymce-gaming-wrapper .tox .tox-menubar {
+          background-color: rgba(17, 24, 39, 0.96) !important;
+          border-bottom: 1px solid #1f2937 !important;
         }
         .tinymce-gaming-wrapper .tox .tox-toolbar,
         .tinymce-gaming-wrapper .tox .tox-toolbar__overflow,

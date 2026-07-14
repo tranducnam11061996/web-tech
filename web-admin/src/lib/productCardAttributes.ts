@@ -429,7 +429,7 @@ async function buildProductCardBadgeCache() {
           v.value AS value_name,
           v.ordering AS value_ordering
         FROM idv_product_attribute pa
-        JOIN idv_attribute a ON a.id = pa.attr_id
+        JOIN idv_attribute a ON a.id = pa.attr_id AND a.status = 1
         JOIN idv_attribute_value v ON v.id = pa.attr_value_id AND v.attributeId = a.id
         WHERE pa.attr_id IN (?)
       `,
@@ -543,7 +543,7 @@ export async function getProductCardBadgesForProductIds(productIds: number[]) {
           SELECT pa.pro_id, pa.attr_id, pa.attr_value_id, a.attribute_code, a.name AS attribute_name,
             v.value AS value_name, v.ordering AS value_ordering
           FROM idv_product_attribute pa
-          JOIN idv_attribute a ON a.id = pa.attr_id
+          JOIN idv_attribute a ON a.id = pa.attr_id AND a.status = 1
           JOIN idv_attribute_value v ON v.id = pa.attr_value_id AND v.attributeId = a.id
           WHERE pa.pro_id IN (?) AND pa.attr_id IN (?)
         `, [missingIds, activeAttrIds]),
@@ -629,12 +629,13 @@ async function listAvailableAttributesForCategory(categoryId: number) {
         a.attribute_code,
         a.filter_code,
         a.name,
-        COALESCE(ac.ordering, a.ordering, 0) AS ordering
-      FROM idv_attribute_category ac
-      JOIN idv_attribute a ON a.id = ac.attr_id
-      WHERE ac.category_id = ?
-        AND a.status = 1
-      ORDER BY ac.ordering DESC, a.ordering DESC, a.name ASC
+        COALESCE(MAX(ac.ordering), a.ordering, 0) AS ordering
+      FROM idv_attribute a
+      LEFT JOIN idv_attribute_category ac ON ac.attr_id = a.id AND ac.category_id = ? AND ac.status = 1
+      WHERE a.status = 1
+        AND (a.scope = 1 OR ac.attr_id IS NOT NULL)
+      GROUP BY a.id, a.attribute_code, a.filter_code, a.name, a.ordering
+      ORDER BY ordering DESC, a.name ASC
     `,
     [categoryId],
   );
@@ -656,7 +657,7 @@ async function listDirectRules(categoryId: number) {
         a.attribute_code,
         a.name AS attribute_name
       FROM ${RULE_TABLE} r
-      JOIN idv_attribute a ON a.id = r.attr_id
+      JOIN idv_attribute a ON a.id = r.attr_id AND a.status = 1
       WHERE r.category_id = ?
       ORDER BY r.ordering ASC, r.id ASC
     `,
@@ -677,7 +678,7 @@ async function listInheritedRules(categoryId: number, categories: ProductCardAtt
         a.attribute_code,
         a.name AS attribute_name
       FROM ${RULE_TABLE} r
-      JOIN idv_attribute a ON a.id = r.attr_id
+      JOIN idv_attribute a ON a.id = r.attr_id AND a.status = 1
       WHERE r.category_id IN (?)
         AND r.status = 1
         AND r.inherit_to_children = 1
@@ -726,7 +727,7 @@ async function loadPreviewProduct(categoryId: number, attributeIds: number[]) {
           v.value AS value_name,
           v.ordering AS value_ordering
         FROM idv_product_attribute pa
-        JOIN idv_attribute a ON a.id = pa.attr_id
+        JOIN idv_attribute a ON a.id = pa.attr_id AND a.status = 1
         JOIN idv_attribute_value v ON v.id = pa.attr_value_id AND v.attributeId = a.id
         WHERE pa.pro_id = ?
           AND pa.attr_id IN (?)

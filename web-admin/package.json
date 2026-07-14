@@ -18,6 +18,7 @@
     "db:bootstrap-safe-config": "tsx scripts/bootstrap-safe-config.ts",
     "db:logical-backup": "tsx scripts/logical-database-backup.ts",
     "db:repair-catalog-routes": "tsx scripts/repair-catalog-routes.ts",
+    "db:backfill-attribute-api-keys": "tsx scripts/backfill-attribute-value-api-keys.ts",
     "db:import-recovery-cleanup": "tsx scripts/cleanup-import-recovery.ts",
     "db:collation": "tsx scripts/migrate-database-collation.ts",
     "locations:sync": "tsx scripts/sync-vietnam-locations.ts",

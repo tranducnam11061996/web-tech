@@ -5,6 +5,7 @@ import { getProductCardBadgesForProductIds, type ProductCardBadge } from './prod
 import { invalidateSearchLexicalCache } from './searchLexicalCache';
 import { injectSearchSynonyms, normalizeSearchText } from './searchRules';
 import { resolveProductImageUrl } from './productImageUrl';
+import { isAttributeValueApiKey } from './attributeValueApiKey';
 
 export { SYNONYM_GROUPS } from './searchRules';
 
@@ -74,6 +75,7 @@ interface AttributeRow extends RowDataPacket {
   attribute_code: string | null;
   value_id: number;
   value_name: string;
+  value_api_key: string;
   value_ordering: number | null;
 }
 
@@ -229,8 +231,8 @@ function registerAttribute(
 
   const attributeName = decodeHtmlEntities(row.attribute_name).trim();
   const key = String(row.filter_code || row.attribute_code || slugifySearchFilter(attributeName));
-  const valueSlug = slugifySearchFilter(valueName);
-  if (!key || !valueSlug) return;
+  const valueSlug = String(row.value_api_key || '').trim();
+  if (!key || !isAttributeValueApiKey(valueSlug)) return;
 
   addFilterValue(product, key, valueSlug);
   let filter = filters.get(key);
@@ -291,9 +293,10 @@ async function refreshSearchCache() {
         a.attribute_code,
         v.id AS value_id,
         v.value AS value_name,
+        v.api_key AS value_api_key,
         v.ordering AS value_ordering
       FROM idv_product_attribute pa
-      JOIN idv_attribute a ON a.id = pa.attr_id
+      JOIN idv_attribute a ON a.id = pa.attr_id AND a.status = 1 AND a.isSearch = 1
       JOIN idv_attribute_value v ON v.id = pa.attr_value_id AND v.attributeId = a.id
     `),
   ]);
@@ -376,9 +379,10 @@ async function loadProductForCache(id: number) {
         a.attribute_code,
         v.id AS value_id,
         v.value AS value_name,
+        v.api_key AS value_api_key,
         v.ordering AS value_ordering
       FROM idv_product_attribute pa
-      JOIN idv_attribute a ON a.id = pa.attr_id
+      JOIN idv_attribute a ON a.id = pa.attr_id AND a.status = 1 AND a.isSearch = 1
       JOIN idv_attribute_value v ON v.id = pa.attr_value_id AND v.attributeId = a.id
       WHERE pa.pro_id = ?
     `, [id]),

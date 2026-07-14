@@ -1397,36 +1397,6 @@ export async function deleteBrand(id: number, mode: string) {
   return result;
 }
 
-export async function deleteAttribute(id: number, mode: string) {
-  const result = await withTransaction(async (connection) => {
-    const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_attribute WHERE id = ? LIMIT 1', [id]);
-    if (!existingRows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay thuoc tinh');
-
-    if (mode !== 'permanent') {
-      await connection.query('UPDATE idv_attribute SET status = 0 WHERE id = ?', [id]);
-      return { id, hidden: true, affectedProductIds: [] };
-    }
-
-    const [products] = await connection.query<RowDataPacket[]>('SELECT DISTINCT pro_id FROM idv_product_attribute WHERE attr_id = ?', [id]);
-    const affectedProductIds = products.map((row) => Number(row.pro_id || 0)).filter((productId) => productId > 0);
-    await connection.query('DELETE FROM idv_product_attribute WHERE attr_id = ?', [id]);
-    await connection.query('DELETE FROM idv_attribute_category WHERE attr_id = ?', [id]);
-    if (await tableExists(connection, 'idv_attribute_category_for_seo')) {
-      await connection.query('DELETE FROM idv_attribute_category_for_seo WHERE attr_id = ?', [id]);
-    }
-    await connection.query('DELETE FROM idv_attribute_value WHERE attributeId = ?', [id]);
-    await connection.query('DELETE FROM idv_attribute WHERE id = ?', [id]);
-    await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', ['attribute', id]);
-    return { id, deleted: true, affectedProductIds };
-  });
-
-  invalidateProductCardAttributeCaches();
-  if (mode === 'permanent') {
-    await Promise.all(result.affectedProductIds.map((productId) => mutateSearchCache(productId, 'UPDATE')));
-  }
-  return result;
-}
-
 export async function deleteComboSet(id: number, mode: string) {
   return withTransaction(async (connection) => {
     const [existingRows] = await connection.query<RowDataPacket[]>('SELECT id FROM combo_set WHERE id = ? LIMIT 1', [id]);

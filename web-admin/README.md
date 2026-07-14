@@ -1,6 +1,6 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-14`
+Last verified: `2026-07-15`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
@@ -16,9 +16,15 @@ Admin combo APIs support create/update plus product relation remove/reorder. Pub
 - MySQL connection pool, legacy schema integration, additive `web_admin_*` tables, cache invalidation, and search infrastructure.
 - Transactional email outbox, expired-record cleanup, readiness/liveness, and media serving.
 
+## Managed Footer menus
+
+- `Footer Menu` is administered at `/content/menu/footer`; its public endpoint is `GET /api/menu/footer`.
+- `Bottom Footer` is administered at `/content/menu/bottom-footer`; its public endpoint is `GET /api/menu/bottom-footer`. It has exactly one `Trusted Partners` group with 19 links, matching the fixed Footer markup.
+- Both menus use draft/publish versions, `content.menus` RBAC, `ADMIN_WRITE_ENABLED=true` for mutations, public ETag responses, and cache invalidation after publication.
+
 ## Environment
 
-Use `.env.example` as the authoritative key list. Major groups:
+Use the committed root/app `.env.example` files as sanitized starting points. They cover runtime essentials but script/test/benchmark commands also expose optional overrides documented with those commands and in `../NEW_MACHINE_SETUP.md`. Major groups:
 
 - `DATABASE_URL`; optional pool tuning via `DB_CONNECTION_LIMIT`, `DB_QUEUE_LIMIT`, `DB_CONNECT_TIMEOUT_MS`.
 - `ADMIN_WRITE_ENABLED` for write APIs/migrations. Migration commands intentionally fail unless it is exactly `true`.
@@ -225,7 +231,7 @@ Product-detail performance contracts:
 - `/api/products`, `/api/products/[slug]`, `/api/search`, `/api/search-attributes`.
 - `/api/brands/[slug]` returns canonical brand metadata, enabled products, price bounds, sort and pagination.
 - `/api/categories/*`, `/api/collections/[slug]`.
-- `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`.
+- `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`, `/api/menu/footer`, `/api/menu/bottom-footer`.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
 - `/api/news`, `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
 
@@ -242,6 +248,8 @@ Product detail returns `productPromotions` with at most 50 active display-only r
 Public read APIs use bounded inputs, reduced response shapes, local single-flight caches, ETags, and cross-worker invalidation where applicable.
 
 For `category_id=X`, product list/count, price bounds, brand filters, attribute definitions/counts and category child counts use the same enabled scope: X plus every enabled descendant. Duplicate product links are collapsed. Category metadata, breadcrumbs, feature boxes and buying guides still belong to the category being viewed; inactive roots and unknown slugs remain 404.
+
+Category attribute metadata and `/api/products` URL-filter validation use the same versioned resolver. Active searchable Global attributes apply to every scope; Local attributes prefer active `idv_attribute_category` mappings, but when a mapping is absent a value is exposed only if a sellable product in the enabled scope actually uses that attribute/value relation. This is a read-time fallback and does not create category mappings.
 
 ### Commerce writes
 
@@ -263,6 +271,21 @@ Anonymous high-risk actions use action-specific reCAPTCHA and IP/identifier rate
 ### Admin
 
 Admin API groups live under `/api/admin/*`. Mutations require authenticated session, RBAC permission, same-origin handling, audit behavior where applicable, and `ADMIN_WRITE_ENABLED=true`. Do not add CAPTCHA to ordinary post-login admin forms; use re-authentication or step-up controls only for sensitive/risky actions.
+
+Attributes are managed at `/product/attribute-list` and `/product/attribute/edit`. `POST /api/admin/attributes` creates, collection `PATCH` applies active/hidden status, collection `DELETE` performs confirmed bulk cascade deletion, and `GET/PATCH/DELETE /api/admin/attributes/[id]` reads, updates, or permanently deletes one attribute. Saving reconciles values and Local category links transactionally; Global attributes use `scope=1`. The legacy value table has no status column, so values are always active. Destructive integration coverage requires both `ATTRIBUTE_CRUD_DESTRUCTIVE_TEST=true` and an explicitly disposable database name.
+
+All admin rich-text fields use the shared offline GPL TinyMCE instance in `RichTextEditor`. It loads `/tinymce.min.js` only when mounted, resolves its plugins/skins from `public`, keeps the dark UI/content skin, disables the feature-promotion CTA through `promotion: false`, hides its generated container and resets the editor-header grid within the wrapper so menubar/toolbars remain full-width. It exposes the standard menubar plus a horizontally wrapping toolbar for formatting, links, images, media, tables, source code, fullscreen, and help. Do not move this script into the root layout or replace it with Tiny Cloud.
+
+`idv_attribute_value.api_key` is the authoritative URL value for category and search filters. It is required, lowercase, hyphen-delimited, at most 200 characters, unique within its attribute, and editable in the existing form. The guarded backfill command is dry-run by default:
+
+```powershell
+npm.cmd run db:backfill-attribute-api-keys
+$env:ADMIN_WRITE_ENABLED='true'
+npm.cmd run db:backfill-attribute-api-keys -- --apply --expected-database=it_tech_db --expected-updates=426 --confirm=BACKFILL_ATTRIBUTE_VALUE_API_KEYS
+$env:ADMIN_WRITE_ENABLED='false'
+```
+
+Footer Menu is managed at `/content/menu/footer` through `GET/PUT /api/admin/menus/footer` and `POST /api/admin/menus/footer/publish`. Its one root contains exactly four groups with fixed link capacities matching the existing Footer markup; the public `GET /api/menu/footer` payload is cacheable and all initial links use `#`.
 
 Product and category editors manage independent buying guides through `GET/PUT /api/admin/products/[id]/buying-guide` and `GET/PUT /api/admin/product-categories/[id]/buying-guide`. PUT replaces the bounded ordered item list in one transaction and invalidates only catalog-detail response caches.
 
@@ -338,4 +361,4 @@ This does not prove migration state in any other environment. Follow `database-d
 
 ## Verification status
 
-Latest local verification passed both application TypeScript/ESLint/build pipelines, 94/94 web-admin unit tests, the default integration suite (3 pass, 6 environment-gated skips), and 14/14 focused storefront validation/accessibility Playwright checks. The full storefront suite currently reports 56 pass, 2 expected skips, and 2 independent product-description fallback width failures. The last temporary-production healthcheck passed 15/15 using the documented empty-collection allowance; it was not rerun against the currently active development servers. Customer favorites additionally passed a restore-verified backup, two idempotent clone migrations, exact DDL/index/FK/EXPLAIN inspection, functional relation/cursor/cascade checks, and the live additive migration. The historical final 288-table lean backup and the new pre-favorites backup both restore successfully. Full 1,500-VU target testing remains pending.
+The `2026-07-15` working-tree audit passed web-admin TypeScript, ESLint, production build, 104/104 unit tests, and 6 integration tests with 7 explicit fixture/safety skips. Both application npm audits found zero known vulnerabilities. Strict local health returned 13/15 because both configured collection probes correctly return 404 with the current empty collection catalog; `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` returned 15/15 while MySQL was healthy. At audit end MySQL was no longer listening and readiness returned 503, so restart/identify it and rerun runtime checks before further database work. Full 1,500-VU target testing remains pending. Exact evidence is in `../PROJECT_AUDIT_2026-07-15.md`.

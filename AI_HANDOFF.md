@@ -45,6 +45,7 @@ The current working tree implements and documents the following related changes:
 - Category headings/document titles reject blank or shorter-than-five-character legacy SEO titles such as `0` and fall back to the category name. The category control bar retains sorting and removes its standalone search field.
 - Desktop/mobile header mega-menu placement regression coverage.
 - Shared offline GPL TinyMCE remains locally bundled and loaded only inside `RichTextEditor`; its menu/toolbar layout and promotion suppression were polished without moving it to the root layout or Tiny Cloud.
+- Homepage Section 8 uses collection `896` / `goi-y-cho-ban` from the existing server bootstrap and remains server-rendered. A homepage-only raw JavaScript controller, ported from `font-end/index.html`, now initializes every `.carousel-track` except the hero: it uses a one-card buffer, optional clones, three-second auto-slide, mouse/touch drag, hover pause, indicators, resize recalculation, and a Next.js init/destroy adapter that prevents duplicate timers/listeners across route mounts.
 
 The exact modified/untracked file list is intentionally not duplicated here because it changes during work. `git status --short` is authoritative.
 
@@ -56,7 +57,7 @@ The exact modified/untracked file list is intentionally not duplicated here beca
 - Catalog: 788 categories; 90 brands; 4,712 product/store/price/info/search rows; 14,455 product-category links; 17,603 product-attribute links; 162 category-attribute links.
 - News: 4 categories, 668 articles/content rows, and 705 unique article-category links. Source article 83 remains quarantined. Source IDs 682 and 683 were detected later but have not been imported.
 - PCM is brand ID 96. Durable source maps include `0 -> 96`, `34 -> 25`, and `57 -> 31`. PCM owns 2,276 products, 849 enabled.
-- The active catalog still has no approved combo-set, product-group, collection, voucher, product-promotion, buying-guide, or modern product-image rows. The favorites table was created empty and may contain user-created rows later.
+- The active catalog has one local test collection: ID `896`, slug `goi-y-cho-ban`, 27 linked products and 22 currently sellable products. It still has no approved combo-set, product-group, voucher, product-promotion, buying-guide, or modern product-image rows. The favorites table was created empty and may contain user-created rows later.
 - Runs 2–8 are accepted and rollback-closed. Their in-database recovery tables were removed; recovery depends on protected external restore-verified artifacts.
 - The last accepted post-favorites schema facts are documented in `web-admin/database-docs/DATABASE_SCHEMA.md`. Re-query the target before a write or migration; never use these counts as permission to mutate an unidentified database.
 
@@ -79,13 +80,13 @@ On `2026-07-15`:
 | Check | Current result |
 |---|---|
 | `web-admin` TypeScript / ESLint / production build | Pass |
-| `web-admin` unit tests | 104/104 pass |
+| `web-admin` unit tests | 107/107 pass |
 | `web-admin` integration tests | 6 pass, 7 correctly skipped by fixture/safety gates |
 | `font-end` TypeScript / ESLint / production build | Pass |
 | npm audit, both applications | 0 known vulnerabilities |
-| Runtime health, strict mode | 13/15; both configured collection probes return 404 because collection data is absent |
+| Runtime health, strict mode | 13/15; both configured legacy collection probes return 404, while the homepage and Section 8 production smoke pass |
 | Runtime health with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` | 15/15 while MySQL was available |
-| Focused new Playwright coverage, one worker | 8 pass, 2 expected device/project skips |
+| Focused new Playwright coverage, one worker | Prior focused suite: 8 pass/2 expected device-project skips; replacement homepage-carousel suite: 7 pass/3 expected project skips across desktop/mobile global initialization, timing, frame-level reset continuity, hover, mouse/touch thresholds, previous/dot controls, geometry/request preservation and idempotent clone cleanup |
 | Full Playwright run, 12 workers | Inconclusive: 44 pass, 4 skipped, 28 fail amid `ERR_INSUFFICIENT_RESOURCES`, navigation timeouts, and cascading missing-element failures |
 | Regression JS budget | Fail for product 236.8 KB, cart 175.5 KB, checkout 190.8 KB, combo-checkout 187.4 KB; combo-cart passes at 167.7 KB |
 | Strict release JS budget | Fail for product, cart, checkout, and combo-checkout; combo-cart passes |

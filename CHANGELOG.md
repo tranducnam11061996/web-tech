@@ -6,6 +6,18 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 
 ## 2026-07-15
 
+### Homepage featured collection
+
+- Replaced Section 8's ten static demonstration cards with up to ten sellable products from configurable collection `896` / `goi-y-cho-ban`, while preserving the existing section/carousel/card wrappers and CSS classes.
+- Added a bounded lean featured-collection payload to the existing homepage bootstrap so the storefront keeps one server-side homepage request instead of issuing a separate or client-side collection fetch.
+- Added collection-aware bootstrap cache keys and public-product cache invalidation after collection metadata, membership, or ordering mutations.
+- Removed the static specification/promotion badges; real card badges render only when supplied by the API.
+- Removed the Section 8-specific React carousel controller and returned Section 8 to server-rendered collection markup without changing its wrappers, classes, IDs, card structure or CSS.
+- Ported the raw carousel algorithm from `font-end/index.html` into a dedicated homepage script: every non-hero `.carousel-track` now uses the reference one-card buffer, conditional clones, 400 ms transform/reset, three-second timer, mouse/touch threshold gestures, hover pause, indicators and resize recalculation.
+- Added a nonvisual Next.js script adapter with explicit init/destroy lifecycle cleanup so client-side route remounts cannot accumulate cloned cards, timers, listeners or inline transform state. The broader dormant `public/main.js` remains unloaded.
+- Replaced the obsolete Section 8 isolation/reduced-motion tests with desktop/mobile coverage for global initialization, reference timing, frame-level reset continuity, hover pause, mouse/touch thresholds, geometry/request preservation and idempotent clone cleanup.
+- Verification passed both application typecheck/lint/build pipelines, 107/107 backend unit tests, the default integration suite at 6 pass/7 safety-gated skips, and the replacement homepage-carousel suite at 7 pass/3 expected project skips across desktop/mobile. Strict local health remains 13/15 only because the two configured legacy collection probes return 404; documented empty-catalog mode passes 15/15 and the production storefront/homepage carousel smoke passes.
+
 ### Whole-workspace documentation and continuation audit
 
 - Re-audited Git state, application boundaries, route/config inventory, database runbooks, environment usage, runtime health, security audit, browser coverage, and frontend JavaScript budgets.

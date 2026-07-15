@@ -232,6 +232,7 @@ Product-detail performance contracts:
 - `/api/brands/[slug]` returns canonical brand metadata, enabled products, price bounds, sort and pagination.
 - `/api/categories/*`, `/api/collections/[slug]`.
 - `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`, `/api/menu/footer`, `/api/menu/bottom-footer`.
+- `/api/homepage/bootstrap` optionally accepts bounded `collectionId`, `collectionSlug`, and `collectionLimit` parameters. When ID and slug identify the same active collection, `data.featuredCollection` contains only its metadata and the requested sellable product cards; invalid, missing, empty, or failed collection loads return `featuredCollection: null` without failing the remaining homepage bootstrap.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
 - `/api/news`, `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
 

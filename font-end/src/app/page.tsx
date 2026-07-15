@@ -1,12 +1,16 @@
 import Footer from "../components/Footer";
 import Header from "../components/Header";
+import HomepageCarouselScript from "../components/HomepageCarouselScript";
 import Section2 from "../components/sections/Section2";
 import Section3 from "../components/sections/Section3";
 import Section4 from "../components/sections/Section4";
 import Section5 from "../components/sections/Section5";
 import Section6, { section6HomepageProductConfig } from "../components/sections/Section6";
 import Section7 from "../components/sections/Section7";
-import Section8 from "../components/sections/Section8";
+import Section8, {
+  section8FeaturedCollectionConfig,
+  type Section8FeaturedCollection,
+} from "../components/sections/Section8";
 import Section9 from "../components/sections/Section9";
 import Section10, { section10HomepageProductConfig } from "../components/sections/Section10";
 import Section11 from "../components/sections/Section11";
@@ -69,11 +73,16 @@ type HomepageBootstrap = {
   productSections: { sections?: HomepageProductSectionData[] };
   featureSections: { sections?: any[] };
   brands?: HomepageBrand[];
+  featuredCollection?: Section8FeaturedCollection | null;
 };
 
 async function fetchHomepageBootstrap(): Promise<HomepageBootstrap | null> {
   try {
-    const response = await fetch(internalApiUrl("/api/homepage/bootstrap"), { next: { revalidate: 60 } });
+    const url = new URL(internalApiUrl("/api/homepage/bootstrap"));
+    url.searchParams.set("collectionId", String(section8FeaturedCollectionConfig.collectionId));
+    url.searchParams.set("collectionSlug", section8FeaturedCollectionConfig.collectionSlug);
+    url.searchParams.set("collectionLimit", String(section8FeaturedCollectionConfig.productLimit));
+    const response = await fetch(url.toString(), { next: { revalidate: 60 } });
     if (!response.ok) return null;
     const payload = await response.json();
     return payload?.success && payload.data ? payload.data as HomepageBootstrap : null;
@@ -102,7 +111,7 @@ export default async function Page() {
       <Section5 />
       <Section6 sectionDataPromise={homepageProductSectionsPromise} />
       <Section7 />
-      <Section8 />
+      <Section8 featuredCollection={bootstrap?.featuredCollection} />
       <Section9 />
       <Section10 sectionDataPromise={homepageProductSectionsPromise} />
       <Section11 initialSections={bootstrap?.featureSections?.sections} />
@@ -114,6 +123,7 @@ export default async function Page() {
       <Section17 sectionDataPromise={homepageProductSectionsPromise} />
 
       <Footer />
+      <HomepageCarouselScript />
     </>
   );
 }

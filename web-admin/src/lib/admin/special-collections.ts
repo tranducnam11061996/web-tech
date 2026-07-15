@@ -12,6 +12,7 @@ import {
   withTransaction,
 } from '@/lib/admin/common';
 import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
+import { clearPublicProductResponseCache } from '@/lib/publicProductCache';
 
 type ListParams = {
   page: number;
@@ -184,6 +185,12 @@ function collectionPayload(payload: Record<string, unknown>, existing?: RowDataP
   };
 }
 
+async function withCollectionCacheInvalidation<T>(operation: () => Promise<T>) {
+  const result = await operation();
+  clearPublicProductResponseCache();
+  return result;
+}
+
 export async function listSpecialCollections(searchParams: URLSearchParams) {
   const params = clampListParams(searchParams);
   const filters: string[] = [];
@@ -255,7 +262,7 @@ export async function getSpecialCollection(id: number) {
 }
 
 export async function saveSpecialCollection(payload: Record<string, unknown>, id?: number) {
-  return withTransaction(async (connection) => {
+  return withCollectionCacheInvalidation(() => withTransaction(async (connection) => {
     const existing = id ? await assertCollectionExists(connection, id) : undefined;
     const data = collectionPayload(payload, existing);
     await assertCollectionUrlUnique(connection, data.url, id || 0);
@@ -334,11 +341,11 @@ export async function saveSpecialCollection(payload: Record<string, unknown>, id
     ]);
     await syncParentSummary(connection, data.parentId);
     return loadSpecialCollection(connection, newId);
-  });
+  }));
 }
 
 export async function deleteSpecialCollection(id: number) {
-  return withTransaction(async (connection) => {
+  return withCollectionCacheInvalidation(() => withTransaction(async (connection) => {
     const existing = await assertCollectionExists(connection, id);
     const [children] = await connection.query<RowDataPacket[]>('SELECT id FROM idv_category_special WHERE parent_id = ? LIMIT 1', [id]);
     if (children.length > 0) {
@@ -348,7 +355,7 @@ export async function deleteSpecialCollection(id: number) {
     await connection.query('DELETE FROM idv_category_special WHERE id = ?', [id]);
     await syncParentSummary(connection, Number(existing.parent_id || 0));
     return { id, deleted: true };
-  });
+  }));
 }
 
 export async function listSpecialCollectionProducts(collectionId: number, searchParams: URLSearchParams) {
@@ -400,7 +407,7 @@ export async function listSpecialCollectionProducts(collectionId: number, search
 }
 
 export async function addProductToSpecialCollection(collectionId: number, payload: Record<string, unknown>) {
-  return withTransaction(async (connection) => {
+  return withCollectionCacheInvalidation(() => withTransaction(async (connection) => {
     await assertCollectionExists(connection, collectionId);
     const productId = toInt(payload.productId ?? payload.product_id);
     if (!productId) throw new AdminApiError(400, 'BAD_REQUEST', 'San pham khong hop le', { productId: 'required' });
@@ -420,11 +427,11 @@ export async function addProductToSpecialCollection(collectionId: number, payloa
     );
     await refreshCollectionProductCount(connection, collectionId);
     return { id: Number(result.insertId || 0), collectionId, productId, ordering: toInt(payload.ordering) };
-  });
+  }));
 }
 
 export async function updateSpecialCollectionProduct(collectionId: number, linkId: number, payload: Record<string, unknown>) {
-  return withTransaction(async (connection) => {
+  return withCollectionCacheInvalidation(() => withTransaction(async (connection) => {
     await assertCollectionExists(connection, collectionId);
     const [rows] = await connection.query<RowDataPacket[]>(
       'SELECT id FROM idv_category_special_product WHERE id = ? AND special_cat_id = ? LIMIT 1',
@@ -438,11 +445,11 @@ export async function updateSpecialCollectionProduct(collectionId: number, linkI
       collectionId,
     ]);
     return { id: linkId, collectionId, ordering };
-  });
+  }));
 }
 
 export async function deleteSpecialCollectionProduct(collectionId: number, linkId: number) {
-  return withTransaction(async (connection) => {
+  return withCollectionCacheInvalidation(() => withTransaction(async (connection) => {
     await assertCollectionExists(connection, collectionId);
     const [rows] = await connection.query<RowDataPacket[]>(
       'SELECT product_id FROM idv_category_special_product WHERE id = ? AND special_cat_id = ? LIMIT 1',
@@ -452,5 +459,5 @@ export async function deleteSpecialCollectionProduct(collectionId: number, linkI
     await connection.query('DELETE FROM idv_category_special_product WHERE id = ? AND special_cat_id = ?', [linkId, collectionId]);
     await refreshCollectionProductCount(connection, collectionId);
     return { id: linkId, collectionId, productId: Number(rows[0].product_id || 0), deleted: true };
-  });
+  }));
 }

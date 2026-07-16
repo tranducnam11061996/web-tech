@@ -97,7 +97,7 @@ if (mainEndIdx !== -1) {
                   <span className="accordion-title">What is the warranty on your graphics cards?</span>
                   <span className="accordion-icon"><svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg></span>
                 </div>
-                <div className="accordion-body"><div className="accordion-body-inner">All our graphics cards come with a minimum 3-year manufacturer warranty. Some premium models from brands like ASUS ROG and MSI Gaming offer extended warranties. We also provide our own Evetech support for the first 12 months for hassle-free returns and replacements.</div></div>
+                <div className="accordion-body"><div className="accordion-body-inner">All our graphics cards come with a minimum 3-year manufacturer warranty. Some premium models from brands like ASUS ROG and MSI Gaming offer extended warranties. We also provide our own TrucTiepGAME support for the first 12 months for hassle-free returns and replacements.</div></div>
               </div>
               <div className="accordion-item">
                 <div className="accordion-header" onClick={(e) => typeof window !== "undefined" && window.toggleAccordion(e.currentTarget)}>

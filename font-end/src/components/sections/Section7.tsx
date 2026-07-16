@@ -66,7 +66,7 @@ export default function Section7() {
 
           {/*  Description  */}
           <p className="feature-desc">
-            Exclusive prices you won't find on desktop. Download the Evetech app and start saving.
+            Exclusive prices you won't find on desktop. Download the TrucTiepGAME app and start saving.
           </p>
 
           {/*  Tag pills  */}
@@ -116,7 +116,7 @@ export default function Section7() {
 
           {/*  Description  */}
           <p className="feature-desc">
-            You dream it. Our AI schemes it. Evetech builds the ultimate machine powerful, precise, and perfectly clean.
+            You dream it. Our AI schemes it. TrucTiepGAME builds the ultimate machine powerful, precise, and perfectly clean.
           </p>
 
           {/*  Bottom stat pills  */}

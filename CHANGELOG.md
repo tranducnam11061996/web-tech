@@ -4,7 +4,41 @@ Notable workspace changes are grouped by implementation/audit date.
 
 Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and `PROJECT_PROGRESS.md`, not an older “Known Gaps” section, for current status.
 
+## 2026-07-17
+
+### Homepage Section 11 shared mobile autoplay
+
+- Opted every populated Section 11 product track into the existing homepage carousel controller only below 640px, retaining one server-rendered DOM, the shared `ProductGridCard`, the ~1.8-card composition and native snap scrolling as the no-JavaScript/reduced-motion fallback.
+- Reused the existing one-card buffer, 400ms transform/reset, three-second interval, 20% drag threshold and movement-only click suppression for a seamless loop without cloning the nine-card Section 11 list or adding React state.
+- Added viewport, document-visibility, focus, hover and drag pause conditions to the shared runtime. Media-query changes reinitialize idempotently, and crossing 640px restores child order, data attributes, overflow, touch-action and inline transforms before the Section 11 grid returns.
+- Focused Section 11/8/10 Playwright passes 20 runnable checks with 14 expected project skips, including exact 397px geometry, autoplay/offscreen/focus behavior, real touch input, reduced-motion fallback, the 360/390/428/639/640 matrix and init/destroy regression. Both applications pass TypeScript, quiet lint and production build; admin unit tests pass 144/144 and integration passes 17 with 7 expected safety skips.
+
+### Homepage Section 11 mobile carousel layout
+
+- Reorganized each Section 11 block below 640px into one compact hero row, one category-title/action row and one native horizontal product carousel without duplicating hero or product-card DOM. The outer configured frame loses its mobile border, radius, shadow and padding, while tablet/desktop retain the existing two/three/six-column presentation.
+- Added a homepage-only compact variant to the shared category hero: mobile height is 130px, headline/subheading shrink to 28px/10px and the hero CTA is hidden until `sm`. Category-page uses keep the default variant unchanged, including their CTA suppression contract.
+- Preserved the canonical `ProductGridCard` unchanged inside responsive slide wrappers. At the supplied 397px reference, slides are about 195px wide with 16px gaps and the next card remains partially visible; native touch scrolling, snap points and local overflow do not join the scripted `.carousel-track` runtime.
+- Focused homepage/category/shared-card Playwright passes 10 runnable cases with 8 expected project skips, covering exact 397px geometry, the 360/390/428/639/640 matrix, native scroll, links/focus, WCAG serious/critical results, desktop hero placement and category-page isolation. Both applications pass TypeScript, quiet lint and production build; admin unit tests pass 144/144 and integration passes 17 with 7 expected safety skips. Local health remains the documented 13/15 because both configured legacy collection probes return 404.
+
+### Responsive Homepage Section 5 recreation
+
+- Replaced Section 5's shared-class placeholders with a self-contained Server Component backed by five local AVIF category artworks, canonical storefront routes, `next/image` and one native `Link` per card; no global CSS, client state, API or database contract changed.
+- Matched the supplied 2545px desktop reference with a centered 1800px three-column grid, 30px gaps and the Pre-built card spanning both rows. The 428px mobile reference uses two 16:9 cards above the asymmetric Pre-built/Upgrade/Monitor composition, with tablet widths retaining the two-column span layout.
+- Added reduced-motion-safe transform/opacity interactions, equivalent hover and keyboard-focus treatment, meaningful image alternatives and focused Playwright coverage for exact reference geometry, intermediate breakpoints, images, routes, overflow and WCAG serious/critical violations.
+- Verification passed storefront TypeScript, quiet lint, production build and all three focused Section 5 cases. The required admin TypeScript, quiet lint, 144/144 unit tests, integration suite at 17 pass/7 expected safety skips and production build also passed. Local health remained the documented 13/15 because both configured legacy collection probes return 404.
+
+### Responsive Homepage Section 9 recreation
+
+- Replaced the shared-class faux promotional artwork with five local AVIF category cards rendered by a self-contained Server Component using `next/image` and canonical storefront search links; no global CSS, client state, API or database contract changed.
+- Matched the supplied 2537px desktop reference with a centered 1800px five-card 5:6 grid and 30px gaps, and the 429px mobile reference with two 3:2 cards above three 25:23 cards. Tablet widths use three columns, while focus-visible and reduced-motion behavior remain accessible.
+- Added focused Playwright coverage for the two exact reference geometries, the 360/768/1024/1499/1500 transition matrix, image loading, links, keyboard focus, overflow and WCAG A/AA serious/critical violations. Storefront TypeScript, quiet lint, production build and all three focused cases pass.
+
 ## 2026-07-16
+
+### Storefront brand-name cleanup
+
+- Standardized every remaining checked-in storefront `Evetech`/`evetech`/`EVETECH` display string to the canonical `TrucTiepGAME` brand across the header, footer, promotional copy, contact text, static reference markup, and public sample content without changing CSS or layout structure.
+- Recorded `TrucTiepGAME` as the exact public brand name in the canonical handoff so future UI and metadata work does not reintroduce the legacy template name.
 
 ### Exact PC search intent
 

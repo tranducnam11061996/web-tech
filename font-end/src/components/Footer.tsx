@@ -38,7 +38,7 @@ export default function Footer() {
               <div
                 className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white font-bold text-xs shadow-lg shadow-red-500/20">
                 e</div>
-              <span className="text-white font-bold text-2xl tracking-tight">evetech</span>
+              <span className="text-white font-bold text-2xl tracking-tight">TrucTiepGAME</span>
             </div>
             <p className="text-[10px] tracking-[0.2em] uppercase text-gray-500 font-semibold">You dream it, we build it</p>
           </div>
@@ -138,7 +138,7 @@ export default function Footer() {
             <h5 className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase flex items-center gap-2 mb-3">
               <span className="text-gray-400">✉️</span> EMAIL
             </h5>
-            <p className="text-[13px] text-white font-medium leading-relaxed">sales@evetech.co.za<br />support@evetech.co.za
+            <p className="text-[13px] text-white font-medium leading-relaxed">sales@TrucTiepGAME.co.za<br />support@TrucTiepGAME.co.za
             </p>
           </div>
           {/*  Location  */}
@@ -234,9 +234,9 @@ export default function Footer() {
       <div className="flex flex-col lg:flex-row justify-between items-center lg:items-start gap-8 mb-10">
 
         <div className="max-w-3xl text-[11px] text-gray-500 leading-[1.8] text-center lg:text-left">
-          <p className="mb-3 font-medium">Copyright © 2007 - 2026 - All rights reserved by EVETECH (Pty) Ltd</p>
-          <p>All images appearing on this website are copyright Evetech.co.za. Any unauthorized use of its logos and
-            other graphics is forbidden. Prices and specifications are subject to change without notice. EVETECH IS NOT
+          <p className="mb-3 font-medium">Copyright © 2007 - 2026 - All rights reserved by TrucTiepGAME (Pty) Ltd</p>
+          <p>All images appearing on this website are copyright TrucTiepGAME.co.za. Any unauthorized use of its logos and
+            other graphics is forbidden. Prices and specifications are subject to change without notice. TrucTiepGAME IS NOT
             RESPONSIBLE FOR ANY TYPO, PHOTOGRAPH, OR PROGRAM ERRORS, AND RESERVES THE RIGHT TO CANCEL ANY INCORRECT
             ORDERS. Please Note: Product images are for illustrative purposes only and may differ from the actual
             product.</p>

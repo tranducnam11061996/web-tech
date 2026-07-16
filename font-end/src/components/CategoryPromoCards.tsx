@@ -129,7 +129,7 @@ export default function CategoryPromoCards() {
           <span className="text-gray-600 text-sm">OG</span>
         </div>
         <p className="text-[11px] text-gray-500 leading-relaxed mb-4">
-          Reviews, guides & benchmarks from the Evetech team. Read before
+          Reviews, guides & benchmarks from the TrucTiepGAME team. Read before
           you buy.
         </p>
         <div className="flex gap-2 mb-5">

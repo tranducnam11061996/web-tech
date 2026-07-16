@@ -2,18 +2,63 @@
   "use strict";
 
   var activeControllers = [];
+  var currentRoot = null;
+  var environmentListenersBound = false;
+  var mobileQuery = window.matchMedia("(max-width: 639px)");
+  var reducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  function destroy() {
+  function destroyControllers() {
     activeControllers.forEach(function destroyController(controller) {
       controller.destroy();
     });
     activeControllers = [];
   }
 
+  function addMediaListener(query, handler) {
+    if (typeof query.addEventListener === "function") query.addEventListener("change", handler);
+    else query.addListener(handler);
+  }
+
+  function removeMediaListener(query, handler) {
+    if (typeof query.removeEventListener === "function") query.removeEventListener("change", handler);
+    else query.removeListener(handler);
+  }
+
+  function handleEnvironmentChange() {
+    if (!currentRoot) return;
+    init(currentRoot);
+  }
+
+  function bindEnvironmentListeners() {
+    if (environmentListenersBound) return;
+    environmentListenersBound = true;
+    addMediaListener(mobileQuery, handleEnvironmentChange);
+    addMediaListener(reducedMotionQuery, handleEnvironmentChange);
+  }
+
+  function unbindEnvironmentListeners() {
+    if (!environmentListenersBound) return;
+    environmentListenersBound = false;
+    removeMediaListener(mobileQuery, handleEnvironmentChange);
+    removeMediaListener(reducedMotionQuery, handleEnvironmentChange);
+  }
+
+  function destroy() {
+    destroyControllers();
+    unbindEnvironmentListeners();
+    currentRoot = null;
+  }
+
   function createTrackController(track) {
     if (track.id === "heroTrack" || track.children.length === 0) return null;
 
-    var container = track.closest('.carousel-wrapper, .carousel-container, [id="carouselContainer"]') || track.parentElement;
+    var isMobileOnly = track.dataset.homepageCarouselTrack === "mobile";
+    if (isMobileOnly && (!mobileQuery.matches || reducedMotionQuery.matches)) return null;
+
+    var container = isMobileOnly
+      ? track.closest('[data-homepage-carousel="mobile"]')
+      : track.closest('.carousel-wrapper, .carousel-container, [id="carouselContainer"]');
+    if (!container) container = track.parentElement;
     if (!container) return null;
 
     var section = container.closest("section") || container.parentElement;
@@ -32,15 +77,26 @@
     var resizeTimeout = null;
     var initTimeout = null;
     var animationTimeouts = [];
+    var isInViewport = typeof window.IntersectionObserver !== "function";
+    var isHovering = false;
+    var isFocusWithin = false;
+    var visibilityObserver = null;
 
     var originalChildren = Array.from(track.children);
     var totalOriginal = originalChildren.length;
     var originalIndexes = originalChildren.map(function readOriginalIndex(child) {
       return child.dataset.originalIndex;
     });
+    var originalVisibilities = originalChildren.map(function readOriginalVisibility(child) {
+      return child.style.visibility;
+    });
     var originalTransition = track.style.transition;
     var originalTransform = track.style.transform;
     var originallyDragging = track.classList.contains("dragging");
+    var originalContainerOverflowX = container.style.overflowX;
+    var originalContainerTouchAction = container.style.touchAction;
+    var originalContainerScrollLeft = container.scrollLeft;
+    var originalActiveState = container.getAttribute("data-homepage-carousel-active");
     var originalDotStates = Array.from(dots).map(function readDotState(dot) {
       return dot.classList.contains("active");
     });
@@ -48,6 +104,13 @@
     originalChildren.forEach(function setOriginalIndex(child, index) {
       child.dataset.originalIndex = index;
     });
+
+    if (isMobileOnly) {
+      container.style.overflowX = "hidden";
+      container.style.touchAction = "pan-y";
+      container.scrollLeft = 0;
+      container.setAttribute("data-homepage-carousel-active", "true");
+    }
 
     function getCardWidth() {
       var firstCard = track.children[0];
@@ -60,6 +123,11 @@
     function getVisibleCards() {
       if (cardWidth === 0) return 1;
       return Math.floor(container.offsetWidth / cardWidth);
+    }
+
+    function setLeadingBufferVisibility(isVisible) {
+      if (!isMobileOnly || !track.children[0]) return;
+      track.children[0].style.visibility = isVisible ? "visible" : "hidden";
     }
 
     function updateDots() {
@@ -96,6 +164,7 @@
         track.prepend(track.lastElementChild);
         currentTranslate = -cardWidth;
         track.style.transform = "translateX(" + currentTranslate + "px)";
+        setLeadingBufferVisibility(false);
         updateDots();
       }
     }
@@ -114,15 +183,19 @@
       if (isAnimating || track.children.length < 2) return;
       isAnimating = true;
       cardWidth = getCardWidth();
+      setLeadingBufferVisibility(false);
 
       track.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
       track.style.transform = "translateX(-" + cardWidth * 2 + "px)";
 
       rememberAnimationTimeout(function completeNext() {
         track.style.transition = "none";
-        track.appendChild(track.firstElementChild);
+        var outgoingBuffer = track.firstElementChild;
+        track.appendChild(outgoingBuffer);
+        if (isMobileOnly && outgoingBuffer) outgoingBuffer.style.visibility = "visible";
         currentTranslate = -cardWidth;
         track.style.transform = "translateX(" + currentTranslate + "px)";
+        setLeadingBufferVisibility(false);
         updateDots();
         isAnimating = false;
       }, 400);
@@ -132,6 +205,7 @@
       if (isAnimating || track.children.length < 2) return;
       isAnimating = true;
       cardWidth = getCardWidth();
+      setLeadingBufferVisibility(true);
 
       track.style.transition = "transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)";
       track.style.transform = "translateX(0px)";
@@ -141,6 +215,7 @@
         track.prepend(track.lastElementChild);
         currentTranslate = -cardWidth;
         track.style.transform = "translateX(" + currentTranslate + "px)";
+        setLeadingBufferVisibility(false);
         updateDots();
         isAnimating = false;
       }, 400);
@@ -153,9 +228,28 @@
       }
     }
 
+    function canAutoSlide() {
+      return !isDestroyed
+        && !reducedMotionQuery.matches
+        && document.visibilityState !== "hidden"
+        && isInViewport
+        && !isHovering
+        && !isFocusWithin
+        && !isDragging;
+    }
+
     function startAutoSlide() {
       stopAutoSlide();
+      if (!canAutoSlide()) return;
       autoSlideInterval = window.setInterval(goNext, AUTO_SLIDE_DELAY);
+    }
+
+    function refreshAutoSlide() {
+      if (!canAutoSlide()) {
+        stopAutoSlide();
+        return;
+      }
+      if (!autoSlideInterval) autoSlideInterval = window.setInterval(goNext, AUTO_SLIDE_DELAY);
     }
 
     function handlePreviousClick(event) {
@@ -168,6 +262,31 @@
       event.preventDefault();
       goNext();
       startAutoSlide();
+    }
+
+    function handleMouseEnter() {
+      isHovering = true;
+      refreshAutoSlide();
+    }
+
+    function handleMouseLeave() {
+      isHovering = false;
+      startAutoSlide();
+    }
+
+    function handleFocusIn() {
+      isFocusWithin = true;
+      refreshAutoSlide();
+    }
+
+    function handleFocusOut(event) {
+      if (event.relatedTarget && container.contains(event.relatedTarget)) return;
+      isFocusWithin = false;
+      startAutoSlide();
+    }
+
+    function handleVisibilityChange() {
+      refreshAutoSlide();
     }
 
     if (prevBtn) prevBtn.addEventListener("click", handlePreviousClick);
@@ -253,6 +372,7 @@
       var x = event.type.includes("mouse") ? event.clientX : event.touches[0].clientX;
       dragDiff = x - startX;
       if (Math.abs(dragDiff) > 4) suppressClick = true;
+      if (isMobileOnly) setLeadingBufferVisibility(dragDiff > 0);
       track.style.transform = "translateX(" + (currentTranslate + dragDiff) + "px)";
     }
 
@@ -268,6 +388,7 @@
       } else if (dragDiff > threshold) {
         goPrev();
       } else {
+        setLeadingBufferVisibility(false);
         track.style.transition = "transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)";
         track.style.transform = "translateX(" + currentTranslate + "px)";
       }
@@ -291,8 +412,18 @@
           track.style.transition = "none";
           currentTranslate = -cardWidth;
           track.style.transform = "translateX(" + currentTranslate + "px)";
+          setLeadingBufferVisibility(false);
         }
       }, 100);
+    }
+
+    if (typeof window.IntersectionObserver === "function") {
+      visibilityObserver = new window.IntersectionObserver(function handleVisibility(entries) {
+        var entry = entries[0];
+        isInViewport = Boolean(entry && entry.isIntersecting && entry.intersectionRatio > 0);
+        refreshAutoSlide();
+      }, { threshold: 0.01 });
+      visibilityObserver.observe(container);
     }
 
     track.addEventListener("mousedown", dragStart);
@@ -302,10 +433,11 @@
     window.addEventListener("touchmove", dragMove, { passive: true });
     window.addEventListener("mouseup", dragEnd);
     window.addEventListener("touchend", dragEnd);
-    container.addEventListener("mouseenter", stopAutoSlide);
-    container.addEventListener("mouseleave", startAutoSlide);
-    track.addEventListener("touchstart", stopAutoSlide, { passive: true });
-    track.addEventListener("touchend", startAutoSlide, { passive: true });
+    container.addEventListener("mouseenter", handleMouseEnter);
+    container.addEventListener("mouseleave", handleMouseLeave);
+    container.addEventListener("focusin", handleFocusIn);
+    container.addEventListener("focusout", handleFocusOut);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("resize", handleResize);
 
     initTimeout = window.setTimeout(function initializeLoopAndTimer() {
@@ -339,11 +471,13 @@
         window.removeEventListener("touchmove", dragMove);
         window.removeEventListener("mouseup", dragEnd);
         window.removeEventListener("touchend", dragEnd);
-        container.removeEventListener("mouseenter", stopAutoSlide);
-        container.removeEventListener("mouseleave", startAutoSlide);
-        track.removeEventListener("touchstart", stopAutoSlide);
-        track.removeEventListener("touchend", startAutoSlide);
+        container.removeEventListener("mouseenter", handleMouseEnter);
+        container.removeEventListener("mouseleave", handleMouseLeave);
+        container.removeEventListener("focusin", handleFocusIn);
+        container.removeEventListener("focusout", handleFocusOut);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
         window.removeEventListener("resize", handleResize);
+        if (visibilityObserver) visibilityObserver.disconnect();
 
         track.querySelectorAll(".cloned-item").forEach(function removeClone(clone) {
           clone.remove();
@@ -352,10 +486,16 @@
           track.appendChild(child);
           if (originalIndexes[index] === undefined) delete child.dataset.originalIndex;
           else child.dataset.originalIndex = originalIndexes[index];
+          child.style.visibility = originalVisibilities[index];
         });
         track.style.transition = originalTransition;
         track.style.transform = originalTransform;
         track.classList.toggle("dragging", originallyDragging);
+        container.style.overflowX = originalContainerOverflowX;
+        container.style.touchAction = originalContainerTouchAction;
+        container.scrollLeft = originalContainerScrollLeft;
+        if (originalActiveState === null) container.removeAttribute("data-homepage-carousel-active");
+        else container.setAttribute("data-homepage-carousel-active", originalActiveState);
         dots.forEach(function restoreDot(dot, index) {
           dot.classList.toggle("active", originalDotStates[index]);
         });
@@ -364,9 +504,11 @@
   }
 
   function init(root) {
-    destroy();
+    destroyControllers();
     var scope = root && typeof root.querySelectorAll === "function" ? root : document;
-    scope.querySelectorAll(".carousel-track").forEach(function initializeTrack(track) {
+    currentRoot = scope;
+    bindEnvironmentListeners();
+    scope.querySelectorAll('.carousel-track, [data-homepage-carousel-track="mobile"]').forEach(function initializeTrack(track) {
       var controller = createTrackController(track);
       if (controller) activeControllers.push(controller);
     });

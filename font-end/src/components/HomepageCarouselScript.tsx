@@ -22,7 +22,7 @@ export default function HomepageCarouselScript() {
   return (
     <Script
       id="hacom-homepage-carousel"
-      src="/homepage-carousel.js?v=2"
+      src="/homepage-carousel.js?v=3"
       strategy="afterInteractive"
       onReady={() => window.HacomHomepageCarousel?.init(document)}
     />

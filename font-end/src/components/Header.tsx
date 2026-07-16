@@ -456,7 +456,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                   </svg>
                 </div>
               </div>
-              <span className="text-white font-semibold text-2xl tracking-tight">evetech</span>
+              <span className="text-white font-semibold text-xl tracking-tight">TrucTiepGAME</span>
             </Link>
 
             {/* Search Bar (desktop) */}

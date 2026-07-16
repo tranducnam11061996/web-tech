@@ -1030,7 +1030,7 @@ const postsData = [
   {title:'GPU Prices Are Dropping: Best Time to Buy?',thumb:'📉'},
   {title:'Unboxing the MSI RTX 5090 Lightning Z',thumb:'📦'},
   {title:'ASUS ROG Swift Monitor + RTX 5080 Review',thumb:'⭐'},
-  {title:'How We Build PCs at Evetech HQ',thumb:'🏭'},
+    {title:'How We Build PCs at TrucTiepGAME HQ',thumb:'🏭'},
   {title:'The Quietest GPUs Money Can Buy',thumb:'🔇'},
   {title:'Gaming at 4K 120fps: Is It Finally Here?',thumb:'🎯'},
   {title:'AMD RX 8800 XT: First Look & Leaks',thumb:'🔍'},
@@ -1038,7 +1038,7 @@ const postsData = [
   {title:'Compact ITX Build with RTX 5070',thumb:'📐'},
   {title:'GPU Coil Whine: Causes and Fixes',thumb:'🔊'},
   {title:'Our Top Staff Picks for June 2025',thumb:'👨‍💻'},
-  {title:'Evetech Community Build Showcase #12',thumb:'🎪'},
+    {title:'TrucTiepGAME Community Build Showcase #12',thumb:'🎪'},
 ];
 
 const expanded = {products:false,pages:false,posts:false};

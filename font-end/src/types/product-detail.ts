@@ -88,9 +88,11 @@ export type ProductVoucherSummary = {
 };
 
 export type ProductPromotionSummary = {
-  id: number;
+  id: number | string;
+  source: "managed" | "product-editor";
   text: string;
   detailUrl: string;
+  html?: string;
 };
 
 export type ProductVideoSummary = {

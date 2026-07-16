@@ -9,10 +9,26 @@ import {
 } from '../src/lib/productPromotions';
 
 test('product promotion accepts safe internal and HTTPS detail URLs', () => {
+  assert.equal(normalizePromotionDetailUrl(''), '');
+  assert.equal(normalizePromotionDetailUrl('   '), '');
   assert.equal(normalizePromotionDetailUrl('/khuyen-mai/laptop'), '/khuyen-mai/laptop');
   assert.equal(normalizePromotionDetailUrl('https://example.com/deal?a=1'), 'https://example.com/deal?a=1');
   for (const value of ['//evil.example', 'http://example.com', 'javascript:alert(1)', '/safe\\unsafe', '/unsafe path', "/unsafe\npath"]) {
     assert.throws(() => normalizePromotionDetailUrl(value), (error: unknown) => error instanceof AdminApiError && error.status === 400);
+  }
+});
+
+test('product promotion accepts an optional detail URL and strict integer priority', () => {
+  const base = { displayText: 'Ưu đãi', detailUrl: '', status: true, productIds: [1], categoryIds: [] };
+  assert.equal(parseProductPromotionPayload({ ...base, displayOrder: '' }).displayOrder, 0);
+  assert.equal(parseProductPromotionPayload({ ...base, displayOrder: '0' }).displayOrder, 0);
+  assert.equal(parseProductPromotionPayload({ ...base, displayOrder: '65535' }).displayOrder, 65_535);
+  assert.equal(parseProductPromotionPayload({ ...base, displayOrder: '00012' }).displayOrder, 12);
+  for (const displayOrder of ['-1', '1.5', 'abc', '65536']) {
+    assert.throws(
+      () => parseProductPromotionPayload({ ...base, displayOrder }),
+      (error: unknown) => error instanceof AdminApiError && error.fields?.displayOrder === 'invalid',
+    );
   }
 });
 

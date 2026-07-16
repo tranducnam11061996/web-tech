@@ -766,6 +766,8 @@ export async function updateProductSection(productId: number, section: ProductSe
     }
   }
 
+  if (section === 'combo') clearPublicCatalogDetailCache();
+
   return saved;
 }
 

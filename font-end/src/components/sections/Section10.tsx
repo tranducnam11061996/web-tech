@@ -13,6 +13,7 @@ export const section10HomepageProductConfig: HomepageProductSectionConfig = {
     { text: "Gift" },
   ],
   ctaButtonLabel: "Show Now",
+  productCardVariant: "shared-grid",
 };
 
 export default function Section10({

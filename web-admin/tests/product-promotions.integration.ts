@@ -41,11 +41,13 @@ test('product promotion migration is idempotent and mixed scope resolves once in
 
   const first = await saveAdminProductPromotion({ displayText: 'Integration priority 20', detailUrl: '/integration-20', status: true, displayOrder: 20, productIds: [productId], categoryIds: [categoryRoot] });
   createdIds.push(first.id);
-  const second = await saveAdminProductPromotion({ displayText: 'Integration priority 10', detailUrl: 'https://example.com/integration-10', status: true, displayOrder: 10, productIds: [productId], categoryIds: [] });
+  const second = await saveAdminProductPromotion({ displayText: 'Integration priority 10', detailUrl: '', status: true, displayOrder: 10, productIds: [productId], categoryIds: [] });
   createdIds.push(second.id);
+  assert.equal(second.detailUrl, '');
   const publicItems = await getPublicProductPromotions(productId);
   assert.equal(publicItems.filter((item) => item.id === first.id).length, 1);
   assert.ok(publicItems.findIndex((item) => item.id === second.id) < publicItems.findIndex((item) => item.id === first.id));
+  assert.equal(publicItems.find((item) => item.id === second.id)?.detailUrl, '');
 
   await assert.rejects(() => saveAdminProductPromotion({ displayText: 'Invalid relation', detailUrl: '/invalid', status: true, displayOrder: 1, productIds: [2_147_483_647], categoryIds: [] }));
   const [invalidRows] = await pool.query<RowDataPacket[]>("SELECT id FROM web_admin_product_promotions WHERE display_text='Invalid relation'");

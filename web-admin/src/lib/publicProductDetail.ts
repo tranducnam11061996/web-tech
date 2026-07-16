@@ -9,6 +9,7 @@ import { getPublicComboSetSummaries } from '@/lib/comboSets';
 import { getPublicProductVouchers } from '@/lib/vouchers';
 import { getPublicProductGroup } from '@/lib/productGroups';
 import { getPublicProductPromotions } from '@/lib/productPromotions';
+import { mergeProductPromotions, parseProductEditorPromotions } from '@/lib/productPromotionRichText';
 import { getPublicProductVideos, hasDisplayableSpecifications } from '@/lib/productVideos';
 import { canonicalPcmarketBrandId } from '@/lib/legacyImport/pcmarketProducts';
 import { classifyPublicCatalogRoute } from '@/lib/publicCatalogRoute';
@@ -74,7 +75,7 @@ export async function loadProductCorePayload(slug: string) {
   }
 
   const [productRows] = await pool.query<any[]>(`
-    SELECT p.id, p.proName, p.storeSKU, p.warranty, p.image_collection, p.proSummary, p.product_cat,p.brandId,
+    SELECT p.id, p.proName, p.storeSKU, p.warranty, p.image_collection, p.proSummary, p.specialOffer, p.product_cat,p.brandId,
       COALESCE(pv.view_count,p.visit,0) AS visit,
       pr.price, pr.market_price, pr.isOn, b.name AS brandName,b.brand_index AS brandIndex, i.video_code, i.spec, i.description
     FROM idv_sell_product_store p
@@ -87,7 +88,7 @@ export async function loadProductCorePayload(slug: string) {
   const product = productRows[0];
   if (!product) return { success: false, message: 'Product not found', status: 404 };
 
-  const [productImages, categoryTrail, comboSets, vouchers, productGroup, productPromotions] = await Promise.all([
+  const [productImages, categoryTrail, comboSets, vouchers, productGroup, managedProductPromotions] = await Promise.all([
     listProductImagesReadOnly(Number(product.id), product.image_collection || ''),
     getProductCategoryTrail(Number(product.id), product.product_cat),
     safely('combo sets failed', () => getPublicComboSetSummaries(Number(product.id)), []),
@@ -95,6 +96,10 @@ export async function loadProductCorePayload(slug: string) {
     safely('product group failed', () => getPublicProductGroup(Number(product.id)), null),
     safely('product promotions failed', () => getPublicProductPromotions(Number(product.id)), []),
   ]);
+  const productPromotions = mergeProductPromotions(
+    managedProductPromotions,
+    parseProductEditorPromotions(Number(product.id), product.specialOffer),
+  );
   const imageGroups = groupProductImages(productImages);
   const images = productImages.map((image) => image.url).filter(Boolean);
   if (images.length === 0) images.push('https://placehold.co/800x800/1f2937/a1a1aa?text=No+Image');

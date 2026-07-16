@@ -6,6 +6,45 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 
 ## 2026-07-16
 
+### Exact PC search intent
+
+- Added a positive title-intent gate for only the exact normalized `PC` query. Results must begin with `PC`, `Bộ PC`, or `Full bộ PC`, preventing Fuse short-token matches through `PCM`, `PCIe`, and `PCE` and rejecting accessory names such as `RAM PC` or `Case ... PC`.
+- Preserved complete PC bundles that mention included monitors or Windows, left all other queries and synonym groups unchanged, and avoided broad component exclusions that would remove valid configured PCs.
+- Added deterministic unit coverage for valid PC title forms, the reported false-positive classes, exact-query isolation, synonym behavior, and explicit exclusion opt-outs. The live ranking regression now traverses every PC result page under default, price, and newest ordering without hardcoding the catalog total; missing printer fixtures are reported rather than failing unrelated catalog checks.
+- Local API verification reduced `q=PC` from 641 to 580 products and from 27 to 25 pages; an out-of-range page 27 clamps to page 25 with zero invalid product names. No schema, search-data rebuild, API-shape, or storefront change was required.
+- Verification passed both applications' TypeScript, quiet lint and production builds, 144/144 backend unit tests, database integration at 17 pass/7 expected safety skips, the live ranking regression, focused storefront browser smoke, strict health at the documented 13/15, and empty-catalog health at 15/15.
+
+### Product editor promotions on storefront detail
+
+- Added a server-only DOM parser and strict rich-text allowlist for legacy product `specialOffer`; paragraphs, explicit breaks and list items now become individual promotion rows while safe TinyMCE color, emphasis, decoration and alignment remain intact.
+- Extended the existing product-detail `productPromotions` payload with `managed` / `product-editor` source metadata, sanitized optional HTML and stable editor IDs. Managed promotions always retain the first positions and editor rows continue the same numbering without another storefront request.
+- Updated the storefront promotion renderer to use valid block markup, bounded rich HTML and responsive overflow handling; raw editor HTML is never exposed, and unsafe scripts, handlers, CSS, URLs and embedded content are discarded.
+- Added product-combo cache invalidation plus unit, read-only integration and desktop/mobile Playwright coverage for splitting, sanitization, ordering, rich formatting, overflow and accessibility.
+- Verification passed both applications' TypeScript, quiet lint and production builds, 140/140 backend unit tests, database integration at 17 pass/7 expected safety skips, focused product-promotion Playwright at 2/2, and local health in documented empty-catalog mode at 15/15.
+
+### Product-promotion form and optional detail links
+
+- Offset create/edit promotion modals opened from `/sales/product-promotions` exactly 80px below the viewport top so the fixed admin header cannot cover their content; standalone editing remains unchanged.
+- Replaced the priority number input with a text/numeric-keyboard control. Blank input normalizes to `0`; client and server now reject non-integer, negative and over-`65535` values consistently.
+- Made `detailUrl` optional without a schema migration: empty values remain `''` in the existing non-null column, while supplied values retain internal/HTTPS validation. Admin preview/list and storefront product promotions omit the `Xem chi tiết` anchor when it is empty.
+- Added unit and integration coverage for optional links and priority boundaries.
+
+### Homepage Section 10 shared product cards
+
+- Added an opt-in card variant to the shared Section 6/10/17 renderer and enabled it only for Section 10, replacing its duplicated legacy cards with the canonical `ProductGridCard` used by Sections 8 and 11.
+- Preserved category `137`, the eight-product server-bootstrap payload, CTA/background, empty-section behavior and the existing autoplay/drag/resize carousel controller without changing backend, database or API contracts.
+- Added direct 280px desktop wrappers and retained the prior two-card viewport formula through 768px; square media, discount/market pricing, stock state, product links and cart actions now come from the shared card and its existing container queries.
+- Added focused desktop/mobile coverage for shared structural hooks, keyboard cart activation, square media, responsive widths and overflow, accessibility, SSR-only product-section data and drag without accidental navigation. Section 6 and Section 17 remain on the legacy renderer path.
+- Verification passed both applications' TypeScript, quiet lint and production builds, all 135 backend unit tests, database integration at 16 pass/7 expected safety skips, focused Section 10 Playwright at 4 pass/2 expected project skips, and production-build local health in the documented empty-catalog mode at 15/15.
+
+### Homepage Section 8 shared product cards
+
+- Replaced Section 8's duplicated carousel-card markup with the same `ProductGridCard` used by Homepage Section 11 and collection detail, while retaining the server bootstrap, configured collection/order/limit and empty-section behavior.
+- Added direct carousel item wrappers at 280px on desktop and 180px at mobile widths so the existing 260px card container query selects the full or compact density without changing the shared card API.
+- Preserved the existing header, collection link, previous/next controls, autoplay, hover pause, drag/swipe, resize and init/destroy controller behavior without adding a browser collection request or changing backend contracts. The controller now suppresses only the synthetic click produced after real pointer movement, preventing linked shared cards from navigating during drag while leaving click and keyboard activation intact.
+- Added focused desktop/mobile coverage for shared DOM hooks, canonical product navigation, keyboard cart interaction, square media, responsive sizing/overflow, accessibility and the existing carousel lifecycle.
+- Verification passed both applications' TypeScript, quiet lint and production builds, all 135 backend unit tests, database integration at 16 pass/7 expected safety skips, focused Section 8 Playwright at 9 pass/5 expected project skips, and production-build local health in the documented empty-catalog mode at 15/15.
+
 ### Durable page-view tracking
 
 - Added same-origin, rate-limited `POST /api/page-views` tracking for product detail, product category, news article, and news category pages. Cached GETs, metadata and prefetches remain read-only.

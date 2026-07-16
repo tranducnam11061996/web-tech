@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const AUTO_SLIDE_DELAY_MS = 3000;
@@ -40,11 +41,11 @@ async function visibleOriginalIndex(track: Locator) {
 async function carouselGeometry(section: Locator) {
   return section.locator(".carousel-wrapper").evaluate((wrapper) => {
     const track = wrapper.querySelector<HTMLElement>(".carousel-track");
-    const card = wrapper.querySelector<HTMLElement>(".product-card");
-    const image = wrapper.querySelector<HTMLElement>(".product-img");
-    if (!track || !card || !image) return null;
+    const item = wrapper.querySelector<HTMLElement>(".section-8-carousel-item");
+    const image = wrapper.querySelector<HTMLElement>(".product-card-image-frame");
+    if (!track || !item || !image) return null;
     const trackStyle = getComputedStyle(track);
-    const cardBox = card.getBoundingClientRect();
+    const cardBox = item.getBoundingClientRect();
     const imageBox = image.getBoundingClientRect();
     return {
       cardWidth: Math.round(cardBox.width * 100) / 100,
@@ -70,6 +71,8 @@ test("homepage carousel script initializes every track and preserves Section 8 g
   expect(initializedTracks.length).toBeGreaterThan(1);
   expect(initializedTracks.every((candidate) => candidate.hasBufferCard)).toBe(true);
   expect(initializedTracks.every((candidate) => candidate.transform.startsWith("translateX(-"))).toBe(true);
+  expect(initialGeometry?.cardWidth).toBe(testInfo.project.name === "mobile-chromium" ? 180 : 280);
+  expect(initialGeometry?.imageRatio).toBe(1);
 
   const initialVisibleIndex = await visibleOriginalIndex(track);
   if (testInfo.project.name === "desktop-chromium") {
@@ -88,6 +91,61 @@ test("homepage carousel script initializes every track and preserves Section 8 g
   expect(await carouselGeometry(section)).toEqual(initialGeometry);
   expect(browserCollectionRequests).toEqual([]);
   expect(pageErrors).toEqual([]);
+});
+
+test("Section 8 uses the shared Section 11 product card contract without breaking interaction", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Shared card interaction is verified once on desktop");
+  const { browserCollectionRequests, pageErrors, section, track } = await openHomepage(page);
+  const wrapper = section.locator(".carousel-wrapper");
+  await wrapper.hover();
+
+  const section8Card = section.locator(".section-8-carousel-item:not(.cloned-item) [data-product-card]").first();
+  const section11Card = page.locator("#section-11 [data-product-card]").first();
+  await expect(section8Card).toBeVisible();
+  await expect(section11Card).toBeVisible();
+
+  const hooks = ["content", "footer", "sale-price", "stock-status", "cart-button"];
+  const signature = async (card: Locator) => card.evaluate((element, expectedHooks) => expectedHooks.map((hook) => {
+    const target = element.querySelector(`[data-product-card-${hook}], [data-product-${hook}]`);
+    return target ? `${target.tagName}:${target.className}` : "missing";
+  }), hooks);
+
+  expect(await signature(section8Card)).toEqual(await signature(section11Card));
+  await expect(section8Card.locator("a").first()).toHaveAttribute("href", /^\/.+/);
+
+  const initialVisibleIndex = await visibleOriginalIndex(track);
+  const cartButton = section8Card.locator("[data-product-cart-button]");
+  await cartButton.focus();
+  await expect(cartButton).toBeFocused();
+  await cartButton.press("Enter");
+  await expect(cartButton.locator('path[d="M5 13l4 4L19 7"]')).toBeVisible();
+  expect(await visibleOriginalIndex(track)).toBe(initialVisibleIndex);
+
+  const accessibility = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+  expect(
+    accessibility.violations.filter((violation) => ["serious", "critical"].includes(violation.impact || "")),
+  ).toEqual([]);
+  expect(browserCollectionRequests).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});
+
+test("Section 8 shared cards stay within the viewport at supported breakpoints", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Explicit responsive widths are verified once");
+
+  for (const width of [390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto("/");
+    const section = page.locator("#section-8");
+    await expect(section).toBeVisible();
+    await section.scrollIntoViewIfNeeded();
+
+    const expectedCardWidth = width <= 768 ? 180 : 280;
+    await expect.poll(() => section.locator(".section-8-carousel-item").first().evaluate((item) => (
+      Math.round(item.getBoundingClientRect().width)
+    ))).toBe(expectedCardWidth);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect(await section.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  }
 });
 
 test("automatic slide keeps the incoming card stationary during the DOM reset", async ({ page }, testInfo) => {
@@ -129,6 +187,7 @@ test("automatic slide keeps the incoming card stationary during the DOM reset", 
 
 test("mouse drag and touch swipe use the same twenty-percent threshold as index.html", async ({ page }, testInfo) => {
   const { section, track } = await openHomepage(page);
+  const homepageUrl = page.url();
   const wrapper = section.locator(".carousel-wrapper");
   const box = await wrapper.boundingBox();
   expect(box).not.toBeNull();
@@ -162,6 +221,7 @@ test("mouse drag and touch swipe use the same twenty-percent threshold as index.
   }
 
   await expect.poll(() => visibleOriginalIndex(track), { timeout: 1400 }).not.toBe(initialVisibleIndex);
+  expect(page.url()).toBe(homepageUrl);
   const afterSwipeIndex = await visibleOriginalIndex(track);
 
   if (testInfo.project.name === "mobile-chromium") {
@@ -184,6 +244,7 @@ test("mouse drag and touch swipe use the same twenty-percent threshold as index.
 
   await page.waitForTimeout(500);
   expect(await visibleOriginalIndex(track)).toBe(afterSwipeIndex);
+  expect(page.url()).toBe(homepageUrl);
 });
 
 test("previous and next controls plus indicator dots follow the index.html DOM ordering", async ({ page }, testInfo) => {

@@ -72,7 +72,9 @@ export async function ensureProductPromotionTables(db: DbExecutor = pool) {
 }
 
 export function normalizePromotionDetailUrl(value: unknown) {
-  const url = requireText(value, 'detailUrl', 'Đường dẫn chi tiết', 1024);
+  const input = String(value ?? '').trim();
+  if (!input) return '';
+  const url = requireText(input, 'detailUrl', 'Đường dẫn chi tiết', 1024);
   if (/[\u0000-\u001F\u007F]/.test(url)) {
     throw new AdminApiError(400, 'BAD_REQUEST', 'Đường dẫn chứa ký tự không hợp lệ.', { detailUrl: 'invalid' });
   }
@@ -106,8 +108,9 @@ export function parseProductPromotionPayload(payload: unknown): ProductPromotion
   const source = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
   const displayText = requireText(source.displayText, 'displayText', 'Nội dung hiển thị', 1000);
   const detailUrl = normalizePromotionDetailUrl(source.detailUrl);
-  const displayOrder = toInt(source.displayOrder);
-  if (displayOrder < 0 || displayOrder > 65_535) {
+  const displayOrderText = String(source.displayOrder ?? '').trim();
+  const displayOrder = displayOrderText ? Number(displayOrderText) : 0;
+  if ((displayOrderText && !/^\d+$/.test(displayOrderText)) || !Number.isSafeInteger(displayOrder) || displayOrder < 0 || displayOrder > 65_535) {
     throw new AdminApiError(400, 'BAD_REQUEST', 'Thứ tự ưu tiên phải từ 0 đến 65.535.', { displayOrder: 'invalid' });
   }
   const startsAt = parseVietnamDateTime(source.startsAt);

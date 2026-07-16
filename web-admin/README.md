@@ -261,7 +261,7 @@ Product-detail responses also include up to 15 `similarProducts` (leaf category 
 
 Product detail also returns up to 50 active, in-window, non-exhausted voucher summaries whose category roots contain the product; vouchers without category links apply globally. Public summaries omit quota/redemption/admin data, and `POST /api/cart/quote` plus `POST /api/orders` remain authoritative.
 
-Product detail returns `productPromotions` with at most 50 active display-only records. Direct SKU and category-root scopes are combined with OR, category roots include descendants dynamically, duplicates are removed, and ordering is manual priority then end time then id. Promotions never affect quote or order totals.
+Product detail returns one `productPromotions` array from two sources. It first includes at most 50 active managed records; direct SKU and category-root scopes are combined with OR, descendants are resolved dynamically, duplicates are removed, and ordering remains manual priority then end time then id. Non-empty paragraphs, list items and explicit breaks from the product's legacy `specialOffer` are sanitized and appended as `product-editor` records with stable string IDs, plain-text fallback and allowlisted rich HTML. Raw `specialOffer` is never exposed. Promotions never affect quote or order totals.
 
 Public read APIs use bounded inputs, reduced response shapes, local single-flight caches, ETags, and cross-worker invalidation where applicable.
 
@@ -315,7 +315,9 @@ Product and category editors manage independent buying guides through `GET/PUT /
 
 Product groups are managed through `GET/POST /api/admin/product-groups`, `GET/PUT/DELETE /api/admin/product-groups/[id]`, and the existing product catalog with assignment filters. Value payloads contain only identity, name, description, and ordering; legacy value image/color fields are rejected. Writes reconcile legacy IDs and PHP-serialized SKU mappings in one transaction; each product may belong to only one group.
 
-Product promotions are managed through `GET/POST /api/admin/product-promotions` and `GET/PUT/DELETE /api/admin/product-promotions/[id]`. Writes require `marketing.product_promotions` permissions and `ADMIN_WRITE_ENABLED=true`, replace SKU/category scopes transactionally, validate internal/HTTPS links and Vietnam-time ranges, and invalidate catalog-detail caches.
+Product promotions are managed through `GET/POST /api/admin/product-promotions` and `GET/PUT/DELETE /api/admin/product-promotions/[id]`. Writes require `marketing.product_promotions` permissions and `ADMIN_WRITE_ENABLED=true`, replace SKU/category scopes transactionally, validate supplied internal/HTTPS links and Vietnam-time ranges, and invalidate catalog-detail caches. `detailUrl` is optional: an empty string is retained in the existing non-null column and public/admin presentation omits `Xem chi tiết`; `displayOrder` is an integer from `0` to `65535`, with blank input normalized to `0`.
+
+Saving the product editor's `combo` section preserves its original TinyMCE HTML in `idv_sell_product_store.specialOffer` and invalidates catalog-detail caches. Public reads sanitize at projection time: safe foreground/background colors, emphasis, decoration, alignment and internal/HTTPS text links are retained; scripts, handlers, unsafe CSS/URLs and embedded media/form/table content are removed.
 
 ### Health and webhook
 
@@ -368,6 +370,7 @@ For local development without Google, leave the frontend site key empty and set 
 - Worker-local public caches are bounded and use normalized keys.
 - `web_admin_cache_versions` propagates invalidation between clustered API workers.
 - Search prewarms at process start and uses single-flight/stale data during rebuild.
+- The exact normalized query `pc` uses a positive product-title intent gate: names must start with `PC`, `Bộ PC`, or `Full bộ PC`. This rejects prefix-only `PCM`/`PCIe`/`PCE` matches and accessory titles such as `RAM PC` or `Case ... PC` while retaining complete PC bundles that mention included monitors or Windows. Other queries, exclusions, and synonym groups are unchanged.
 - `product_data_search`, its normalize function, triggers, and FK remain part of the production search contract.
 - `search-tool` is not runtime code.
 
@@ -388,4 +391,4 @@ This does not prove migration state in any other environment. Follow `database-d
 
 The `2026-07-15` working-tree audit passed web-admin TypeScript, ESLint, production build, 104/104 unit tests, and 6 integration tests with 7 explicit fixture/safety skips. Both application npm audits found zero known vulnerabilities. Strict local health returned 13/15 because both configured collection probes correctly return 404 with the current empty collection catalog; `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` returned 15/15 while MySQL was healthy. At audit end MySQL was no longer listening and readiness returned 503, so restart/identify it and rerun runtime checks before further database work. Full 1,500-VU target testing remains pending. Exact evidence is in `../PROJECT_AUDIT_2026-07-15.md`.
 
-Current `2026-07-16` verification passes both applications' TypeScript, quiet ESLint and production build, 135/135 backend unit tests and the default integration suite at 16 pass/7 safety- or fixture-gated skips. The controlled four-worker storefront Playwright run passes 107 checks with 19 expected skips across 126 cases, including the four page-view branches and refresh idempotency. Strict health remains 13/15 for the two documented collection 404s and empty-catalog mode passes 15/15.
+Current `2026-07-16` verification passes both applications' TypeScript, quiet ESLint and production build, 144/144 backend unit tests and the default integration suite at 17 pass/7 safety- or fixture-gated skips. The strict-PC live ranking regression traverses every result page under default/price/newest ordering, and storefront smoke canonicalizes `?q=PC&page=27` to page 25 with 580 products and zero invalid cards. The controlled four-worker storefront Playwright run remains 107 checks with 19 expected skips across 126 cases. Strict health is 13/15 for the two documented collection 404s and empty-catalog mode passes 15/15.

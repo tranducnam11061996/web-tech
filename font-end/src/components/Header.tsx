@@ -397,13 +397,13 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
           {/* MOBILE TOP ROW (< 768px) */}
           <div className="flex md:hidden items-center justify-between w-full py-3 px-4 gap-3 bg-dark z-50 relative">
             {/* Logo */}
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 via-purple-500 to-blue-500 flex items-center justify-center p-[2px] shrink-0">
+            <Link href="/" aria-label="Trang chủ" className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 via-purple-500 to-blue-500 flex items-center justify-center p-[2px] shrink-0">
               <div className="w-full h-full bg-dark rounded-full flex items-center justify-center text-white">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z" />
                 </svg>
               </div>
-            </div>
+            </Link>
 
             {/* Search (mobile) */}
             <div className="flex-1 search-glow-container">
@@ -448,7 +448,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
           {/* DESKTOP TOP ROW (>= 768px) */}
           <div className="hidden md:flex items-center justify-between py-2" id="top-header-search">
             {/* Logo */}
-            <div className="flex items-center gap-3 shrink-0">
+            <Link href="/" aria-label="Trang chủ" className="flex items-center gap-3 shrink-0">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 via-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-xl p-[2px]">
                 <div className="w-full h-full bg-dark rounded-full flex items-center justify-center">
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -457,7 +457,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                 </div>
               </div>
               <span className="text-white font-semibold text-2xl tracking-tight">evetech</span>
-            </div>
+            </Link>
 
             {/* Search Bar (desktop) */}
             <div className="flex-1 max-w-4xl mx-8">
@@ -475,7 +475,7 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                     ref={desktopSearchRef}
                     type="text"
                     maxLength={100}
-                    placeholder={'T\u00ecm s\u1ea3n ph\u1ea9m, trang v\u00e0 b\u00e0i vi\u1ebft...'}
+                    placeholder={'B\u1ea1n \u0111ang c\u1ea7n t\u00ecm s\u1ea3n ph\u1ea9m g\u00ec?'}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();

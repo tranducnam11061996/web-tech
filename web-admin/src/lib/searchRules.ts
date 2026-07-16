@@ -19,8 +19,10 @@ export const SEARCH_EXCLUSIONS: Record<string, string[]> = {
 
 export const PRINTER_INTENT_PHRASE = 'may in';
 const PRINTER_INTENT_OPT_OUTS = ['muc', 'cap', 'day', 'khay', 'sua', 'phu kien'];
+export const STRICT_PC_INTENT_QUERY = 'pc';
 
 const synonymRegexes = SYNONYM_GROUPS.map((group) => group.map((phrase) => ({ phrase, regex: standalonePattern(phrase) })));
+const strictPcProductNameRegexes = ['pc', 'bo pc', 'full bo pc'].map(startsWithPattern);
 
 export interface LexicalSearchProduct {
   id: number;
@@ -64,9 +66,14 @@ export function containsStandalonePhrase(text: string, phrase: string) {
 }
 
 export function getSearchIntent(normalizedQuery: string) {
+  if (normalizedQuery === STRICT_PC_INTENT_QUERY) return 'pc' as const;
   if (!containsStandalonePhrase(normalizedQuery, PRINTER_INTENT_PHRASE)) return null;
   if (PRINTER_INTENT_OPT_OUTS.some((word) => containsStandalonePhrase(normalizedQuery, word))) return null;
   return 'printer' as const;
+}
+
+export function matchesStrictPcProductName(normalizedName: string) {
+  return strictPcProductNameRegexes.some((regex) => regex.test(normalizedName));
 }
 
 export function injectSearchSynonyms(text: string): string {
@@ -132,6 +139,7 @@ export function rankLexicalResults(
   query: string,
 ): RankedLexicalProduct[] {
   const normalizedQuery = normalizeSearchText(query);
+  const searchIntent = getSearchIntent(normalizedQuery);
   const tokens = normalizedQuery.split(' ').filter(Boolean);
   const specTokens = tokens.filter((token) => /\d/.test(token));
   const activeExclusions = getActiveExclusions(normalizedQuery);
@@ -143,6 +151,8 @@ export function rankLexicalResults(
     if (score >= 0.4) continue;
 
     const product = result.item;
+    if (searchIntent === 'pc' && !matchesStrictPcProductName(product.normalizedName)) continue;
+
     const hasSuffixOnlyMatch = tokens.some((token) =>
       product.normalizedName.includes(token) && !new RegExp(`(^|\\s)${escapeRegex(token)}`).test(product.normalizedName),
     );

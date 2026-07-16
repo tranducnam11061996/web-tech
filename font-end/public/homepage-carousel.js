@@ -215,12 +215,30 @@
     var isDragging = false;
     var startX = 0;
     var dragDiff = 0;
+    var suppressClick = false;
+    var clickSuppressionTimeout = null;
+
+    function handleTrackClick(event) {
+      if (!suppressClick) return;
+      event.preventDefault();
+      event.stopPropagation();
+      suppressClick = false;
+      if (clickSuppressionTimeout) {
+        window.clearTimeout(clickSuppressionTimeout);
+        clickSuppressionTimeout = null;
+      }
+    }
 
     function dragStart(event) {
       if (event.target.closest("a") && event.type === "mousedown") {
         event.preventDefault();
       }
       if (isAnimating || track.children.length < 2) return;
+      suppressClick = false;
+      if (clickSuppressionTimeout) {
+        window.clearTimeout(clickSuppressionTimeout);
+        clickSuppressionTimeout = null;
+      }
       isDragging = true;
       track.style.transition = "none";
       track.classList.add("dragging");
@@ -234,6 +252,7 @@
       if (!isDragging) return;
       var x = event.type.includes("mouse") ? event.clientX : event.touches[0].clientX;
       dragDiff = x - startX;
+      if (Math.abs(dragDiff) > 4) suppressClick = true;
       track.style.transform = "translateX(" + (currentTranslate + dragDiff) + "px)";
     }
 
@@ -251,6 +270,13 @@
       } else {
         track.style.transition = "transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)";
         track.style.transform = "translateX(" + currentTranslate + "px)";
+      }
+
+      if (suppressClick) {
+        clickSuppressionTimeout = window.setTimeout(function releaseSuppressedClick() {
+          suppressClick = false;
+          clickSuppressionTimeout = null;
+        }, 500);
       }
 
       startAutoSlide();
@@ -271,6 +297,7 @@
 
     track.addEventListener("mousedown", dragStart);
     track.addEventListener("touchstart", dragStart, { passive: true });
+    track.addEventListener("click", handleTrackClick, true);
     window.addEventListener("mousemove", dragMove);
     window.addEventListener("touchmove", dragMove, { passive: true });
     window.addEventListener("mouseup", dragEnd);
@@ -294,6 +321,7 @@
         stopAutoSlide();
         if (initTimeout) window.clearTimeout(initTimeout);
         if (resizeTimeout) window.clearTimeout(resizeTimeout);
+        if (clickSuppressionTimeout) window.clearTimeout(clickSuppressionTimeout);
         animationTimeouts.forEach(function clearAnimationTimeout(timeout) {
           window.clearTimeout(timeout);
         });
@@ -306,6 +334,7 @@
         });
         track.removeEventListener("mousedown", dragStart);
         track.removeEventListener("touchstart", dragStart);
+        track.removeEventListener("click", handleTrackClick, true);
         window.removeEventListener("mousemove", dragMove);
         window.removeEventListener("touchmove", dragMove);
         window.removeEventListener("mouseup", dragEnd);

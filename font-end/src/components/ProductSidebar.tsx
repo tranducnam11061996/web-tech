@@ -299,15 +299,22 @@ function ProductPurchaseColumn({
         <div className="purchase-numbered-promos">
           {productPromotions.map((promo, index) => {
             const external = /^https:\/\//i.test(promo.detailUrl);
+            const promotionHtml = promo.source === "product-editor" && promo.html
+              ? sanitizeLegacyHtml(promo.html)
+              : "";
             return (
-            <div key={promo.id} className="purchase-promo-item">
+            <div key={`${promo.source}:${promo.id}`} className="purchase-promo-item" data-promotion-source={promo.source}>
               <span className="purchase-promo-number" aria-hidden="true">{index + 1}</span>
-              <span className="purchase-promo-text">
-                {promo.text}{" "}
-                <a href={promo.detailUrl} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} className="purchase-promo-detail-link">
-                  Xem chi tiết
-                </a>
-              </span>
+              <div className="purchase-promo-text">
+                {promotionHtml
+                  ? <div className="purchase-promo-rich-text" dangerouslySetInnerHTML={{ __html: promotionHtml }} />
+                  : <>
+                      {promo.text}
+                      {promo.detailUrl ? <>{" "}<a href={promo.detailUrl} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} className="purchase-promo-detail-link">
+                        Xem chi tiết
+                      </a></> : null}
+                    </>}
+              </div>
             </div>
           );})}
         </div>

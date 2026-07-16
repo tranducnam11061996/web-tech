@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import FavoriteButton from "../FavoriteButton";
 import ProductCardLink from "../ProductCardLink";
+import ProductGridCard, { type ProductGridCardData } from "../ProductGridCard";
 import { SHOW_PRODUCT_CARD_FAVORITES } from "@/lib/storefrontFeatureFlags";
 
 export type HomepageProductSectionTitleLine = {
@@ -16,6 +17,7 @@ export type HomepageProductSectionConfig = {
   productLimit: number;
   ctaTitleLines: HomepageProductSectionTitleLine[];
   ctaButtonLabel: string;
+  productCardVariant?: "legacy" | "shared-grid";
 };
 
 export type HomepageProductSectionCategory = {
@@ -24,17 +26,7 @@ export type HomepageProductSectionCategory = {
   slug: string;
 };
 
-export type HomepageProductSectionProduct = {
-  id: number;
-  name: string;
-  sku?: string;
-  price?: number;
-  marketPrice?: number;
-  thumbnail?: string;
-  slug?: string;
-  brand?: string;
-  cardBadges?: unknown[];
-};
+export type HomepageProductSectionProduct = ProductGridCardData;
 
 export type HomepageProductSectionData = {
   category: HomepageProductSectionCategory;
@@ -154,9 +146,15 @@ export default async function HomepageProductSection({
 
               <div className="carousel-wrapper" id={carouselContainerId}>
                 <div className="carousel-track" id={carouselTrackId}>
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
+                  {products.map((product) =>
+                    config.productCardVariant === "shared-grid" ? (
+                      <div className="homepage-product-carousel-item" key={product.id}>
+                        <ProductGridCard product={product} />
+                      </div>
+                    ) : (
+                      <ProductCard key={product.id} product={product} />
+                    ),
+                  )}
                 </div>
               </div>
             </div>

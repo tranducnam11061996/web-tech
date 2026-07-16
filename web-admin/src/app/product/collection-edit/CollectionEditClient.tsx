@@ -4,17 +4,12 @@ import { RichTextEditor } from '@/components/products/edit/RichTextEditor';
 import { Save, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-
-type CollectionOption = {
-  id: number;
-  name: string;
-  parentId: number;
-};
+import { CollectionParentCombobox } from './CollectionParentCombobox';
+import { buildCollectionParentOptions, type CollectionOption } from './collection-parent-options';
 
 type CollectionForm = {
   name: string;
   url: string;
-  iconUrl: string;
   parentId: string;
   ordering: string;
   status: string;
@@ -28,7 +23,6 @@ type CollectionForm = {
 const emptyForm: CollectionForm = {
   name: '',
   url: '',
-  iconUrl: '',
   parentId: '0',
   ordering: '0',
   status: '0',
@@ -64,9 +58,11 @@ export default function CollectionEditClient() {
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [collectionsLoading, setCollectionsLoading] = useState(true);
+  const [collectionsError, setCollectionsError] = useState('');
 
   const parentOptions = useMemo(
-    () => collections.filter((collection) => String(collection.id) !== id),
+    () => buildCollectionParentOptions(collections, Number(id || 0)),
     [collections, id],
   );
 
@@ -80,7 +76,10 @@ export default function CollectionEditClient() {
         setCollections(payload.data.items || []);
       })
       .catch((loadError) => {
-        if (alive) setError(loadError.message || 'Không thể tải bộ sưu tập cha');
+        if (alive) setCollectionsError(loadError.message || 'Không thể tải bộ sưu tập cha');
+      })
+      .finally(() => {
+        if (alive) setCollectionsLoading(false);
       });
     return () => {
       alive = false;
@@ -100,11 +99,10 @@ export default function CollectionEditClient() {
         setForm({
           name: row.name || '',
           url: row.url || '',
-          iconUrl: row.iconUrl || '',
           parentId: String(row.parentId ?? 0),
           ordering: String(row.ordering ?? 0),
-          status: String(row.status ?? 0),
-          homePage: String(row.homePage ?? '0'),
+          status: Number(row.status) === 1 ? '1' : '0',
+          homePage: String(row.homePage) === '1' ? '1' : '0',
           description: row.description || '',
           metaTitle: row.metaTitle || '',
           metaKeyword: row.metaKeyword || '',
@@ -131,7 +129,6 @@ export default function CollectionEditClient() {
     setForm((current) => ({
       ...current,
       name,
-      iconUrl: current.iconUrl || name,
       url: !id && !urlEdited ? normalizeCollectionUrl(name) : current.url,
     }));
   };
@@ -147,6 +144,10 @@ export default function CollectionEditClient() {
     try {
       if (!form.name.trim()) throw new Error('Tên bộ sưu tập là bắt buộc');
       if (!form.url.trim()) throw new Error('Link bộ sưu tập là bắt buộc');
+      const ordering = form.ordering.trim();
+      if (ordering && !/^-?\d+$/.test(ordering)) {
+        throw new Error('Thứ tự bộ sưu tập phải là số nguyên');
+      }
       const response = await fetch(id ? `/api/admin/collections/${id}` : '/api/admin/collections', {
         method: id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -154,9 +155,9 @@ export default function CollectionEditClient() {
           ...form,
           url: normalizeCollectionUrl(form.url),
           parentId: Number(form.parentId) || 0,
-          ordering: Number(form.ordering) || 0,
-          status: Number(form.status) || 0,
-          homePage: form.homePage,
+          ordering: ordering ? Number.parseInt(ordering, 10) : 0,
+          status: form.status === '1' ? 1 : 0,
+          homePage: form.homePage === '1' ? 1 : 0,
         }),
       });
       const payload = await response.json();
@@ -210,40 +211,38 @@ export default function CollectionEditClient() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-300">Bộ sưu tập cha</span>
-                <select value={form.parentId} onChange={update('parentId')} className={controlClass}>
-                  <option value="0">Không có bộ sưu tập cha</option>
-                  {parentOptions.map((collection) => (
-                    <option key={collection.id} value={collection.id}>
-                      #{collection.id} - {collection.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-300">Tên hiển thị/icon_url</span>
-                <input type="text" value={form.iconUrl} onChange={update('iconUrl')} className={controlClass} />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <CollectionParentCombobox
+                collections={collections}
+                options={parentOptions}
+                value={form.parentId}
+                onChange={(parentId) => setForm((current) => ({ ...current, parentId: String(parentId) }))}
+                loading={collectionsLoading}
+                error={collectionsError}
+                controlClassName={controlClass}
+              />
               <label className="space-y-1">
                 <span className="text-sm font-medium text-gray-300">Thứ tự bộ sưu tập</span>
-                <input type="number" value={form.ordering} onChange={update('ordering')} className={controlClass} />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="-?[0-9]*"
+                  value={form.ordering}
+                  onChange={update('ordering')}
+                  className={`${controlClass} tabular-nums`}
+                />
               </label>
               <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-300">Trạng thái legacy</span>
+                <span className="text-sm font-medium text-gray-300">Trạng thái Ẩn / Hiện</span>
                 <select value={form.status} onChange={update('status')} className={controlClass}>
-                  <option value="0">0</option>
-                  <option value="1">1</option>
+                  <option value="0">Ẩn</option>
+                  <option value="1">Hiển thị</option>
                 </select>
               </label>
               <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-300">Home page</span>
+                <span className="text-sm font-medium text-gray-300">Hiện thị tại Homepage</span>
                 <select value={form.homePage} onChange={update('homePage')} className={controlClass}>
-                  <option value="0">0</option>
-                  <option value="1">1</option>
+                  <option value="0">Không</option>
+                  <option value="1">Có</option>
                 </select>
               </label>
             </div>
@@ -259,6 +258,7 @@ export default function CollectionEditClient() {
               onChange={(value) => setForm((current) => ({ ...current, description: value }))}
               minHeight="400px"
               id="collection-content"
+              imageUploadScope="collections"
               resizable
             />
           </div>

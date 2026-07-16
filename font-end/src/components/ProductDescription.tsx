@@ -34,6 +34,7 @@ export default function ProductDescription({ productName, description, thumbnail
                   alt={productName}
                   fallbackText="Sản phẩm"
                   className="h-auto w-full object-contain object-center"
+                  disableLoadingEffects
                 />
                 {summaryLines.length > 0 ? <ul className="product-description-fallback-summary" data-testid="product-description-fallback-summary">
                   {summaryLines.map((line, index) => (

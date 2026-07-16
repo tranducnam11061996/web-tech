@@ -38,7 +38,8 @@
     "load:k6": "k6 run scripts/load-read-capacity.js",
     "load:k6:read": "k6 run scripts/load-read-capacity.js",
     "load:k6:commerce": "k6 run scripts/load-commerce-capacity.js",
-    "load:k6:abuse": "k6 run scripts/load-abuse-correctness.js"
+    "load:k6:abuse": "k6 run scripts/load-abuse-correctness.js",
+    "load:k6:page-views": "k6 run scripts/load-page-view-capacity.js"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.1",

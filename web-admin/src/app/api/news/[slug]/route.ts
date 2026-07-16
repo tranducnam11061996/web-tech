@@ -10,9 +10,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { slug } = await params;
     if (!slug || slug.length > 250) throw new PublicRequestError(404, 'NEWS_NOT_FOUND', 'Bài viết không tồn tại.');
-    const article = await loadPublicNewsArticle(slug);
-    if (!article) throw new PublicRequestError(404, 'NEWS_NOT_FOUND', 'Bài viết không tồn tại.');
-    return jsonWithEtag(request, { data: article }, { headers });
+    const payload = await loadPublicNewsArticle(slug);
+    if (!payload) throw new PublicRequestError(404, 'NEWS_NOT_FOUND', 'Bài viết không tồn tại.');
+    return jsonWithEtag(request, payload, { headers });
   } catch (error) {
     return publicError(error, request, headers);
   }

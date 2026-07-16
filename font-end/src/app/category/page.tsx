@@ -13,13 +13,13 @@ export default async function CategoryPage(props: any) {
   // Build query for products
   let productUrl = `${API_URL}/api/products?limit=24&page=1`;
   if (categoryId) {
-    productUrl += `&category_id=${categoryId}`;
+    productUrl += `&category_id=${categoryId}&feature_scope=configured`;
   }
   
   // Append extra filter attributes
   if (searchParams) {
     Object.entries(searchParams).forEach(([key, value]) => {
-      if (!["id", "page", "limit", "category_id"].includes(key)) {
+      if (!["id", "page", "limit", "category_id", "feature_scope"].includes(key)) {
         productUrl += `&${encodeURIComponent(key)}=${encodeURIComponent(value as string)}`;
       }
     });

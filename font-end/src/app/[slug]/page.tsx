@@ -22,6 +22,7 @@ import { internalApiUrl } from "@/lib/apiUrl";
 import { CATALOG_PAGE_SIZE, normalizeCatalogPage } from "@/lib/pagination";
 import { getCategoryDisplayTitle } from "@/lib/categoryTitle";
 import type { ProductSupplementalData } from "@/types/product-detail";
+import PageViewTracker from "../../components/PageViewTracker";
 
 async function fetchSlugData(slug: string) {
   try {
@@ -85,7 +86,7 @@ function appendSearchParams(
   if (!searchParams) return;
 
   Object.entries(searchParams).forEach(([key, value]) => {
-    if (["id", "page", "limit", "category_id"].includes(key) || value == null)
+    if (["id", "page", "limit", "category_id", "feature_scope"].includes(key) || value == null)
       return;
     const normalizedValue = Array.isArray(value) ? value[0] : value;
     if (normalizedValue) url.searchParams.set(key, String(normalizedValue));
@@ -100,6 +101,7 @@ async function fetchCategoryInitialData(
   productUrl.searchParams.set("limit", String(CATALOG_PAGE_SIZE));
   productUrl.searchParams.set("page", String(normalizeCatalogPage(searchParams?.page)));
   productUrl.searchParams.set("category_id", String(categoryId));
+  productUrl.searchParams.set("feature_scope", "configured");
   appendSearchParams(productUrl, searchParams);
 
   let products = { data: [], pagination: { totalPages: 1, total: 0 } };
@@ -143,6 +145,7 @@ export default async function ProductPage(props: any) {
   const params = await props.params;
   const searchParams = await props.searchParams;
   const slug = params?.slug as string;
+  const pageViewPath = `/${encodeURIComponent(slug)}`;
   const { data: productData, error, status } = await fetchSlugData(slug);
 
   if (error) {
@@ -164,21 +167,24 @@ export default async function ProductPage(props: any) {
     );
 
     return (
-      <Suspense
+      <>
+        <PageViewTracker key={pageViewPath} path={pageViewPath} />
+        <Suspense
         fallback={
           <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center text-white">
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mb-4"></div>
           </div>
         }
-      >
-        <CategoryClient
+        >
+          <CategoryClient
           categoryId={productData.id}
           params={params}
           searchParams={searchParams}
           initialData={initialData}
           categoryInfo={{ ...productData, buyingGuide: supplemental.buyingGuide }}
-        />
-      </Suspense>
+          />
+        </Suspense>
+      </>
     );
   }
 
@@ -213,6 +219,7 @@ export default async function ProductPage(props: any) {
 
   return (
     <>
+      <PageViewTracker key={pageViewPath} path={pageViewPath} />
       <Header />
 
       <div className="max-w-[1800px] mx-auto px-4 md:px-6 py-6">

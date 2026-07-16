@@ -1,6 +1,6 @@
 import Link from "next/link";
 import CategoryFeatureProductGrid from "../CategoryFeatureProductGrid";
-import type { CategoryFeatureBoxData } from "../CategoryFeatureBox";
+import { safeCategoryFeatureColor, type CategoryFeatureBoxData } from "../CategoryFeatureBox";
 import type { ProductGridCardData } from "../ProductGridCard";
 import { internalApiUrl } from '@/lib/apiUrl';
 
@@ -46,20 +46,24 @@ export default async function Section11({ initialSections }: { initialSections?:
       {sections.map((section, index) => (
         <section key={section.category.id} className="py-8 bg-dark-200" id={index === 0 ? "section-11" : `section-11-${section.category.id}`}>
           <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="rounded-2xl border border-[#1a1a1e] bg-[#0f0f14] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.25)]">
+            <div
+              data-category-feature-section
+              className="rounded-2xl border border-[#1a1a1e] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.25)]"
+              style={{ backgroundColor: safeCategoryFeatureColor(section.featureBox.containerBackgroundColor, "#0f0f14") }}
+            >
               <div className="mb-5 flex items-center justify-between gap-4">
-                <h2 className="text-xl font-black text-white sm:text-2xl">
-                  <span className="text-cyan-300">{section.category.name}</span> Deals
+                <h2 data-category-feature-title className="text-2xl font-black text-cyan-300 sm:text-3xl">
+                  {section.category.name}
                 </h2>
                 <Link
                   href={`/${normalizeSlug(section.category.slug)}`}
-                  className="rounded-md border border-white/10 bg-white/5 px-4 py-2 text-xs font-black uppercase tracking-wide text-white transition hover:border-cyan-300/50 hover:text-cyan-200"
+                  className="rounded-md border border-white/10 bg-white/5 px-4 py-2 text-sm font-black uppercase tracking-wide text-white transition hover:border-cyan-300/50 hover:text-cyan-200"
                 >
-                  View All
+                  Xem tất cả
                 </Link>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div data-category-feature-grid className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <CategoryFeatureProductGrid
                   products={section.products || []}
                   featureBox={section.featureBox}

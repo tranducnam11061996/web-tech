@@ -1,6 +1,6 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-15`
+Last verified: `2026-07-16`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
@@ -22,7 +22,16 @@ Admin combo APIs support create/update plus product relation remove/reorder. Pub
 - `Bottom Footer` is administered at `/content/menu/bottom-footer`; its public endpoint is `GET /api/menu/bottom-footer`. It has exactly one `Trusted Partners` group with 19 links, matching the fixed Footer markup.
 - Both menus use draft/publish versions, `content.menus` RBAC, `ADMIN_WRITE_ENABLED=true` for mutations, public ETag responses, and cache invalidation after publication.
 
+## Article-category featured state
+
+- Article-category create/edit accepts `isFeatured` as strict `0|1`; admin reads expose the stored value as `is_featured` for compatibility with the existing raw category response shape.
+- `PATCH /api/admin/article-categories/[id]/featured` accepts `{ "isFeatured": 0|1 }` and updates only that field under `content.article_categories.update`, the shared write gate, same-origin/session checks, and audit logging.
+- `admin:migrate` creates/backfills additive `web_admin_article_category_meta`. It does not modify `idv_seller_news_category`; permanent category deletion removes the corresponding metadata row in the same transaction.
+- This flag is currently managed only by `web-admin`; no storefront ranking or rendering behavior is inferred from it.
+
 ## Environment
+
+Page-view tracking uses `PAGE_VIEW_TRACKING_ENABLED` as an emergency kill switch (default enabled), with `RATE_LIMIT_PAGE_VIEW_IP=300` and `RATE_LIMIT_PAGE_VIEW_IP_PATH=120` as the one-minute application limits. Production must set the exact storefront origin and must overwrite forwarded-IP headers at the trusted proxy.
 
 Use the committed root/app `.env.example` files as sanitized starting points. They cover runtime essentials but script/test/benchmark commands also expose optional overrides documented with those commands and in `../NEW_MACHINE_SETUP.md`. Major groups:
 
@@ -231,10 +240,18 @@ Product-detail performance contracts:
 - `/api/products`, `/api/products/[slug]`, `/api/search`, `/api/search-attributes`.
 - `/api/brands/[slug]` returns canonical brand metadata, enabled products, price bounds, sort and pagination.
 - `/api/categories/*`, `/api/collections/[slug]`.
+- `/api/categories/homepage-feature-sections` returns each enabled category feature with at most nine distinct sellable products from the enabled category/descendant scope. Products are ordered by `idv_sell_product_price.ordering DESC`, then product ID descending. The feature target is always derived from the category `request_path`, falling back to its legacy `url`; submitted or stored custom target URLs are not trusted.
+- Category-detail reads and `GET /api/products?...&feature_scope=configured` may reuse a feature box enabled for either homepage or the retained category-page flag. This read-only scope exists for the storefront category banner and never changes the stored flags; the default `category` and `homepage` scopes retain their individual gating behavior.
 - `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`, `/api/menu/footer`, `/api/menu/bottom-footer`.
 - `/api/homepage/bootstrap` optionally accepts bounded `collectionId`, `collectionSlug`, and `collectionLimit` parameters. When ID and slug identify the same active collection, `data.featuredCollection` contains only its metadata and the requested sellable product cards; invalid, missing, empty, or failed collection loads return `featuredCollection: null` without failing the remaining homepage bootstrap.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
 - `/api/news`, `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
+
+`GET /api/news/landing` returns the fixed storefront news-home composition under `data`: up to 11 newest public articles deduplicated across the configured `Tin Công Nghệ`, `Thủ thuật máy tính`, `Game`, `Tin khuyến mại`, and `Ứng dụng, Phần mềm` memberships; up to six newest `Review Sản Phẩm` articles; safe active category navigation; and a bounded PCM YouTube channel payload. Category identity is resolved by active slug rather than hardcoded ID. The YouTube Atom feed is cached for 15 minutes, capped at six validated videos and degrades to `available=false` without failing database news data.
+
+`GET /api/news-category/[slug]` keeps its existing `data`, `news`, `totalNews`, and `pagination` fields and accepts `sort=latest|popular` (default `latest`). It also returns `categories` with safe active navigation fields (`image`, `totalNews`, `isFeatured`) and `popularNews`, the four highest-visit public articles globally with date/ID tie-breaks. `/api/news` reuses the same category query so public featured/count mapping cannot drift; neither route exposes admin metadata.
+
+`GET /api/news/[slug]` keeps its existing `data` field and adds the same active `categories` navigation plus four global `popularNews` items. `data.relatedNews` contains at most six newest active articles from the displayed breadcrumb category, resolves both primary and junction membership, excludes the current article, orders by `createDate DESC,id DESC`, and does not fall back to another category.
 
 Product detail/category responses and news detail/category responses include `categoryTrail: Array<{ id, name, slug }>` for storefront breadcrumbs. `/api/products?category_id=...` exposes the same trail under `layoutMeta.categoryTrail`. Trails are resolved from the legacy hierarchy with bounded recursion, cycle protection, partial results for missing parents, and legacy-link fallbacks; no storefront route reads MySQL directly.
 
@@ -253,6 +270,8 @@ For `category_id=X`, product list/count, price bounds, brand filters, attribute 
 Category attribute metadata and `/api/products` URL-filter validation use the same versioned resolver. Active searchable Global attributes apply to every scope; Local attributes prefer active `idv_attribute_category` mappings, but when a mapping is absent a value is exposed only if a sellable product in the enabled scope actually uses that attribute/value relation. This is a read-time fallback and does not create category mappings.
 
 ### Commerce writes
+
+`POST /api/page-views` is a public runtime write with a strict 512-byte `{ eventId, path }` body. It requires the storefront origin and exact referrer path, resolves the active product/category/article server-side, stores no IP/user-agent/referrer, and returns `202` for both a new event and an idempotent UUID replay. The background worker aggregates accepted events into `web_admin_page_view_totals`; the route is intentionally independent of the admin write gate.
 
 - `POST /api/cart/quote`: validates up to 50 distinct products with integer quantity 1–99; never trusts client prices.
 - `POST /api/orders`: requires storefront origin, `recaptchaToken`, and an `Idempotency-Key` UUID-like value.
@@ -273,9 +292,13 @@ Anonymous high-risk actions use action-specific reCAPTCHA and IP/identifier rate
 
 Admin API groups live under `/api/admin/*`. Mutations require authenticated session, RBAC permission, same-origin handling, audit behavior where applicable, and `ADMIN_WRITE_ENABLED=true`. Do not add CAPTCHA to ordinary post-login admin forms; use re-authentication or step-up controls only for sensitive/risky actions.
 
+Category create/edit keeps `categoryPageEnabled` in the internal feature-box contract for backward compatibility but does not expose that option. New categories default it to false. The feature editor supports a headline of at most 255 characters and two lines, automatic category targeting, hero-side selection with copy on the opposite side, and a validated `#RRGGBB` Section 11 container color.
+
+Collection create/edit keeps legacy `icon_url` API compatibility without exposing the field in the admin form: create defaults an omitted icon to the collection name and edit preserves the stored value. Ordering uses an integer-validated text control; `status` and `home_page` remain stored as `0/1` but render as `Ẩn`/`Hiển thị` and `Không`/`Có`. Global single-value native selects use the shared inset-arrow treatment; `multiple` selects are excluded.
+
 Attributes are managed at `/product/attribute-list` and `/product/attribute/edit`. `POST /api/admin/attributes` creates, collection `PATCH` applies active/hidden status, collection `DELETE` performs confirmed bulk cascade deletion, and `GET/PATCH/DELETE /api/admin/attributes/[id]` reads, updates, or permanently deletes one attribute. Saving reconciles values and Local category links transactionally; Global attributes use `scope=1`. The legacy value table has no status column, so values are always active. Destructive integration coverage requires both `ATTRIBUTE_CRUD_DESTRUCTIVE_TEST=true` and an explicitly disposable database name.
 
-All admin rich-text fields use the shared offline GPL TinyMCE instance in `RichTextEditor`. It loads `/tinymce.min.js` only when mounted, resolves its plugins/skins from `public`, keeps the dark UI/content skin, disables the feature-promotion CTA through `promotion: false`, hides its generated container and resets the editor-header grid within the wrapper so menubar/toolbars remain full-width. It exposes the standard menubar plus a horizontally wrapping toolbar for formatting, links, images, media, tables, source code, fullscreen, and help. Do not move this script into the root layout or replace it with Tiny Cloud.
+All admin rich-text fields use the shared offline GPL TinyMCE instance in `RichTextEditor`. It loads `/tinymce.min.js` only when mounted, resolves its plugins/skins from `public`, keeps the dark UI/content skin, disables the feature-promotion CTA through `promotion: false`, hides its generated container and resets the editor-header grid within the wrapper so menubar/toolbars remain full-width. It exposes the standard menubar plus a horizontally wrapping toolbar for formatting, links, images, media, tables, source code, fullscreen, and help. The native `Insert/Edit Image` dialog includes an image-only file picker for every current editor scope; it uploads through `POST /api/admin/editor-images/[scope]/upload` and fills only Source with the returned durable `/api/media/...` URL. Do not move this script into the root layout, replace it with Tiny Cloud, or store selected images as Base64/blob content.
 
 `idv_attribute_value.api_key` is the authoritative URL value for category and search filters. It is required, lowercase, hyphen-delimited, at most 200 characters, unique within its attribute, and editable in the existing form. The guarded backfill command is dry-run by default:
 
@@ -352,14 +375,17 @@ For local development without Google, leave the frontend site key empty and set 
 
 - Resolve all destinations under `MEDIA_ROOT` and use randomized file names.
 - Enforce body/file size, extension allowlist, declared MIME, and binary image signature.
+- Rich-text image uploads accept one JPEG, PNG, WebP or GIF file up to 10 MB, require the editor scope's existing update permission, and store it under `rich-text/<scope>/<ddMMyyyy>/<uuid>.<ext>` without adding database metadata.
 - Product albums support `product`, `self`, and `customer`; keep legacy thumbnail/image collection/count synchronized while legacy readers exist.
 
 ## Database status
 
-The active local database is `it_tech_db`; `hanoi23_db` remains the read-only legacy source. The accepted live catalog has 788 categories, 90 brands, 4,712 products, and 4,712 search rows. After the additive favorites migration on `2026-07-14`, read-only verification found 289 physical tables: 161 InnoDB and 128 MyISAM, with no importer recovery/stage/restore tables and no Latin-1 tables or columns. PCM is the canonical target for source brand `0` and owns 2,276 products, including 849 enabled products.
+The active local database is `it_tech_db`; `hanoi23_db` remains the read-only legacy source. The accepted live catalog has 788 categories, 90 brands, 4,712 products, and 4,712 search rows. After the additive page-view migration on `2026-07-16`, read-only verification found 292 physical tables: 164 InnoDB and 128 MyISAM, with no importer recovery/stage/restore tables and no Latin-1 tables or columns. PCM is the canonical target for source brand `0` and owns 2,276 products, including 849 enabled products.
 
 This does not prove migration state in any other environment. Follow `database-docs/ADMIN_MIGRATION_GUIDE.md`, and use `database-docs/DATABASE_TRANSFER.md` for full export/import or machine migration.
 
 ## Verification status
 
 The `2026-07-15` working-tree audit passed web-admin TypeScript, ESLint, production build, 104/104 unit tests, and 6 integration tests with 7 explicit fixture/safety skips. Both application npm audits found zero known vulnerabilities. Strict local health returned 13/15 because both configured collection probes correctly return 404 with the current empty collection catalog; `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` returned 15/15 while MySQL was healthy. At audit end MySQL was no longer listening and readiness returned 503, so restart/identify it and rerun runtime checks before further database work. Full 1,500-VU target testing remains pending. Exact evidence is in `../PROJECT_AUDIT_2026-07-15.md`.
+
+Current `2026-07-16` verification passes both applications' TypeScript, quiet ESLint and production build, 135/135 backend unit tests and the default integration suite at 16 pass/7 safety- or fixture-gated skips. The controlled four-worker storefront Playwright run passes 107 checks with 19 expected skips across 126 cases, including the four page-view branches and refresh idempotency. Strict health remains 13/15 for the two documented collection 404s and empty-catalog mode passes 15/15.

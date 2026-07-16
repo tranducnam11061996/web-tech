@@ -1,6 +1,6 @@
 # AI Handoff — HACOM Workspace
 
-Last verified: `2026-07-15`
+Last verified: `2026-07-16`
 
 This is the canonical current-state handoff. Read in this order:
 
@@ -36,6 +36,10 @@ Use `PROJECT_AUDIT_2026-07-15.md` for the evidence and findings from the latest 
 
 The current working tree implements and documents the following related changes:
 
+- Four public entity pages now record browser-rendered views through a shared null-rendering client tracker and bounded same-origin `POST /api/page-views`. UUID idempotency prevents Strict Mode/retry duplicates; refresh and client navigation create new events.
+- `web_admin_page_view_events` durably queues accepted events and the background worker aggregates them into `web_admin_page_view_totals` in crash-safe batches. Canonical counts are `BIGINT`; legacy `visit` columns are not continuously updated.
+- The page-view migration ran twice against identified `it_tech_db` after restore verification of backup `b2bfd6c86c21e89d326081e44b403049768244b624ae8f97acaae564674701de`. The schema is now 292 tables (164 InnoDB/128 MyISAM), with 6,176 backfilled totals and `ADMIN_WRITE_ENABLED=false` after migration.
+
 - Admin attribute list/create/edit/delete/bulk-status flows backed by the real legacy attribute tables.
 - Transactional value/category reconciliation and cascade cleanup. Destructive integration coverage remains gated to an explicitly disposable database.
 - Canonical `idv_attribute_value.api_key` values. All 426 accepted live values were backfilled; public category/search filtering uses the stored key rather than rebuilding a slug from the label.
@@ -44,8 +48,15 @@ The current working tree implements and documents the following related changes:
 - Published Footer data: four groups and 26 links. Published Bottom Footer data: one `Trusted Partners` group and 19 links. Current seeded links use `#`.
 - Category headings/document titles reject blank or shorter-than-five-character legacy SEO titles such as `0` and fall back to the category name. The category control bar retains sorting and removes its standalone search field.
 - Desktop/mobile header mega-menu placement regression coverage.
-- Shared offline GPL TinyMCE remains locally bundled and loaded only inside `RichTextEditor`; its menu/toolbar layout and promotion suppression were polished without moving it to the root layout or Tiny Cloud.
-- Homepage Section 8 uses collection `896` / `goi-y-cho-ban` from the existing server bootstrap and remains server-rendered. A homepage-only raw JavaScript controller, ported from `font-end/index.html`, now initializes every `.carousel-track` except the hero: it uses a one-card buffer, optional clones, three-second auto-slide, mouse/touch drag, hover pause, indicators, resize recalculation, and a Next.js init/destroy adapter that prevents duplicate timers/listeners across route mounts.
+- Shared offline GPL TinyMCE remains locally bundled and loaded only inside `RichTextEditor`; its menu/toolbar layout and promotion suppression were polished without moving it to the root layout or Tiny Cloud. Every current admin editor now exposes TinyMCE's native image file-picker button inside `Insert/Edit Image`; uploads use a scope-typed, RBAC-protected admin route, store randomized validated files below `MEDIA_ROOT/rich-text/<scope>/<ddMMyyyy>`, and return only durable `/api/media/...` URLs to the Source field without replacing alt/title/dimension values.
+- Homepage Section 8 uses collection `896` / `goi-y-cho-ban` from the existing server bootstrap and remains server-rendered. Its header exposes matching accessible previous/next arrow controls beside the collection link. A homepage-only raw JavaScript controller, ported from `font-end/index.html`, initializes every `.carousel-track` except the hero: it uses a one-card buffer, optional clones, three-second auto-slide, mouse/touch drag, hover pause, indicators, resize recalculation, and a Next.js init/destroy adapter that prevents duplicate timers/listeners across route mounts.
+- Storefront collection detail is server-first: it shows the collection name as a visible H1 before the sanitized database `description`, then repeats the name in a gradient catalog H2 with the solid product count. It preserves safe description classes and inline styles, exposes only the two URL-driven price sort links, fixes page size at 24, and uses canonical Link pagination. Collection and homepage Section 11 now render the same `ProductGridCard` markup. The card uses a 260px CSS-container threshold to preserve the full Section 11 presentation when space permits and automatically reduce density below it; narrow cards retain the stock dot and screen-reader label while hiding only the visible stock text.
+- Homepage Section 11 category-feature sections now load at most nine distinct sellable products from each enabled category and all enabled descendants, ordered by `idv_sell_product_price.ordering DESC, product.id DESC`. At `xl`, each six-column block renders a three-column hero opposite three products, then six products below; smaller breakpoints use one/two/three columns with the hero first and full-width. The same configured payload fills the category page's existing `85/33` banner slot without appearing again in its product grid; category presentation hides the CTA while homepage keeps it. Category summaries require at least 10 sanitized plain-text characters or use the fixed stock/diversity/price/warranty fallback. Admin keeps the existing hidden category-page state, derives every target from the category route, accepts a two-line headline, mirrors hero copy opposite the selected box side, and stores the Section 11 container color in additive `container_background_color`.
+- The admin collection editor exposes ordering as an integer-validated text input, presents the legacy `status` and `home_page` flags as Vietnamese `0/1` choices, and no longer exposes `icon_url`. Its four hierarchy/order/state controls use a responsive two-column grid, while the parent collection is selected through an accent-insensitive, keyboard-accessible searchable tree that excludes the current collection and descendants. Omitted icons default to the name on create and preserve the stored legacy value on edit. Both applications use the same inset-arrow contract for single-value native selects.
+- Article categories expose a strict `Nổi bật` 0/1 field in edit and an inline accessible list toggle. The state lives in additive `web_admin_article_category_meta`, is joined into admin category reads, and is created/updated/deleted transactionally without altering the imported news-category table or changing storefront behavior.
+- Storefront news-category pages now use the core article layout from `font-end/danh-muc-tin-tuc.html`: three current-page articles form the 2/1/1 bento, the remaining page items form the 70% two-column list, and the 30% sidebar contains database-featured categories, four global most-viewed articles and the reusable unchanged red PC-build promotion. The featured-category and ranking panels are reusable presentation-only Server Components: `FeaturedNewsCategories` accepts `NewsCategory[]`, while `MostReadNews` accepts `NewsItem[]`; `CategorySidebar` only composes them and does not own their markup. The template's intermediate category-filter/sort strip is intentionally removed. On desktop only, the promotion sticks 110px below the viewport top; mobile keeps normal document flow. `GET /api/news-category/[slug]` still accepts `latest|popular` and canonical pagination retains a supplied sort, while share/copy is now the only client island.
+- Storefront `/tin-tuc` now binds the checked-in `font-end/page-tin-tuc.html` structure to one server-side `GET /api/news/landing` payload: five configured active categories supply an 11-item 2/3/6 landing sequence, `Review Sản Phẩm` supplies the 2/4 review grid, and active category metadata supplies the reusable featured panel. The red promotion remains normal-flow on this route. A single client island presents up to six cached PCM channel-feed videos and mounts a privacy-enhanced YouTube iframe only after Play; feed failure retains the section without synthetic data.
+- Storefront article detail now uses `font-end/single-bai-viet.html` with real article/category/sidebar data, Header/Footer, the reference 70/30 geometry and no synthetic copy. Its right sidebar directly composes `FeaturedNewsCategories`, `MostReadNews` and the same desktop-only `top: 110px` sticky `PcBuildPromotionBanner`; “Cùng danh mục” is absent. `GET /api/news/[slug]` preserves `data`, adds active `categories` plus four global `popularNews`, and returns at most six newest `relatedNews` from only the displayed breadcrumb category with no global fallback. Facebook/X/copy is the only article-detail client island.
 
 The exact modified/untracked file list is intentionally not duplicated here because it changes during work. `git status --short` is authoritative.
 
@@ -53,15 +64,17 @@ The exact modified/untracked file list is intentionally not duplicated here beca
 
 - Active local database: `it_tech_db`.
 - Retained legacy source: `hanoi23_db`; do not modify it during current work.
-- Accepted post-favorites schema: 289 physical tables, 161 InnoDB and 128 MyISAM, 1 routine, 2 triggers, zero Latin-1/utf8mb3 columns, and zero importer recovery/stage/restore tables.
+- Accepted schema: 292 physical tables, 164 InnoDB and 128 MyISAM, 1 routine, 2 triggers, zero Latin-1/utf8mb3 columns, and zero importer recovery/stage/restore tables.
 - Catalog: 788 categories; 90 brands; 4,712 product/store/price/info/search rows; 14,455 product-category links; 17,603 product-attribute links; 162 category-attribute links.
-- News: 4 categories, 668 articles/content rows, and 705 unique article-category links. Source article 83 remains quarantined. Source IDs 682 and 683 were detected later but have not been imported.
+- News: 8 categories (4 imported and 4 locally administered), 668 articles/content rows, and 705 unique article-category links. Source article 83 remains quarantined. Source IDs 682 and 683 were detected later but have not been imported.
 - PCM is brand ID 96. Durable source maps include `0 -> 96`, `34 -> 25`, and `57 -> 31`. PCM owns 2,276 products, 849 enabled.
 - The active catalog has one local test collection: ID `896`, slug `goi-y-cho-ban`, 27 linked products and 22 currently sellable products. It still has no approved combo-set, product-group, voucher, product-promotion, buying-guide, or modern product-image rows. The favorites table was created empty and may contain user-created rows later.
+- `web_admin_category_feature_boxes.container_background_color` was added idempotently on `2026-07-16` after a restore-verified full logical backup. The migration ran twice against identified `it_tech_db`; `category_page_enabled` and `target_url` remain physically present for compatibility, while API responses derive their target from the category route.
+- `web_admin_article_category_meta` was added idempotently on `2026-07-16` against identified `it_tech_db`; all eight current category IDs were backfilled with `is_featured=0` and the legacy category schema was not altered.
 - Runs 2–8 are accepted and rollback-closed. Their in-database recovery tables were removed; recovery depends on protected external restore-verified artifacts.
 - The last accepted post-favorites schema facts are documented in `web-admin/database-docs/DATABASE_SCHEMA.md`. Re-query the target before a write or migration; never use these counts as permission to mutate an unidentified database.
 
-At the end of the `2026-07-15` audit, ports 3000 and 3001 still listened but the MySQL process was no longer listening on 3306, so `/api/health/ready` returned 503 and uncached database APIs failed. Earlier in the same audit, readiness was 200, database-backed integration tests passed, and healthcheck passed with the documented empty-catalog allowance. Restart/identify MySQL before further runtime or database work; do not enable `ADMIN_WRITE_ENABLED` merely to recover readiness.
+At the end of the `2026-07-15` audit, MySQL had stopped and readiness returned 503. It was restored by `2026-07-16`: ports 3000, 3001 and 3306 listen, `/api/health/ready` returns 200, database-backed integration tests pass, and healthcheck reaches 15/15 with the documented empty-catalog allowance. Do not enable `ADMIN_WRITE_ENABLED` merely to recover readiness.
 
 ## Implemented product surface
 
@@ -75,24 +88,24 @@ At the end of the `2026-07-15` audit, ports 3000 and 3001 still listened but the
 
 ## Verification performed on the current working tree
 
-On `2026-07-15`:
+On `2026-07-16`:
 
 | Check | Current result |
 |---|---|
 | `web-admin` TypeScript / ESLint / production build | Pass |
-| `web-admin` unit tests | 107/107 pass |
-| `web-admin` integration tests | 6 pass, 7 correctly skipped by fixture/safety gates |
+| `web-admin` unit tests | 135/135 pass, including canonical page-view path/UUID/source validation and per-entity batch aggregation |
+| `web-admin` integration tests | 16 pass, 7 correctly skipped by fixture/safety gates; page-view resolution, UUID idempotency and rollback-safe exactly-once worker aggregation pass alongside the existing database coverage |
 | `font-end` TypeScript / ESLint / production build | Pass |
 | npm audit, both applications | 0 known vulnerabilities |
 | Runtime health, strict mode | 13/15; both configured legacy collection probes return 404, while the homepage and Section 8 production smoke pass |
 | Runtime health with `LOCAL_HEALTHCHECK_EMPTY_CATALOG=true` | 15/15 while MySQL was available |
-| Focused new Playwright coverage, one worker | Prior focused suite: 8 pass/2 expected device-project skips; replacement homepage-carousel suite: 7 pass/3 expected project skips across desktop/mobile global initialization, timing, frame-level reset continuity, hover, mouse/touch thresholds, previous/dot controls, geometry/request preservation and idempotent clone cleanup |
-| Full Playwright run, 12 workers | Inconclusive: 44 pass, 4 skipped, 28 fail amid `ERR_INSUFFICIENT_RESOURCES`, navigation timeouts, and cascading missing-element failures |
+| Focused page-view Playwright coverage, one worker | Pass: both applicable desktop cases; two mobile-project duplicates are intentionally skipped. Four tracked routes emit one UUID each, refresh emits a new UUID, and static/404 routes emit none. |
+| Full Playwright run, 4 workers | Pass: 107 passed and 19 expected project/device/data skips across all 126 desktop/mobile cases; the earlier 12-worker resource-exhausted run is historical only |
 | Regression JS budget | Fail for product 236.8 KB, cart 175.5 KB, checkout 190.8 KB, combo-checkout 187.4 KB; combo-cart passes at 167.7 KB |
 | Strict release JS budget | Fail for product, cart, checkout, and combo-checkout; combo-cart passes |
 | Full 1,500-VU k6 release gate | Not run on a production-like host |
 
-Do not repeat the older claims that the full Playwright suite or regression bundle budget is green. Re-run the full browser suite with controlled worker count and a stable production-like runtime before classifying individual failures.
+The controlled full Playwright suite is green. Keep the current regression/release bundle-budget failures separate: browser correctness does not make those performance gates pass.
 
 ## Environment and safety gates
 
@@ -107,9 +120,9 @@ Do not repeat the older claims that the full Playwright suite or regression bund
 ## Highest-priority next work
 
 1. Preserve the dirty working tree and ignored database artifacts before changing machines; execute `NEW_MACHINE_SETUP.md` and restore-verify the destination database.
-2. Restart/identify MySQL and re-establish `/api/health/ready=200`; then rerun strict and empty-catalog healthchecks.
+2. Keep MySQL readiness monitored; the current local runtime is restored at `/api/health/ready=200` and empty-catalog health is 15/15.
 3. Fix the current frontend JS regression/release budget failures and rerun the budget scripts after a clean production build.
-4. Rerun the full Playwright suite with a controlled worker count and stable runtime; triage only reproducible failures.
+4. Keep full Playwright runs at controlled concurrency and triage only failures reproducible outside resource exhaustion.
 5. Import missing variant/config-group/comboset definitions only after complete validated source exports exist.
 6. Run read/commerce/abuse k6 scenarios on an approved production-like staging host and retain application/MySQL/host evidence.
 7. Complete legacy admin write-route schema, RBAC, accessibility, and error-envelope audits.

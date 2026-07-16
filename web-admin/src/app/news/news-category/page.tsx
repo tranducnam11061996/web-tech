@@ -1,6 +1,6 @@
 import { ArticleCategoryFilter } from '@/components/article-category/ArticleCategoryFilter';
 import { ArticleCategoryTable } from '@/components/article-category/ArticleCategoryTable';
-import pool from '@/lib/db';
+import { listArticleCategories } from '@/lib/admin/services';
 
 export const revalidate = 0; // Disable static rendering since it fetches from DB
 
@@ -8,7 +8,7 @@ export default async function ArticleCategoryPage() {
   let categories: any[] = [];
   
   try {
-    const [rows] = await pool.query('SELECT * FROM idv_seller_news_category ORDER BY parentId ASC, ordering DESC, id ASC');
+    const rows = await listArticleCategories();
     
     const categoryMap: any = {};
     const roots: any[] = [];
@@ -41,6 +41,7 @@ export default async function ArticleCategoryPage() {
         displayType: displayTypeStr,
         url: node.url,
         order: node.ordering || 0,
+        isFeatured: Number(node.is_featured || 0) === 1,
         isActive: node.status === 1,
         children: node.children.map((child: any, i: number) => mapNode(child, stt, i))
       };

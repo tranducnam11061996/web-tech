@@ -84,7 +84,8 @@ export default function Section8({
             <div className="section-header">
               <h2 className="section-title">{config.title}</h2>
               <div className="header-actions">
-                <button className="nav-arrow" id="prevBtn" aria-label="Previous">←</button>
+                <button type="button" className="nav-arrow" id="prevBtn" aria-label="Sản phẩm trước">←</button>
+                <button type="button" className="nav-arrow" id="nextBtn" aria-label="Sản phẩm tiếp theo">→</button>
                 <a href={`/collection/${config.collectionSlug}`} className="view-all-btn">{config.viewAllLabel}</a>
               </div>
             </div>

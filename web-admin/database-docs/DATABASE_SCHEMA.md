@@ -1,6 +1,6 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-15`
+Verified: `2026-07-16`
 Active local database: `it_tech_db`. Retained legacy source: `hanoi23_db` (read only during the 2026-07-13 cutover).
 Source: live `information_schema` inspection
 
@@ -18,11 +18,11 @@ Active `it_tech_db` contains the combo schema but currently has 0 `combo_set` an
 
 | Metric | Value |
 |---|---:|
-| Total physical tables | 289 |
-| InnoDB tables | 161 |
+| Total physical tables | 292 |
+| InnoDB tables | 164 |
 | MyISAM tables | 128 |
 
-After accepted cleanup of runs 2-8 and the additive customer-favorites migration, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; other character tables use `utf8mb4_unicode_ci`. The 289-table total is the current lean application/audit schema.
+After accepted cleanup of runs 2-8, article-category metadata and page-view migrations, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; other character tables use `utf8mb4_unicode_ci`. The 292-table total is the current lean application/audit schema.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
@@ -30,7 +30,7 @@ Most legacy relations are logical, not physical. Do not assume FK/cascade exists
 
 The dedicated collation migration applied live plan `15f0f236257b0214617d6b3f0ec8b04d02aad19989d91f04f8044665fc5782e6`: 187 runtime tables were rebuilt with `CONVERT TO CHARACTER SET`, 53 changed only their default, and 54 verified banner-location strings were repaired. Engines, row counts, primary/unique/full-text index structures, routine, and triggers were preserved. The remaining Latin-1 recovery objects were later removed by accepted run cleanup.
 
-The `2026-07-14` catalog-route repair changed only `idv_url.url_type` for the 788 exact category routes, from `0` to `product:category`, and added `idv_seller_category.idx_webtech_category_parent_status(parentId,status,id)`. Category route hashes, paths, IDs, engines and row counts were unchanged. Immediately after that repair the schema had 288 tables and 84,049 rows, 1 routine and 2 triggers; the later favorites migration raised the current table total to 289.
+The `2026-07-14` catalog-route repair changed only `idv_url.url_type` for the 788 exact category routes, from `0` to `product:category`, and added `idv_seller_category.idx_webtech_category_parent_status(parentId,status,id)`. Category route hashes, paths, IDs, engines and row counts were unchanged. Immediately after that repair the schema had 288 tables and 84,049 rows, 1 routine and 2 triggers; the later favorites migration raised that historical state to 289 before subsequent additive migrations.
 
 PCMarket article-category run `6` inserted source IDs `1–4`. Article run `7` then inserted 668 article/content rows, 705 unique MyISAM category links, 668 canonical routes/registry/maps and 669 records. It quarantined source ID 83, retained remote HTTPS media, and corrected the four category `request_path_index` hashes. Brand run `8` added managed PCM ID 96 and removed every runtime brand 0 reference. Recovery for runs 2-8 is now external-backup-only.
 
@@ -42,6 +42,7 @@ The additive admin migration was applied to the configured local database on `20
 - `web_admin_banner_meta`
 - `web_admin_product_card_attribute_rules`
 - `web_admin_category_feature_boxes`
+- `web_admin_article_category_meta`
 - `web_admin_vouchers`, `web_admin_voucher_categories`, `web_admin_voucher_redemptions`
 - `web_admin_product_promotions`, `web_admin_product_promotion_products`, `web_admin_product_promotion_categories`
 - Storefront customer password/session/OTP/address/order-link/metrics tables
@@ -51,6 +52,10 @@ The additive admin migration was applied to the configured local database on `20
 - `web_admin_email_outbox`
 - `web_admin_cache_versions`
 - `web_admin_webhook_nonces`
+- `web_admin_page_view_events`
+- `web_admin_page_view_totals`
+
+The page-view tables were added on `2026-07-16`. `web_admin_page_view_events.event_uuid BINARY(16)` is unique and `(processed_at,id)` is the worker index. `web_admin_page_view_totals` has primary key `(entity_type,entity_id)` and `view_count BIGINT UNSIGNED`. The four entity types are `product`, `product_category`, `article`, and `article_category`; no polymorphic FK is declared. Migration backfilled 4,712/788/668/8 rows from the corresponding legacy `visit` columns and does not mirror future totals back into those columns.
 
 On older installs where menu tables were created before the latest menu fields, `admin:migrate` may add helper-table columns:
 
@@ -165,6 +170,8 @@ Public category filters share a read-time resolver between metadata and product 
 - No article menu references were created. Fourteen articles remain intentionally uncategorized and 50 have more than one category.
 
 Measured news indexes are `idv_seller_news.idx_webtech_news_status_created(status,createDate DESC,id DESC)`, `idv_seller_news.idx_webtech_news_url_status(url,status)`, and the two covering junction indexes `idx_webtech_news_category_article(category_id,status,article_type,article_id)` / `idx_webtech_news_article_category(article_id,status,article_type,category_id)`. Public category membership/count queries use `UNION DISTINCT`, avoiding the former `OR` join and dependent subquery.
+
+Article-detail related news uses the same primary/junction `UNION DISTINCT` membership for only the displayed active category, excludes the current article, orders by `createDate DESC,id DESC`, and caps at six without a global fallback. No schema or index change is required for this read contract.
 
 ## URL Routing
 
@@ -497,6 +504,7 @@ Category-scoped first-box metadata for homepage category sections and the top of
 | `cta_label` | `varchar(120)` | Hybrid CTA label |
 | `text_color` | `varchar(16)` | Text color |
 | `overlay_color` | `varchar(16)` | Background/overlay color |
+| `container_background_color` | `varchar(16)` | Section 11 container color; default `#0f0f14` |
 | `button_style_json` | `text null` | CTA button style JSON |
 | `updated_at` | `timestamp` | Last update |
 
@@ -505,6 +513,20 @@ Indexes:
 - Primary key: `category_id`.
 - `idx_homepage_enabled(homepage_enabled)`.
 - `idx_category_page_enabled(category_page_enabled)`.
+
+`category_page_enabled` remains stored and is still honored by the dedicated `category` read scope, although its admin control is hidden. The storefront category banner uses the read-only `configured` scope, which returns a box enabled by either `homepage_enabled` or `category_page_enabled` without changing either value. `target_url` remains for rollback compatibility, but admin/public APIs derive `targetUrl` from `idv_seller_category.request_path`, falling back to `url`; client payloads cannot override it. `headline` accepts at most one LF newline (two rendered lines) and 255 total characters.
+
+### `web_admin_article_category_meta`
+
+One-to-one admin metadata for article categories. No column is added to the imported `idv_seller_news_category` contract and no physical foreign key is introduced over the legacy relation.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `category_id` | `int unsigned` PK | Logical reference to `idv_seller_news_category.id` |
+| `is_featured` | `tinyint(1)` | Strict `0`/`1` featured state; default `0` |
+| `updated_at` | `timestamp` | Last metadata update |
+
+`admin:migrate` creates the table idempotently and backfills missing current category IDs with `0`. Admin list/detail reads left-join the helper and default a missing row to `0`; create, full edit, focused featured toggle, and permanent delete reconcile it transactionally. `PATCH /api/admin/article-categories/[id]/featured` requires `content.article_categories.update` through the standard admin write/origin/session/audit gates. The field is currently admin metadata only and does not alter storefront ordering or visibility.
 
 ## Admin Helper Tables
 

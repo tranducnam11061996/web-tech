@@ -1,28 +1,21 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import CollectionClient, { type CollectionApiResponse } from "./CollectionClient";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+import { internalApiUrl } from "@/lib/apiUrl";
+import { normalizeCollectionPage, normalizeCollectionSort } from "@/lib/collectionPage";
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
-function firstParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
 function appendSearchParams(url: URL, searchParams: Awaited<SearchParams> | undefined) {
-  const page = firstParam(searchParams?.page) || "1";
-  url.searchParams.set("page", page);
+  const page = normalizeCollectionPage(searchParams?.page);
+  const sort = normalizeCollectionSort(searchParams?.sort);
+  url.searchParams.set("page", String(page));
   url.searchParams.set("limit", "24");
-
-  for (const key of ["sort", "min-price", "max-price"]) {
-    const value = firstParam(searchParams?.[key]);
-    if (value) url.searchParams.set(key, value);
-  }
+  if (sort) url.searchParams.set("sort", sort);
 }
 
 async function getCollection(slug: string, searchParams: Awaited<SearchParams> | undefined) {
-  const url = new URL(`${API_URL}/api/collections/${encodeURIComponent(slug)}`);
+  const url = new URL(internalApiUrl(`/api/collections/${encodeURIComponent(slug)}`));
   appendSearchParams(url, searchParams);
 
   const response = await fetch(url.toString(), { next: { revalidate: 60 } });
@@ -37,6 +30,7 @@ export default async function CollectionPage(props: {
 }) {
   const [params, searchParams] = await Promise.all([props.params, props.searchParams]);
   const initialData = await getCollection(params.slug, searchParams);
+  const currentSort = normalizeCollectionSort(searchParams?.sort);
 
   if (!initialData?.success) notFound();
 
@@ -48,7 +42,7 @@ export default async function CollectionPage(props: {
         </div>
       }
     >
-      <CollectionClient slug={params.slug} initialData={initialData} />
+      <CollectionClient slug={params.slug} initialData={initialData} currentSort={currentSort} />
     </Suspense>
   );
 }

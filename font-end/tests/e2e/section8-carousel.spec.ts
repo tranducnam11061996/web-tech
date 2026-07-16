@@ -186,12 +186,17 @@ test("mouse drag and touch swipe use the same twenty-percent threshold as index.
   expect(await visibleOriginalIndex(track)).toBe(afterSwipeIndex);
 });
 
-test("previous control and indicator dots follow the index.html DOM ordering", async ({ page }, testInfo) => {
+test("previous and next controls plus indicator dots follow the index.html DOM ordering", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Button and dot wiring is exercised once on desktop");
   const { section, track } = await openHomepage(page);
 
-  await section.locator("#prevBtn").click();
+  const previousButton = section.getByRole("button", { name: "Sản phẩm trước" });
+  const nextButton = section.getByRole("button", { name: "Sản phẩm tiếp theo" });
+
+  await previousButton.click();
   await expect.poll(() => visibleOriginalIndex(track), { timeout: 1400 }).toBe("9");
+  await nextButton.click();
+  await expect.poll(() => visibleOriginalIndex(track), { timeout: 1400 }).toBe("0");
 
   const promoSection = page.locator("#section-16");
   const promoTrack = promoSection.locator(".carousel-track");

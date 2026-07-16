@@ -5,6 +5,7 @@ import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import WhyBuyFaq from "../../components/WhyBuyFaq";
 import ProgressiveImage from "../../components/ProgressiveImage";
+import CategoryFeatureBox from "../../components/CategoryFeatureBox";
 import CategoryFeatureProductGrid from "../../components/CategoryFeatureProductGrid";
 import CategoryPromoCards from "../../components/CategoryPromoCards";
 import Breadcrumb from "../../components/Breadcrumb";
@@ -38,6 +39,19 @@ const slugify = (str: string) => {
 const isValidHtmlContent = (htmlString: string | null | undefined) => {
   if (!htmlString) return false;
   return htmlString.replace(/<[^>]*>?/gm, "").trim().length > 5;
+};
+
+const CATEGORY_SUMMARY_FALLBACK = "Sẵn kho - Đa dạng - Giá tốt - Bảo hành chính hãng";
+
+const normalizeCategorySummary = (value: unknown) => {
+  const html = sanitizeLegacyHtml(String(value || ""));
+  const plainText = html
+    .replace(/<[^>]*>?/gm, " ")
+    .replace(/&(?:nbsp|#160);/gi, " ")
+    .replace(/&(?:amp|#38);/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plainText.length >= 10 ? html : "";
 };
 
 const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
@@ -224,6 +238,7 @@ function AttributeFilterBlock({
 export default function CategoryContent({ categoryId, params, searchParams, initialData, categoryInfo }: any) {
   const rawCategoryTrail = categoryInfo?.categoryTrail || initialData?.products?.layoutMeta?.categoryTrail || [];
   const catalogTitle = getCategoryDisplayTitle(categoryInfo?.metaTitle, categoryInfo?.name);
+  const categorySummaryHtml = normalizeCategorySummary(categoryInfo?.summary);
   const categoryTrail: CategoryTrailItem[] = Array.isArray(rawCategoryTrail) ? rawCategoryTrail : [];
   const categoryBreadcrumbItems = categoryTrail.length > 0
     ? categoryTrail.map((category, index) => ({
@@ -485,12 +500,13 @@ export default function CategoryContent({ categoryId, params, searchParams, init
 
     if (activeCategoryKey) {
       requestParams.set("category_id", activeCategoryKey);
+      requestParams.set("feature_scope", "configured");
     }
 
     // Append extra filter attributes
     const paramsFromUrl = new URLSearchParams(searchKey);
     paramsFromUrl.forEach((value, key) => {
-      if (!["id", "page", "limit", "category_id"].includes(key)) {
+      if (!["id", "page", "limit", "category_id", "feature_scope"].includes(key)) {
         requestParams.set(key, value);
       }
     });
@@ -571,6 +587,11 @@ export default function CategoryContent({ categoryId, params, searchParams, init
         {/* Banner Area */}
         <div className="flex flex-col lg:flex-row gap-8 mb-8">
           {/* Banner Image / Graphic */}
+          {featureBox?.backgroundImageUrl && featureBox?.targetUrl ? (
+            <div data-category-page-feature className="min-h-[220px] overflow-hidden rounded-[20px] lg:w-1/2 lg:aspect-[85/33]">
+              <CategoryFeatureBox featureBox={featureBox} className="h-full w-full rounded-[20px]" showCta={false} />
+            </div>
+          ) : (
           <div className="lg:w-1/2 rounded-[20px] overflow-hidden relative aspect-[85/33] border border-[#1a1a1e] bg-gradient-to-r from-[#121810] via-[#0d1112] to-[#120a13]">
              {isValidHtmlContent(categoryInfo?.imgBig) ? (
                <ProgressiveImage
@@ -598,25 +619,22 @@ export default function CategoryContent({ categoryId, params, searchParams, init
                </>
              )}
           </div>
+          )}
           
           {/* Banner Text */}
           <div className="lg:w-1/2 flex flex-col justify-center">
             <h1 className="text-2xl md:text-[28px] font-extrabold text-white mb-4 tracking-tight">
               {categoryInfo?.name || "Danh mục sản phẩm"}
             </h1>
-            {isValidHtmlContent(sanitizeLegacyHtml(categoryInfo?.summary)) ? (
+            {categorySummaryHtml ? (
               <div 
+                data-category-summary
                 className="text-[15px] text-gray-400 leading-relaxed space-y-3"
-                dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(categoryInfo.summary) }}
-              />
-            ) : isValidHtmlContent(sanitizeLegacyHtml(categoryInfo?.meta_description)) ? (
-              <div 
-                className="text-[15px] text-gray-400 leading-relaxed space-y-3"
-                dangerouslySetInnerHTML={{ __html: sanitizeLegacyHtml(categoryInfo.meta_description) }}
+                dangerouslySetInnerHTML={{ __html: categorySummaryHtml }}
               />
             ) : (
-              <div className="text-[15px] text-gray-400 leading-relaxed space-y-3">
-                Sẵn kho - Đa dạng - Giá tốt - Bảo hành chính hãng
+              <div data-category-summary data-summary-fallback className="text-[15px] text-gray-400 leading-relaxed space-y-3">
+                {CATEGORY_SUMMARY_FALLBACK}
               </div>
             )}
           </div>
@@ -981,7 +999,7 @@ export default function CategoryContent({ categoryId, params, searchParams, init
             ) : products.length > 0 || featureBox ? (
               <CategoryFeatureProductGrid
                 products={products}
-                featureBox={featureBox}
+                featureBox={null}
                 emptyState={null}
               />
             ) : (

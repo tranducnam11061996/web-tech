@@ -7,6 +7,8 @@ loadEnvConfig(process.cwd());
 let pool: typeof import('../src/lib/db').default;
 let sendOrderEmail: typeof import('../src/lib/email').sendOrderEmail;
 let cleanupPerformanceInfrastructure: typeof import('../src/lib/performanceInfrastructure').cleanupPerformanceInfrastructure;
+let cleanupProcessedPageViewEvents: typeof import('../src/lib/pageViews').cleanupProcessedPageViewEvents;
+let flushPageViewEvents: typeof import('../src/lib/pageViews').flushPageViewEvents;
 
 const POLL_MS = Math.max(500, Number(process.env.BACKGROUND_WORKER_POLL_MS || 2000));
 let stopping = false;
@@ -48,6 +50,13 @@ async function processEmail() {
 }
 
 async function tick() {
+  let pageViewBatches = 0;
+  while (pageViewBatches < 10) {
+    const processed = await flushPageViewEvents(1_000);
+    if (processed === 0) break;
+    pageViewBatches += 1;
+  }
+  await cleanupProcessedPageViewEvents(1_000);
   if (Date.now() - lastCleanup > 5 * 60_000) {
     await cleanupPerformanceInfrastructure();
     lastCleanup = Date.now();
@@ -66,14 +75,17 @@ async function main() {
 }
 
 async function bootstrap() {
-  const [databaseModule, emailModule, performanceModule] = await Promise.all([
+  const [databaseModule, emailModule, performanceModule, pageViewModule] = await Promise.all([
     import('../src/lib/db'),
     import('../src/lib/email'),
     import('../src/lib/performanceInfrastructure'),
+    import('../src/lib/pageViews'),
   ]);
   pool = databaseModule.default;
   sendOrderEmail = emailModule.sendOrderEmail;
   cleanupPerformanceInfrastructure = performanceModule.cleanupPerformanceInfrastructure;
+  cleanupProcessedPageViewEvents = pageViewModule.cleanupProcessedPageViewEvents;
+  flushPageViewEvents = pageViewModule.flushPageViewEvents;
   await main();
 }
 

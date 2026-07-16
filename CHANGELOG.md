@@ -4,6 +4,101 @@ Notable workspace changes are grouped by implementation/audit date.
 
 Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and `PROJECT_PROGRESS.md`, not an older “Known Gaps” section, for current status.
 
+## 2026-07-16
+
+### Durable page-view tracking
+
+- Added same-origin, rate-limited `POST /api/page-views` tracking for product detail, product category, news article, and news category pages. Cached GETs, metadata and prefetches remain read-only.
+- Added idempotent InnoDB event storage plus background-worker aggregation into canonical `BIGINT` totals; public `visit` fields and popular-news ordering now read the canonical totals without mutating legacy content rows.
+- Applied the additive migration twice after a 290-table/84,299-row restore-verified backup. The live schema now has 292 tables and 6,176 backfilled page-view totals; legacy visit sums remained unchanged.
+- Added resolver, UUID, origin/referrer, worker transaction, integration, browser tracker and staging k6 coverage.
+- Final verification passed both applications' TypeScript, quiet lint and production builds, 135/135 unit tests, database integration at 16 pass/7 expected safety skips, focused tracker Playwright, the full four-worker browser suite at 107 pass/19 expected skips across 126 cases, strict health 13/15 and documented empty-catalog health 15/15. The 150-RPS and 1,500-VU production-like staging gates remain pending.
+
+### Storefront news landing template
+
+- Rebuilt `/tin-tuc` from `font-end/page-tin-tuc.html` while retaining Header/Footer, internal Tailwind, dark theme and the original responsive class contract. Real public data now fills the fixed two-card hero, three-card row and six subsequent news rows without duplication.
+- Added cacheable `GET /api/news/landing`, which resolves six active category slugs, deduplicates primary/junction membership, returns 11 newest landing articles plus six newest Review Sản Phẩm articles, active category metadata, and a safe PCM channel-feed payload without changing database schema.
+- Reused `FeaturedNewsCategories` and `PcBuildPromotionBanner` in the 70/30 block; the landing promotion remains normal-flow at every breakpoint. Empty category groups render no sample cards.
+- Added a focused PCM Official client island backed by the bounded 15-minute YouTube Atom feed. It validates the fixed channel/video identity, omits unavailable duration labels, switches playlist entries accessibly, and mounts a `youtube-nocookie.com` iframe only after Play. Feed outages retain an explicit section-level error state.
+- Added parser/category-scope unit tests, live database landing integration coverage and desktop/mobile Playwright coverage for 2/3/6 binding, review mapping, sidebar geometry, non-sticky promotion, playlist keyboard behavior and horizontal overflow.
+- Verification passed both applications' TypeScript, quiet lint and production builds, 131/131 backend unit tests, the database suite at 14 pass/7 expected skips, focused landing Playwright at 4/4 and the full four-worker suite at 105 pass/17 expected skips across 122 cases. Strict health remains the documented 13/15 and empty-catalog mode passes 15/15.
+
+### Storefront news-category template
+
+- Rebuilt `/tin-tuc/[category-slug]` from the checked-in reference markup in `font-end/danh-muc-tin-tuc.html` while retaining the existing Header/Footer, compiled Tailwind setup, dark theme, spacing and responsive breakpoints. Each page uses its first three API articles in the 2/1/1 bento and renders at most 18 non-duplicated cards below in the original 70/30 content/sidebar layout.
+- Extended `GET /api/news-category/[slug]` with strict `latest|popular` sorting, the shared active-category navigation payload (`image`, `totalNews`, `isFeatured`) and four global most-viewed public articles. The legacy `data`, `news`, `totalNews` and `pagination` fields remain compatible, and `/api/news` now reuses the same safe category query.
+- Bound real category/article titles, summaries, media, dates and visits into the existing markup; empty summaries remain empty, missing authors use `PCM`, broken/missing media retains the gradient surface, and empty categories keep the complete sidebar without synthetic cards. Out-of-range category pages return 404.
+- Replaced the stale hardcoded news sidebar with featured categories from `web_admin_article_category_meta`, one shared `Newspaper` fallback icon, the global popular list and a reusable `PcBuildPromotionBanner` containing the unchanged red promotion markup.
+- Extracted the featured-category panel into the presentation-only `FeaturedNewsCategories` Server Component and imported it back into `CategorySidebar`. It accepts `NewsCategory[]`, preserves the existing markup/classes, links and fallback icons, and can be reused without pulling in popular-news or promotion concerns.
+- Extracted “Đọc nhiều nhất” into the presentation-only `MostReadNews` Server Component and imported it back into `CategorySidebar`. It accepts `NewsItem[]`, preserves the existing ranked links, view formatting and markup/classes, and can be reused without category or promotion dependencies.
+- Removed the intermediate category-filter/sort strip completely from the news-category page. Direct `sort=latest|popular` URLs remain API-compatible and canonical pagination still preserves `sort`, but Facebook/copy is now the only client island.
+- Made the shared `PcBuildPromotionBanner` sticky only on desktop with an exact `top: 110px` header clearance; mobile retains its original normal-flow position. Focused desktop/mobile smoke verifies the removed controls, computed sticky position/top and live scrolled offset.
+- Verification passed both applications' TypeScript, quiet lint and production builds, 126/126 backend unit tests, the database integration suite at 11 pass/7 expected skips, focused category-template Playwright at 5 pass/1 expected project skip, and the full four-worker storefront suite at 94 pass/16 expected skips across 110 cases. Empty-catalog health passed 15/15; strict mode retains the known two legacy collection-fixture 404s.
+
+### Storefront news-article template
+
+- Rebuilt `/tin-tuc/[article-slug]` from `font-end/single-bai-viet.html`, retaining Header/Footer, compiled Tailwind, dark presentation and the original 70/30 responsive geometry while binding only real article metadata, summary, thumbnail, sanitized content, tags and view count.
+- Extended `GET /api/news/[slug]` without removing `data`: it now adds active category navigation and four global most-viewed articles. `data.relatedNews` is the newest six articles in the displayed breadcrumb category, deduplicated across primary/junction membership, excludes the current article and has no global fallback.
+- Removed “Cùng danh mục” and imported `FeaturedNewsCategories`, `MostReadNews` and `PcBuildPromotionBanner` directly into the right sidebar. The promotion retains desktop `top: 110px` sticky behavior and mobile normal flow.
+- Added an article-only accessible Facebook/X/copy client island; the rest remains server-rendered. Empty tags hide the tags group, missing authors use `PCM`, missing media keeps the template gradient, and related cards use real URLs, thumbnails and timestamps.
+- Focused combined news coverage passes 12 runnable cases with two expected device skips. The full controlled storefront run passes 101 cases with 17 expected skips across 118 desktop/mobile cases.
+
+### Article-category featured state
+
+- Added the `Nổi bật` 0/1 field to article-category create/edit and a keyboard-accessible `Nổi bật`/`Không` toggle on the category list.
+- Added RBAC-protected `PATCH /api/admin/article-categories/[id]/featured`; the focused update locks the category and changes only featured metadata, avoiding stale full-form overwrites.
+- Added and applied the additive `web_admin_article_category_meta` table on identified `it_tech_db`, backfilling all eight current categories with `0` while leaving the imported `idv_seller_news_category` contract unchanged.
+- Category create/update/delete now reconciles metadata in the same transaction. Strict validation rejects values outside `0|1`; unit and rollback-based database integration coverage pass.
+- Verification passed both applications' TypeScript, quiet lint and production build, 123/123 backend unit tests, 9 integration checks with 7 expected safety/fixture skips, and an unauthenticated focused-toggle probe returned the safe expected `401`. Strict local health remains the documented 13/15 because only the two legacy collection probes return 404.
+
+### Offline TinyMCE image picker
+
+- Enabled TinyMCE's native image-only file picker inside `Insert/Edit Image` across every shared admin editor while retaining the existing offline `/tinymce.min.js` loader, dark skin, menubar, toolbar order, external upload controls and wrapper styling.
+- Added `POST /api/admin/editor-images/[scope]/upload` with explicit product/category/collection/article RBAC mapping, the existing admin write/origin/session/audit gates, a 10 MB limit, MIME/extension/signature agreement, randomized filenames and containment below `MEDIA_ROOT/rich-text/<scope>/<ddMMyyyy>`.
+- Upload success fills only the dialog Source with a durable `/api/media/...` URL; alt text, image title and dimensions remain under the existing dialog's control. Validation, authorization and transport failures appear through TinyMCE notifications and never insert Base64/blob content.
+- Verification passed both applications' typecheck, quiet lint and production build, 121/121 backend unit tests, 7 integration checks with 7 safety/fixture skips, and a same-origin headless smoke against the bundled offline TinyMCE that found exactly one keyboard-focusable `Browse files` button and the retained dark dialog background.
+
+### Storefront collection detail
+
+- Rebuilt `/collection/[slug]` around server-rendered collection data: sanitized `idv_category_special.description` HTML now appears before the catalog and retains safe database-authored classes and inline styles, while active content and unsafe URLs remain stripped.
+- Made the collection name a visible responsive H1 before the database description. The catalog heading now reads `Tên bộ sưu tập (N sản phẩm)`, applies the existing white/cyan/purple gradient only to the name, keeps the count solid, wraps long names safely and supplies a forced-colors fallback.
+- Removed the decorative collection hero, price-range controls, apply action and sort select. The catalog now exposes direct `Giá từ Thấp - Cao` and `Giá từ Cao - Thấp` links, resets sorting to canonical page one, and keeps default collection ordering when neither is selected.
+- Fixed the internal page size at 24 and replaced client-managed pagination with canonical Next.js links that retain sort, omit `page=1`, expose current-page semantics and hide on one-page collections.
+- Unified collection detail and homepage Section 11 on one `ProductGridCard` DOM and style contract, removing the collection-only compact render branch while retaining the responsive six/four/three/two-column collection grid.
+- Added card-level CSS container behavior at 260px: wide cards retain the complete Section 11 presentation, while narrow cards reduce spacing and controls, keep the green stock dot, and expose `Sẵn hàng` through a visually hidden label. Market and sale prices now remain 1-3px apart without clipping across all collection breakpoints.
+- Added desktop/mobile Playwright coverage for description ordering and sanitization, dark-theme preservation, responsive columns and overflow, URL-driven price ordering, browser history, accessibility and pagination helpers.
+- Kept the existing no-article product thumbnail at true full width during initial loading by disabling only its transient scale effect; it remains a direct `<img>` and the disclosure/sticky layout is unchanged.
+- Verification passed both applications' typecheck, quiet lint and production build, 117/117 backend unit tests, 7 integration checks with 7 safety/fixture skips, and the controlled four-worker storefront suite at 88 pass/14 expected skips across 102 cases. Strict health remains 13/15 for the two configured legacy collection 404 probes; empty-catalog mode passes 15/15.
+
+### Collection editor and native select controls
+
+- Simplified the admin collection form by removing the editable legacy `icon_url` field, converting ordering to an integer-validated text input, and relabeling the stored `0/1` status and homepage flags as `Ẩn`/`Hiển thị` and `Không`/`Có`.
+- Reorganized the parent, ordering, visibility, and homepage controls into a responsive two-by-two grid and relabeled the homepage flag as `Hiện thị tại Homepage`.
+- Replaced the parent collection native select with a local searchable tree that filters Vietnamese text without accents or by numeric ID, preserves hierarchy, supports pointer and full keyboard selection, and excludes the current collection plus descendants before the backend cycle guard.
+- Collection updates now preserve an existing legacy icon when the client omits it, while new collections continue to default that value to the final collection name and explicit API clients remain compatible.
+- Standardized the inset SVG arrow and right-side text clearance for every single-value native select in both applications; multiple selects retain their browser-native presentation.
+- Verification passed both applications' typecheck, quiet lint and production build, 117/117 backend unit tests, 7 integration checks with 7 safety-gated skips, the controlled four-worker Playwright suite at 83 pass/11 expected skips, computed-style/keyboard select smoke in both applications, and the documented 15/15 empty-catalog health mode. Strict health remains 13/15 only for the two expected legacy collection 404 probes.
+
+### Homepage category-feature sections
+
+- Bound the same configured feature-box payload into the category page's existing `85/33` banner slot. Category routes request the new read-only `configured` scope, which reuses a box enabled for either homepage or the legacy category-page flag without mutating that stored flag; the product grid receives no feature box, preventing duplicate rendering.
+- Added a category-only `showCta=false` presentation mode so the banner omits `Xem ngay` while homepage feature heroes retain their CTA. Category summary rendering now uses sanitized plain text only when it contains at least 10 characters; otherwise it displays `Sẵn kho - Đa dạng - Giá tốt - Bảo hành chính hãng` and no longer substitutes `meta_description`.
+- Simplified each storefront section header to the category name only, localized its collection link to `Xem tất cả`, removed the decorative hero rule, and increased hero subheading/headline/CTA typography to a clearer responsive display hierarchy based on the supplied PC Deals reference.
+- Extended `web_admin_category_feature_boxes` with idempotent `container_background_color varchar(16) NOT NULL DEFAULT '#0f0f14'`; the identified `it_tech_db` migration ran twice after a full restore-verified logical backup, without removing the existing category-page or target columns.
+- Removed the visible category-page and target-URL controls from category administration while preserving the former state in payloads. All admin/public read paths now derive the link from the category `request_path`, falling back to its legacy `url`, and ignore client target overrides.
+- Added two-line headline validation and editing, a live container-color picker, mirrored copy placement opposite the hero side, and a six-column preview with a half-width hero plus three product placeholders.
+- Changed homepage category-feature loading to include enabled descendants, deduplicate memberships, return at most nine sellable products, and order by `idv_sell_product_price.ordering DESC, product.id DESC`.
+- Rebuilt Section 11 responsively: desktop uses a half-row hero opposite three cards and six cards below; mobile/tablet place the full-width hero before one/two/three-column product grids. The subheading now precedes the headline, manual headline breaks are retained, and the configured container color is applied safely.
+- Added normalization/unit coverage, a live-database read-only ordering/scope integration test, and desktop/mobile Playwright assertions for card count, geometry, content order, color, new-tab target, mirrored placement, and horizontal overflow.
+- Final verification passed both applications' typecheck, quiet lint and production build, 111/111 backend unit tests, the default database suite at 7 pass/7 safety- or fixture-gated skips, and both focused homepage/category-page feature Playwright suites at 2 pass/2 expected device-project skips each. Strict local health remains 13/15 only because the two configured legacy collection probes return 404; documented empty-catalog mode passes 15/15.
+
+### Homepage Section 8 carousel controls
+
+- Added a matching next-arrow button beside the existing previous-arrow control and `Xem tất cả` link, completing the Section 8 previous/next pair without adding client state or another controller.
+- Added Vietnamese accessible names and explicit button types for both icon-only controls.
+- Extended the focused Playwright coverage to verify that previous wraps from product 1 to product 10 and next returns to product 1.
+- Verification passed both applications' typecheck, lint and production build, all 107 backend unit tests, the default integration suite at 6 pass/7 safety-gated skips, and the full focused carousel suite at 7 pass/3 expected project skips.
+
 ## 2026-07-15
 
 ### Homepage featured collection

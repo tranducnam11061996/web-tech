@@ -1,6 +1,6 @@
 # HACOM Architecture
 
-Last verified: `2026-07-15`
+Last verified: `2026-07-16`
 
 ## System boundaries and runtime
 
@@ -45,7 +45,15 @@ The article-category adapter imports only the PCMarket news taxonomy. It uses th
 
 The article adapter consumes the bounded paginated PCMarket export twice and applies only a matching canonical snapshot. Run 7 used 67 pages and preserves 668 valid source IDs/routes, quarantines ID 83, sanitizes HTML and HTTPS media, stages the MyISAM category junction before an atomic table swap, and writes article/content/routes/registry/maps transactionally. Public news APIs filter inactive rows, deduplicate category membership, return absolute image URLs and bounded related news. The storefront consumes those APIs through `internalApiUrl` and sanitizes article HTML again before rendering; it never reads MySQL.
 
-Public news list/detail reads use the measured `(status,createDate DESC,id DESC)` and `(url,status)` indexes. Category totals, lists, and related-news membership are formed with `UNION DISTINCT` across the primary `catId` and junction sources, avoiding the former `OR` join/dependent subquery; the junction branches use covering composite indexes in both category-to-article and article-to-category directions.
+Public news list/detail reads use the measured `(status,createDate DESC,id DESC)` and `(url,status)` indexes. Category totals, lists, and related-news membership are formed with `UNION DISTINCT` across the primary `catId` and junction sources, avoiding the former `OR` join/dependent subquery; the junction branches use covering composite indexes in both category-to-article and article-to-category directions. One shared active-category query supplies both `/api/news` and `/api/news-category/[slug]`, joins additive featured metadata, and returns only public navigation fields. Category detail accepts a fixed `latest|popular` order, loads navigation and four global most-viewed articles in parallel with category lookup, then resolves membership/count/trail after the category ID is known.
+
+Article detail first confirms the active slug, then starts active-category navigation, four global most-viewed articles and its category trail in parallel. Related news waits only for the displayed trail leaf and uses `UNION DISTINCT` across primary and junction membership for that single category, excludes the current article, orders by `createDate DESC,id DESC`, caps at six and never falls back to global content. The API retains `data` and adds `categories` plus `popularNews` for the reusable sidebar.
+
+The storefront news-category surface remains server-first and consumes a fixed page size of 21: three articles populate the reference bento and up to 18 populate the lower list. The category filter/sort strip is not rendered; direct `sort` URLs remain API-compatible and canonical pagination preserves them. Share/copy is the only hydrated control. `FeaturedNewsCategories` is a reusable presentation-only Server Component that receives `NewsCategory[]`, renders safe category links and uses the public image or one local `Newspaper` fallback. `MostReadNews` is a separate presentation-only Server Component that receives `NewsItem[]` and owns the ranked article links and view counts without fetching or hydrating. The reusable PC-build promotion is static storefront markup, sticks at a 110px top offset only at the desktop breakpoint, and has no database or admin dependency.
+
+The `/tin-tuc` landing is a separate fixed composition exposed by `GET /api/news/landing`. `web-admin` resolves configured category slugs to active IDs, deduplicates primary and junction membership, and returns at most 11 newest news plus six newest review articles with stable date/ID ordering. The route loads active category navigation and the PCM YouTube Atom feed in parallel; the feed is bounded, channel/video IDs are validated, responses are cached for 15 minutes, and an external failure degrades only the video block. `font-end` renders the reference 2/3/6 and 2/4 structures server-side. Only the playlist selection/play surface hydrates, and the YouTube no-cookie iframe is created after interaction. The reusable promotion is explicitly normal-flow on this landing route.
+
+The storefront article-detail surface is also server-first and binds sanitized public content into `single-bai-viet.html`'s 70/30 structure. The right sidebar imports the two reusable presentation panels and promotion directly; the former same-category widget is not rendered. Only the accessible Facebook/X/copy controls hydrate. Tags are newline-normalized and deduplicated for presentation, absent tags leave only share controls, and missing author data uses `PCM`.
 
 The active local application database is `it_tech_db`. `hanoi23_db` is retained as a read-only legacy source. `db:bootstrap-safe-config` is a separate guarded job that compares whitelist schema/index/engine definitions, requires an empty business target, copies MyISAM shipping data with compensating cleanup, copies the InnoDB whitelist transactionally in FK-safe order, transforms admin login state, and records the run without logging password hashes. `db:logical-backup -- --verify-restore` captures DDL/data plus SHA-256 manifests outside Git and verifies them through a disposable restore before an artifact is accepted.
 
@@ -60,6 +68,12 @@ Catalog slug resolution classifies exact `module:product/view:category/view_id:<
 Public category product/list/count/price/brand/attribute reads first resolve one bounded recursive scope containing the enabled root and enabled descendants. All product-facing queries reuse that scope and deduplicate product IDs; `GET /api/categories?parentId=...` aggregates each immediate child's enabled subtree. Hierarchy expansion uses `idx_webtech_category_parent_status(parentId,status,id)`, while product membership continues through the existing `(category_id,pro_id)` junction index. Category admin save/delete/status operations invalidate product and catalog-detail cache versions.
 
 ## Public read flow and cache
+
+### Page-view write flow
+
+Product detail/category and news detail/category GETs remain cacheable and side-effect free. After a successful page hydrates, a minimal storefront client component sends `{ eventId, path }` to the same-origin `/api/page-views` rewrite. `web-admin` validates the configured origin, exact same-origin referrer, fetch metadata, UUID, rate limits and the canonical public entity resolved from the path.
+
+Accepted UUIDs are inserted once into `web_admin_page_view_events`. The background worker locks bounded pending batches with `SKIP LOCKED`, aggregates by `(entity_type, entity_id)`, increments `web_admin_page_view_totals`, and marks the exact events processed in one InnoDB transaction. Processed events remain for one hour to absorb delayed retries. Public/admin readers expose the canonical total as the existing `visit` field and fall back to the legacy column only before a total row exists.
 
 Product detail now has two cacheable compositions. `include=full` remains the compatibility default. The storefront requests `include=core` for above-the-fold catalog, image, price, variant, combo, voucher, promotion, video, and specification data, then streams `/api/products/[slug]/supplemental` for recommendations, related posts, and buying guides through `Suspense`. Recently viewed data remains browser-local and is loaded only near the viewport.
 
@@ -90,6 +104,8 @@ sequenceDiagram
 - Menu, banner, homepage, product, category, and search routes return runtime-only fields.
 - Managed menus use `web_admin_menus -> web_admin_menu_versions -> web_admin_menu_items`. Header, homepage, Footer, and Bottom Footer have separate draft/publish owners and public endpoints. Publication bumps the matching cache version; storefront Footer consumers retain code fallback data so a read outage does not change the established DOM structure.
 - Homepage bootstrap accepts one bounded featured-collection identity and product limit. It verifies the collection ID/slug pair, loads only active collection metadata plus the requested sellable product cards, and returns that lean payload alongside the existing homepage data under the same cache/single-flight boundary. Collection mutations bump the shared public-product cache version so clustered workers discard affected bootstrap responses.
+- Homepage category-feature reads resolve each enabled root through the shared enabled descendant-scope loader, deduplicate product membership, and return at most nine sellable cards ordered by legacy display ordering then product ID. Feature targets are derived server-side from the category `request_path` with the category `url` as fallback; stored/client `target_url` values cannot redirect the storefront. The additive helper-table color controls only the Section 11 container and does not alter legacy category contracts.
+- Storefront category routes request the bounded `configured` feature scope: a box may be reused when enabled for homepage or by the retained legacy category-page flag. This does not mutate either flag. The payload renders once in the existing category banner slot; filtered product-list refreshes retain the same scope and never insert the hero into the product grid.
 - Homepage product/category/promotion rails keep their server-rendered markup and share one homepage-only raw carousel runtime. The runtime is loaded after hydration, initializes every `.carousel-track` except the independently controlled hero, rotates DOM nodes around a one-card transform buffer, and exposes lifecycle-only `init`/`destroy` hooks so the Next.js page adapter can remove clones, timers and listeners before a remount.
 - Category attribute metadata and product filtering share one versioned resolver. Stored `idv_attribute_value.api_key` is the public value identity. Global attributes apply without materialized category links; Local mappings are preferred, with a read-only fallback that admits only values actually assigned to enabled products in the enabled category/descendant scope.
 - Product/news detail and category payloads carry a bounded root-to-leaf `categoryTrail`; the storefront renders it with one shared semantic breadcrumb component and does not issue a follow-up breadcrumb request.
@@ -169,16 +185,18 @@ Public write failures use:
 
 - Legacy catalog/content/order tables remain canonical where already used. Runtime character data has been normalized to UTF-8; accepted importer recovery objects have been removed after restore verification.
 - New transactional/security/runtime state lives in additive InnoDB `web_admin_*` tables.
+- Article-category featured state lives in the 1:1 additive `web_admin_article_category_meta` helper keyed by the logical `idv_seller_news_category.id`; admin reads default missing metadata to `0`, while create/update/delete and the focused toggle reconcile it transactionally.
 - No code should assume a physical FK exists between legacy tables.
 - Search uses `product_data_search` plus the normalize function, insert/update triggers, and FK to products.
 - Customer, customer-favorite, voucher, product-promotion, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
 
-The active `it_tech_db` snapshot contains 289 physical tables: 161 InnoDB and 128 MyISAM after the additive customer-favorites migration on `2026-07-14`. It has no importer stage/restore/recovery tables and no Latin-1 tables or columns. Consumers must still use named table contracts rather than infer schema from totals. The live inventory is 788 product categories, 90 brands, 4,712 products/search rows, 4 article categories, 668 articles/content rows, and 705 article-category links. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified restore path.
+The active `it_tech_db` snapshot contains 292 physical tables: 164 InnoDB and 128 MyISAM after the additive article-category metadata and page-view migrations on `2026-07-16`. It has no importer stage/restore/recovery tables and no Latin-1 tables or columns. Consumers must still use named table contracts rather than infer schema from totals. The live inventory is 788 product categories, 90 brands, 4,712 products/search rows, 8 article categories (4 imported and 4 local), 668 articles/content rows, and 705 article-category links. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified restore path.
 
 ## Media security
 
 - Uploads are stored under `MEDIA_ROOT/ddMMyyyy/random-name.ext` and served through `/api/media/[...path]`.
 - Routes enforce size/extension/MIME/signature rules and ensure the resolved path stays under `MEDIA_ROOT`.
+- Shared admin rich-text image uploads use `POST /api/admin/editor-images/[scope]/upload`. The whitelisted scope selects the existing product/category/collection/article permission, and accepted JPEG/PNG/WebP/GIF files are stored under `MEDIA_ROOT/rich-text/<scope>/<ddMMyyyy>/<uuid>.<ext>` before TinyMCE receives a durable `/api/media/...` source URL.
 - Product image metadata synchronizes to legacy thumbnail/collection/count fields until all consumers migrate.
 
 ## Performance and release targets

@@ -53,7 +53,12 @@ async function loadProductsPayload(searchParams: URLSearchParams) {
   if (searchParams.toString().length > 2_048) return { success: false, message: 'Query string is too long', status: 414 };
   const categoryIdParam = searchParams.get('category_id');
   const categoryId = categoryIdParam ? Number(categoryIdParam) : null;
-  const featureScope = searchParams.get('feature_scope') === 'homepage' ? 'homepage' : 'category';
+  const requestedFeatureScope = searchParams.get('feature_scope');
+  const featureScope = requestedFeatureScope === 'homepage'
+    ? 'homepage'
+    : requestedFeatureScope === 'configured'
+      ? 'configured'
+      : 'category';
   const limit = Math.min(96, Math.max(1, parseInt(searchParams.get('limit') || '24', 10) || 24));
   const page = Math.min(1_000, Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1));
   const offset = (page - 1) * limit;

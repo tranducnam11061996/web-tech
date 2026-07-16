@@ -165,7 +165,7 @@ async function refreshCollectionProductCount(connection: PoolConnection, collect
   );
 }
 
-function collectionPayload(payload: Record<string, unknown>, existing?: RowDataPacket) {
+export function normalizeSpecialCollectionPayload(payload: Record<string, unknown>, existing?: RowDataPacket) {
   const name = requireText(payload.name, 'name', 'Ten bo suu tap', 100);
   const url = normalizeSlug(payload.url || payload.slug || name);
   if (!url) throw new AdminApiError(400, 'BAD_REQUEST', 'Link bo suu tap khong hop le', { url: 'invalid' });
@@ -176,7 +176,7 @@ function collectionPayload(payload: Record<string, unknown>, existing?: RowDataP
     ordering: toInt(payload.ordering, Number(existing?.ordering || 0)),
     homePage: String(toBoolInt(payload.homePage ?? payload.home_page, Number(existing?.home_page || 0))),
     status: toBoolInt(payload.status, Number(existing?.status || 0)),
-    iconUrl: maybeText(payload.iconUrl ?? payload.icon_url ?? name, 150),
+    iconUrl: maybeText(payload.iconUrl ?? payload.icon_url ?? existing?.icon_url ?? name, 150),
     description: maybeText(payload.description),
     metaTitle: maybeText(payload.metaTitle ?? payload.meta_title, 250),
     metaKeyword: maybeText(payload.metaKeyword ?? payload.meta_keyword, 250),
@@ -264,7 +264,7 @@ export async function getSpecialCollection(id: number) {
 export async function saveSpecialCollection(payload: Record<string, unknown>, id?: number) {
   return withCollectionCacheInvalidation(() => withTransaction(async (connection) => {
     const existing = id ? await assertCollectionExists(connection, id) : undefined;
-    const data = collectionPayload(payload, existing);
+    const data = normalizeSpecialCollectionPayload(payload, existing);
     await assertCollectionUrlUnique(connection, data.url, id || 0);
     await assertValidParent(connection, data.parentId, id || 0);
     const oldParentId = Number(existing?.parent_id || 0);

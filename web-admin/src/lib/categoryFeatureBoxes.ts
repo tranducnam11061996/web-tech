@@ -4,10 +4,11 @@ import { AdminApiError, maybeText, toBoolInt } from './admin/common';
 import { clearPublicProductResponseCache } from './publicProductCache';
 import { getProductCardBadgesForProductIds } from './productCardAttributes';
 import { resolveProductImageUrl } from './productImageUrl';
+import { loadEnabledPublicCategoryScope } from './publicCategoryScope';
 
 export type CategoryFeatureBoxPosition = 'left' | 'right';
 export type CategoryFeatureBoxRenderMode = 'image' | 'hybrid';
-export type CategoryFeatureBoxScope = 'homepage' | 'category';
+export type CategoryFeatureBoxScope = 'homepage' | 'category' | 'configured';
 
 export type CategoryFeatureBox = {
   categoryId: number;
@@ -23,6 +24,7 @@ export type CategoryFeatureBox = {
   ctaLabel: string;
   textColor: string;
   overlayColor: string;
+  containerBackgroundColor: string;
   buttonStyle: Record<string, unknown>;
   updatedAt: string | null;
 };
@@ -41,8 +43,10 @@ type FeatureBoxRow = RowDataPacket & {
   cta_label: string | null;
   text_color: string | null;
   overlay_color: string | null;
+  container_background_color?: string | null;
   button_style_json: string | null;
   updated_at: Date | string | null;
+  category_target_url?: string | null;
 };
 
 type HomepageSectionCacheEntry = {
@@ -106,6 +110,7 @@ export async function ensureCategoryFeatureBoxTable(db: PoolConnection | typeof 
       cta_label varchar(120) NOT NULL DEFAULT '',
       text_color varchar(16) NOT NULL DEFAULT '#ffffff',
       overlay_color varchar(16) NOT NULL DEFAULT '#07111f',
+      container_background_color varchar(16) NOT NULL DEFAULT '#0f0f14',
       button_style_json text NULL,
       updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (category_id),
@@ -113,6 +118,14 @@ export async function ensureCategoryFeatureBoxTable(db: PoolConnection | typeof 
       KEY idx_category_page_enabled (category_page_enabled)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  const [containerColorColumns] = await db.query<RowDataPacket[]>(
+    `SHOW COLUMNS FROM ${TABLE_NAME} LIKE 'container_background_color'`,
+  );
+  if (!containerColorColumns[0]) {
+    await db.query(
+      `ALTER TABLE ${TABLE_NAME} ADD COLUMN container_background_color varchar(16) NOT NULL DEFAULT '#0f0f14' AFTER overlay_color`,
+    );
+  }
   tableExistsCache = true;
 }
 
@@ -131,10 +144,25 @@ function normalizeRenderMode(value: unknown): CategoryFeatureBoxRenderMode {
   return String(value || '').trim() === 'hybrid' ? 'hybrid' : 'image';
 }
 
-function normalizeColor(value: unknown, fallback: string) {
+export function normalizeCategoryFeatureColor(value: unknown, fallback: string) {
   const raw = String(value || '').trim();
   const withHash = raw.startsWith('#') ? raw : `#${raw}`;
   return /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(withHash) ? withHash.toLowerCase() : fallback;
+}
+
+export function normalizeCategoryFeatureHeadline(value: unknown) {
+  const headline = String(value || '').replace(/\r\n?/g, '\n').trim();
+  if (headline.length > 255) {
+    throw new AdminApiError(400, 'BAD_REQUEST', 'Tieu de box dau tien vuot qua 255 ky tu', {
+      'featureBox.headline': 'max_length',
+    });
+  }
+  if (headline.split('\n').length > 2) {
+    throw new AdminApiError(400, 'BAD_REQUEST', 'Tieu de box dau tien chi duoc toi da 2 dong', {
+      'featureBox.headline': 'max_lines',
+    });
+  }
+  return headline;
 }
 
 function parseButtonStyle(value: unknown): Record<string, unknown> {
@@ -158,13 +186,17 @@ function normalizeTargetUrl(value: unknown) {
   return `/${text.replace(/^\/+/, '')}`;
 }
 
-function normalizeFeatureBoxInput(categoryId: number, value: unknown): CategoryFeatureBox {
+export function normalizeCategoryFeatureBoxInput(
+  categoryId: number,
+  value: unknown,
+  categoryTargetUrl: unknown,
+): CategoryFeatureBox {
   const input = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   const homepageEnabled = Boolean(toBoolInt(input.homepageEnabled ?? input.homepage_enabled, 0));
   const categoryPageEnabled = Boolean(toBoolInt(input.categoryPageEnabled ?? input.category_page_enabled, 0));
   const enabled = homepageEnabled || categoryPageEnabled;
   const backgroundImageUrl = maybeText(input.backgroundImageUrl ?? input.background_image_url, 512);
-  const targetUrl = normalizeTargetUrl(input.targetUrl ?? input.target_url);
+  const targetUrl = normalizeTargetUrl(categoryTargetUrl);
 
   if (enabled && !backgroundImageUrl) {
     throw new AdminApiError(400, 'BAD_REQUEST', 'Can chon anh background cho box dau tien', { 'featureBox.backgroundImageUrl': 'required' });
@@ -182,11 +214,15 @@ function normalizeFeatureBoxInput(categoryId: number, value: unknown): CategoryF
     backgroundImageUrl,
     mobileBackgroundImageUrl: maybeText(input.mobileBackgroundImageUrl ?? input.mobile_background_image_url, 512),
     targetUrl,
-    headline: maybeText(input.headline, 255),
+    headline: normalizeCategoryFeatureHeadline(input.headline),
     subheading: maybeText(input.subheading, 512),
     ctaLabel: maybeText(input.ctaLabel ?? input.cta_label, 120),
-    textColor: normalizeColor(input.textColor ?? input.text_color, '#ffffff'),
-    overlayColor: normalizeColor(input.overlayColor ?? input.overlay_color, '#07111f'),
+    textColor: normalizeCategoryFeatureColor(input.textColor ?? input.text_color, '#ffffff'),
+    overlayColor: normalizeCategoryFeatureColor(input.overlayColor ?? input.overlay_color, '#07111f'),
+    containerBackgroundColor: normalizeCategoryFeatureColor(
+      input.containerBackgroundColor ?? input.container_background_color,
+      '#0f0f14',
+    ),
     buttonStyle: parseButtonStyle(input.buttonStyle ?? input.button_style_json),
     updatedAt: null,
   };
@@ -201,19 +237,22 @@ function formatFeatureBox(row: FeatureBoxRow): CategoryFeatureBox {
     renderMode: normalizeRenderMode(row.render_mode),
     backgroundImageUrl: String(row.background_image_url || ''),
     mobileBackgroundImageUrl: String(row.mobile_background_image_url || ''),
-    targetUrl: String(row.target_url || ''),
-    headline: String(row.headline || ''),
+    targetUrl: normalizeTargetUrl(row.category_target_url),
+    headline: normalizeCategoryFeatureHeadline(row.headline),
     subheading: String(row.subheading || ''),
     ctaLabel: String(row.cta_label || ''),
-    textColor: normalizeColor(row.text_color, '#ffffff'),
-    overlayColor: normalizeColor(row.overlay_color, '#07111f'),
+    textColor: normalizeCategoryFeatureColor(row.text_color, '#ffffff'),
+    overlayColor: normalizeCategoryFeatureColor(row.overlay_color, '#07111f'),
+    containerBackgroundColor: normalizeCategoryFeatureColor(row.container_background_color, '#0f0f14'),
     buttonStyle: parseButtonStyle(row.button_style_json),
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
 }
 
-function publicScopeEnabled(featureBox: CategoryFeatureBox, scope: CategoryFeatureBoxScope) {
-  return scope === 'homepage' ? featureBox.homepageEnabled : featureBox.categoryPageEnabled;
+export function isCategoryFeatureBoxEnabledForScope(featureBox: CategoryFeatureBox, scope: CategoryFeatureBoxScope) {
+  if (scope === 'homepage') return featureBox.homepageEnabled;
+  if (scope === 'category') return featureBox.categoryPageEnabled;
+  return featureBox.homepageEnabled || featureBox.categoryPageEnabled;
 }
 
 export function invalidateCategoryFeatureBoxCaches(categoryId?: number) {
@@ -238,14 +277,19 @@ export async function saveCategoryFeatureBox(categoryId: number, payload: unknow
   if (!(await categoryFeatureBoxTableExists(db))) {
     throw new AdminApiError(500, 'INTERNAL_ERROR', 'Chua co bang web_admin_category_feature_boxes. Hay chay admin:migrate truoc khi luu box dau tien.');
   }
-  const featureBox = normalizeFeatureBoxInput(categoryId, payload);
+  const [categoryRows] = await db.query<RowDataPacket[]>(
+    `SELECT COALESCE(NULLIF(request_path, ''), NULLIF(url, ''), CONCAT('/category?id=', id)) AS category_target_url
+     FROM idv_seller_category WHERE id = ? LIMIT 1`,
+    [categoryId],
+  );
+  const featureBox = normalizeCategoryFeatureBoxInput(categoryId, payload, categoryRows[0]?.category_target_url);
   await db.query(
     `
       INSERT INTO ${TABLE_NAME}
         (category_id, homepage_enabled, category_page_enabled, box_position, render_mode,
          background_image_url, mobile_background_image_url, target_url, headline, subheading,
-         cta_label, text_color, overlay_color, button_style_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         cta_label, text_color, overlay_color, container_background_color, button_style_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         homepage_enabled = VALUES(homepage_enabled),
         category_page_enabled = VALUES(category_page_enabled),
@@ -259,6 +303,7 @@ export async function saveCategoryFeatureBox(categoryId: number, payload: unknow
         cta_label = VALUES(cta_label),
         text_color = VALUES(text_color),
         overlay_color = VALUES(overlay_color),
+        container_background_color = VALUES(container_background_color),
         button_style_json = VALUES(button_style_json)
     `,
     [
@@ -275,6 +320,7 @@ export async function saveCategoryFeatureBox(categoryId: number, payload: unknow
       featureBox.ctaLabel,
       featureBox.textColor,
       featureBox.overlayColor,
+      featureBox.containerBackgroundColor,
       JSON.stringify(featureBox.buttonStyle || {}),
     ],
   );
@@ -284,7 +330,13 @@ export async function saveCategoryFeatureBox(categoryId: number, payload: unknow
 
 export async function getAdminCategoryFeatureBox(categoryId: number, db: PoolConnection | typeof pool = pool) {
   if (!categoryId || !(await categoryFeatureBoxTableExists(db))) return null;
-  const [rows] = await db.query<FeatureBoxRow[]>(`SELECT * FROM ${TABLE_NAME} WHERE category_id = ? LIMIT 1`, [categoryId]);
+  const [rows] = await db.query<FeatureBoxRow[]>(
+    `SELECT f.*, COALESCE(NULLIF(c.request_path, ''), NULLIF(c.url, ''), CONCAT('/category?id=', c.id)) AS category_target_url
+     FROM ${TABLE_NAME} f
+     JOIN idv_seller_category c ON c.id = f.category_id
+     WHERE f.category_id = ? LIMIT 1`,
+    [categoryId],
+  );
   return rows[0] ? formatFeatureBox(rows[0]) : null;
 }
 
@@ -296,10 +348,16 @@ export async function deleteCategoryFeatureBox(categoryId: number, db: PoolConne
 
 async function loadPublicCategoryFeatureBox(categoryId: number, scope: CategoryFeatureBoxScope) {
   if (!categoryId || !(await categoryFeatureBoxTableExists())) return null;
-  const [rows] = await pool.query<FeatureBoxRow[]>(`SELECT * FROM ${TABLE_NAME} WHERE category_id = ? LIMIT 1`, [categoryId]);
+  const [rows] = await pool.query<FeatureBoxRow[]>(
+    `SELECT f.*, COALESCE(NULLIF(c.request_path, ''), NULLIF(c.url, ''), CONCAT('/category?id=', c.id)) AS category_target_url
+     FROM ${TABLE_NAME} f
+     JOIN idv_seller_category c ON c.id = f.category_id
+     WHERE f.category_id = ? LIMIT 1`,
+    [categoryId],
+  );
   if (!rows[0]) return null;
   const featureBox = formatFeatureBox(rows[0]);
-  return publicScopeEnabled(featureBox, scope) ? featureBox : null;
+  return isCategoryFeatureBoxEnabledForScope(featureBox, scope) ? featureBox : null;
 }
 
 export async function getPublicCategoryFeatureBox(categoryId: number, scope: CategoryFeatureBoxScope = 'category') {
@@ -340,7 +398,9 @@ async function loadHomepageCategoryFeatureSections(limit: number, productLimit: 
 
   const [featureRows] = await pool.query<Array<FeatureBoxRow & { category_name: string | null; category_slug: string | null }>>(
     `
-      SELECT f.*, c.name AS category_name, COALESCE(NULLIF(c.request_path, ''), c.url) AS category_slug
+      SELECT f.*, c.name AS category_name,
+             COALESCE(NULLIF(c.request_path, ''), NULLIF(c.url, ''), CONCAT('/category?id=', c.id)) AS category_slug,
+             COALESCE(NULLIF(c.request_path, ''), NULLIF(c.url, ''), CONCAT('/category?id=', c.id)) AS category_target_url
       FROM ${TABLE_NAME} f
       JOIN idv_seller_category c ON c.id = f.category_id
       WHERE f.homepage_enabled = 1 AND c.status = 1
@@ -350,29 +410,33 @@ async function loadHomepageCategoryFeatureSections(limit: number, productLimit: 
     [limit],
   );
 
-  const sections: HomepageCategoryFeatureSection[] = [];
-  for (const row of featureRows) {
+  const sections = await Promise.all(featureRows.map(async (row): Promise<HomepageCategoryFeatureSection> => {
     const categoryId = Number(row.category_id || 0);
+    const categoryScope = await loadEnabledPublicCategoryScope(categoryId);
     const [productRows] = await pool.query<RowDataPacket[]>(
       `
         SELECT DISTINCT
           p.id, p.storeSKU, p.proName, p.proThum,
-          pr.price, pr.market_price,
+          pr.price, pr.market_price, pr.ordering AS displayOrdering,
           u.request_path AS slug,
           b.name AS brandName
         FROM idv_sell_product_store p
         JOIN idv_sell_product_price pr ON p.id = pr.id
-        JOIN idv_product_category pc ON pc.pro_id = p.id AND pc.category_id = ?
+        JOIN (
+          SELECT DISTINCT pro_id
+          FROM idv_product_category
+          WHERE category_id IN (?)
+        ) scoped_products ON scoped_products.pro_id = p.id
         LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
         LEFT JOIN idv_brand b ON p.brandId = b.id
         WHERE pr.isOn = 1
-        ORDER BY p.id DESC
+        ORDER BY pr.ordering DESC, p.id DESC
         LIMIT ?
       `,
-      [categoryId, productLimit],
+      [categoryScope, productLimit],
     );
     const badgesByProduct = await getProductCardBadgesForProductIds(productRows.map((product) => Number(product.id)));
-    sections.push({
+    return {
       category: {
         id: categoryId,
         name: String(row.category_name || ''),
@@ -391,15 +455,15 @@ async function loadHomepageCategoryFeatureSections(limit: number, productLimit: 
         brand: String(product.brandName || 'Khac'),
         cardBadges: badgesByProduct.get(Number(product.id)) || [],
       })),
-    });
-  }
+    };
+  }));
 
   return { sections, meta: { generatedAt: new Date().toISOString() } };
 }
 
 export async function getHomepageCategoryFeatureSections(limit = 3, productLimit = 9) {
   const normalizedLimit = Math.min(12, Math.max(1, Math.trunc(limit || 3)));
-  const normalizedProductLimit = Math.min(24, Math.max(1, Math.trunc(productLimit || 9)));
+  const normalizedProductLimit = Math.min(9, Math.max(1, Math.trunc(productLimit || 9)));
   const key = `${normalizedLimit}:${normalizedProductLimit}`;
   const now = Date.now();
   const cached = homepageSectionsCache.get(key);

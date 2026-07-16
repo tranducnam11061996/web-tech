@@ -11,6 +11,13 @@ import {
   saveCategoryFeatureBox,
 } from '@/lib/categoryFeatureBoxes';
 import {
+  ARTICLE_CATEGORY_METADATA_TABLE,
+  deleteArticleCategoryMetadata,
+  ensureArticleCategoryMetadataTable,
+  normalizeArticleCategoryFeatured,
+  saveArticleCategoryFeatured,
+} from '@/lib/articleCategoryMetadata';
+import {
   AdminApiError,
   AdminEntityType,
   allocateProductId,
@@ -873,6 +880,7 @@ async function saveCategory(options: {
   const { table, entityType, slugPrefix, payload } = options;
   let id = options.id;
   return withTransaction(async (connection) => {
+    const isNewCategory = !id;
     const name = requireText(payload.name, 'name', 'Ten danh muc', 255);
     const categoryId = id || 0;
     const parentId = toInt(payload.parentId);
@@ -898,6 +906,11 @@ async function saveCategory(options: {
     const categoryPriceRange = maybeText(payload.priceRange ?? payload.price_range, 150);
     const categoryStaticHtml = maybeText(payload.staticHtml ?? payload.static_html);
     const categoryIsFeatured = toBoolInt(payload.isFeatured ?? payload.is_featured, 0);
+    const articleFeaturedProvided = Object.prototype.hasOwnProperty.call(payload, 'isFeatured')
+      || Object.prototype.hasOwnProperty.call(payload, 'is_featured');
+    const articleCategoryIsFeatured = articleFeaturedProvided
+      ? normalizeArticleCategoryFeatured(payload.isFeatured ?? payload.is_featured)
+      : 0;
     const categoryDisplayOption = normalizeCategoryDisplayOption(payload.displayOption ?? payload.display_option);
     const articleCategoryDisplayOption = normalizeArticleCategoryDisplayOption(payload.displayOption ?? payload.display_option);
 
@@ -1018,6 +1031,9 @@ async function saveCategory(options: {
         slug,
       );
       await rebuildNewsCategoryCache(connection);
+      if (isNewCategory || articleFeaturedProvided) {
+        await saveArticleCategoryFeatured(Number(id), articleCategoryIsFeatured, connection);
+      }
     } else {
       await upsertUrl(connection, `${slugPrefix}${id}`, slug, 'product:category');
       await saveCategoryFeatureBox(Number(id), payload.featureBox, connection);
@@ -1123,6 +1139,7 @@ export async function deleteCategory(entityType: AdminEntityType, table: string,
       }
 
       await connection.query('DELETE FROM idv_article_category WHERE category_id = ?', [id]);
+      await deleteArticleCategoryMetadata(id, connection);
       await connection.query('DELETE FROM idv_url WHERE id_path IN (?, ?)', [`module:news/view:category/view_id:${id}`, `module:article/view:category/view_id:${id}`]);
       await connection.query(`DELETE FROM ${table} WHERE id = ?`, [id]);
       await connection.query('DELETE FROM web_admin_entity_registry WHERE entity_type = ? AND entity_id = ?', [entityType, id]);
@@ -1452,13 +1469,22 @@ export async function deleteBanner(id: number, mode: string) {
 
 export async function listArticleCategories() {
   const [rows] = await pool.query<RowDataPacket[]>(
-    'SELECT * FROM idv_seller_news_category ORDER BY parentId ASC, ordering DESC, id ASC',
+    `SELECT c.*, COALESCE(meta.is_featured, 0) AS is_featured
+     FROM idv_seller_news_category c
+     LEFT JOIN ${ARTICLE_CATEGORY_METADATA_TABLE} meta ON meta.category_id = c.id
+     ORDER BY c.parentId ASC, c.ordering DESC, c.id ASC`,
   );
   return rows;
 }
 
 export async function getArticleCategory(id: number) {
-  const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM idv_seller_news_category WHERE id = ?', [id]);
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `SELECT c.*, COALESCE(meta.is_featured, 0) AS is_featured
+     FROM idv_seller_news_category c
+     LEFT JOIN ${ARTICLE_CATEGORY_METADATA_TABLE} meta ON meta.category_id = c.id
+     WHERE c.id = ?`,
+    [id],
+  );
   if (!rows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay danh muc bai viet');
   return rows[0];
 }
@@ -1467,9 +1493,22 @@ export function saveArticleCategory(payload: Record<string, unknown>, id?: numbe
   return saveCategory({ table: 'idv_seller_news_category', entityType: 'article-category', slugPrefix: 'module:news/view:category/view_id:', payload, id });
 }
 
+export async function setArticleCategoryFeatured(id: number, value: unknown) {
+  return withTransaction(async (connection) => {
+    const [rows] = await connection.query<RowDataPacket[]>(
+      'SELECT id FROM idv_seller_news_category WHERE id = ? LIMIT 1 FOR UPDATE',
+      [id],
+    );
+    if (!rows[0]) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay danh muc bai viet');
+    const isFeatured = await saveArticleCategoryFeatured(id, value, connection);
+    return { id, isFeatured };
+  });
+}
+
 export async function runAdminMigration() {
   await ensureAdminAccessTables();
   await ensureAdminTables();
+  await ensureArticleCategoryMetadataTable();
   await ensureBuyingGuideTables();
   await ensureProductGroupIndexes();
   const { ensureHeaderMenuSeeded } = await import('@/lib/admin/menus');

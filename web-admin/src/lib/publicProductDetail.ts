@@ -40,13 +40,18 @@ export async function loadProductCorePayload(slug: string) {
 
   if (resolved.type === 'category') {
     const [rows] = await pool.query<any[]>(
-      'SELECT name, summary, img_big, meta_title, static_html FROM idv_seller_category WHERE id = ? AND status = 1 LIMIT 1',
+      `SELECT c.name,c.summary,c.img_big,c.meta_title,c.static_html,
+              COALESCE(pv.view_count,c.visit,0) AS visit
+       FROM idv_seller_category c
+       LEFT JOIN web_admin_page_view_totals pv
+         ON pv.entity_type='product_category' AND pv.entity_id=c.id
+       WHERE c.id=? AND c.status=1 LIMIT 1`,
       [resolved.entityId],
     );
     const category = rows[0];
     if (!category) return { success: false, message: 'Category not found', status: 404 };
     const [featureBox, categoryTrail] = await Promise.all([
-      getPublicCategoryFeatureBox(resolved.entityId, 'category'),
+      getPublicCategoryFeatureBox(resolved.entityId, 'configured'),
       getCategoryTrail('product', resolved.entityId),
     ]);
     return {
@@ -60,6 +65,7 @@ export async function loadProductCorePayload(slug: string) {
         imgBig: category.img_big || '',
         metaTitle: category.meta_title || '',
         staticHtml: category.static_html || '',
+        visit: Number(category.visit || 0),
         featureBox,
         categoryTrail,
         supplementalAvailable: true,
@@ -69,8 +75,10 @@ export async function loadProductCorePayload(slug: string) {
 
   const [productRows] = await pool.query<any[]>(`
     SELECT p.id, p.proName, p.storeSKU, p.warranty, p.image_collection, p.proSummary, p.product_cat,p.brandId,
+      COALESCE(pv.view_count,p.visit,0) AS visit,
       pr.price, pr.market_price, pr.isOn, b.name AS brandName,b.brand_index AS brandIndex, i.video_code, i.spec, i.description
     FROM idv_sell_product_store p
+    LEFT JOIN web_admin_page_view_totals pv ON pv.entity_type='product' AND pv.entity_id=p.id
     LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
     LEFT JOIN idv_brand b ON p.brandId = b.id
     LEFT JOIN idv_sell_product_info i ON p.id = i.id
@@ -114,6 +122,7 @@ export async function loadProductCorePayload(slug: string) {
       description: product.description || '',
       proSummary: product.proSummary || '',
       status: product.isOn === 1 ? 'active' : 'inactive',
+      visit: Number(product.visit || 0),
       type: 'product',
       categoryTrail,
       thumbnail: images[0],

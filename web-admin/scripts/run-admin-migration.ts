@@ -16,6 +16,8 @@ import { ensureComboIndexes } from '../src/lib/comboSets';
 import { ensureProductGroupIndexes, removeProductGroupValueVisualColumns } from '../src/lib/productGroups';
 import { ensureProductPromotionTables } from '../src/lib/productPromotions';
 import { ensureLegacyImportTables } from '../src/lib/legacyImport/tables';
+import { ensureArticleCategoryMetadataTable } from '../src/lib/articleCategoryMetadata';
+import { ensurePageViewInfrastructure } from '../src/lib/pageViews';
 
 async function main() {
   if (process.env.ADMIN_WRITE_ENABLED !== 'true') throw new Error('ADMIN_WRITE_ENABLED must be true to run admin migrations.');
@@ -26,6 +28,8 @@ async function main() {
   await ensureBannerMetaTable();
   await ensureProductCardAttributeRulesTable();
   await ensureCategoryFeatureBoxTable();
+  await ensureArticleCategoryMetadataTable();
+  await ensurePageViewInfrastructure();
   await ensureVoucherTables();
   await ensureStorefrontOrderTables();
   await ensureCustomerAccountTables();

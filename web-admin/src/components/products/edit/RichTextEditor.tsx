@@ -2,6 +2,11 @@
 
 import Script from 'next/script';
 import { useEffect, useRef, useId, useState, type MutableRefObject } from 'react';
+import type { RichTextImageScope } from '@/lib/admin/rich-text-image-scopes';
+
+const MAX_EDITOR_IMAGE_SIZE = 10 * 1024 * 1024;
+const EDITOR_IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const EDITOR_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 
 declare global {
   interface Window {
@@ -22,6 +27,7 @@ export function RichTextEditor({
   id,
   editorHandleRef,
   resizable = false,
+  imageUploadScope,
 }: { 
   title?: string; 
   defaultValue?: string; 
@@ -31,12 +37,15 @@ export function RichTextEditor({
   id?: string;
   editorHandleRef?: MutableRefObject<RichTextEditorHandle | null>;
   resizable?: boolean;
+  imageUploadScope: RichTextImageScope;
 }) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const tinyEditorRef = useRef<any>(null);
   const lastBookmarkRef = useRef<any>(null);
   const valueRef = useRef(value ?? defaultValue ?? '');
   const onChangeRef = useRef(onChange);
+  const imageUploadInProgressRef = useRef(false);
+  const imageUploadAbortRef = useRef<AbortController | null>(null);
   const reactId = useId();
   const editorId = id || `tinymce-${reactId.replace(/:/g, '')}`;
   const initialized = useRef(false);
@@ -146,6 +155,86 @@ export function RichTextEditor({
           'bold italic forecolor backcolor | link | alignleft aligncenter ' +
           'alignright alignjustify | bullist numlist outdent indent | ' +
           'removeformat | image media table | code fullscreen | help',
+        file_picker_types: 'image',
+        images_file_types: 'jpeg,jpg,png,webp,gif',
+        file_picker_callback: (callback: (url: string) => void, _value: string, meta: { filetype?: string }) => {
+          if (meta.filetype !== 'image') return;
+          const editor = tinyEditorRef.current;
+          if (!editor) return;
+          if (imageUploadInProgressRef.current) {
+            editor.notificationManager.open({
+              text: 'Một ảnh khác đang được tải lên. Vui lòng đợi trong giây lát.',
+              type: 'warning',
+            });
+            return;
+          }
+
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = EDITOR_IMAGE_ACCEPT;
+          input.setAttribute('aria-label', 'Chọn ảnh tải lên');
+          input.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            if (!EDITOR_IMAGE_MIME_TYPES.has(file.type.toLowerCase())) {
+              editor.notificationManager.open({
+                text: 'Chỉ hỗ trợ ảnh jpg, png, webp hoặc gif.',
+                type: 'error',
+              });
+              return;
+            }
+            if (file.size <= 0 || file.size > MAX_EDITOR_IMAGE_SIZE) {
+              editor.notificationManager.open({
+                text: file.size <= 0 ? 'File ảnh không có nội dung.' : 'Dung lượng ảnh tối đa là 10MB.',
+                type: 'error',
+              });
+              return;
+            }
+
+            imageUploadInProgressRef.current = true;
+            const abortController = new AbortController();
+            imageUploadAbortRef.current = abortController;
+            const uploadingNotification = editor.notificationManager.open({
+              text: 'Đang tải ảnh lên…',
+              type: 'info',
+              timeout: 0,
+              closeButton: false,
+            });
+
+            try {
+              const formData = new FormData();
+              formData.append('file', file);
+              const response = await fetch(`/api/admin/editor-images/${imageUploadScope}/upload`, {
+                method: 'POST',
+                body: formData,
+                signal: abortController.signal,
+              });
+              const payload = await response.json().catch(() => null);
+              if (!response.ok || !payload?.success) {
+                throw new Error(payload?.error?.message || 'Không thể tải ảnh lên');
+              }
+
+              const url = String(payload.data?.url || '').trim();
+              if (!url.startsWith('/api/media/')) {
+                throw new Error('Máy chủ trả về URL ảnh không hợp lệ');
+              }
+              callback(url);
+              editor.notificationManager.open({ text: 'Tải ảnh thành công.', type: 'success' });
+            } catch (error) {
+              if (!(error instanceof DOMException && error.name === 'AbortError')) {
+                editor.notificationManager.open({
+                  text: error instanceof Error ? error.message : 'Không thể tải ảnh lên',
+                  type: 'error',
+                });
+              }
+            } finally {
+              uploadingNotification.close();
+              if (imageUploadAbortRef.current === abortController) imageUploadAbortRef.current = null;
+              imageUploadInProgressRef.current = false;
+            }
+          }, { once: true });
+          input.click();
+        },
         setup: (editor: any) => {
           tinyEditorRef.current = editor;
           if (editorHandleRef) {
@@ -176,6 +265,9 @@ export function RichTextEditor({
 
     return () => {
       if (typeof window !== 'undefined' && window.tinymce && initialized.current) {
+        imageUploadAbortRef.current?.abort();
+        imageUploadAbortRef.current = null;
+        imageUploadInProgressRef.current = false;
         if (tinyEditorRef.current) window.tinymce.remove(tinyEditorRef.current);
         tinyEditorRef.current = null;
         lastBookmarkRef.current = null;
@@ -183,7 +275,7 @@ export function RichTextEditor({
         initialized.current = false;
       }
     };
-  }, [editorHandleRef, minHeight, resizable, scriptReady]);
+  }, [editorHandleRef, imageUploadScope, minHeight, resizable, scriptReady]);
 
   useEffect(() => {
     const editor = tinyEditorRef.current;

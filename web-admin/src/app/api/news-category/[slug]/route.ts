@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jsonWithEtag } from '@/lib/httpCache';
-import { loadPublicNewsCategory } from '@/lib/publicNews';
+import { loadPublicNewsCategory, parsePublicNewsSort } from '@/lib/publicNews';
 import { PublicRequestError, publicCorsHeaders, publicError } from '@/lib/publicRequest';
 
 const cache = 'public, max-age=0, s-maxage=60, stale-while-revalidate=300';
@@ -8,9 +8,11 @@ const cache = 'public, max-age=0, s-maxage=60, stale-while-revalidate=300';
 function query(request: NextRequest) {
   const page = Number(request.nextUrl.searchParams.get('page') || 1);
   const limit = Number(request.nextUrl.searchParams.get('limit') || 20);
+  const sort = parsePublicNewsSort(request.nextUrl.searchParams.get('sort'));
   if (!Number.isInteger(page) || page < 1 || page > 1_000) throw new PublicRequestError(400, 'INVALID_PAGE', 'Trang không hợp lệ.');
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new PublicRequestError(400, 'INVALID_LIMIT', 'Giới hạn không hợp lệ.');
-  return { page, limit };
+  if (!sort) throw new PublicRequestError(400, 'INVALID_SORT', 'Cách sắp xếp không hợp lệ.');
+  return { page, limit, sort };
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {

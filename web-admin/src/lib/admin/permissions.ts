@@ -1,3 +1,5 @@
+import { getRichTextImagePermissionFromPath } from './rich-text-image-scopes';
+
 export const ADMIN_ACTIONS = ['read', 'create', 'update', 'delete', 'publish', 'execute'] as const;
 
 export const ADMIN_RESOURCES = [
@@ -163,6 +165,9 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
   if (pathname.includes('/api/admin/storefront-orders')) return `sales.orders.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/storefront-customers')) return `crm.customers.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/menus/') && pathname.endsWith('/publish')) return 'content.menus.publish';
+  if (pathname.startsWith('/api/admin/editor-images/')) {
+    return method === 'POST' ? getRichTextImagePermissionFromPath(pathname) : null;
+  }
 
   const resource = pathname.includes('/api/admin/article-categories') ? 'content.article_categories'
     : pathname.includes('/api/admin/articles') ? 'content.articles'

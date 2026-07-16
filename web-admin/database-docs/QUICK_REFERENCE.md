@@ -1,6 +1,6 @@
 # Database Quick Reference
 
-Verified: `2026-07-15`
+Verified: `2026-07-16`
 Active database: `it_tech_db`; retained legacy source: `hanoi23_db`
 
 ## Core Product Read Model
@@ -259,7 +259,8 @@ Feature table:
 web_admin_category_feature_boxes(
   category_id, homepage_enabled, category_page_enabled, box_position,
   render_mode, background_image_url, mobile_background_image_url, target_url,
-  headline, subheading, cta_label, text_color, overlay_color, button_style_json
+  headline, subheading, cta_label, text_color, overlay_color,
+  container_background_color, button_style_json
 )
 ```
 
@@ -270,6 +271,8 @@ Public access:
 - `/api/products/[slug]`: category payload includes `featureBox`.
 - `/api/products?category_id=...`: response includes `layoutMeta.featureBox`.
 - `/api/categories/homepage-feature-sections`: homepage category sections with feature boxes and products.
+
+Homepage sections use the enabled root plus all enabled descendants, deduplicate product membership, filter `idv_sell_product_price.isOn = 1`, order by `ordering DESC, product.id DESC`, and return at most nine cards. Public/admin `targetUrl` is derived from the category route; the physical `target_url` and hidden `category_page_enabled` columns remain only for compatibility.
 
 ## Admin Helper Tables
 

@@ -27,8 +27,11 @@ export default async function ArticleListPage({
       pool.query(`
         SELECT 
           id, title, request_path, url, createDate, createBy, 
-          visit, lastUpdate, lastUpdateByUser, status, thumnail
-        FROM idv_seller_news 
+          COALESCE(pv.view_count,n.visit,0) AS visit,
+          lastUpdate, lastUpdateByUser, status, thumnail
+        FROM idv_seller_news n
+        LEFT JOIN web_admin_page_view_totals pv
+          ON pv.entity_type='article' AND pv.entity_id=n.id
         ORDER BY createDate DESC 
         LIMIT ? OFFSET ?
       `, [limit, offset]),

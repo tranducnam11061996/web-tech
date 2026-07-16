@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Edit, Trash2, ArrowUpDown, ChevronRight, ChevronDown, Bookmark } from 'lucide-react';
+import { Edit, Trash2, ArrowUpDown, ChevronRight, ChevronDown, Bookmark, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
@@ -14,6 +14,7 @@ export type ArticleCategoryNode = {
   displayType: string;
   url: string;
   order: number;
+  isFeatured: boolean;
   isActive: boolean;
   children?: ArticleCategoryNode[];
 };
@@ -29,6 +30,9 @@ export function ArticleCategoryTable({ initialData }: Props) {
   });
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [featuredBusyRows, setFeaturedBusyRows] = useState<Record<string, boolean>>({});
+  const [featuredOverrides, setFeaturedOverrides] = useState<Record<string, boolean>>({});
+  const [featuredErrors, setFeaturedErrors] = useState<Record<string, string>>({});
   const [pendingDeleteCategory, setPendingDeleteCategory] = useState<ArticleCategoryNode | null>(null);
   const [deleteError, setDeleteError] = useState('');
 
@@ -60,9 +64,43 @@ export function ArticleCategoryTable({ initialData }: Props) {
     }
   };
 
+  const toggleFeatured = async (row: ArticleCategoryNode, currentValue: boolean) => {
+    setFeaturedBusyRows((current) => ({ ...current, [row.id]: true }));
+    setFeaturedErrors((current) => ({ ...current, [row.id]: '' }));
+    try {
+      const response = await fetch(`/api/admin/article-categories/${row.id}/featured`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFeatured: currentValue ? 0 : 1 }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.success) {
+        throw new Error(payload?.error?.message || 'Không thể cập nhật trạng thái nổi bật');
+      }
+      setFeaturedOverrides((current) => ({
+        ...current,
+        [row.id]: Number(payload.data?.isFeatured ?? (currentValue ? 0 : 1)) === 1,
+      }));
+    } catch (error: any) {
+      setFeaturedErrors((current) => ({
+        ...current,
+        [row.id]: error.message || 'Không thể cập nhật trạng thái nổi bật',
+      }));
+    } finally {
+      setFeaturedBusyRows((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
+    }
+  };
+
   const renderRow = (row: ArticleCategoryNode, isChild = false) => {
     const isExpanded = expandedRows[row.id];
     const hasChildren = row.children && row.children.length > 0;
+    const isFeatured = Object.prototype.hasOwnProperty.call(featuredOverrides, row.id)
+      ? featuredOverrides[row.id]
+      : row.isFeatured;
     
     return (
       <React.Fragment key={row.id}>
@@ -97,6 +135,30 @@ export function ArticleCategoryTable({ initialData }: Props) {
             <a href={`http://localhost:3001/tin-tuc/${row.url}`} className="text-blue-500 hover:text-blue-400 hover:underline cursor-pointer text-sm" target="_blank" rel="noopener noreferrer">Xem trang bài viết</a>
           </td>
           <td className="p-3 text-center font-mono text-gray-300 border-b border-gray-800/50 w-24">{row.order}</td>
+          <td className="p-3 text-center border-b border-gray-800/50 w-32">
+            <div className="flex flex-col items-center gap-1">
+              <button
+                type="button"
+                onClick={() => toggleFeatured(row, isFeatured)}
+                disabled={Boolean(featuredBusyRows[row.id])}
+                aria-pressed={isFeatured}
+                aria-label={`${isFeatured ? 'Bỏ nổi bật' : 'Đánh dấu nổi bật'} danh mục ${row.name}`}
+                className={`inline-flex min-w-20 items-center justify-center gap-1.5 rounded px-2 py-1 text-xs font-semibold transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                  isFeatured
+                    ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-gray-200'
+                }`}
+              >
+                <Star className={`h-3.5 w-3.5 ${isFeatured ? 'fill-current' : ''}`} aria-hidden="true" />
+                {featuredBusyRows[row.id] ? 'Đang lưu...' : isFeatured ? 'Nổi bật' : 'Không'}
+              </button>
+              {featuredErrors[row.id] && (
+                <span className="max-w-36 text-[10px] leading-4 text-red-300" role="alert">
+                  {featuredErrors[row.id]}
+                </span>
+              )}
+            </div>
+          </td>
           <td className="p-3 text-center border-b border-gray-800/50 w-40">
             <div className="flex items-center justify-center gap-2">
               <button className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${row.isActive ? 'bg-blue-500' : 'bg-gray-600'}`}>
@@ -139,7 +201,7 @@ export function ArticleCategoryTable({ initialData }: Props) {
   return (
     <div className="glass-panel border-gray-800 rounded-lg shadow-sm overflow-hidden text-sm relative z-10 flex flex-col h-full bg-[#0a0a0f]/60">
       <div className="overflow-x-auto custom-scrollbar flex-1">
-        <table className="w-full text-left border-collapse min-w-[1200px]">
+        <table className="w-full text-left border-collapse min-w-[1320px]">
           <thead>
             <tr className="bg-gray-950/80 border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wider font-mono sticky top-0 z-20">
               <th className="p-3 font-bold w-12 text-center">
@@ -176,6 +238,7 @@ export function ArticleCategoryTable({ initialData }: Props) {
                   Thứ tự <ArrowUpDown className="w-3 h-3 text-gray-600" />
                 </div>
               </th>
+              <th className="p-3 font-bold text-center w-32">Nổi bật</th>
               <th className="p-3 font-bold text-center w-40">
                 <div className="flex items-center justify-center gap-1 cursor-pointer hover:text-blue-400 transition-colors">
                   Trạng thái <ArrowUpDown className="w-3 h-3 text-gray-600" />
@@ -189,7 +252,7 @@ export function ArticleCategoryTable({ initialData }: Props) {
               initialData.map(row => renderRow(row))
             ) : (
               <tr>
-                <td colSpan={10} className="p-8 text-center text-gray-500">
+                <td colSpan={11} className="p-8 text-center text-gray-500">
                   Không có dữ liệu danh mục bài viết.
                 </td>
               </tr>

@@ -8,6 +8,7 @@ interface ProgressiveImageProps extends React.ImgHTMLAttributes<HTMLImageElement
   fallbackText?: string;
   className?: string;
   disableLoadingEffects?: boolean;
+  hideOnError?: boolean;
 }
 
 const placeholderCache = new Map<string, string>();
@@ -31,6 +32,7 @@ export default function ProgressiveImage({
   fallbackText = "TrucTiepGAME",
   className = "",
   disableLoadingEffects = false,
+  hideOnError = false,
   loading = "lazy",
   decoding = "async",
   onLoad,
@@ -43,12 +45,13 @@ export default function ProgressiveImage({
   const [imageState, setImageState] = useState(() => ({
     src: resolvedSrc,
     loaded: false,
+    failed: false,
   }));
 
   useEffect(() => {
     setImageState((current) => {
       if (current.src === resolvedSrc) return current;
-      return { src: resolvedSrc, loaded: false };
+      return { src: resolvedSrc, loaded: false, failed: false };
     });
   }, [resolvedSrc]);
 
@@ -60,13 +63,16 @@ export default function ProgressiveImage({
     const loadedSuccessfully = image.naturalWidth > 0;
     setImageState((current) => {
       if (current.src !== settledSrc) return current;
+      if (!loadedSuccessfully && hideOnError) return { ...current, loaded: true, failed: true };
       if (!loadedSuccessfully && current.src !== placeholder) {
-        return { src: placeholder, loaded: false };
+        return { src: placeholder, loaded: false, failed: false };
       }
       if (current.loaded) return current;
       return { ...current, loaded: true };
     });
-  }, [imageState.src, placeholder]);
+  }, [hideOnError, imageState.src, placeholder]);
+
+  if (imageState.failed) return null;
 
   return (
     <img
@@ -80,7 +86,7 @@ export default function ProgressiveImage({
         const loadedSrc = imageState.src;
         setImageState((current) => {
           if (current.src !== loadedSrc || current.loaded) return current;
-          return { ...current, loaded: true };
+          return { ...current, loaded: true, failed: false };
         });
         onLoad?.(event);
       }}
@@ -88,7 +94,8 @@ export default function ProgressiveImage({
         const failedSrc = event.currentTarget.getAttribute("src") || imageState.src;
         setImageState((current) => {
           if (current.src !== failedSrc) return current;
-          if (current.src !== placeholder) return { src: placeholder, loaded: false };
+          if (hideOnError) return { ...current, loaded: true, failed: true };
+          if (current.src !== placeholder) return { src: placeholder, loaded: false, failed: false };
           if (current.loaded) return current;
           return { ...current, loaded: true };
         });

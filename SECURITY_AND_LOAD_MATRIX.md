@@ -1,6 +1,6 @@
 # Security and Load Coverage Matrix
 
-Last updated: `2026-07-15`
+Last updated: `2026-07-16`
 
 Status meanings: **Implemented** is present in code and locally checked; **Partial** needs route/form coverage or staging evidence; **Not verified** exists as a plan/script but has not passed the target environment gate.
 
@@ -9,6 +9,7 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Public catalog/menu/banner/homepage/search reads | Bounded query/page/filter/cache keys | Public read | ETag, cache, single-flight | N/A | Implemented |
 | Product core/supplemental reads | Bounded slug/include; compatibility default remains full | Public read | ETag, byte-bounded SWR, negative TTL, cross-worker invalidation | N/A | Implemented locally |
 | Web Vitals telemetry | Strict 2 KB batch and five known metrics; no PII fields | Storefront origin | 5% session sampling; operational signal is untrusted | N/A | Implemented locally |
+| `POST /api/page-views` | Strict 512-byte `{eventId,path}`; server resolves one of four public entity types | Required storefront origin, exact same-origin referrer and fetch metadata | Atomic IP 300/min + IP/path 120/min; trusted proxy must overwrite forwarded IP | UUID v4 idempotency; no CAPTCHA | Implemented locally; 150-RPS staging gate pending |
 | `POST /api/cart/quote` | Canonical cart schema, 50 items, qty 1–99 | Storefront origin | IP rate limit | No CAPTCHA by default | Implemented |
 | `POST /api/orders` | Canonical bounded order schema | Storefront origin; optional customer session | IP + phone buckets, honeypot | `order_submit`; required `Idempotency-Key` | Implemented |
 | `POST /api/combo-cart/quote` | Canonical set/revision/group/product/qty schema; server prices only | Storefront origin | IP rate limit | No CAPTCHA | Implemented locally |
@@ -18,6 +19,7 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Customer profile/address/password | Canonical schemas on hardened routes | Customer session + origin/ownership | Customer/IP route buckets | Step-up only when anomalous | Implemented |
 | Admin login | Bounded schema | Same-origin entry | IP + account throttling | Risk-based CAPTCHA | Implemented |
 | Admin write APIs | Route payload checks vary by legacy module | Admin session, RBAC, write gate, audit | Session/account controls | No post-login CAPTCHA | Partial: shared auth exists; finish field-schema audit |
+| Article-category featured toggle | Exact category ID and strict `isFeatured: 0|1`; row lock and focused update | Same-origin admin session, `content.article_categories.update`, write gate, audit | Session/account controls | N/A | Implemented locally |
 | Product-group admin/detail | 4 attributes, 50 values/attribute, 50 products; ownership/config validation | Admin session/RBAC/write gate; public detail read | Transaction locks, unique product assignment, bounded cached read | N/A | Implemented locally |
 | Image uploads | Size, extension, MIME, binary signature, path containment | Admin session/RBAC/write gate | Request/body limits | N/A | Implemented on audited upload routes |
 | Search webhook | Raw-body bound | HMAC secret | Timestamp window + one-use nonce | Signature required | Implemented |
@@ -33,7 +35,7 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Order consistency | Single transaction, voucher row lock, bulk items, idempotency replay | Concurrent staging load |
 | Email | Transactional outbox with worker retry/backoff | SMTP failure/recovery staging test |
 | Cache coherence | Worker-local cache plus DB version invalidation | Two-worker mutation test under load |
-| Runtime metrics | Token-protected route with safe route/cache/process/outbox metrics | Connect staging collector and retain the full k6 run |
+| Runtime metrics | Token-protected route with safe route/cache/process/outbox/page-view backlog metrics | Connect staging collector and retain the full k6 run |
 | Webhook replay | HMAC SHA-256, ±5 minute timestamp, nonce table | Production secret rotation procedure |
 | Reverse proxy | Caddy compression, body limits, timeouts, CSP/HSTS/security headers | Production TLS/domain validation |
 
@@ -49,4 +51,4 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Web UX | LCP p75 <2.5 s, INP <200 ms, CLS <0.1 | Production-like measurement pending |
 | JS budget | Product detail <=205 KB; commerce <=170 KB referenced route JS | Current build: product 236.8 KB, cart 175.5 KB, checkout 190.8 KB, combo-cart 167.7 KB, combo-checkout 187.4 KB. Only combo-cart passes the strict release target |
 
-Run the maintained `npm.cmd run load:k6:read`, `load:k6:commerce`, and `load:k6:abuse` commands only against an approved isolated staging host. Preserve every result bundle and treat any failed threshold as a release blocker. `scripts/load-1500-users.js` is a historical helper, not the canonical release command.
+Run the maintained `npm.cmd run load:k6:read`, `load:k6:commerce`, `load:k6:abuse`, and `load:k6:page-views` commands only against an approved isolated staging host. The 150-RPS page-view capacity scenario must distribute trusted source IPs or explicitly raise the staging-only page-view limits; keep the default limits for the separate abuse scenario. Preserve every result bundle and treat any failed threshold as a release blocker. `scripts/load-1500-users.js` is a historical helper, not the canonical release command.

@@ -20,7 +20,7 @@ export default function CategoryFeatureProductGrid({
 
   if (isLoading) {
     return (
-      <div className="col-span-1 flex flex-col items-center justify-center py-32 text-center sm:col-span-2 xl:col-span-4">
+      <div className="col-span-1 flex flex-col items-center justify-center py-32 text-center sm:col-span-2 lg:col-span-3 xl:col-span-6">
         <div className="mb-4 h-10 w-10 animate-spin rounded-full border-b-2 border-emerald-500"></div>
         <p className="animate-pulse text-sm font-medium text-gray-400">Dang tai san pham...</p>
       </div>
@@ -39,8 +39,8 @@ export default function CategoryFeatureProductGrid({
     );
   }
 
-  const leadingProducts = position === "right" ? products.slice(0, 2) : [];
-  const trailingProducts = position === "right" ? products.slice(2) : products;
+  const leadingProducts = position === "right" ? products.slice(0, 3) : [];
+  const trailingProducts = position === "right" ? products.slice(3) : products;
 
   return (
     <>
@@ -49,7 +49,7 @@ export default function CategoryFeatureProductGrid({
       ))}
       <CategoryFeatureBox
         featureBox={featureBox}
-        className="order-first col-span-1 sm:col-span-2 xl:order-none xl:min-h-full"
+        className="order-first col-span-1 sm:col-span-2 lg:col-span-3 xl:order-none xl:col-span-3 xl:min-h-full"
       />
       {trailingProducts.map((product) => (
         <ProductGridCard key={product.id} product={product} />

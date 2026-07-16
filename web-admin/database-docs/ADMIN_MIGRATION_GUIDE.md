@@ -1,6 +1,6 @@
 # Admin and Search Migration Guide
 
-Last verified: `2026-07-15`
+Last verified: `2026-07-16`
 
 Read this before any schema-changing command. The configured local database has received the latest additive admin migration; no other environment should be assumed migrated.
 
@@ -32,6 +32,12 @@ The product-group migration ran twice successfully against local `hanoi23_db` on
 The 285-table count (157 InnoDB and 128 MyISAM) was the empty `it_tech_db` pre-import baseline and also reflects the additive migration set present during cutover. Buying-guide and product-promotion migrations had previously completed twice against identified `hanoi23_db` to prove idempotency. Product-promotion fixtures were removed after verifying UTF-8 tables, relation FKs/indexes, mixed-scope resolution, and cascade deletion.
 
 Active accepted `it_tech_db` has 289 physical tables (161 InnoDB and 128 MyISAM): the 288-table lean post-import schema plus the additive customer-favorites table. It contains 788 categories, 90 brands, 4,712 products, and 4,712 search rows, with no importer recovery/stage/restore tables and no Latin-1/utf8mb3 columns. These totals are verification evidence, not permission to migrate an unidentified target.
+
+### Category-feature container-color migration
+
+On `2026-07-16`, the configured database was read-only identified as `it_tech_db`, then captured to the restore-verified bundle `it_tech_db-pre-category-feature-container-color-2026-07-16T03-15-43-439Z.json` (SHA-256 `e7232e66509adda20ec6ebd91ab58700c2eded8b7d8f548454aab57c42f4b970`; 289 tables, 84,254 rows, one routine, two triggers). With `ADMIN_WRITE_ENABLED=true` scoped only to each command, `admin:migrate` ran twice successfully and added `web_admin_category_feature_boxes.container_background_color varchar(16) NOT NULL DEFAULT '#0f0f14'`. The write gate was then unset and the existing `category_page_enabled`/`target_url` values were verified unchanged.
+
+Rollback starts by deploying application code that does not read/write the new column. Only after that compatibility step, and only with a fresh backup and confirmed no dependent deployment, may an operator drop this additive column. Do not remove `category_page_enabled` or `target_url` as part of this rollback.
 
 - Admin sequence/entity registry, access/RBAC/audit infrastructure.
 - Product images, managed menus, banner metadata, product-card rules, and category feature boxes.

@@ -1,10 +1,12 @@
 # Database Export, Restore, and Machine Transfer
 
-Last verified: `2026-07-15`
+Last verified: `2026-07-16`
 
 This runbook transfers the complete active `it_tech_db` database to another machine. It preserves table definitions/data, mixed InnoDB/MyISAM engines, collations, the search routine, triggers, and import audit. Accepted runs 2-8 no longer have in-database recovery tables; their recovery boundary is the verified external artifacts below. `hanoi23_db` is out of scope and must remain untouched.
 
 ## Current finalization artifacts
+
+The pre-page-view rollback boundary is `D:\web-tech\tmp\db-backups\it_tech_db-pre-page-view-tracking-2026-07-16T13-01-41-728Z.json` with SHA-256 `b2bfd6c86c21e89d326081e44b403049768244b624ae8f97acaae564674701de`. Its disposable restore matched 290 tables, 84,299 rows, 1 routine and 2 triggers before the additive two-table migration ran twice.
 
 | Stage | Bundle / SHA-256 | Verified inventory |
 |---|---|---|
@@ -14,10 +16,11 @@ This runbook transfers the complete active `it_tech_db` database to another mach
 | Pre-category-route repair | `it_tech_db-pre-catalog-route-repair-2026-07-13T17-26-35-738Z.json` / `e47e523256f7eaa94156ee81007ecc8b75d9bea0fba41779d88431cae52dab21` | 288 tables / 84,049 rows; retained clone passed route apply/rollback/re-apply, index and API checks |
 | Post-category-route repair | `it_tech_db-post-catalog-route-repair-2026-07-13T17-35-18-760Z.json` / `4d7c52495957b1072627c5c9bbf7326b08fee6e595b43ace37f93f3f991472ef` | 288 tables / 84,049 rows / 1 routine / 2 triggers; disposable restore verified after live cutover |
 | Pre-customer-favorites | `it_tech_db-pre-customer-favorites-2026-07-14T09-41-52-044Z.json` / `c04b1515f44b0a0e4c7b4161ac08059fdda37fa84b1ea8a86cc677f63da2d852` | 288 tables / 84,049 rows / 1 routine / 2 triggers; clone passed two idempotent favorites migrations plus DDL/index/FK/EXPLAIN and functional checks |
+| Pre-category-feature container color | `it_tech_db-pre-category-feature-container-color-2026-07-16T03-15-43-439Z.json` / `e7232e66509adda20ec6ebd91ab58700c2eded8b7d8f548454aab57c42f4b970` | 289 tables / 84,254 rows / 1 routine / 2 triggers; disposable restore verified before the additive color-column migration ran twice |
 
 All files live under `D:\web-tech\tmp\db-backups` and are ignored by Git. Protect at least the latest post-category-route repair, pre-customer-favorites, final lean, and post-run-8/pre-cleanup bundles in approved encrypted storage. The logical backup tool writes a `.sha256` file and a `.manifest.json` whose restore result and database-bound hash are checked by guarded cleanup/repair commands.
 
-The current accepted database is one additive table newer than the latest documented post-route full artifact: `web_admin_customer_favorites` brings it to 289 tables. Before moving machines, generate a fresh consistent export of the current database and restore-verify it; do not assume the pre-favorites artifact contains current schema/data.
+The current accepted database has 292 tables. Before moving machines, generate a fresh post-migration consistent export and restore-verify it; the pre-page-view artifact above is the latest rollback boundary and intentionally lacks the two page-view tables.
 
 ## Verified local artifact
 
@@ -156,6 +159,8 @@ SELECT
 ```
 
 Expected for the current accepted post-favorites database: `289 / 161 / 128` total/InnoDB/MyISAM tables, 1 routine, 2 triggers, and critical counts `788 / 90 / 4712 / 4712`. Require `web_admin_customer_favorites`, compare import runs 1–8, non-null acceptance/rollback-closure/cleanup fields for runs 2–8, zero recovery/stage/restore tables, zero Latin-1/utf8mb3 columns, 4 article categories, 668 articles/content rows, 705 unique category links, 668 article routes/maps, 669 run-7 records, zero article-menu references, PCM 2,276 total/849 enabled products, admin login/RBAC/menu counts, and application readiness. Older archive sections retain their own documented pre-run expectations and may correctly have fewer tables/rows.
+
+The paragraph above is retained as the historical post-favorites expectation. The superseding post-page-view expectation is `292 / 164 / 128` total/InnoDB/MyISAM tables with both `web_admin_page_view_events` and `web_admin_page_view_totals`, plus 6,176 canonical entity rows before retained runtime events. Current article-category count is 8.
 
 Then run both applications' required typecheck/lint/test/build matrix and `npm.cmd run local:healthcheck`. Only switch DNS/proxy/traffic after database and application checks pass.
 

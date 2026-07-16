@@ -38,6 +38,7 @@ export function TabDescription({
           minHeight="440px"
           defaultValue={description}
           onChange={(value) => onChange?.('description', value)}
+          imageUploadScope="products"
           resizable
         />
       </div>

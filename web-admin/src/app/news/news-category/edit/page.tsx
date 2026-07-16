@@ -172,6 +172,7 @@ function ArticleCategoryEditInner() {
     parentId: '0',
     displayOption: 'article',
     status: '1',
+    isFeatured: '0',
     ordering: '0',
     summary: '',
     description: '',
@@ -204,6 +205,7 @@ function ArticleCategoryEditInner() {
           parentId: String(row.parentId ?? 0),
           displayOption: DISPLAY_OPTIONS.some((option) => option.value === row.display_option) ? row.display_option : 'article',
           status: String(row.status ?? 1),
+          isFeatured: String(row.is_featured ?? 0),
           ordering: String(row.ordering ?? 0),
           summary: row.summary || '',
           description: row.description || '',
@@ -462,12 +464,19 @@ function ArticleCategoryEditInner() {
             </label>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <label className={labelClass}>
               <span>Trạng thái</span>
               <select value={form.status} onChange={update('status')} className={controlClass}>
                 <option value="1">Hoạt động</option>
                 <option value="0">Không hoạt động</option>
+              </select>
+            </label>
+            <label className={labelClass}>
+              <span>Nổi bật</span>
+              <select value={form.isFeatured} onChange={update('isFeatured')} className={controlClass}>
+                <option value="0">Không</option>
+                <option value="1">Nổi bật</option>
               </select>
             </label>
             <label className={labelClass}>
@@ -488,6 +497,7 @@ function ArticleCategoryEditInner() {
               value={form.description}
               onChange={(value) => setForm((current) => ({ ...current, description: value }))}
               minHeight="300px"
+              imageUploadScope="article-categories"
               resizable
             />
             <div className="mt-2 text-xs font-bold text-gray-400">Số kí tự: {wordCount(form.description)} từ</div>

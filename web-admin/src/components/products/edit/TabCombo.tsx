@@ -243,6 +243,7 @@ export function TabCombo({
         minHeight="240px"
         value={form?.specialOffer || ''}
         onChange={(value) => onChange?.('specialOffer', value)}
+        imageUploadScope="products"
         resizable
       />
 

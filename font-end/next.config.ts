@@ -4,7 +4,7 @@ const isDevelopment = process.env.NODE_ENV === "development";
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""} https://www.google.com https://www.gstatic.com`,
-  "frame-src https://www.google.com",
+  "frame-src https://www.google.com https://www.youtube-nocookie.com",
   "connect-src 'self' https://www.google.com",
   "img-src 'self' data: blob: https:",
   "style-src 'self' 'unsafe-inline'",

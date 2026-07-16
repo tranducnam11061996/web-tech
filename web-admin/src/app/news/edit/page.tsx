@@ -478,7 +478,7 @@ function ArticleEditInner() {
               </div>
             </aside>
             <div className="min-w-0 overflow-hidden">
-              <RichTextEditor id="article-content-editor" value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} minHeight="360px" editorHandleRef={contentEditorRef} resizable />
+              <RichTextEditor id="article-content-editor" value={form.content} onChange={(value) => setForm((current) => ({ ...current, content: value }))} minHeight="360px" editorHandleRef={contentEditorRef} imageUploadScope="articles" resizable />
               <p className="mt-2 text-right text-xs text-gray-500">Số từ: {wordCount(form.content)}</p>
             </div>
           </div>

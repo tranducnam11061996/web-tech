@@ -237,9 +237,12 @@ export async function getProductsByIds(ids: number[]): Promise<PublicProductCard
 
 async function loadNewsCorpus(): Promise<NewsCorpus> {
   const [rows] = await pool.query<NewsRow[]>(
-    `SELECT id, title, url, thumnail, summary, createDate, visit
-     FROM idv_seller_news
-     WHERE status = 1 AND type = 'article' AND url <> ''`,
+    `SELECT n.id,n.title,n.url,n.thumnail,n.summary,n.createDate,
+            COALESCE(pv.view_count,n.visit,0) AS visit
+     FROM idv_seller_news n
+     LEFT JOIN web_admin_page_view_totals pv
+       ON pv.entity_type='article' AND pv.entity_id=n.id
+     WHERE n.status=1 AND n.type='article' AND n.url<>''`,
   );
   const rankedRows: RankedNewsRow[] = rows.map((row) => {
     const normalizedTitle = normalizeRecommendationText(row.title);

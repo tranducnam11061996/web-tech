@@ -30,12 +30,12 @@ type CategoryFeatureBoxForm = {
   renderMode: 'image' | 'hybrid';
   backgroundImageUrl: string;
   mobileBackgroundImageUrl: string;
-  targetUrl: string;
   headline: string;
   subheading: string;
   ctaLabel: string;
   textColor: string;
   overlayColor: string;
+  containerBackgroundColor: string;
   buttonStyle: {
     backgroundColor: string;
     textColor: string;
@@ -59,12 +59,12 @@ const DEFAULT_FEATURE_BOX: CategoryFeatureBoxForm = {
   renderMode: 'hybrid',
   backgroundImageUrl: '',
   mobileBackgroundImageUrl: '',
-  targetUrl: '',
   headline: 'Gói nâng cấp nổi bật',
   subheading: '',
   ctaLabel: 'Xem ngay',
   textColor: '#ffffff',
   overlayColor: '#07111f',
+  containerBackgroundColor: '#0f0f14',
   buttonStyle: {
     backgroundColor: '#ffffff',
     textColor: '#0f172a',
@@ -110,12 +110,12 @@ function normalizeFeatureBoxForForm(value: any): CategoryFeatureBoxForm {
     renderMode: value.renderMode === 'image' ? 'image' : 'hybrid',
     backgroundImageUrl: String(value.backgroundImageUrl || ''),
     mobileBackgroundImageUrl: String(value.mobileBackgroundImageUrl || ''),
-    targetUrl: String(value.targetUrl || ''),
     headline: String(value.headline || DEFAULT_FEATURE_BOX.headline),
     subheading: String(value.subheading || ''),
     ctaLabel: String(value.ctaLabel || DEFAULT_FEATURE_BOX.ctaLabel),
     textColor: String(value.textColor || DEFAULT_FEATURE_BOX.textColor),
     overlayColor: String(value.overlayColor || DEFAULT_FEATURE_BOX.overlayColor),
+    containerBackgroundColor: String(value.containerBackgroundColor || DEFAULT_FEATURE_BOX.containerBackgroundColor),
     buttonStyle: {
       backgroundColor: String(buttonStyle.backgroundColor || DEFAULT_FEATURE_BOX.buttonStyle.backgroundColor),
       textColor: String(buttonStyle.textColor || DEFAULT_FEATURE_BOX.buttonStyle.textColor),
@@ -494,6 +494,30 @@ function CategoryEditInner() {
     const previewUrl = buildCategoryImagePreviewUrl(feature.backgroundImageUrl);
     const buttonBackground = feature.buttonStyle.backgroundColor || '#ffffff';
     const buttonTextColor = feature.buttonStyle.textColor || '#0f172a';
+    const contentOnRight = feature.boxPosition === 'left';
+    const featurePreview = (
+      <div
+        className="relative col-span-3 flex min-h-52 overflow-hidden rounded-xl border border-white/10 bg-slate-900"
+        style={{ backgroundColor: feature.overlayColor }}
+      >
+        {previewUrl && <img src={previewUrl} alt="Xem trước box đầu tiên" className="absolute inset-0 h-full w-full object-cover opacity-65" />}
+        <div className={`absolute inset-0 ${contentOnRight ? 'bg-gradient-to-l' : 'bg-gradient-to-r'} from-black/60 via-black/20 to-transparent`} />
+        {feature.renderMode === 'hybrid' && (
+          <div
+            className={`relative z-10 flex max-w-[62%] flex-col justify-center p-5 ${contentOnRight ? 'ml-auto items-end text-right' : 'mr-auto items-start text-left'}`}
+            style={{ color: feature.textColor }}
+          >
+            {feature.subheading && <span className="mb-2 text-xs font-semibold opacity-80">{feature.subheading}</span>}
+            <strong className="whitespace-pre-line text-2xl font-black uppercase leading-none">
+              {feature.headline || 'Gói nâng cấp nổi bật'}
+            </strong>
+            <span className="mt-4 w-fit rounded-md px-3 py-2 text-[11px] font-black uppercase tracking-wide" style={{ backgroundColor: buttonBackground, color: buttonTextColor }}>
+              {feature.ctaLabel || 'Xem ngay'} →
+            </span>
+          </div>
+        )}
+      </div>
+    );
 
     return (
       <div className="rounded-2xl border border-cyan-400/20 bg-[#090d16] p-4 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
@@ -503,50 +527,19 @@ function CategoryEditInner() {
             Box {feature.boxPosition === 'left' ? 'bên trái' : 'bên phải'}
           </span>
         </div>
-        <div className={`grid gap-3 ${feature.boxPosition === 'left' ? 'grid-cols-[1.35fr_0.7fr_0.7fr]' : 'grid-cols-[0.7fr_0.7fr_1.35fr]'}`}>
-          {feature.boxPosition === 'left' && (
-            <div
-              className="relative col-span-1 flex min-h-52 overflow-hidden rounded-xl border border-white/10 bg-slate-900"
-              style={{ backgroundColor: feature.overlayColor }}
-            >
-              {previewUrl && <img src={previewUrl} alt="Xem trước box đầu tiên" className="absolute inset-0 h-full w-full object-cover opacity-65" />}
-              <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent" />
-              {feature.renderMode === 'hybrid' && (
-                <div className="relative z-10 flex max-w-[60%] flex-col justify-center p-5" style={{ color: feature.textColor }}>
-                  <strong className="text-2xl font-black uppercase leading-none">{feature.headline || 'Gói nâng cấp nổi bật'}</strong>
-                  {feature.subheading && <span className="mt-2 text-xs font-semibold opacity-80">{feature.subheading}</span>}
-                  <span className="mt-4 w-fit rounded-md px-3 py-2 text-[11px] font-black uppercase tracking-wide" style={{ backgroundColor: buttonBackground, color: buttonTextColor }}>
-                    {feature.ctaLabel || 'Xem ngay'} →
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
-          {[0, 1].map((item) => (
-            <div key={item} className="min-h-52 rounded-xl border border-gray-800 bg-[#17171b] p-3">
+        <div
+          className="grid grid-cols-6 gap-3 rounded-xl p-3"
+          style={{ backgroundColor: feature.containerBackgroundColor }}
+        >
+          {feature.boxPosition === 'left' && featurePreview}
+          {[0, 1, 2].map((item) => (
+            <div key={item} className="col-span-1 min-h-52 rounded-xl border border-gray-800 bg-[#17171b] p-3">
               <div className="mb-3 h-28 rounded-lg border border-dashed border-gray-700 bg-gray-900/80" />
               <div className="h-3 w-2/3 rounded bg-gray-700" />
               <div className="mt-3 h-4 w-1/3 rounded bg-orange-500/80" />
             </div>
           ))}
-          {feature.boxPosition === 'right' && (
-            <div
-              className="relative col-span-1 flex min-h-52 overflow-hidden rounded-xl border border-white/10 bg-slate-900"
-              style={{ backgroundColor: feature.overlayColor }}
-            >
-              {previewUrl && <img src={previewUrl} alt="Xem trước box đầu tiên" className="absolute inset-0 h-full w-full object-cover opacity-65" />}
-              <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/20 to-transparent" />
-              {feature.renderMode === 'hybrid' && (
-                <div className="relative z-10 flex max-w-[60%] flex-col justify-center p-5" style={{ color: feature.textColor }}>
-                  <strong className="text-2xl font-black uppercase leading-none">{feature.headline || 'Gói nâng cấp nổi bật'}</strong>
-                  {feature.subheading && <span className="mt-2 text-xs font-semibold opacity-80">{feature.subheading}</span>}
-                  <span className="mt-4 w-fit rounded-md px-3 py-2 text-[11px] font-black uppercase tracking-wide" style={{ backgroundColor: buttonBackground, color: buttonTextColor }}>
-                    {feature.ctaLabel || 'Xem ngay'} →
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+          {feature.boxPosition === 'right' && featurePreview}
         </div>
       </div>
     );
@@ -558,16 +551,26 @@ function CategoryEditInner() {
     setError('');
     try {
       const featureEnabled = form.featureBox.homepageEnabled === '1' || form.featureBox.categoryPageEnabled === '1';
+      const normalizedHeadline = form.featureBox.headline.replace(/\r\n?/g, '\n').trim();
       if (featureEnabled && !form.featureBox.backgroundImageUrl.trim()) {
         throw new Error('Cần chọn ảnh background cho box đầu tiên');
       }
-      if (featureEnabled && !form.featureBox.targetUrl.trim()) {
-        throw new Error('Cần nhập URL đích cho box đầu tiên');
+      if (normalizedHeadline.length > 255) {
+        throw new Error('Tiêu đề box đầu tiên không được vượt quá 255 ký tự');
+      }
+      if (normalizedHeadline.split('\n').length > 2) {
+        throw new Error('Tiêu đề box đầu tiên chỉ được tối đa 2 dòng');
+      }
+      if (!/^#[0-9a-f]{6}$/i.test(form.featureBox.containerBackgroundColor.trim())) {
+        throw new Error('Màu nền toàn bộ khối phải có định dạng #RRGGBB');
       }
       const response = await fetch(id ? `/api/admin/product-categories/${id}` : '/api/admin/product-categories', {
         method: id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          featureBox: { ...form.featureBox, headline: normalizedHeadline },
+        }),
       });
       const payload = await response.json();
       if (!response.ok || !payload.success) throw new Error(payload?.error?.message || 'Không thể lưu danh mục');
@@ -741,6 +744,7 @@ function CategoryEditInner() {
             value={form.summary}
             onChange={updateRichText('summary')}
             minHeight="320px"
+            imageUploadScope="product-categories"
             resizable
           />
           <div className="text-xs font-bold text-gray-400">Số kí tự: {form.summary.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length} từ</div>
@@ -750,6 +754,7 @@ function CategoryEditInner() {
             value={form.staticHtml}
             onChange={updateRichText('staticHtml')}
             minHeight="320px"
+            imageUploadScope="product-categories"
             resizable
           />
         </div>
@@ -760,45 +765,41 @@ function CategoryEditInner() {
               <p className="text-xs font-black uppercase tracking-[0.28em] text-cyan-300">Bố cục trang chủ và danh mục</p>
               <h2 className="mt-2 text-xl font-black text-white">Box đầu tiên trên trang</h2>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-400">
-                Cấu hình ô nổi bật dùng chung cho trang chủ và phần đầu trang danh mục. Liên kết luôn mở trong tab mới ở storefront.
+                URL đích tự động dùng URL của danh mục. Trạng thái hiển thị cũ trên trang danh mục được giữ nguyên và liên kết mở trong tab mới ở storefront.
               </p>
             </div>
-            <div className="flex gap-2 rounded-full border border-gray-800 bg-black/25 p-1">
-              <button
-                type="button"
-                onClick={() => setForm((current) => ({ ...current, featureBox: { ...current.featureBox, boxPosition: 'left' } }))}
-                className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide transition ${form.featureBox.boxPosition === 'left' ? 'bg-cyan-400 text-slate-950' : 'text-gray-400 hover:text-white'}`}
-              >
-                Bên trái
-              </button>
-              <button
-                type="button"
-                onClick={() => setForm((current) => ({ ...current, featureBox: { ...current.featureBox, boxPosition: 'right' } }))}
-                className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide transition ${form.featureBox.boxPosition === 'right' ? 'bg-cyan-400 text-slate-950' : 'text-gray-400 hover:text-white'}`}
-              >
-                Bên phải
-              </button>
+            <div>
+              <p className="mb-2 text-center text-[11px] font-bold uppercase tracking-wide text-gray-500">Vị trí box ảnh</p>
+              <div className="flex gap-2 rounded-full border border-gray-800 bg-black/25 p-1">
+                <button
+                  type="button"
+                  aria-pressed={form.featureBox.boxPosition === 'left'}
+                  onClick={() => setForm((current) => ({ ...current, featureBox: { ...current.featureBox, boxPosition: 'left' } }))}
+                  className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide transition ${form.featureBox.boxPosition === 'left' ? 'bg-cyan-400 text-slate-950' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Bên trái
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={form.featureBox.boxPosition === 'right'}
+                  onClick={() => setForm((current) => ({ ...current, featureBox: { ...current.featureBox, boxPosition: 'right' } }))}
+                  className={`rounded-full px-4 py-2 text-xs font-black uppercase tracking-wide transition ${form.featureBox.boxPosition === 'right' ? 'bg-cyan-400 text-slate-950' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Bên phải
+                </button>
+              </div>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.05fr)]">
             <div className="space-y-5">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="rounded-xl border border-gray-800 bg-black/20 p-4">
-                  <span className="text-sm font-bold text-gray-200">Hiển thị ở trang chủ</span>
-                  <select value={form.featureBox.homepageEnabled} onChange={updateFeatureBox('homepageEnabled')} className="mt-3 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60">
-                    <option value="0">Tắt</option>
-                    <option value="1">Bật</option>
-                  </select>
-                </label>
-                <label className="rounded-xl border border-gray-800 bg-black/20 p-4">
-                  <span className="text-sm font-bold text-gray-200">Hiển thị ở trang danh mục</span>
-                  <select value={form.featureBox.categoryPageEnabled} onChange={updateFeatureBox('categoryPageEnabled')} className="mt-3 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60">
-                    <option value="0">Tắt</option>
-                    <option value="1">Bật</option>
-                  </select>
-                </label>
-              </div>
+              <label className="block rounded-xl border border-gray-800 bg-black/20 p-4">
+                <span className="text-sm font-bold text-gray-200">Hiển thị ở trang chủ</span>
+                <select value={form.featureBox.homepageEnabled} onChange={updateFeatureBox('homepageEnabled')} className="mt-3 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60">
+                  <option value="0">Tắt</option>
+                  <option value="1">Bật</option>
+                </select>
+              </label>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="block text-sm font-bold text-gray-200">
@@ -809,8 +810,23 @@ function CategoryEditInner() {
                   </select>
                 </label>
                 <label className="block text-sm font-bold text-gray-200">
-                  URL đích
-                  <input value={form.featureBox.targetUrl} onChange={updateFeatureBox('targetUrl')} placeholder="/khuyen-mai hoặc https://..." className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60" />
+                  Màu nền toàn bộ khối
+                  <span className="mt-2 flex h-11 overflow-hidden rounded-lg border border-gray-700 bg-gray-950 focus-within:border-cyan-400/60">
+                    <input
+                      type="color"
+                      aria-label="Chọn màu nền toàn bộ khối"
+                      value={/^#[0-9a-f]{6}$/i.test(form.featureBox.containerBackgroundColor) ? form.featureBox.containerBackgroundColor : '#0f0f14'}
+                      onChange={updateFeatureBox('containerBackgroundColor')}
+                      className="h-full w-14 shrink-0 border-0 bg-transparent p-1"
+                    />
+                    <input
+                      value={form.featureBox.containerBackgroundColor}
+                      onChange={updateFeatureBox('containerBackgroundColor')}
+                      placeholder="#0f0f14"
+                      spellCheck={false}
+                      className="min-w-0 flex-1 border-l border-gray-700 bg-transparent px-3 font-mono text-sm font-normal uppercase text-gray-100 outline-none"
+                    />
+                  </span>
                 </label>
               </div>
 
@@ -822,7 +838,18 @@ function CategoryEditInner() {
               <div className={`grid grid-cols-1 gap-3 ${form.featureBox.renderMode === 'hybrid' ? '' : 'opacity-45'}`}>
                 <label className="block text-sm font-bold text-gray-200">
                   Tiêu đề
-                  <input value={form.featureBox.headline} onChange={updateFeatureBox('headline')} disabled={form.featureBox.renderMode !== 'hybrid'} className="mt-2 h-11 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 text-sm text-gray-100 outline-none focus:border-cyan-400/60 disabled:cursor-not-allowed" />
+                  <textarea
+                    rows={2}
+                    maxLength={255}
+                    value={form.featureBox.headline}
+                    onChange={updateFeatureBox('headline')}
+                    disabled={form.featureBox.renderMode !== 'hybrid'}
+                    aria-describedby="feature-box-headline-help"
+                    className="mt-2 w-full resize-y rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-100 outline-none focus:border-cyan-400/60 disabled:cursor-not-allowed"
+                  />
+                  <span id="feature-box-headline-help" className="mt-1 block text-xs font-normal text-gray-500">
+                    Nhấn Enter để chia tiêu đề thành tối đa 2 dòng · {form.featureBox.headline.length}/255 ký tự
+                  </span>
                 </label>
                 <label className="block text-sm font-bold text-gray-200">
                   Mô tả phụ

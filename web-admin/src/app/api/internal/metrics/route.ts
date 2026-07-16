@@ -4,6 +4,7 @@ import type { RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { getPublicProductCacheStats } from '@/lib/publicProductCache';
 import { getRuntimeMetricsSnapshot } from '@/lib/runtimeMetrics';
+import { loadPageViewQueueMetrics } from '@/lib/pageViews';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,11 +19,15 @@ function authorized(request: NextRequest) {
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ success: false }, { status: 404 });
   const dbStartedAt = performance.now();
-  const [rows] = await pool.query<RowDataPacket[]>(`SELECT
-    SUM(status='pending') pending,
-    SUM(status='processing') processing,
-    SUM(status='failed') failed
-    FROM web_admin_email_outbox`);
+  const [outboxResult, pageViews] = await Promise.all([
+    pool.query<RowDataPacket[]>(`SELECT
+      SUM(status='pending') pending,
+      SUM(status='processing') processing,
+      SUM(status='failed') failed
+      FROM web_admin_email_outbox`),
+    loadPageViewQueueMetrics(),
+  ]);
+  const rows = outboxResult[0];
   return NextResponse.json({
     success: true,
     generatedAt: new Date().toISOString(),
@@ -35,6 +40,7 @@ export async function GET(request: NextRequest) {
         processing: Number(rows[0]?.processing || 0),
         failed: Number(rows[0]?.failed || 0),
       },
+      pageViews,
     },
   }, { headers: { 'Cache-Control': 'no-store' } });
 }

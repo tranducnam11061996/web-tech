@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chuyên mục: Công nghệ - Tech PC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{dark:'#0f0f11','dark-lighter':'#16161a','dark-border':'#27272a'}}}}
+</script>
+</head>
+<body class="font-['Inter',system-ui,sans-serif] bg-[#0a0a0c] text-white overflow-x-hidden [&::-webkit-scrollbar]:w-[5px] [&::-webkit-scrollbar-track]:bg-[#0a0a0c] [&::-webkit-scrollbar-thumb]:bg-[#27272a] [&::-webkit-scrollbar-thumb]:rounded-[10px]">
+
+<div class="max-w-[1400px] mx-auto px-4 py-8 space-y-10">
+  
+  <!-- BREADCRUMB -->
+  <nav class="flex text-[13px] text-gray-400 gap-2 items-center overflow-hidden">
+    <a href="#" class="hover:text-blue-500 transition flex items-center gap-1 shrink-0 whitespace-nowrap">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+      Trang chủ
+    </a>
+    <span class="text-gray-600 shrink-0">/</span>
+    <a href="#" class="hover:text-blue-500 transition shrink-0 whitespace-nowrap">Tin tức</a>
+    <span class="text-gray-600 shrink-0">/</span>
+    <span class="text-white font-bold truncate min-w-0">Công nghệ</span>
+  </nav>
+
+  <!-- CATEGORY HEADER -->
+  <div class="flex flex-col md:flex-row md:items-end justify-between border-b border-[#1a1a1e] pb-6 gap-4">
+    <div>
+      <h1 class="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-tight mb-2">CÔNG NGHỆ</h1>
+      <p class="text-gray-400 text-sm md:text-base max-w-2xl">Cập nhật xu hướng công nghệ mới nhất, đánh giá phần cứng chuyên sâu và phân tích thị trường chuẩn xác.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-gray-500 uppercase font-bold">Chia sẻ:</span>
+      <button class="w-8 h-8 rounded-full bg-[#111115] border border-[#1a1a1e] flex items-center justify-center text-gray-400 hover:text-white hover:border-blue-500 transition"><svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg></button>
+      <button class="w-8 h-8 rounded-full bg-[#111115] border border-[#1a1a1e] flex items-center justify-center text-gray-400 hover:text-white hover:border-blue-500 transition"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg></button>
+    </div>
+  </div>
+
+  <!-- BENTO BOX: LATEST / FEATURED -->
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 h-auto lg:h-[450px]">
+    <!-- Big Featured -->
+    <div class="lg:col-span-2 relative overflow-hidden rounded-[16px] group cursor-pointer min-h-[300px] lg:min-h-0 h-full border border-[#1a1a1e] hover:border-blue-500/50 transition-colors">
+      <div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105 bg-gradient-to-br from-blue-900 to-indigo-900"></div>
+      <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/60 to-transparent flex flex-col justify-end p-6 md:p-8">
+        <span class="bg-blue-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-full uppercase w-fit mb-4 shadow-[0_0_15px_rgba(37,99,235,0.5)] tracking-wide">Tiêu điểm</span>
+        <h2 class="text-2xl md:text-3xl font-black text-white leading-tight mb-3 group-hover:text-blue-400 transition-colors">Apple chuẩn bị ra mắt MacBook Neo viền siêu mỏng cùng chip M6 siêu việt</h2>
+        <p class="text-gray-300 text-sm line-clamp-2 mb-4 hidden md:block">Mẫu MacBook mới sở hữu thiết kế viền siêu mỏng, màn hình OLED gập và bộ vi xử lý cực kỳ mạnh mẽ, đánh dấu bước ngoặt lớn trong ngành công nghiệp PC...</p>
+        <div class="flex items-center gap-4 text-[12px] text-gray-400">
+          <span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 text-blue-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg><span class="font-bold text-gray-200">Hải Nam</span></span>
+          <span class="flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>2 giờ trước</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Small 1 -->
+    <div class="lg:col-span-1 relative overflow-hidden rounded-[16px] group cursor-pointer min-h-[250px] lg:min-h-0 h-full border border-[#1a1a1e] hover:border-red-500/50 transition-colors">
+      <div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105 bg-gradient-to-br from-red-900 to-orange-900"></div>
+      <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/50 to-transparent flex flex-col justify-end p-6">
+        <span class="bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase w-fit mb-3">Hot</span>
+        <h3 class="text-lg font-bold text-white leading-snug mb-3 group-hover:text-red-400 transition-colors">Sức mạnh hủy diệt của NVIDIA RTX 5090 trong bài test 4K</h3>
+        <div class="flex items-center gap-3 text-[11px] text-gray-400">
+          <span class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 text-red-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>Đức Nguyễn</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Small 2 -->
+    <div class="lg:col-span-1 relative overflow-hidden rounded-[16px] group cursor-pointer min-h-[250px] lg:min-h-0 h-full border border-[#1a1a1e] hover:border-green-500/50 transition-colors">
+      <div class="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105 bg-gradient-to-br from-green-900 to-emerald-900"></div>
+      <div class="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/50 to-transparent flex flex-col justify-end p-6">
+        <span class="bg-green-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase w-fit mb-3">Phân Tích</span>
+        <h3 class="text-lg font-bold text-white leading-snug mb-3 group-hover:text-green-400 transition-colors">Top 5 công cụ AI thay đổi cách chúng ta làm việc năm 2026</h3>
+        <div class="flex items-center gap-3 text-[11px] text-gray-400">
+          <span class="flex items-center gap-1"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3 text-green-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>Nhật Vy</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN LIST & SIDEBAR -->
+  <div class="flex flex-col lg:flex-row gap-8">
+    
+    <!-- LEFT: Article Grid (70%) -->
+    <div class="lg:w-[70%] space-y-6">
+      
+      <!-- Filter / Sort Header -->
+      <div class="flex items-center justify-between bg-[#111115] border border-[#1a1a1e] p-3 rounded-xl sticky top-4 z-10 shadow-lg">
+        <div class="flex gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide pb-1 sm:pb-0">
+          <button class="px-4 py-1.5 text-[13px] font-bold rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 transition shadow-inner">Tất cả</button>
+          <button class="px-4 py-1.5 text-[13px] font-medium rounded-lg text-gray-400 hover:text-white hover:bg-[#1a1a1e] transition border border-transparent">Phần cứng</button>
+          <button class="px-4 py-1.5 text-[13px] font-medium rounded-lg text-gray-400 hover:text-white hover:bg-[#1a1a1e] transition border border-transparent">Phần mềm</button>
+          <button class="px-4 py-1.5 text-[13px] font-medium rounded-lg text-gray-400 hover:text-white hover:bg-[#1a1a1e] transition border border-transparent">Thủ thuật</button>
+        </div>
+        <div class="hidden md:flex items-center gap-2 text-[13px] text-gray-400 px-2 border-l border-[#27272a]">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" /></svg>
+          Sắp xếp: 
+          <select class="bg-transparent text-white font-bold outline-none cursor-pointer">
+            <option class="bg-[#111115]">Mới nhất</option>
+            <option class="bg-[#111115]">Xem nhiều</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Grid of Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Standard Card 1 -->
+        <div class="bg-[#111115] border border-[#1a1a1e] rounded-[12px] overflow-hidden group cursor-pointer hover:border-blue-500/50 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col">
+          <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-purple-900 to-indigo-900">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300"></div>
+            <span class="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">PC/Laptop</span>
+          </div>
+          <div class="p-5 flex flex-col flex-1">
+            <h4 class="text-[16px] font-bold text-white mb-2 group-hover:text-blue-400 transition-colors leading-snug">Radeon RX 9070 GRE mở bán: Cạnh tranh RTX 5070 với giá cực tốt</h4>
+            <p class="text-[13px] text-gray-400 line-clamp-2 mb-4 flex-1">AMD vừa chính thức tung ra phiên bản GRE cho dòng card 9070, mang lại hiệu năng ấn tượng ở độ phân giải 2K với mức giá được đánh giá là rẻ hơn so với đối thủ...</p>
+            <div class="flex items-center justify-between border-t border-[#1a1a1e] pt-4 mt-auto">
+              <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                <span class="text-[12px] font-medium text-gray-300">Hoàng Bách</span>
+              </div>
+              <span class="text-[11px] text-gray-500">12/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Standard Card 2 -->
+        <div class="bg-[#111115] border border-[#1a1a1e] rounded-[12px] overflow-hidden group cursor-pointer hover:border-blue-500/50 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col">
+          <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-teal-900 to-teal-800">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300"></div>
+            <span class="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">Tư Vấn</span>
+          </div>
+          <div class="p-5 flex flex-col flex-1">
+            <h4 class="text-[16px] font-bold text-white mb-2 group-hover:text-blue-400 transition-colors leading-snug">Top 10 laptop cho sinh viên tự động hóa tốt nhất 2026</h4>
+            <p class="text-[13px] text-gray-400 line-clamp-2 mb-4 flex-1">Lựa chọn laptop phù hợp cho ngành tự động hóa yêu cầu cấu hình mạnh mẽ để chạy các phần mềm mô phỏng, lập trình nặng...</p>
+            <div class="flex items-center justify-between border-t border-[#1a1a1e] pt-4 mt-auto">
+              <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                <span class="text-[12px] font-medium text-gray-300">Nguyễn Thư</span>
+              </div>
+              <span class="text-[11px] text-gray-500">11/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Standard Card 3 -->
+        <div class="bg-[#111115] border border-[#1a1a1e] rounded-[12px] overflow-hidden group cursor-pointer hover:border-blue-500/50 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col">
+          <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-gray-700 to-gray-800">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300"></div>
+            <span class="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">Đánh Giá</span>
+          </div>
+          <div class="p-5 flex flex-col flex-1">
+            <h4 class="text-[16px] font-bold text-white mb-2 group-hover:text-blue-400 transition-colors leading-snug">Đánh giá hiệu năng ASUS VivoBook Go 14: Liệu laptop 8GB RAM có còn đủ?</h4>
+            <p class="text-[13px] text-gray-400 line-clamp-2 mb-4 flex-1">Trong năm 2026, khi các ứng dụng văn phòng ngày càng nặng, liệu một chiếc laptop sở hữu 8GB RAM có còn đáp ứng được nhu cầu cơ bản?</p>
+            <div class="flex items-center justify-between border-t border-[#1a1a1e] pt-4 mt-auto">
+              <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                <span class="text-[12px] font-medium text-gray-300">Hải Trần</span>
+              </div>
+              <span class="text-[11px] text-gray-500">10/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Standard Card 4 -->
+        <div class="bg-[#111115] border border-[#1a1a1e] rounded-[12px] overflow-hidden group cursor-pointer hover:border-blue-500/50 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col">
+          <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-yellow-900 to-orange-800">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300"></div>
+            <span class="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">Sự Kiện</span>
+          </div>
+          <div class="p-5 flex flex-col flex-1">
+            <h4 class="text-[16px] font-bold text-white mb-2 group-hover:text-blue-400 transition-colors leading-snug">HP giới thiệu loạt Laptop và PC AI mới tại COMPUTEX 2026</h4>
+            <p class="text-[13px] text-gray-400 line-clamp-2 mb-4 flex-1">Sự kiện Computex năm nay chứng kiến sự bùng nổ của HP với dải sản phẩm hoàn toàn mới tập trung mạnh vào các tính năng trí tuệ nhân tạo độc quyền...</p>
+            <div class="flex items-center justify-between border-t border-[#1a1a1e] pt-4 mt-auto">
+              <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                <span class="text-[12px] font-medium text-gray-300">Hải Nam</span>
+              </div>
+              <span class="text-[11px] text-gray-500">09/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Standard Card 5 -->
+        <div class="bg-[#111115] border border-[#1a1a1e] rounded-[12px] overflow-hidden group cursor-pointer hover:border-blue-500/50 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col">
+          <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-blue-900 to-blue-800">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300"></div>
+            <span class="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">Tin tức</span>
+          </div>
+          <div class="p-5 flex flex-col flex-1">
+            <h4 class="text-[16px] font-bold text-white mb-2 group-hover:text-blue-400 transition-colors leading-snug">Theo Silicon Motion: Thị trường SSD bán lẻ "gần như biến mất" vì khan hiếm</h4>
+            <p class="text-[13px] text-gray-400 line-clamp-2 mb-4 flex-1">Sự thiếu hụt nguồn cung bộ nhớ NAND Flash đã đẩy giá SSD lên cao kỷ lục, khiến thị trường nâng cấp lẻ gặp khủng hoảng nghiêm trọng.</p>
+            <div class="flex items-center justify-between border-t border-[#1a1a1e] pt-4 mt-auto">
+              <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                <span class="text-[12px] font-medium text-gray-300">Nhật Vy</span>
+              </div>
+              <span class="text-[11px] text-gray-500">08/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Standard Card 6 -->
+        <div class="bg-[#111115] border border-[#1a1a1e] rounded-[12px] overflow-hidden group cursor-pointer hover:border-blue-500/50 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 flex flex-col">
+          <div class="aspect-video relative overflow-hidden bg-gradient-to-br from-green-900 to-green-800">
+            <div class="absolute inset-0 bg-black/10 group-hover:bg-transparent transition duration-300"></div>
+            <span class="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">Tin tức</span>
+          </div>
+          <div class="p-5 flex flex-col flex-1">
+            <h4 class="text-[16px] font-bold text-white mb-2 group-hover:text-blue-400 transition-colors leading-snug">Việt Nam đứng thứ hai trong cuộc đua ứng dụng AI tại Đông Nam Á</h4>
+            <p class="text-[13px] text-gray-400 line-clamp-2 mb-4 flex-1">Báo cáo "Global AI Diffusion" của Microsoft ghi nhận Việt Nam có tỷ lệ ứng dụng trí tuệ nhân tạo vào đời sống và công việc cao bất ngờ.</p>
+            <div class="flex items-center justify-between border-t border-[#1a1a1e] pt-4 mt-auto">
+              <div class="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-gray-500"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                <span class="text-[12px] font-medium text-gray-300">Đức Nguyễn</span>
+              </div>
+              <span class="text-[11px] text-gray-500">07/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Pagination -->
+      <div class="flex justify-center items-center gap-2 pt-8">
+        <button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#27272a] text-gray-400 hover:text-white hover:bg-[#1a1a1e] transition opacity-50 cursor-not-allowed">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <button class="w-10 h-10 flex items-center justify-center rounded-lg bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)] text-white font-bold">1</button>
+        <button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#27272a] text-gray-400 hover:text-white hover:border-blue-500 transition">2</button>
+        <button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#27272a] text-gray-400 hover:text-white hover:border-blue-500 transition">3</button>
+        <span class="text-gray-500 px-1">...</span>
+        <button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#27272a] text-gray-400 hover:text-white hover:border-blue-500 transition">12</button>
+        <button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#27272a] text-gray-400 hover:text-white hover:border-blue-500 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- RIGHT SIDEBAR (30%) -->
+    <div class="lg:w-[30%] space-y-8">
+      
+      <!-- Category Banner -->
+      <div class="text-center bg-[#111115] border border-[#1a1a1e] rounded-xl p-6">
+        <h3 class="text-2xl font-black text-red-500 uppercase tracking-wide">nổi bật</h3>
+        <p class="text-sm text-gray-500 italic mb-6">Tổng hợp các chuyên mục hot</p>
+        
+        <div class="grid grid-cols-3 gap-y-6 gap-x-2">
+          <div class="text-center cursor-pointer group">
+            <div class="w-[60px] h-[60px] bg-[#0a0a0c] rounded-full flex items-center justify-center mx-auto mb-[8px] border border-[#1a1a1e] text-[24px] transition-colors duration-200 group-hover:border-blue-500 text-blue-400">💻</div>
+            <p class="text-[11px] font-semibold text-gray-300">MacBook Neo</p>
+          </div>
+          <div class="text-center cursor-pointer group">
+            <div class="w-[60px] h-[60px] bg-[#0a0a0c] rounded-full flex items-center justify-center mx-auto mb-[8px] border border-[#1a1a1e] text-[24px] transition-colors duration-200 group-hover:border-blue-500 text-purple-400">🧠</div>
+            <p class="text-[11px] font-semibold text-gray-300">Xu hướng AI</p>
+          </div>
+          <div class="text-center cursor-pointer group">
+            <div class="w-[60px] h-[60px] bg-[#0a0a0c] rounded-full flex items-center justify-center mx-auto mb-[8px] border border-[#1a1a1e] text-[24px] transition-colors duration-200 group-hover:border-blue-500 text-green-400">⭐</div>
+            <p class="text-[11px] font-semibold text-gray-300">Đánh giá</p>
+          </div>
+          <div class="text-center cursor-pointer group">
+            <div class="w-[60px] h-[60px] bg-[#0a0a0c] rounded-full flex items-center justify-center mx-auto mb-[8px] border border-[#1a1a1e] text-[24px] transition-colors duration-200 group-hover:border-blue-500 text-yellow-400">🔧</div>
+            <p class="text-[11px] font-semibold text-gray-300">Build PC</p>
+          </div>
+          <div class="text-center cursor-pointer group">
+            <div class="w-[60px] h-[60px] bg-[#0a0a0c] rounded-full flex items-center justify-center mx-auto mb-[8px] border border-[#1a1a1e] text-[24px] transition-colors duration-200 group-hover:border-blue-500 text-red-400">🎮</div>
+            <p class="text-[11px] font-semibold text-gray-300">GAME</p>
+          </div>
+          <div class="text-center cursor-pointer group">
+            <div class="w-[60px] h-[60px] bg-[#0a0a0c] rounded-full flex items-center justify-center mx-auto mb-[8px] border border-[#1a1a1e] text-[24px] transition-colors duration-200 group-hover:border-blue-500 text-cyan-400">🖼️</div>
+            <p class="text-[11px] font-semibold text-gray-300">Hình nền</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Đọc nhiều nhất (Sidebar Widget) -->
+      <div class="bg-[#111115] border border-[#1a1a1e] rounded-xl overflow-hidden">
+        <div class="p-4 border-b border-[#1a1a1e] flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="w-1.5 h-4 bg-red-500 rounded-full"></div>
+            <h4 class="font-bold text-[14px] text-white uppercase tracking-wide">Đọc nhiều nhất</h4>
+          </div>
+          <span class="text-red-500 text-xs font-bold animate-pulse">🔥 HOT</span>
+        </div>
+        <div class="p-4 space-y-4">
+          <div class="flex gap-[12px] cursor-pointer group border-b border-[#1a1a1e] pb-4 last:border-b-0 last:pb-0">
+            <div class="w-[30px] font-black text-2xl text-gray-700 group-hover:text-red-500 transition">01</div>
+            <div class="flex-1">
+              <p class="text-[13px] font-bold text-white line-clamp-2 leading-snug group-hover:text-blue-400 transition">ChatGPT Pro 200 USD giúp người dùng "săn" MacBook rẻ hơn</p>
+              <p class="text-[11px] text-gray-500 mt-1">23k lượt xem</p>
+            </div>
+          </div>
+          <div class="flex gap-[12px] cursor-pointer group border-b border-[#1a1a1e] pb-4 last:border-b-0 last:pb-0">
+            <div class="w-[30px] font-black text-2xl text-gray-700 group-hover:text-red-500 transition">02</div>
+            <div class="flex-1">
+              <p class="text-[13px] font-bold text-white line-clamp-2 leading-snug group-hover:text-blue-400 transition">Intel chính thức bị loại khỏi danh sách 10 công ty giá trị nhất</p>
+              <p class="text-[11px] text-gray-500 mt-1">18k lượt xem</p>
+            </div>
+          </div>
+          <div class="flex gap-[12px] cursor-pointer group border-b border-[#1a1a1e] pb-4 last:border-b-0 last:pb-0">
+            <div class="w-[30px] font-black text-2xl text-gray-700 group-hover:text-red-500 transition">03</div>
+            <div class="flex-1">
+              <p class="text-[13px] font-bold text-white line-clamp-2 leading-snug group-hover:text-blue-400 transition">SpaceX đưa máy chủ AI lên quỹ đạo: Sải cánh 70m, chip NVIDIA</p>
+              <p class="text-[11px] text-gray-500 mt-1">15k lượt xem</p>
+            </div>
+          </div>
+          <div class="flex gap-[12px] cursor-pointer group border-b border-[#1a1a1e] pb-4 last:border-b-0 last:pb-0">
+            <div class="w-[30px] font-black text-2xl text-gray-700 group-hover:text-red-500 transition">04</div>
+            <div class="flex-1">
+              <p class="text-[13px] font-bold text-white line-clamp-2 leading-snug group-hover:text-blue-400 transition">LG ra mắt thế hệ laptop LG gram AI 2026: Mỏng nhẹ tinh tế</p>
+              <p class="text-[11px] text-gray-500 mt-1">12k lượt xem</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Banner Promo -->
+      <div class="w-full aspect-[1/2] bg-gradient-to-b from-red-600 to-red-900 rounded-xl flex flex-col items-center justify-center text-center p-6 border border-red-500/30">
+        <p class="text-yellow-300 font-bold text-lg mb-2">GIÁ TỐI THIỂU</p>
+        <p class="text-white font-black text-2xl mb-4 leading-tight">HIỆU NĂNG TỐI ĐA</p>
+        <div class="bg-yellow-500 text-black px-4 py-1.5 text-xs font-bold rounded-full mb-8">PC BUILD SẴN PHONG VŨ</div>
+        
+        <div class="w-full bg-white text-black p-4 rounded-lg mb-4 shadow-lg cursor-pointer hover:scale-105 transition-transform">
+          <p class="font-bold text-sm">PC VĂN PHÒNG</p>
+          <p class="text-[10px] text-gray-500 font-bold mt-1">VOUCHER ĐẾN</p>
+          <p class="text-red-600 font-black text-2xl mt-1">500K</p>
+        </div>
+        
+        <div class="w-full bg-white text-black p-4 rounded-lg shadow-lg cursor-pointer hover:scale-105 transition-transform">
+          <p class="font-bold text-sm">PC GAMING</p>
+          <p class="text-[10px] text-gray-500 font-bold mt-1">VOUCHER ĐẾN</p>
+          <p class="text-red-600 font-black text-2xl mt-1">2 TRIỆU</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -1,8 +1,14 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-16`
+Last verified: `2026-07-18`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
+
+## PC Builder
+
+PC Builder APIs, compatibility, saved builds, admin review and orders are owned here. Run guarded `admin:migrate` only after `database-docs/PC_BUILDER_MIGRATION.md`. The feature is opt-in with `PC_BUILDER_ENABLED=true`; Gaming auto additionally requires `PC_BUILDER_AUTO_ENABLED=true`. Extraction apply also requires `PC_BUILDER_CONFIRMATION_TOKEN`, a restore-verified backup hash and the existing write gate.
+
+Public routes are `GET /api/pc-builder/bootstrap`; `POST /api/pc-builder/candidates|quote|auto|builds|orders`; and `GET /api/pc-builder/builds/[token]`. Account CRUD is under `/api/customer/pc-builds`. Admin review is `/product/pc-builder` and `/api/admin/pc-builder`.
 
 ## Combo commerce
 

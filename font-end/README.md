@@ -1,8 +1,14 @@
 # HACOM Storefront
 
-Last verified: `2026-07-17`
+Last verified: `2026-07-18`
 
 `font-end` is the customer-facing Next.js 16.2.9/React 19.2.4 storefront. It consumes `web-admin` APIs and must never access MySQL or backend secrets directly.
+
+## PC Builder storefront
+
+`/xay-dung-cau-hinh-pc` is canonical; `/pc-builder` redirects there. The browser persists only selection IDs/quantities in `hacom:pc-builder:draft:v1`. Candidates, prices, compatibility, revisions and Gaming scores come from `web-admin` and are revalidated by `/thanh-toan-pc-builder`.
+
+Guest share links are read-only and requoted on open. Account builds use the customer API. Checkout creates a separate PC Builder order with free assembly by default and requires explicit confirmation for server diagnostics such as an unverified display path.
 
 ## Combo storefront
 

@@ -18,6 +18,7 @@ import { ensureProductPromotionTables } from '../src/lib/productPromotions';
 import { ensureLegacyImportTables } from '../src/lib/legacyImport/tables';
 import { ensureArticleCategoryMetadataTable } from '../src/lib/articleCategoryMetadata';
 import { ensurePageViewInfrastructure } from '../src/lib/pageViews';
+import { ensurePcBuilderTables } from '../src/lib/pcBuilder/infrastructure';
 
 async function main() {
   if (process.env.ADMIN_WRITE_ENABLED !== 'true') throw new Error('ADMIN_WRITE_ENABLED must be true to run admin migrations.');
@@ -32,9 +33,10 @@ async function main() {
   await ensurePageViewInfrastructure();
   await ensureVoucherTables();
   await ensureStorefrontOrderTables();
+  await ensurePerformanceInfrastructure();
+  await ensurePcBuilderTables();
   await ensureCustomerAccountTables();
   await ensureCustomerFavoriteTable();
-  await ensurePerformanceInfrastructure();
   await ensureBuyingGuideTables();
   await ensureComboIndexes();
   await ensureProductGroupIndexes();

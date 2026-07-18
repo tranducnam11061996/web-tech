@@ -109,7 +109,7 @@ export const menuGroups = [
     title: 'Xây dựng máy tính',
     icon: Cpu,
     items: [
-      { name: 'Link kiện xây dựng', path: '#' }
+      { name: 'PC Builder', path: '/product/pc-builder' }
     ]
   },
   {

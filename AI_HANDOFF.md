@@ -1,6 +1,14 @@
 # AI Handoff — HACOM Workspace
 
-Last verified: `2026-07-17`
+Last verified: `2026-07-18`
+
+## PC Builder implementation (not yet migrated live)
+
+- The workspace now contains the additive PC Builder schema/migration, verified-profile/typed-metric model, constrained compatibility engine, server-authoritative candidate/quote/save/share/auto/order APIs, customer build CRUD, admin review dashboard, and responsive storefront routes `/xay-dung-cau-hinh-pc` plus `/thanh-toan-pc-builder`.
+- The migration creates only additive `web_admin_pc_builder_*` / `web_admin_pc_build*` InnoDB tables and columns on `web_admin_storefront_order_meta`; it does not use `hanoi23_db.idv_pcbuilder_relation`. `build_buy` and `build_buy_item` remain the order owner.
+- Profiles must be `verified` with `source_hash=verified_hash`; relevant product changes mark them `stale`. Extraction is dry-run by default. Apply requires the real `it_tech_db`, a restore-verified backup SHA-256, `PC_BUILDER_CONFIRMATION_TOKEN`, and `ADMIN_WRITE_ENABLED=true`.
+- Live migration and catalog extraction have deliberately **not** been executed. Follow `web-admin/database-docs/PC_BUILDER_MIGRATION.md`; do not enable storefront flags until coverage and compatible-build rollout gates pass.
+- `PC_BUILDER_ENABLED` and `PC_BUILDER_AUTO_ENABLED` are opt-in. Auto uses only admin-verified CPU/GPU scores and makes no FPS claim.
 
 This is the canonical current-state handoff. Read in this order:
 

@@ -1,6 +1,14 @@
 # HACOM Architecture
 
-Last verified: `2026-07-16`
+Last verified: `2026-07-18`
+
+## PC Builder bounded context
+
+`font-end` owns only the interactive builder/checkout UI and versioned local draft. Every candidate list, quote, auto recommendation, share read, save and order crosses a `web-admin` API; no database client or price/compatibility decision exists in the storefront.
+
+`web-admin` resolves verified catalog facts from legacy `idv_attribute*` relations plus additive typed metrics. Published rule revisions use a closed operator set (`equality`, `set_contains`, `numeric_lte`, `headroom`, `requires`). Quote and order both re-read sellability/prices and re-run the same engine. Auto Gaming preloads bounded shortlists, prunes invalid partial builds, caps the beam at 300, and re-quotes returned builds.
+
+Saved builds live in `web_admin_pc_builds` / `web_admin_pc_build_items`. Guest tokens are random, stored only as SHA-256, read-only and expire after 90 days; account builds are owner-scoped and persistent. Orders remain in `build_buy` / `build_buy_item`, with additive metadata for `order_type=pc_builder`, build ID, assembly and rule revision.
 
 ## System boundaries and runtime
 

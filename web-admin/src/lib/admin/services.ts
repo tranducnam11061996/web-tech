@@ -43,6 +43,8 @@ import { deleteBuyingGuideForEntity, ensureBuyingGuideTables } from '@/lib/buyin
 import { clearPublicCatalogDetailCache, clearPublicProductResponseCache } from '@/lib/publicProductCache';
 import { invalidateVoucherCategoryCache } from '@/lib/vouchers';
 import { ensureProductGroupIndexes } from '@/lib/productGroups';
+import { markPcBuilderProfileStale } from '@/lib/pcBuilder/admin';
+import { bumpPcBuilderCacheVersion } from '@/lib/pcBuilder/infrastructure';
 import { invalidateProductPromotionCategoryCache } from '@/lib/productPromotions';
 
 type ListParams = {
@@ -605,6 +607,9 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     console.error('[SearchCache] Failed to sync saved product:', error);
   }
 
+  await markPcBuilderProfileStale(saved.id);
+  await bumpPcBuilderCacheVersion();
+
   return { id: saved.id, slug: saved.slug };
 }
 
@@ -767,6 +772,8 @@ export async function updateProductSection(productId: number, section: ProductSe
   }
 
   if (section === 'combo') clearPublicCatalogDetailCache();
+  if (['basic', 'description', 'category', 'attributes'].includes(section)) await markPcBuilderProfileStale(productId);
+  if (section === 'basic') await bumpPcBuilderCacheVersion();
 
   return saved;
 }
@@ -816,6 +823,7 @@ export async function deleteProduct(id: number, mode: string) {
   });
 
   if (result.deleted) {
+    await bumpPcBuilderCacheVersion();
     clearPublicCatalogDetailCache();
     try {
       invalidateProductCardAttributeCaches();
@@ -839,6 +847,7 @@ export async function bulkProducts(ids: number[], action: string) {
     return { ids, action: action === 'restore' ? 'restore' : 'hide' };
   });
   invalidateProductCardAttributeCaches();
+  await bumpPcBuilderCacheVersion();
   return result;
 }
 

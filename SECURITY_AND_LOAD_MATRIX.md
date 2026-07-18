@@ -1,6 +1,18 @@
 # Security and Load Coverage Matrix
 
-Last updated: `2026-07-16`
+Last updated: `2026-07-18`
+
+## PC Builder gates
+
+| Surface | Security/data controls | Release evidence required |
+|---|---|---|
+| Candidates / quote / auto | Same-origin POST, bounded strict JSON, per-IP limits, verified/current profiles, published revisions, current sellability/price | Candidate/quote p95 <500ms; auto p95 <1.5s on production-like staging |
+| Guest share | 256-bit random token, SHA-256 storage, read-only, 90-day expiry, rate limit, re-quote on read | Expiry/token tests and account isolation tests |
+| Account library | Authenticated session, same-origin writes, owner predicates | Cross-account integration test |
+| PC Builder order | Origin, 48KB limit, phone/IP limits, reCAPTCHA, idempotency, transaction, server quote/rules, warning confirmation | Replay/price/profile-stale/rollback integration tests |
+| Admin extraction/review | `catalog.pc_builder.*` RBAC, write gate, exact database, backup SHA-256, confirmation token, transaction, audit | Restore-verified clone; migration twice; rollback rehearsal |
+
+Local checks are functional evidence only. A 1,500-VU capacity claim still requires full k6 on production-like staging.
 
 Status meanings: **Implemented** is present in code and locally checked; **Partial** needs route/form coverage or staging evidence; **Not verified** exists as a plan/script but has not passed the target environment gate.
 

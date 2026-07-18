@@ -1,6 +1,6 @@
 # Project Progress
 
-Last updated: `2026-07-17`
+Last updated: `2026-07-18`
 
 `AI_HANDOFF.md` is the canonical continuation guide. This file records completion evidence, open verification, and the prioritized backlog.
 
@@ -8,6 +8,7 @@ Last updated: `2026-07-17`
 
 | Area | Status | Evidence / qualification |
 |---|---|---|
+| PC Builder | Code implemented; live migration/catalog review pending | Additive schema, extraction proposals, verified/stale lifecycle, typed metrics, revisioned rules/policies, compatibility/quote/beam-search services, public/customer/admin APIs, manual/auto storefront and dedicated hardened checkout are implemented. Unit/type/lint checks pass. Live migration, profile coverage, Playwright, staging p95/k6 and flags remain gated. |
 | Homepage featured deal cards | Implemented and browser-tested | Section 5 renders five local AVIF category links in a self-contained Server Component without the shared legacy card CSS. The 2545px reference uses a centered 1800px three-column/two-row grid with a full-height Pre-built card; the 428px reference uses the exact two-column asymmetric composition. Focused Playwright verifies both geometries, responsive transitions, routes, image loading, keyboard focus, hover treatment, overflow and WCAG A/AA serious/critical results. |
 | Homepage category promotion cards | Implemented and browser-tested | Section 9 renders five local AVIF category links without shared promo-card CSS. The 2537px reference uses a centered 1800px five-card row with 30px gaps and 5:6 cards; the 429px reference uses two 3:2 cards above three 25:23 cards. Focused Playwright verifies both geometries, all intermediate breakpoints, links, image loading, focus, overflow and WCAG A/AA serious/critical results. |
 | Real combo sets / combo cart / combo orders | Code/schema implemented; active catalog unpopulated | Combo API/UI/quote/order behavior exists, but `it_tech_db` has 0 combo sets/relations; 1,121 imported comboset occurrences remain pending audit because source runtime configuration is incomplete |

@@ -1,8 +1,14 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-16`
+Verified: `2026-07-18` (live schema remains the prior state; PC Builder below is pending)
 Active local database: `it_tech_db`. Retained legacy source: `hanoi23_db` (read only during the 2026-07-13 cutover).
 Source: live `information_schema` inspection
+
+## Pending PC Builder additive migration
+
+Defined in code but not applied to live `it_tech_db`: `web_admin_pc_builder_components`, `web_admin_pc_builder_product_profiles`, `web_admin_pc_builder_product_metrics`, `web_admin_pc_builder_rule_sets`, `web_admin_pc_builder_rules`, `web_admin_pc_builder_gaming_policies`, `web_admin_pc_builds`, and `web_admin_pc_build_items`. `web_admin_storefront_order_meta.order_type` gains `pc_builder` plus `pc_build_id`, `assembly_required`, and `pc_builder_revision`.
+
+Legacy attributes remain the categorical source of truth; typed metrics are additive. Product IDs are logical references because legacy product tables are not converted or constrained. New foreign keys exist only between new InnoDB tables. See `PC_BUILDER_MIGRATION.md`.
 
 ## Combo commerce additions
 

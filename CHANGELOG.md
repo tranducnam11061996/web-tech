@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-07-18 — PC Builder implementation
+
+- Added additive PC Builder component/profile/metric/rule/policy/build tables and the `pc_builder` order metadata contract to the guarded admin migration.
+- Added deterministic extraction proposals, source hashes, admin review transactions/audit, stale-on-product-change behavior and cache-version invalidation.
+- Added verified-only candidate, quote, guest share, account build CRUD, bounded Gaming auto-build and hardened PC Builder order APIs.
+- Added `/xay-dung-cau-hinh-pc`, `/pc-builder` redirect and `/thanh-toan-pc-builder`, plus PC Builder RBAC/dashboard and unit coverage.
+- No live schema migration or extraction was performed in this change.
+
 Notable workspace changes are grouped by implementation/audit date.
 
 Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and `PROJECT_PROGRESS.md`, not an older “Known Gaps” section, for current status.

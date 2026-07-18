@@ -108,6 +108,16 @@ export const comboOrderSchema = orderSchema.omit({ items: true, voucherCode: tru
 
 export type ComboOrderInput = z.infer<typeof comboOrderSchema>;
 
+export const pcBuilderOrderSchema = orderSchema.omit({ items: true, voucherCode: true }).extend({
+  selections: z.array(z.object({
+    componentCode: z.enum(['cpu','mainboard','ram','storage','case','psu','gpu','monitor','keyboard','mouse','headset','cooler']),
+    productId: z.coerce.number().int().positive(),
+    quantity: z.coerce.number().int().min(1).max(4),
+  }).strict()).min(6).max(24),
+  assemblyRequired: z.boolean().optional().default(true),
+  warningsConfirmed: z.boolean().optional().default(false),
+}).strict();
+
 export type OrderInput = z.infer<typeof orderSchema>;
 
 export const recaptchaTokenSchema = z.string().trim().max(4096);

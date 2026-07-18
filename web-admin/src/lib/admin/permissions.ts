@@ -12,6 +12,7 @@ export const ADMIN_RESOURCES = [
   'catalog.product_frames',
   'catalog.product_groups',
   'catalog.card_rules',
+  'catalog.pc_builder',
   'content.articles',
   'content.article_categories',
   'content.menus',
@@ -48,6 +49,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { resource: 'catalog.product_frames', label: 'Khung san pham', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'catalog.product_groups', label: 'Nhom san pham', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'catalog.card_rules', label: 'Thong so card', actions: ['read', 'update'] },
+  { resource: 'catalog.pc_builder', label: 'PC Builder', actions: ['read', 'update', 'publish'] },
   { resource: 'content.articles', label: 'Bai viet', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'content.article_categories', label: 'Danh muc bai viet', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'content.menus', label: 'Menu', actions: ['read', 'create', 'update', 'delete', 'publish'] },
@@ -143,6 +145,7 @@ export function getPagePermission(pathname: string): AdminPermission | null {
   if (pathname.startsWith('/product/product-frame')) return 'catalog.product_frames.read';
   if (pathname.startsWith('/product/product-group')) return 'catalog.product_groups.read';
   if (pathname.startsWith('/product/card-attributes')) return 'catalog.card_rules.read';
+  if (pathname.startsWith('/product/pc-builder')) return 'catalog.pc_builder.read';
   if (pathname.startsWith('/news/news-list') || pathname.startsWith('/news/edit')) return 'content.articles.read';
   if (pathname.startsWith('/news/news-category')) return 'content.article_categories.read';
   if (pathname.startsWith('/content/menu')) return 'content.menus.read';
@@ -162,6 +165,10 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
   if (pathname.includes('/api/admin/roles')) return `admin.roles.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/audit-logs')) return 'admin.audit_logs.read';
   if (pathname.includes('/api/admin/migrate')) return 'admin.migrations.execute';
+  if (pathname.includes('/api/admin/pc-builder')) {
+    if (pathname.endsWith('/publish')) return 'catalog.pc_builder.publish';
+    return method === 'GET' ? 'catalog.pc_builder.read' : 'catalog.pc_builder.update';
+  }
   if (pathname.includes('/api/admin/storefront-orders')) return `sales.orders.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/storefront-customers')) return `crm.customers.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/menus/') && pathname.endsWith('/publish')) return 'content.menus.publish';

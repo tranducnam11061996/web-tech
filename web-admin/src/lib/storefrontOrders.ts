@@ -20,7 +20,8 @@ export async function ensureStorefrontOrderTables() {
     order_id int NOT NULL PRIMARY KEY, customer_name varchar(150) NOT NULL DEFAULT '', customer_phone varchar(32) NOT NULL DEFAULT '', customer_email varchar(255) NOT NULL DEFAULT '',
     payment_method varchar(40) NOT NULL DEFAULT '', delivery_method varchar(40) NOT NULL DEFAULT '', payment_status varchar(24) NOT NULL DEFAULT 'unpaid', shipping_status varchar(24) NOT NULL DEFAULT 'pending',
     assigned_admin_user_id int NULL, assigned_admin_name varchar(255) NOT NULL DEFAULT '', created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    order_type enum('standard','combo') NOT NULL DEFAULT 'standard', combo_set_id int NULL, combo_anchor_product_id int NULL,
+    order_type enum('standard','combo','pc_builder') NOT NULL DEFAULT 'standard', combo_set_id int NULL, combo_anchor_product_id int NULL,
+    pc_build_id bigint unsigned NULL, assembly_required tinyint(1) NOT NULL DEFAULT 0, pc_builder_revision varchar(64) NOT NULL DEFAULT '',
     KEY idx_web_admin_order_meta_phone (customer_phone), KEY idx_web_admin_order_meta_payment_shipping (payment_status, shipping_status, order_id), KEY idx_web_admin_order_meta_assignee (assigned_admin_user_id, order_id),
     KEY idx_web_admin_order_meta_type (order_type,order_id), KEY idx_web_admin_order_meta_combo (combo_set_id,order_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
@@ -28,7 +29,7 @@ export async function ensureStorefrontOrderTables() {
     const [found] = await pool.query<RowDataPacket[]>('SELECT 1 FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=? LIMIT 1', ['web_admin_storefront_order_meta', name]);
     if (!found[0]) await pool.query(statement);
   };
-  await ensureColumn('order_type', "ALTER TABLE web_admin_storefront_order_meta ADD COLUMN order_type enum('standard','combo') NOT NULL DEFAULT 'standard'");
+  await ensureColumn('order_type', "ALTER TABLE web_admin_storefront_order_meta ADD COLUMN order_type enum('standard','combo','pc_builder') NOT NULL DEFAULT 'standard'");
   await ensureColumn('combo_set_id', 'ALTER TABLE web_admin_storefront_order_meta ADD COLUMN combo_set_id int NULL');
   await ensureColumn('combo_anchor_product_id', 'ALTER TABLE web_admin_storefront_order_meta ADD COLUMN combo_anchor_product_id int NULL');
   await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_storefront_order_events (
@@ -58,7 +59,10 @@ export async function ensureStorefrontOrderTables() {
 
 export async function createOrderMeta(db: PoolConnection | typeof pool, orderId: number, buyerInfo: Record<string, any>, addEvent = true) {
   const customer = buyerInfo.customer || {}; const delivery = buyerInfo.delivery || {};
-  await db.query(`INSERT IGNORE INTO web_admin_storefront_order_meta (order_id,customer_name,customer_phone,customer_email,payment_method,delivery_method,order_type,combo_set_id,combo_anchor_product_id) VALUES (?,?,?,?,?,?,?,?,?)`, [orderId, String(customer.name || '').slice(0, 150), String(customer.phone || '').slice(0, 32), String(customer.email || '').slice(0, 255), String(buyerInfo.paymentMethod || ''), String(delivery.method || ''), buyerInfo.orderType === 'combo' ? 'combo' : 'standard', buyerInfo.comboSetId || null, buyerInfo.comboAnchorProductId || null]);
+  const orderType = buyerInfo.orderType === 'combo' ? 'combo' : buyerInfo.orderType === 'pc_builder' ? 'pc_builder' : 'standard';
+  await db.query(`INSERT IGNORE INTO web_admin_storefront_order_meta
+    (order_id,customer_name,customer_phone,customer_email,payment_method,delivery_method,order_type,combo_set_id,combo_anchor_product_id,pc_build_id,assembly_required,pc_builder_revision)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, [orderId, String(customer.name || '').slice(0, 150), String(customer.phone || '').slice(0, 32), String(customer.email || '').slice(0, 255), String(buyerInfo.paymentMethod || ''), String(delivery.method || ''), orderType, buyerInfo.comboSetId || null, buyerInfo.comboAnchorProductId || null, buyerInfo.pcBuildId || null, buyerInfo.assemblyRequired ? 1 : 0, String(buyerInfo.pcBuilderRevision || '').slice(0, 64)]);
   if (addEvent) await db.query(`INSERT INTO web_admin_storefront_order_events (order_id,event_type,to_value,note) VALUES (?, 'created', '1', 'Đơn hàng được tạo từ storefront')`, [orderId]);
 }
 

@@ -43,7 +43,8 @@ export interface SendOrderEmailParams {
   customer: EmailCustomer;
   delivery: EmailDelivery;
   paymentMethod: string;
-  orderType?: 'standard' | 'combo';
+  orderType?: 'standard' | 'combo' | 'pc_builder';
+  eventType?: 'confirmation' | 'completed';
   comboDiscount?: number;
 }
 
@@ -117,10 +118,11 @@ function buildOrderHtml({
   delivery,
   paymentMethod,
   orderType,
+  eventType,
   comboDiscount,
 }: Pick<
   SendOrderEmailParams,
-  'orderId' | 'items' | 'totals' | 'customer' | 'delivery' | 'paymentMethod' | 'orderType' | 'comboDiscount'
+  'orderId' | 'items' | 'totals' | 'customer' | 'delivery' | 'paymentMethod' | 'orderType' | 'eventType' | 'comboDiscount'
 >): string {
   const rows = items
     .map(
@@ -136,6 +138,8 @@ function buildOrderHtml({
 
   const hasInfoAddress = delivery.province || delivery.ward || delivery.address;
 
+  const orderLabel = orderType === 'pc_builder' ? '#Build PC' : orderType === 'combo' ? 'Đơn hàng combo' : 'Đơn hàng';
+  const completed = eventType === 'completed';
   return `
 <!DOCTYPE html>
 <html>
@@ -164,8 +168,8 @@ function buildOrderHtml({
 <body>
   <div class="wrap">
     <div class="header">
-      <h1>Cảm ơn bạn đã đặt ${orderType === 'combo' ? 'đơn hàng combo' : 'hàng'}!</h1>
-      <p>${orderType === 'combo' ? 'Đơn hàng combo' : 'Đơn hàng'} #${orderId} đã được ghi nhận và đang xử lý.</p>
+      <h1>${completed ? `${orderLabel} đã hoàn tất` : `Cảm ơn bạn đã đặt ${orderType === 'pc_builder' ? '#Build PC' : orderType === 'combo' ? 'đơn hàng combo' : 'hàng'}!`}</h1>
+      <p>${orderLabel} #${orderId} ${completed ? 'đã được hoàn tất.' : 'đã được ghi nhận và đang xử lý.'}</p>
     </div>
 
     <!-- Order summary -->
@@ -276,11 +280,11 @@ export async function sendOrderEmail(params: SendOrderEmailParams): Promise<bool
     await transporter.sendMail({
       from,
       to: params.to,
-      subject: `Xác nhận ${params.orderType === 'combo' ? 'đơn hàng combo' : 'đơn hàng'} #${params.orderId} — TrucTiepGAME`,
+      subject: `${params.eventType === 'completed' ? 'Hoàn tất' : 'Xác nhận'} ${params.orderType === 'pc_builder' ? '#Build PC' : params.orderType === 'combo' ? 'đơn hàng combo' : 'đơn hàng'} #${params.orderId} — TrucTiepGAME`,
       html,
     });
 
-    console.log(`[email] Order confirmation sent to ${params.to} for order #${params.orderId}`);
+    console.log(`[email] ${params.eventType === 'completed' ? 'Order completion' : 'Order confirmation'} sent for order #${params.orderId}`);
     return true;
   } catch (err) {
     console.error(`[email] Failed to send order email for order #${params.orderId}:`, err);

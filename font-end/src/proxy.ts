@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const reserved = new Set([
   '', '__catalog-not-found', 'category', 'gio-hang', 'gio-hang-combo', 'tai-khoan',
-  'thanh-toan', 'thanh-toan-combo', 'tim', 'tin-tuc', 'collection',
+  'thanh-toan', 'thanh-toan-combo', 'tim', 'tin-tuc', 'collection', 'flash-sale',
 ]);
 
 export async function proxy(request: NextRequest) {

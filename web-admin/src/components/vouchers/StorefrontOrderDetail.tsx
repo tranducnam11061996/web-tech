@@ -61,6 +61,18 @@ export function StorefrontOrderDetail() {
           <p className="mt-1 text-sm">Sản phẩm chính: {order.combo?.anchor?.name || `#${order.meta.comboAnchorProductId}`}</p>
         </section>
       )}
+      {order.orderType === 'pc_builder' && (
+        <section className="rounded-xl border border-cyan-500/50 bg-cyan-950/30 p-5 text-cyan-50">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">#Build PC</p>
+          <h2 className="mt-2 text-xl font-bold">Build #{order.meta.pcBuildId || order.pcBuilder?.buildId}</h2>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <div><dt className="text-cyan-300">Rule/Catalog revision</dt><dd className="break-all">{order.pcBuilder?.ruleRevision || order.meta.pcBuilderRevision || '—'} / {order.pcBuilder?.catalogRevision || order.pcBuilder?.profileRevision || '—'}</dd></div>
+            <div><dt className="text-cyan-300">Policy revision</dt><dd>{order.pcBuilder?.policyRevision || 'Manual'}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-cyan-300">Fingerprint</dt><dd className="break-all font-mono text-xs">{order.pcBuilder?.fingerprint || '—'}</dd></div>
+            <div><dt className="text-cyan-300">Lắp ráp</dt><dd>{order.meta.assemblyRequired ? 'Có' : 'Không'}</dd></div>
+          </dl>
+        </section>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_360px]">
         <main className="space-y-4">
@@ -194,12 +206,12 @@ export function StorefrontOrderDetail() {
                 ))}
               </select>
             </label>
-            <textarea
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Ghi chú nội bộ"
-              className="min-h-24 w-full rounded-md border border-violet-900/70 bg-slate-950/80 p-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/25"
-            />
+            <label className="block text-sm text-violet-200">Ghi chú nội bộ<textarea
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="Ghi chú nội bộ"
+                className="mt-1 min-h-24 w-full rounded-md border border-violet-900/70 bg-slate-950/80 p-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/25"
+              /></label>
             <button
               disabled={!note.trim() || busy}
               onClick={() => { void patch({ note }); setNote(''); }}

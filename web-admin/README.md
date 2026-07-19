@@ -1,14 +1,36 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-18`
+Last verified: `2026-07-19`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
 ## PC Builder
 
-PC Builder APIs, compatibility, saved builds, admin review and orders are owned here. Run guarded `admin:migrate` only after `database-docs/PC_BUILDER_MIGRATION.md`. The feature is opt-in with `PC_BUILDER_ENABLED=true`; Gaming auto additionally requires `PC_BUILDER_AUTO_ENABLED=true`. Extraction apply also requires `PC_BUILDER_CONFIRMATION_TOKEN`, a restore-verified backup hash and the existing write gate.
+Catalog-live v4 uses `web_admin_pc_builder_components.category_id` plus `web_admin_pc_builder_component_relations`. Admin category configuration is `GET/PUT /api/admin/pc-builder/components`; option endpoints are `/category-options` and `/relation-attributes`. Category selectors render the active parent-child taxonomy with local ID/name search and descendant sellable-product counts. Relation options and configured rows expose sellable-product attribute coverage. Runtime applies a relation only at 90% or greater coverage on both category trees; lower-coverage relations remain configured but are visibly marked and skipped by candidate/quote/order. All writes require same-origin, `catalog.pc_builder.update`, audit authorization and `ADMIN_WRITE_ENABLED=true`; omitted existing rows are soft-disabled.
 
-Public routes are `GET /api/pc-builder/bootstrap`; `POST /api/pc-builder/candidates|quote|auto|builds|orders`; and `GET /api/pc-builder/builds/[token]`. Account CRUD is under `/api/customer/pc-builds`. Admin review is `/product/pc-builder` and `/api/admin/pc-builder`.
+Candidate requests accept page/limit, search, sort, price, brands and up to eight attribute filters. Quote returns `requiresConfirmation`, `missingRequiredComponents`, `warningSignature` and a fingerprint containing the composite published-rule/config revision. Order confirmation must echo the current fingerprint and warning signature. Auto/benchmark/release APIs remain future-phase backend code but are absent from current admin/storefront clients.
+
+The active revision is `pc-builder-v4-catalog-live`; it is applied and verified on `it_tech_db`. `ADMIN_WRITE_ENABLED=true` is intentionally active for the current local admin testing window and must be returned to `false` afterward.
+
+PC Builder APIs, compatibility, saved builds and orders are owned here. Schema changes use dedicated `npm.cmd run pc-builder:migrate -- --mode=apply|verify --database=<name> --backup-sha256=<sha256>` from `database-docs/PC_BUILDER_MIGRATION.md`, not the general admin migration. Manual is catalog-live; Gaming Auto/release endpoints intentionally return 503.
+
+Public routes are `GET /api/pc-builder/bootstrap`; `POST /api/pc-builder/candidates|quote|builds|orders`; and `GET /api/pc-builder/builds/[token]`. Candidate filters use numeric `attributeValueId` values. Account CRUD is under `/api/customer/pc-builds`; admin configuration is `/product/pc-builder` and `/api/admin/pc-builder/components`.
+
+Operational commands are `pc-builder:migrate`, `pc-builder:history-hash` and guarded `pc-builder:commerce-qa`. `scripts/load-pc-builder-read-smoke.js` is a configurable low-load read-only k6 check; it is not 1,500-VU evidence.
+
+## Quick tools
+
+`/quick-tools` is visible with `catalog.attributes.read`. The active phase is `/quick-tools/incomplete-product-attributes`; the other overview cards are non-interactive placeholders.
+
+Read APIs are:
+
+- `GET /api/admin/quick-tools/incomplete-product-attributes/categories`
+- `GET /api/admin/quick-tools/incomplete-product-attributes/attributes?categoryId=`
+- `GET /api/admin/quick-tools/incomplete-product-attributes/products?categoryId=&attributeId=`
+
+Autosave uses `PUT /api/admin/quick-tools/incomplete-product-attributes/products/[productId]/values` with `{ categoryId, attributeId, attributeValueIds, expectedRevision }`. It requires `catalog.attributes.update`, a same-origin authenticated request, and the shared admin write gate. Reads include all product sale states but only active category descendants and active mappings. This feature uses the legacy category/attribute/product junctions directly and has no migration. Run the destructive fixture only with `QUICK_ATTRIBUTE_DESTRUCTIVE_TEST=true` against a database whose name explicitly contains `test`, `tmp`, or `disposable`.
+
+Step 01 consumes `parentId` and `ordering` from the category summary and renders a root-first disclosure tree. Pass `selectedCategoryId` to preserve a completed selected node and its active ancestor path when `includeComplete` is off. Category search remains in `categoryQ` for reload/back-forward context but is applied locally to the loaded tree by accent-insensitive name, breadcrumb, or ID; it does not trigger per-keystroke API reads.
 
 ## Combo commerce
 
@@ -323,6 +345,10 @@ Product groups are managed through `GET/POST /api/admin/product-groups`, `GET/PU
 
 Product promotions are managed through `GET/POST /api/admin/product-promotions` and `GET/PUT/DELETE /api/admin/product-promotions/[id]`. Writes require `marketing.product_promotions` permissions and `ADMIN_WRITE_ENABLED=true`, replace SKU/category scopes transactionally, validate supplied internal/HTTPS links and Vietnam-time ranges, and invalidate catalog-detail caches. `detailUrl` is optional: an empty string is retained in the existing non-null column and public/admin presentation omits `Xem chi tiết`; `displayOrder` is an integer from `0` to `65535`, with blank input normalized to `0`.
 
+Flash Sale is managed at `/sales/flash-sales`. Admin reads/writes use `GET/POST /api/admin/flash-sales`, `GET/PUT /api/admin/flash-sales/[id]`, and the dedicated `POST .../[id]/publish` / `POST .../[id]/pause` transitions. RBAC uses `marketing.flash_sales.*`; writes also require same-origin admin session, audit logging, optimistic revisions, and `ADMIN_WRITE_ENABLED=true`. A normal create/update cannot change publication status, so `update` cannot bypass `publish` permission.
+
+Public `GET /api/flash-sales` exposes only active/upcoming campaign display data and derived promotional availability. Cart quote and order creation always re-read current product price and Flash Sale quota. Order creation reserves quota in the existing order transaction; completed orders consume it and cancelled/failed orders release it. Exclusive campaigns invalidate a requested voucher. Enable the runtime only after the guarded procedure in `database-docs/FLASH_SALE_MIGRATION.md`.
+
 Saving the product editor's `combo` section preserves its original TinyMCE HTML in `idv_sell_product_store.specialOffer` and invalidates catalog-detail caches. Public reads sanitize at projection time: safe foreground/background colors, emphasis, decoration, alignment and internal/HTTPS text links are retained; scripts, handlers, unsafe CSS/URLs and embedded media/form/table content are removed.
 
 ### Health and webhook
@@ -362,12 +388,15 @@ Configure the secret and verifier policy only in `D:\web-tech\web-admin\.env.loc
 
 ```env
 RECAPTCHA_SECRET_KEY=your_private_secret_key
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY=your_public_site_key
 RECAPTCHA_SCORE_THRESHOLD=0.5
 RECAPTCHA_ALLOWED_HOSTNAMES=localhost,storefront.example.com
 RECAPTCHA_SHADOW_MODE=false
 RECAPTCHA_DEVELOPMENT_BYPASS=false
 STOREFRONT_ORIGIN=http://localhost:3001
 ```
+
+The admin login page also uses this public site key, so a production `next start` build requires both keys in `web-admin/.env.local`. The public key may be shared with the storefront only when it belongs to the same Google reCAPTCHA key pair and permits the local hostname.
 
 For local development without Google, leave the frontend site key empty and set `RECAPTCHA_DEVELOPMENT_BYPASS=true` here. The verifier ignores this bypass when `NODE_ENV=production`. SMTP-backed OTP additionally requires `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM`; SMTP does not replace CAPTCHA. Restart both applications after environment changes and never copy `RECAPTCHA_SECRET_KEY` into the storefront.
 

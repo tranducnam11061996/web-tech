@@ -12,6 +12,7 @@ import { consumeRateLimits, rateLimitSetting, requestIp } from '@/lib/performanc
 import { claimOrderRequest, completeOrderRequest, enqueueOrderEmail, validateIdempotencyKey } from '@/lib/orderInfrastructure';
 import type { EmailCustomer, EmailDelivery, EmailOrderItem, EmailOrderTotals } from '@/lib/email';
 import { recordRouteMetric } from '@/lib/runtimeMetrics';
+import { reserveFlashSalesForOrder } from '@/lib/flashSales';
 
 export async function OPTIONS(request: Request) {
   return new NextResponse(null, { status: 204, headers: publicCorsHeaders(request, 'POST, OPTIONS') });
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
         return NextResponse.json(claimed.replay, { headers: { ...cors, 'X-Request-ID': id, 'Idempotency-Replayed': 'true' } });
       }
 
-      const quote = await buildCartQuote(body.items, { voucherCode: body.voucherCode, db: connection, lockVoucher: true });
+      const quote = await buildCartQuote(body.items, { voucherCode: body.voucherCode, db: connection, lockVoucher: true, lockFlashSale: true });
       const invalidItems = quote.items.filter((item) => !item.available);
       const orderItems = quote.items.filter((item) => item.available);
       if (!orderItems.length || invalidItems.length || (body.voucherCode && quote.voucher.status !== 'applied')) {
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
         [truncate(toAscii(productTitle), 255), quote.totals.total, orderItems.length === 1 ? orderItems[0].productId : 0, toDbSafeText(buyerInfo), toDbSafeText(config), now, now],
       );
       const orderId = Number((orderResult as { insertId?: number }).insertId || 0);
+      await reserveFlashSalesForOrder(connection, orderItems, orderId, sessionCustomer?.id || null, body.customer.phone);
       await Promise.all([
         createOrderMeta(connection, orderId, JSON.parse(buyerInfo)),
         linkOrderToCustomer(connection, orderId, sessionCustomer?.id || null),

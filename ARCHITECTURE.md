@@ -1,12 +1,22 @@
 # HACOM Architecture
 
-Last verified: `2026-07-18`
+Last verified: `2026-07-19`
 
 ## PC Builder bounded context
 
+The Manual v4 application contract is database-configured. An active builder component owns one live taxonomy root (`category_id`) and a UI label/order/required/min/max policy. Candidate membership expands through active descendants and includes every distinct SKU with `isOn=1` and `price>0`. SSD and HDD are separate selection slots; the inactive legacy `storage` row is normalized to one of them during historical requote without rewriting history.
+
+`web_admin_pc_builder_component_relations` stores directional component pairs and logical legacy attribute references. Before converting a configured relation into a bidirectional set-intersection rule, runtime measures the attribute against distinct sellable products in both enabled category trees. Both sides must reach 90% coverage; a sparse relation is reported in admin and skipped by candidate, quote and order instead of collapsing the catalog to the few populated rows. For an enforceable relation, missing facts and incompatible values are hard errors. Missing required selections are warnings; quote exposes `requiresConfirmation`, the exact missing components, a composite configuration/rule revision, fingerprint, and warning signature. Order creation re-quotes inside its transaction and accepts warnings only when the client confirmation matches both current hashes.
+
+The Manual storefront does not bundle Gaming Auto state or fallback component constants. Bootstrap failure is explicit and retryable. Gaming/benchmark/release data and APIs remain retained for a later phase but are not loaded by the current admin/storefront UI.
+
+The browser draft stores only bounded component/product/quantity selections. Persistence starts after hydration, and every quote is associated with a canonical selection signature plus request generation. A current quote may replace legacy `storage` codes with server-normalized `ssd`/`hdd`; stale or aborted responses cannot drive totals, diagnostics or checkout, and checkout repeats the same normalization before submitting an order.
+
+Manual readiness depends only on active component configuration and catalog data. Gaming Auto and release-gate APIs are explicitly disabled for this phase. Benchmark snapshots and policy data are retained as independent future-phase evidence but are not loaded by either current UI.
+
 `font-end` owns only the interactive builder/checkout UI and versioned local draft. Every candidate list, quote, auto recommendation, share read, save and order crosses a `web-admin` API; no database client or price/compatibility decision exists in the storefront.
 
-`web-admin` resolves verified catalog facts from legacy `idv_attribute*` relations plus additive typed metrics. Published rule revisions use a closed operator set (`equality`, `set_contains`, `numeric_lte`, `headroom`, `requires`). Quote and order both re-read sellability/prices and re-run the same engine. Auto Gaming preloads bounded shortlists, prunes invalid partial builds, caps the beam at 300, and re-quotes returned builds.
+`web-admin` resolves catalog-live facts directly from `idv_product_attribute` value IDs. Coverage-qualified relations operate bidirectionally and require an intersection for every selected SKU on the opposite component; missing facts fail closed only after the relation has passed the shared 90% safety gate. Quote and order both re-read category membership, sellability, price, relation coverage and relation facts. The build fingerprint combines selection/config revision, catalog revision, and prices.
 
 Saved builds live in `web_admin_pc_builds` / `web_admin_pc_build_items`. Guest tokens are random, stored only as SHA-256, read-only and expire after 90 days; account builds are owner-scoped and persistent. Orders remain in `build_buy` / `build_buy_item`, with additive metadata for `order_type=pc_builder`, build ID, assembly and rule revision.
 
@@ -127,6 +137,22 @@ sequenceDiagram
 - Admin mutations bump a DB-backed cache version. Other workers observe it and clear their local cache.
 - Query, filter count, page, limit, product count, and cart cardinality are bounded to protect CPU, memory, and cache-key growth.
 
+## Flash Sale ownership and transaction flow
+
+```mermaid
+flowchart LR
+  A["Admin Campaign Studio"] -->|"RBAC + write gate + audit"| C["Campaign"]
+  C --> I["Campaign SKU quota"]
+  I --> P["Public Flash Sale / product projection"]
+  P --> Q["Cart quote revalidation"]
+  Q --> O["Order transaction"]
+  O -->|"reserve"| L["Allocation ledger"]
+  L -->|"order completed"| S["reserved to sold"]
+  L -->|"cancelled or failed"| R["release quota"]
+```
+
+`web-admin` owns all Flash Sale reads, writes and MySQL access. `font-end` consumes APIs only. Schedules are authored in Vietnam time and normalized to UTC; runtime state uses `[starts_at, ends_at)`. Product price and promotional quota are presentation hints until the server re-quotes. The order transaction atomically inserts the order, conditionally increments `quota_reserved`, records a price/allocation snapshot and updates the HMAC buyer-usage row. Completion moves reserved quota to sold; cancellation/failure releases it. Campaign overlap is rejected per product at publication, and `quota_total >= quota_reserved + quota_sold` is the core invariant.
+
 ## Checkout, voucher, and email flow
 
 ```mermaid
@@ -197,6 +223,14 @@ Public write failures use:
 - No code should assume a physical FK exists between legacy tables.
 - Search uses `product_data_search` plus the normalize function, insert/update triggers, and FK to products.
 - Customer, customer-favorite, voucher, product-promotion, idempotency, outbox, rate-limit, cache-version, and webhook-nonce state is transactional InnoDB.
+
+### Quick attribute completion flow
+
+`web-admin /quick-tools/incomplete-product-attributes` is an admin-only catalog workflow. Read APIs expand active category descendants with bounded recursive CTEs (depth 32, cycle guard, maximum 1,000 active categories), union active `idv_attribute_category` mappings, and deduplicate products before applying `NOT EXISTS` to `idv_product_attribute`. Applicability is mapping-aware: a mapping rooted in one descendant branch never makes that attribute mandatory in a sibling branch.
+
+The category summary response includes the legacy hierarchy keys `parentId` and `ordering`. The browser builds a defensive disclosure tree with orphan/cycle/deduplication guards and filters that already-loaded tree locally; category search therefore does not fan out into per-keystroke API calls. `selectedCategoryId` preserves a selected completed node and its ancestor chain without changing the default incomplete-only scope.
+
+Autosave serializes/coalesces changes per SKU in the browser. The write transaction locks `idv_sell_product_store`, revalidates product scope and value ownership, compares the expected revision with the sorted current value-ID hash, and replaces only `idv_product_attribute(pro_id, attr_id)` rows. Cache-version bumps and local invalidation cover public products, catalog detail, search, product cards, and PC Builder; the storefront never reads MySQL directly.
 
 The active `it_tech_db` snapshot contains 292 physical tables: 164 InnoDB and 128 MyISAM after the additive article-category metadata and page-view migrations on `2026-07-16`. It has no importer stage/restore/recovery tables and no Latin-1 tables or columns. Consumers must still use named table contracts rather than infer schema from totals. The live inventory is 788 product categories, 90 brands, 4,712 products/search rows, 8 article categories (4 imported and 4 local), 668 articles/content rows, and 705 article-category links. See `web-admin/database-docs/DATABASE_SCHEMA.md` for schema details and `DATABASE_TRANSFER.md` for the verified restore path.
 

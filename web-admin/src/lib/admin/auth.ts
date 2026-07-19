@@ -219,6 +219,8 @@ export async function ensureAdminAccessTables() {
     for (const [roleCode, permissions] of [
       ['marketing_manager', ['marketing.product_promotions.read', 'marketing.product_promotions.create', 'marketing.product_promotions.update', 'marketing.product_promotions.delete']],
       ['viewer', ['marketing.product_promotions.read']],
+      ['marketing_manager', ['marketing.flash_sales.read', 'marketing.flash_sales.create', 'marketing.flash_sales.update', 'marketing.flash_sales.delete', 'marketing.flash_sales.publish']],
+      ['viewer', ['marketing.flash_sales.read']],
     ] as const) {
       for (const permission of permissions) {
         await connection.query(`

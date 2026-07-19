@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-07-19 - Flash Sale implementation (rollout disabled)
+
+- Added an additive four-table InnoDB Flash Sale model for campaigns, SKU quota, order allocations and HMAC buyer usage, plus guarded apply/verify migration tooling and rollback guidance.
+- Fixed the initial admin-list failure by creating a fresh restore-verified logical backup (SHA-256 `72063f78d1562e078ff71822f3006c80ee3155dba2afecf4c1cc3a0f03d04223`), applying the guarded migration twice to identified `it_tech_db`, verifying all table/FK/quota/index/role contracts, and enabling the runtime. The four new tables initially contain zero rows.
+- Added admin campaign operations with search/state summaries, dense SKU quota editing, optimistic revisions, Vietnam-time scheduling, overlap/price validation, dedicated publish/pause permissions and audit logging.
+- Added public active/upcoming campaign projection and a dark responsive `/flash-sale` experience with countdowns and colored remaining-quota progress; existing product cards can show the same Flash Sale signal without changing their background to white.
+- Re-quote Flash prices server-side, reserve quota atomically in the order transaction, snapshot discount allocation, consume on completion and release on cancellation/failure. Exclusive campaigns reject voucher stacking and buyer limits use an HMAC identity rather than raw phone storage.
+- Added focused unit coverage and a destructive concurrency integration fixture that refuses non-test databases by default.
+
+## 2026-07-19 — Quick tool for incomplete product attributes
+
+- Added the dark `Công cụ nhanh` admin group, a three-tool overview with two phase placeholders, and the active rail-based category → attribute → SKU workflow.
+- Replaced the flat Step 01 list with a root-first parent-child disclosure tree. Chevron and category selection are separate controls; sibling order follows `ordering DESC` then Vietnamese name/ID, selected and search paths auto-expand, and clearing local accent-insensitive search restores the previous manual expansion state.
+- Extended category summaries with `parentId`/`ordering` and `selectedCategoryId` preservation without a new endpoint or migration. Client category search now filters the single loaded dataset instead of issuing a request for every query change.
+- Added mapping-aware recursive category/attribute/product APIs with accent-insensitive category search, completion counts, missing-only distinct SKU pagination, status/search/sort filters, and shared attribute values.
+- Added multi-value checkbox autosave that serializes and coalesces rapid per-SKU changes. Writes lock the product, validate the current mapping and value owner, replace only one product/attribute pair, detect competing edits by revision hash, audit old/new selections, and invalidate every catalog consumer.
+- Added focused unit tests and a disposable-database-only integration fixture for multi-value replacement, clearing, unrelated-attribute preservation, invalid ownership/scope/mapping, revision conflict/idempotency, dedupe, and cache-version bumps. No schema or index migration was introduced.
+- Added tree-focused unit coverage for hierarchy depth, sibling order, orphan/cycle/dedupe guards, selected ancestry, accent-insensitive/ID search, ancestor retention, sibling exclusion, and non-mutating search expansion; added a read-only integration assertion for hierarchy metadata and selected completed-path preservation.
+
+## 2026-07-19 — PC Builder legacy draft visibility fix
+
+- Reproduced the storefront mismatch exactly: a browser draft with `componentCode=storage` and a 3.890.000đ SSD was normalized by backend quote to `ssd`, counted in totals, but remained invisible because the component table still read the legacy client selection code.
+- Added bounded draft parsing, canonical selection signatures and quote-to-selection reconciliation shared by builder and checkout. Draft persistence now waits for hydration; successful requote rewrites legacy `storage` as visible `ssd`/`hdd` without changing historical database rows.
+- Added request-generation/signature guards so delayed quotes cannot repopulate totals, diagnostics or checkout state after reset or rapid selection changes. Empty state is now strictly `0 linh kiện / 0đ` and does not request a quote.
+- Added a database-backed legacy normalization regression plus ten focused Playwright cases across desktop/mobile for empty draft, legacy restoration, delayed-response reset and normalized checkout submission.
+
+## 2026-07-19 — PC Builder descendant candidate regression fix
+
+- Confirmed Mainboard category `91` has zero direct sellable products but 255 distinct sellable products across 33 enabled descendant categories; the recursive candidate universe was correct.
+- Fixed sparse compatibility relations collapsing candidate results: Mainboard–SSD attribute `38` covered only 1/255 Mainboards, and Mainboard–RAM attribute `16` also covered only 1/255. Runtime now enforces a relation only when the reference attribute covers at least 90% of sellable SKUs on both category trees.
+- Applied the same qualified relation set to candidate filtering, quote and order validation. Admin now displays exact coverage and clearly marks relations that are temporarily skipped. Added unit boundary coverage and a database-backed regression proving Mainboard + selected SSD returns the full descendant sellable universe.
+
+## 2026-07-19 — PC Builder v3 local testing enablement
+
+- Opened an approved local maintenance window, revalidated restore-verified backup SHA-256 `f5f66f6c9916e0f995ba4b22c918188bd74a76e07cbe61f38a82feee1fb5db57`, and applied `pc-builder-v3` twice to identified database `it_tech_db` before a successful verify.
+- Verified 303 total tables (175 InnoDB/128 MyISAM), 11 PC Builder tables, two component-relation foreign keys, the unique category index, and both dynamic component columns. Historical `storage` rows retained hash `1a5e16df9fedf15865548d8eb97b8bfd3cba164420fbb2819db3f8f8e797ddcd`.
+- Restarted admin, storefront, and background worker with `ADMIN_WRITE_ENABLED=true` for local configuration testing. A write probe reached authentication instead of `WRITE_DISABLED`, readiness/liveness passed, and local healthcheck passed 15/15.
+
+## 2026-07-19 — PC Builder Manual v3 implementation
+
+- Added guarded `pc-builder-v3` schema support for category-backed components, shared profile families and attribute relations; seeded independent SSD/HDD slots while retaining inactive legacy `storage` history.
+- Replaced hard-coded required/category/limit behavior with database configuration, composite rule revisions, category-scope/profile validation, warning-only missing-required diagnostics and fingerprint-bound warning confirmation.
+- Added transactional optimistic admin configuration APIs, category ID/name search, relation attribute eligibility checks, descendant distinct counts, soft-disable semantics and cache invalidation/audit guards.
+- Expanded candidates to batch compatibility, search/filter/sort/pagination and price/brand/attribute facets without per-product compatibility SQL.
+- Rebuilt admin and storefront as Manual-only dark interfaces; removed Auto/benchmark/release controls from current client bundles, added the responsive accessible selection dialog, SSD/HDD multi-select and semantic FAQ content.
+- Rehearsed v3 on restore-verified clone `it_tech_db_pc_builder_clone_20260719003737`: apply twice, verify and destructive integration passed with 11 tables, two relation FKs and the unique category index; historical `storage` rows retained SHA-256 `f71e461160b4b72b64973c64980a9da8ee2c4a6d6877fa386968a5ee49434545`.
+- Did not apply v3 to live. Verification passed for both typechecks/lints/builds, 156 unit tests, the normal integration suite and focused desktop/mobile Playwright; only the guarded live maintenance apply and local two-server healthcheck remain pending.
+
+## 2026-07-19 — PC Builder live rollout
+
+- Added the dedicated guarded `pc-builder-v2` apply/verify/rollback migration, extraction runner, schema-validated curated manifest, benchmark provenance model and atomic manual/auto release gates.
+- Rehearsed restore, idempotency and hard rollback on `it_tech_db_pc_builder_clone_20260719003737`, then applied the same 302-table result to live `it_tech_db` from restore-verified backup SHA-256 `f5f66f6c9916e0f995ba4b22c918188bd74a76e07cbe61f38a82feee1fb5db57`.
+- Enabled manual PC Builder with seven verified/current components and a compatible quote. Kept Gaming Auto disabled because minimum coverage and same-cohort benchmark gates do not pass.
+- Extended admin review/release controls, optimistic source hashes, PC Builder order metadata, `#Build PC` email rendering and completed-email outbox idempotency.
+- Retained completed QA orders #20 (standard) and #21 (PC Builder); confirmation/completed email events for both were accepted by SMTP and marked sent.
+- Added a configurable read-only PC Builder k6 smoke. Its first pass exposed rate-limit row deadlocks; bounded retry reduced the rerun to 0/135 failed requests with p95 97.57ms.
+- Updated the default local healthcheck collection to active slug `goi-y-cho-ban`, restoring 15/15 checks without weakening expected statuses.
+
 ## 2026-07-18 — PC Builder implementation
 
 - Added additive PC Builder component/profile/metric/rule/policy/build tables and the `pc_builder` order metadata contract to the guarded admin migration.
@@ -649,3 +707,11 @@ Historical entries describe the state on their own date. Use `AI_HANDOFF.md` and
 ### Verification
 
 - Storefront TypeScript, ESLint, and production build passed.
+## 2026-07-19 — PC Builder Catalog-live v4
+
+- Replaced verified-only profiles with direct sellable catalog membership (`isOn=1`, positive price, active category descendants) and SQL-side candidate search/filter/sort/pagination.
+- Added stable numeric attribute-value facets, self-excluding price/brand/attribute counts, bidirectional relation constraints, relation context, catalog revisions, and hard missing-attribute/mismatch enforcement in quote/order.
+- Removed extraction/review APIs, profile/metric hooks, manifest flow, admin profile UI, two verification tables, `profile_component_code`, and `profile_revision`; disabled metric rules and made Auto/release APIs return `503 PC_BUILDER_AUTO_DISABLED`.
+- Completed the dark near-full-viewport storefront modal and parent-child searchable admin selectors; retained warning-confirmed incomplete checkout and SSD/HDD multi-select.
+- Created and restore-verified a 303-table/97,581-row backup (`657d673b...`), rehearsed apply twice/verify on retained clone `it_tech_db_backup_test_1784452557655_209400`, verified historical requote, then applied twice and verified live. Current schema is 301 tables (173 InnoDB/128 MyISAM), nine PC Builder tables.
+- Passed both typechecks/lints/builds, 149 backend unit tests, normal integration tests, focused desktop/mobile Playwright, and 19/19 local health checks after restarting both production servers.

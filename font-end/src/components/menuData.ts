@@ -263,14 +263,14 @@ export const fallbackHeaderMenu: HeaderMenuData = {
   faves: [
     { id: 'fav-best-sellers', label: 'Best Sellers', url: '#', suffixText: '\uD83D\uDD25' },
     { id: 'fav-builder', label: 'PC Builder', url: '/xay-dung-cau-hinh-pc' },
-    { id: 'fav-flash', label: 'Flash Deals', url: '#', badgeText: 'NEW' },
+    { id: 'fav-flash', label: 'Flash Deals', url: '/flash-sale', badgeText: 'NEW' },
   ],
   topNav: [
     { id: 'components', label: 'Components', url: '#' },
     { id: 'laptops-special', label: 'Laptops Special', url: '#', suffixText: '\uD83D\uDCBB' },
     { id: 'pre-built', label: 'Pre Built PCs', url: '#' },
     { id: 'best-sellers', label: 'Best Sellers', url: '#', suffixText: '\uD83D\uDD25' },
-    { id: 'flash-deals', label: 'Flash Deals', url: '#', suffixText: '\u23F3', badgeText: 'NEW' },
+    { id: 'flash-deals', label: 'Flash Deals', url: '/flash-sale', suffixText: '\u23F3', badgeText: 'NEW' },
     { id: 'winter-special', label: 'Winter Special', url: '#', suffixText: '\u26C4' },
     { id: 'ai-builder', label: 'AI PC Builder', url: '/xay-dung-cau-hinh-pc', suffixText: '\u2728' },
     { id: 'upgrade-kits', label: 'Upgrade Kits', url: '#' },

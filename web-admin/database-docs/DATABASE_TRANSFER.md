@@ -1,10 +1,14 @@
 # Database Export, Restore, and Machine Transfer
 
-Last verified: `2026-07-16`
+Last verified: `2026-07-19`
 
 This runbook transfers the complete active `it_tech_db` database to another machine. It preserves table definitions/data, mixed InnoDB/MyISAM engines, collations, the search routine, triggers, and import audit. Accepted runs 2-8 no longer have in-database recovery tables; their recovery boundary is the verified external artifacts below. `hanoi23_db` is out of scope and must remain untouched.
 
+The current pre-catalog-live rollback boundary is `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v4-rehearsal-2026-07-19T09-15-57-655Z.json`, SHA-256 `657d673b5e7e8b938c54d867e8c3f972b6a087255d73e8846f594872db4efb25`. Its retained restore clone matched 303 tables/97,581 rows/one routine/two triggers and passed the v4 migration twice plus historical requote. Current live inventory after dropping the two verification tables is 301 tables (173 InnoDB/128 MyISAM).
+
 ## Current finalization artifacts
+
+The current pre-PC-Builder rollback boundary is `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-live-20260719003737.sql` (93,554,286 bytes), SHA-256 `f5f66f6c9916e0f995ba4b22c918188bd74a76e07cbe61f38a82feee1fb5db57`. It was restored into retained clone `it_tech_db_pc_builder_clone_20260719003737`, which matched 292 tables, catalog counts, one routine and two triggers before passing dedicated migration apply twice, verification, hard rollback and clean reapply. Live now has 302 tables; this archive intentionally predates the ten additive PC Builder tables and QA orders #20/#21.
 
 The pre-page-view rollback boundary is `D:\web-tech\tmp\db-backups\it_tech_db-pre-page-view-tracking-2026-07-16T13-01-41-728Z.json` with SHA-256 `b2bfd6c86c21e89d326081e44b403049768244b624ae8f97acaae564674701de`. Its disposable restore matched 290 tables, 84,299 rows, 1 routine and 2 triggers before the additive two-table migration ran twice.
 

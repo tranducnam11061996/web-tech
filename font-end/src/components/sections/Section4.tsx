@@ -50,11 +50,11 @@ export default async function Section4({ initialItems }: { initialItems?: MenuLi
   return (
     <>
   {/*  START section-4  */}
-  <section className="section-4 shop-by-category py-10 bg-dark-200" id="section-4">
-    <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
+  <section className="section-4 shop-by-category pt-5 pb-10 bg-dark-200" id="section-4">
+    <div className="max-w-[1800px] mx-auto sm:px-6 lg:px-8">
 
       {/*  Section Header  */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between px-4 mb-6">
         <h2 className="text-2xl md:text-3xl font-bold text-white">Shop by Category</h2>
         <div className="flex items-center gap-3">
           <button id="prevBtn"
@@ -90,7 +90,7 @@ export default async function Section4({ initialItems }: { initialItems?: MenuLi
             const path = iconPath(item);
 
             return (
-              <div className="shrink-0 w-[160px] md:w-[180px] px-1.5 group cursor-pointer" key={item.id || `${label}-${index}`}>
+              <div className="section-4-carousel-item shrink-0 w-[160px] md:w-[180px] px-1.5 group cursor-pointer" key={item.id || `${label}-${index}`}>
                 <div
                   className="relative bg-dark-lighter rounded-xl border border-white/5 overflow-hidden aspect-square flex items-center justify-center mb-2.5 group-hover:border-primary/30 transition-all duration-300"
                   style={cardStyle(item)}

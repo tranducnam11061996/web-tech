@@ -1,14 +1,20 @@
 # HACOM Storefront
 
-Last verified: `2026-07-18`
+Last verified: `2026-07-19`
 
 `font-end` is the customer-facing Next.js 16.2.9/React 19.2.4 storefront. It consumes `web-admin` APIs and must never access MySQL or backend secrets directly.
 
 ## PC Builder storefront
 
-`/xay-dung-cau-hinh-pc` is canonical; `/pc-builder` redirects there. The browser persists only selection IDs/quantities in `hacom:pc-builder:draft:v1`. Candidates, prices, compatibility, revisions and Gaming scores come from `web-admin` and are revalidated by `/thanh-toan-pc-builder`.
+The current storefront is Manual-only. It never falls back to a hard-coded component list: ordering, labels, required state and per-component SKU limits come from bootstrap, and bootstrap failure renders an explicit retry state. The full-screen/mobile candidate dialog consumes server-compatible pagination and price/brand/attribute facets. Single-select slots replace and close; multi-select slots such as SSD/HDD stay open and allow distinct SKUs up to the configured maximum.
 
-Guest share links are read-only and requoted on open. Account builds use the customer API. Checkout creates a separate PC Builder order with free assembly by default and requires explicit confirmation for server diagnostics such as an unverified display path.
+Missing required slots are warnings, not compatibility errors. Before checkout the UI lists the missing display names and stores confirmation in `sessionStorage` keyed by quote fingerprint plus warning signature. Checkout re-quotes; any changed price/catalog/relation/config/warning invalidates that confirmation. Hard compatibility or availability errors remain blocking.
+
+`/xay-dung-cau-hinh-pc` is canonical; `/pc-builder` redirects there. The browser persists only bounded selection component codes/IDs/quantities in `hacom:pc-builder:draft:v1`, and does not write until hydration completes. Historical `storage` selections are accepted only as migration input: the server quote resolves each one to `ssd` or `hdd`, the builder displays it in the canonical row and rewrites the draft. Quote totals, diagnostics and checkout actions are used only while their selection signature matches current state, so an aborted/delayed response cannot revive reset data. Candidates, prices, compatibility and revisions come from `web-admin` and are revalidated by `/thanh-toan-pc-builder`.
+
+Guest share links are read-only and requoted on open. Account builds use the customer API. Checkout creates a separate PC Builder order with free assembly by default. Missing required components can be confirmed; category, availability and attribute-relation errors cannot.
+
+Manual PC Builder is enabled against the live sellable catalog without profile verification. Candidate membership always includes the configured category root and every enabled descendant. Compatibility context is shown only for relations that pass the backend's shared 90% attribute-coverage gate, preventing sparse legacy attributes from hiding most valid SKUs. Gaming Auto remains future-phase data/code and is intentionally not represented in the storefront bundle; bootstrap exposes only Manual configuration.
 
 ## Combo storefront
 
@@ -82,6 +88,10 @@ The storefront CSP permits `unsafe-eval` only under `next dev`, because React's 
 - Do not send or trust payment status, voucher validity/quota, customer IDs, address ownership, or totals from browser state.
 - Prefix relative media/API paths using the configured API origin; never leak server environment variables into client bundles.
 - Public menu/banner/homepage responses are already reduced for runtime use; do not reintroduce admin metadata into client state.
+
+## Flash Sale storefront
+
+The dedicated `/flash-sale` journey is server-rendered from `web-admin GET /api/flash-sales`, then refreshes the same-origin API snapshot every 15 seconds while one local clock drives countdowns. It deliberately retains the storefront's dark background. Each SKU shows the authoritative promotional price snapshot and a semantic colored progress bar for remaining quota; sold-out controls are disabled. Product cards outside this page also display the Flash Sale badge/progress when their existing product payload carries `flashSale`. Browser prices and remaining values are presentation only; cart quote and order APIs remain authoritative.
 
 ## Checkout contract
 

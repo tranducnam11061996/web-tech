@@ -120,22 +120,31 @@ async function consumeRateLimitOnConnection(connection: PoolConnection, input: R
 
 export async function consumeRateLimits(inputs: RateLimitInput[]) {
   if (inputs.length === 0) return;
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    let blocked: RateLimitError | null = null;
-    const ordered = [...inputs].sort((left, right) => `${left.scope}:${sha256(left.key)}`.localeCompare(`${right.scope}:${sha256(right.key)}`));
-    for (const input of ordered) {
-      const inputBlock = await consumeRateLimitOnConnection(connection, input);
-      blocked ||= inputBlock;
+  const ordered = [...inputs].sort((left, right) =>
+    `${left.scope}:${sha256(left.key)}`.localeCompare(`${right.scope}:${sha256(right.key)}`),
+  );
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      let blocked: RateLimitError | null = null;
+      for (const input of ordered) {
+        const inputBlock = await consumeRateLimitOnConnection(connection, input);
+        blocked ||= inputBlock;
+      }
+      await connection.commit();
+      if (blocked) throw blocked;
+      return;
+    } catch (error) {
+      try { await connection.rollback(); } catch { /* connection may already be committed */ }
+      const code = String((error as { code?: unknown } | null)?.code || '');
+      const retryable = code === 'ER_LOCK_DEADLOCK' || code === 'ER_LOCK_WAIT_TIMEOUT';
+      if (!retryable || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1) + Math.floor(Math.random() * 15)));
+    } finally {
+      connection.release();
     }
-    await connection.commit();
-    if (blocked) throw blocked;
-  } catch (error) {
-    try { await connection.rollback(); } catch { /* connection may already be committed */ }
-    throw error;
-  } finally {
-    connection.release();
   }
 }
 

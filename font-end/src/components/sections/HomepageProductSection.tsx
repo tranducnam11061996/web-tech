@@ -132,7 +132,7 @@ export default async function HomepageProductSection({
     <>
       {/*  START dynamic homepage product section  */}
       <section className={`${config.sectionId} py-10 bg-dark-200`} id={config.sectionId}>
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[1800px] mx-auto sm:px-6 lg:px-8">
           <div className="gift-section">
             <div className="gift-layout flex-stretch">
               <div className="cta-panel">

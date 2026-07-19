@@ -46,11 +46,12 @@ export async function completeOrderRequest(connection: PoolConnection, requestId
 
 export async function enqueueOrderEmail(connection: PoolConnection, payload: SendOrderEmailParams) {
   if (!payload.to) return;
+  const eventType = payload.eventType === 'completed' ? 'order_completed' : 'order_confirmation';
   await connection.query(
     `INSERT INTO web_admin_email_outbox(event_type,aggregate_id,payload_json)
-     VALUES('order_confirmation',?,?)
+     VALUES(?,?,?)
      ON DUPLICATE KEY UPDATE payload_json=VALUES(payload_json),
        status=IF(status='sent',status,'pending'),available_at=NOW()`,
-    [String(payload.orderId), JSON.stringify(payload)],
+    [eventType, String(payload.orderId), JSON.stringify({ ...payload, eventType: payload.eventType === 'completed' ? 'completed' : 'confirmation' })],
   );
 }

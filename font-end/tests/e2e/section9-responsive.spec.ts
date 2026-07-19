@@ -29,16 +29,28 @@ test("Section 9 matches the mobile 2/3 card composition", async ({ page }, testI
   }));
 
   expect(boxes).toHaveLength(5);
-  expect(boxes[0].x).toBeCloseTo(14, 0);
-  expect(boxes[0].width).toBeCloseTo(194.5, 0);
+  expect(boxes[0].x).toBeCloseTo(16, 0);
+  expect(boxes[0].width).toBeCloseTo(192.5, 0);
   expect(boxes[0].height).toBeCloseTo(boxes[0].width * 2 / 3, 0);
   expect(boxes[1].x - boxes[0].x - boxes[0].width).toBeCloseTo(12, 0);
-  expect(boxes[2].x).toBeCloseTo(14, 0);
-  expect(boxes[2].width).toBeCloseTo(125.66, 0);
+  expect(boxes[2].x).toBeCloseTo(16, 0);
+  expect(boxes[2].width).toBeCloseTo(124.33, 0);
   expect(boxes[2].height).toBeCloseTo(boxes[2].width * 23 / 25, 0);
   expect(boxes[2].y - boxes[0].y - boxes[0].height).toBeCloseTo(12, 0);
   expect(boxes[3].x - boxes[2].x - boxes[2].width).toBeCloseTo(12, 0);
   expect(boxes[4].x - boxes[3].x - boxes[3].width).toBeCloseTo(12, 0);
+
+  const titleArtworkGaps = await cards.evaluateAll((elements) => elements.map((element) => {
+    const title = element.querySelector<HTMLElement>("[data-section9-title]");
+    const artwork = element.querySelector<HTMLElement>("[data-section9-artwork]");
+    if (!title || !artwork) return null;
+    return artwork.getBoundingClientRect().top - title.getBoundingClientRect().bottom;
+  }));
+  expect(titleArtworkGaps[0]).toBeCloseTo(11, 0);
+  expect(titleArtworkGaps[1]).toBeCloseTo(11, 0);
+  expect(titleArtworkGaps[2]).toBeCloseTo(5, 0);
+  expect(titleArtworkGaps[3]).toBeCloseTo(5, 0);
+  expect(titleArtworkGaps[4]).toBeCloseTo(5, 0);
 
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   expect(pageErrors).toEqual([]);

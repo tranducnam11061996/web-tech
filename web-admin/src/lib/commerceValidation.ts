@@ -110,12 +110,14 @@ export type ComboOrderInput = z.infer<typeof comboOrderSchema>;
 
 export const pcBuilderOrderSchema = orderSchema.omit({ items: true, voucherCode: true }).extend({
   selections: z.array(z.object({
-    componentCode: z.enum(['cpu','mainboard','ram','storage','case','psu','gpu','monitor','keyboard','mouse','headset','cooler']),
+    componentCode: z.string().trim().min(1).max(32).regex(/^[a-z0-9_]+$/),
     productId: z.coerce.number().int().positive(),
     quantity: z.coerce.number().int().min(1).max(4),
-  }).strict()).min(6).max(24),
+  }).strict()).min(1).max(24),
   assemblyRequired: z.boolean().optional().default(true),
   warningsConfirmed: z.boolean().optional().default(false),
+  warningFingerprint: z.string().regex(/^[a-f0-9]{64}$/i).optional().default(''),
+  warningSignature: z.string().regex(/^[a-f0-9]{64}$/i).optional().default(''),
 }).strict();
 
 export type OrderInput = z.infer<typeof orderSchema>;

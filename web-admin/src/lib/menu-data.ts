@@ -15,7 +15,8 @@ import {
   MessageSquare,
   File,
   UserCog,
-  Upload
+  Upload,
+  Wrench
 } from 'lucide-react';
 
 export const menuGroups = [
@@ -25,6 +26,7 @@ export const menuGroups = [
     items: [
       { name: 'Danh sách đơn hàng', path: '/sales/orders' },
       { name: 'Voucher', path: '/sales/vouchers' },
+      { name: 'Flash Sale', path: '/sales/flash-sales' },
       { name: 'Khuyến mãi sản phẩm', path: '/sales/product-promotions' }
     ]
   },
@@ -169,6 +171,13 @@ export const menuGroups = [
     icon: Upload,
     items: [
       { name: 'Upload Image', path: '#' }
+    ]
+  },
+  {
+    title: 'Công cụ nhanh',
+    icon: Wrench,
+    items: [
+      { name: 'Cập nhật thuộc tính thiếu', path: '/quick-tools' }
     ]
   },
   {

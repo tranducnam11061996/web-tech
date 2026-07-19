@@ -10,18 +10,28 @@ export async function bumpPcBuilderCacheVersion(db: Pool | PoolConnection = pool
 }
 
 const COMPONENTS = [
-  ['cpu', 'CPU', '[47]', 1, 1, 1, 10],
-  ['mainboard', 'Mainboard', '[91]', 1, 1, 1, 20],
-  ['ram', 'RAM', '[119]', 1, 1, 4, 30],
-  ['storage', 'SSD / HDD', '[139,143]', 1, 1, 4, 40],
-  ['case', 'Vỏ máy tính', '[127]', 1, 1, 1, 50],
-  ['psu', 'Nguồn máy tính', '[132]', 1, 1, 1, 60],
-  ['gpu', 'Card đồ họa', '[77]', 0, 0, 1, 70],
-  ['cooler', 'Tản nhiệt', '[423]', 0, 0, 1, 80],
-  ['monitor', 'Màn hình', '[]', 0, 0, 2, 90],
-  ['keyboard', 'Bàn phím', '[]', 0, 0, 1, 100],
-  ['mouse', 'Chuột', '[]', 0, 0, 1, 110],
-  ['headset', 'Tai nghe', '[]', 0, 0, 1, 120],
+  ['cpu', 'CPU - Bộ vi xử lý', '[47]', 47, 'cpu', 1, 1, 1, 10, 1],
+  ['mainboard', 'Mainboard - Bo mạch chủ', '[91]', 91, 'mainboard', 1, 1, 1, 20, 1],
+  ['ram', 'RAM - Bộ nhớ trong', '[119]', 119, 'ram', 1, 1, 4, 30, 1],
+  ['ssd', 'Ổ cứng SSD', '[139]', 139, 'storage', 1, 1, 4, 40, 1],
+  ['hdd', 'Ổ cứng HDD', '[143]', 143, 'storage', 0, 0, 4, 50, 1],
+  ['gpu', 'VGA - Card màn hình', '[77]', 77, 'gpu', 0, 0, 1, 60, 1],
+  ['psu', 'PSU - Nguồn máy tính', '[132]', 132, 'psu', 1, 1, 1, 70, 1],
+  ['cooler', 'Tản nhiệt - Cooling', '[423]', 423, 'cooler', 0, 0, 1, 80, 1],
+  ['case', 'Case - Vỏ máy tính', '[127]', 127, 'case', 1, 1, 1, 90, 1],
+  ['monitor', 'Màn hình máy tính', '[102]', 102, 'monitor', 0, 0, 1, 100, 1],
+  ['keyboard', 'Bàn phím', '[154]', 154, 'keyboard', 0, 0, 1, 110, 1],
+  ['mouse', 'Chuột', '[178]', 178, 'mouse', 0, 0, 1, 120, 1],
+  ['headset', 'Tai nghe', '[195]', 195, 'headset', 0, 0, 1, 130, 1],
+  ['storage', 'SSD / HDD (legacy)', '[139,143]', null, 'storage', 0, 0, 4, 140, 0],
+] as const;
+
+const ATTRIBUTE_RELATIONS = [
+  ['cpu', 'mainboard', 12, 10],
+  ['mainboard', 'ram', 16, 20],
+  ['mainboard', 'case', 21, 30],
+  ['cpu', 'cooler', 12, 40],
+  ['mainboard', 'ssd', 38, 50],
 ] as const;
 
 async function hasColumn(table: string, column: string) {
@@ -58,41 +68,47 @@ export async function ensurePcBuilderTables() {
     updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY idx_pc_builder_components_status_order (status, ordering)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  if (!await hasColumn('web_admin_pc_builder_components', 'category_id')) {
+    await pool.query('ALTER TABLE web_admin_pc_builder_components ADD COLUMN category_id int unsigned NULL AFTER name');
+  }
+  await ensureIndex('web_admin_pc_builder_components', 'uq_pc_builder_components_category',
+    'CREATE UNIQUE INDEX uq_pc_builder_components_category ON web_admin_pc_builder_components(category_id)');
 
-  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_product_profiles (
-    product_id int NOT NULL PRIMARY KEY,
+  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_component_relations (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
     component_code varchar(32) NOT NULL,
-    state enum('pending','verified','rejected','stale') NOT NULL DEFAULT 'pending',
-    source_hash char(64) NOT NULL,
-    verified_hash char(64) NULL,
-    parser_version varchar(32) NOT NULL DEFAULT 'v1',
-    candidate_attributes_json json NOT NULL,
-    candidate_metrics_json json NOT NULL,
-    confidence decimal(5,4) NULL,
-    reviewed_by int NULL,
-    reviewed_at datetime NULL,
-    review_note varchar(1000) NOT NULL DEFAULT '',
+    related_component_code varchar(32) NOT NULL,
+    attribute_id int unsigned NOT NULL,
+    ordering int NOT NULL DEFAULT 0,
+    status tinyint(1) NOT NULL DEFAULT 1,
     created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_pc_builder_profile_component FOREIGN KEY (component_code) REFERENCES web_admin_pc_builder_components(code),
-    KEY idx_pc_builder_profiles_queue (component_code, state, updated_at),
-    KEY idx_pc_builder_profiles_hash (state, source_hash, verified_hash)
+    CONSTRAINT fk_pc_builder_relation_component FOREIGN KEY (component_code) REFERENCES web_admin_pc_builder_components(code),
+    CONSTRAINT fk_pc_builder_relation_related FOREIGN KEY (related_component_code) REFERENCES web_admin_pc_builder_components(code),
+    UNIQUE KEY uq_pc_builder_component_relation (component_code,related_component_code,attribute_id),
+    KEY idx_pc_builder_relation_active (status,ordering,id),
+    KEY idx_pc_builder_relation_attribute (attribute_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
-  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_product_metrics (
-    product_id int NOT NULL,
-    metric_code varchar(64) NOT NULL,
-    numeric_value decimal(18,4) NULL,
-    text_value varchar(255) NULL,
-    bool_value tinyint(1) NULL,
-    unit varchar(16) NOT NULL DEFAULT '',
-    source varchar(32) NOT NULL DEFAULT 'extractor',
-    confidence decimal(5,4) NULL,
+  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_benchmark_snapshots (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    code varchar(96) NOT NULL,
+    component_code enum('cpu','gpu') NOT NULL,
+    source_name varchar(150) NOT NULL,
+    source_url varchar(2048) NOT NULL,
+    cohort varchar(255) NOT NULL,
+    raw_unit varchar(32) NOT NULL DEFAULT 'score',
+    source_updated_at datetime NULL,
+    captured_at datetime NOT NULL,
+    content_hash char(64) NOT NULL,
+    metadata_json json NOT NULL,
+    status enum('draft','verified','archived') NOT NULL DEFAULT 'draft',
     verified_by int NULL,
     verified_at datetime NULL,
+    created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (product_id, metric_code),
-    KEY idx_pc_builder_metrics_numeric (metric_code, numeric_value, product_id)
+    UNIQUE KEY uq_pc_builder_benchmark_code (code),
+    KEY idx_pc_builder_benchmark_lookup (component_code,status,captured_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
   await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_rule_sets (
@@ -103,6 +119,10 @@ export async function ensurePcBuilderTables() {
     created_by int NULL,
     published_by int NULL,
     published_at datetime NULL,
+    manual_report_hash char(64) NULL,
+    manual_fingerprint char(64) NULL,
+    manual_evaluated_by int NULL,
+    manual_evaluated_at datetime NULL,
     created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uq_pc_builder_rule_revision (revision),
@@ -144,6 +164,37 @@ export async function ensurePcBuilderTables() {
     UNIQUE KEY uq_pc_builder_policy_revision (revision, resolution, game_type, variant),
     KEY idx_pc_builder_policy_lookup (status, resolution, game_type, variant)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  const manualReleaseColumns = [
+    ['manual_report_hash', 'char(64) NULL'],
+    ['manual_fingerprint', 'char(64) NULL'],
+    ['manual_evaluated_by', 'int NULL'],
+    ['manual_evaluated_at', 'datetime NULL'],
+  ] as const;
+  for (const [column, definition] of manualReleaseColumns) {
+    if (!await hasColumn('web_admin_pc_builder_rule_sets', column)) {
+      await pool.query(`ALTER TABLE web_admin_pc_builder_rule_sets ADD COLUMN ${column} ${definition}`);
+    }
+  }
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_release_gates (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    revision varchar(64) NOT NULL,
+    resolution enum('1080p','1440p','4k') NOT NULL,
+    game_type enum('esports','aaa','mixed') NOT NULL,
+    status enum('draft','passed','failed','published') NOT NULL DEFAULT 'draft',
+    acceptance_budget decimal(18,2) NULL,
+    coverage_json json NOT NULL,
+    fingerprints_json json NOT NULL,
+    report_hash char(64) NOT NULL,
+    evaluated_by int NULL,
+    evaluated_at datetime NOT NULL,
+    published_by int NULL,
+    published_at datetime NULL,
+    created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_pc_builder_release_gate (revision,resolution,game_type),
+    KEY idx_pc_builder_release_status (status,revision,resolution,game_type)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
   await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builds (
     id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -155,7 +206,7 @@ export async function ensurePcBuilderTables() {
     status enum('active','ordered','deleted') NOT NULL DEFAULT 'active',
     expires_at datetime NULL,
     rule_revision varchar(64) NOT NULL,
-    profile_revision varchar(64) NOT NULL,
+    catalog_revision varchar(64) NOT NULL,
     fingerprint char(64) NOT NULL,
     created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -178,16 +229,24 @@ export async function ensurePcBuilderTables() {
     KEY idx_pc_build_items_product (product_id, build_id)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
-  for (const component of COMPONENTS) {
-    await pool.query(`INSERT INTO web_admin_pc_builder_components
-      (code,name,category_root_ids_json,is_required,min_selections,max_selections,ordering,status)
-      VALUES (?,?,?,?,?,?,?,1)
-      ON DUPLICATE KEY UPDATE name=VALUES(name),category_root_ids_json=VALUES(category_root_ids_json),
-      is_required=VALUES(is_required),min_selections=VALUES(min_selections),max_selections=VALUES(max_selections),ordering=VALUES(ordering)`, [...component]);
+  if (!await hasColumn('web_admin_pc_builds', 'catalog_revision')) {
+    await pool.query("ALTER TABLE web_admin_pc_builds ADD COLUMN catalog_revision varchar(64) NOT NULL DEFAULT '' AFTER rule_revision");
   }
 
-  await pool.query(`INSERT IGNORE INTO web_admin_pc_builder_rule_sets (revision,name,status,published_at)
-    VALUES ('v1','Quy tắc tương thích PC Builder V1','published',CURRENT_TIMESTAMP)`);
+  for (const component of COMPONENTS) {
+    const [code, name, roots, categoryId, , required, minimum, maximum, ordering, status] = component;
+    await pool.query(`INSERT INTO web_admin_pc_builder_components
+      (code,name,category_root_ids_json,category_id,is_required,min_selections,max_selections,ordering,status)
+      VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE code=code`,
+    [code, name, roots, categoryId, required, minimum, maximum, ordering, status]);
+  }
+  for (const relation of ATTRIBUTE_RELATIONS) {
+    await pool.query(`INSERT IGNORE INTO web_admin_pc_builder_component_relations
+      (component_code,related_component_code,attribute_id,ordering,status) VALUES (?,?,?,?,1)`, [...relation]);
+  }
+
+  await pool.query(`INSERT IGNORE INTO web_admin_pc_builder_rule_sets (revision,name,status)
+    VALUES ('v1','Quy tắc tương thích PC Builder V1','draft')`);
   const [sets] = await pool.query<RowDataPacket[]>("SELECT id FROM web_admin_pc_builder_rule_sets WHERE revision='v1' LIMIT 1");
   const setId = Number(sets[0]?.id || 0);
   if (setId) {
@@ -206,6 +265,8 @@ export async function ensurePcBuilderTables() {
         (rule_set_id,code,severity,operator,left_component,left_fact,right_component,right_fact,config_json,message,ordering)
         VALUES (?,?,?,?,?,?,?,?,JSON_OBJECT(),?,?)`, [setId, ...rule]);
     }
+    await pool.query(`UPDATE web_admin_pc_builder_rules SET is_enabled=0
+      WHERE rule_set_id=? AND (left_fact LIKE 'metric:%' OR right_fact LIKE 'metric:%')`, [setId]);
   }
 
   const policyDefaults = [
@@ -216,8 +277,8 @@ export async function ensurePcBuilderTables() {
   for (const [resolution, gameType, ramGb, storageGb] of policyDefaults) {
     for (const variant of ['value','balanced','performance'] as const) {
       await pool.query(`INSERT IGNORE INTO web_admin_pc_builder_gaming_policies
-        (revision,resolution,game_type,variant,status,config_json,published_at)
-        VALUES ('v1',?,?,?,'published',JSON_OBJECT('minimumRamGb',?,'minimumStorageGb',?,'minimumGamingScore',0,'beamWidth',300),CURRENT_TIMESTAMP)`,
+        (revision,resolution,game_type,variant,status,config_json)
+        VALUES ('v1',?,?,?,'draft',JSON_OBJECT('minimumRamGb',?,'minimumStorageGb',?,'minimumGamingScore',0,'beamWidth',300))`,
       [resolution, gameType, variant, ramGb, storageGb]);
     }
   }
@@ -236,4 +297,10 @@ export async function ensurePcBuilderTables() {
     await pool.query("ALTER TABLE web_admin_storefront_order_meta MODIFY COLUMN order_type enum('standard','combo','pc_builder') NOT NULL DEFAULT 'standard'");
   }
   await ensureIndex('web_admin_storefront_order_meta', 'idx_web_admin_order_meta_pc_build', 'CREATE INDEX idx_web_admin_order_meta_pc_build ON web_admin_storefront_order_meta(pc_build_id,order_id)');
+
+  const [pcOrders] = await pool.query<RowDataPacket[]>("SELECT 1 FROM web_admin_storefront_order_meta WHERE order_type='pc_builder' LIMIT 1");
+  if (!pcOrders[0]) {
+    await pool.query("UPDATE web_admin_pc_builder_rule_sets SET status='draft',published_at=NULL WHERE revision='v1' AND status='published' AND published_by IS NULL");
+    await pool.query("UPDATE web_admin_pc_builder_gaming_policies SET status='draft',published_at=NULL WHERE revision='v1' AND status='published' AND published_by IS NULL");
+  }
 }

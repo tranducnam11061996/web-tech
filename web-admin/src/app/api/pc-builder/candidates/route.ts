@@ -13,8 +13,9 @@ export async function POST(request: Request) {
     await consumeRateLimit({ scope: 'pc_builder_candidates_ip', key: requestIp(request), limit: 180, windowSeconds: 60, blockSeconds: 60 });
     const data = await listPcBuilderCandidates({
       ...body,
-      selections: body.selections || [], cursor: body.cursor || 0, limit: body.limit || 24,
-      query: body.query || '', brandIds: body.brandIds || [],
+      selections: body.selections || [], page: body.page || 1, limit: body.limit || 24,
+      query: body.query || '', brandIds: body.brandIds || [], minPrice: body.minPrice ?? null,
+      maxPrice: body.maxPrice ?? null, sort: body.sort || 'default', attributeFilters: body.attributeFilters || {},
     });
     return NextResponse.json({ success: true, data }, { headers: { ...cors, 'Cache-Control': 'no-store', 'X-Request-ID': requestId(request) } });
   } catch (error) { return publicError(error, request, cors); }

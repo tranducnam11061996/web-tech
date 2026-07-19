@@ -43,7 +43,6 @@ import { deleteBuyingGuideForEntity, ensureBuyingGuideTables } from '@/lib/buyin
 import { clearPublicCatalogDetailCache, clearPublicProductResponseCache } from '@/lib/publicProductCache';
 import { invalidateVoucherCategoryCache } from '@/lib/vouchers';
 import { ensureProductGroupIndexes } from '@/lib/productGroups';
-import { markPcBuilderProfileStale } from '@/lib/pcBuilder/admin';
 import { bumpPcBuilderCacheVersion } from '@/lib/pcBuilder/infrastructure';
 import { invalidateProductPromotionCategoryCache } from '@/lib/productPromotions';
 
@@ -128,6 +127,7 @@ async function getExistingProductForUpdate(connection: PoolConnection, productId
       LEFT JOIN idv_sell_product_price pr ON pr.id = p.id
       WHERE p.id = ?
       LIMIT 1
+      FOR UPDATE
     `,
     [productId],
   );
@@ -607,7 +607,6 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     console.error('[SearchCache] Failed to sync saved product:', error);
   }
 
-  await markPcBuilderProfileStale(saved.id);
   await bumpPcBuilderCacheVersion();
 
   return { id: saved.id, slug: saved.slug };
@@ -772,8 +771,7 @@ export async function updateProductSection(productId: number, section: ProductSe
   }
 
   if (section === 'combo') clearPublicCatalogDetailCache();
-  if (['basic', 'description', 'category', 'attributes'].includes(section)) await markPcBuilderProfileStale(productId);
-  if (section === 'basic') await bumpPcBuilderCacheVersion();
+  if (['basic', 'category', 'attributes'].includes(section)) await bumpPcBuilderCacheVersion();
 
   return saved;
 }

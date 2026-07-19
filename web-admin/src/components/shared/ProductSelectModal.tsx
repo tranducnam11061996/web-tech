@@ -8,6 +8,8 @@ export type SelectableProduct = {
   proName: string;
   storeSKU: string;
   isOn?: number;
+  price?: number;
+  market_price?: number;
 };
 
 type Pagination = { currentPage: number; totalPages: number; totalItems: number; pageSize: number };

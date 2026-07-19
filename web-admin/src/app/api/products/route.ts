@@ -10,6 +10,7 @@ import { recordRouteMetric } from '@/lib/runtimeMetrics';
 import { resolveProductImageUrl } from '@/lib/productImageUrl';
 import { effectivePublicCategoryScope, loadEnabledPublicCategoryScope } from '@/lib/publicCategoryScope';
 import { buildPublicAttributeFilterIndex, getPublicCategoryAttributeRows } from '@/lib/publicCategoryAttributes';
+import { decorateProductCardsWithFlashSales, flashSalesEnabled } from '@/lib/flashSales';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -241,12 +242,15 @@ export async function GET(request: Request) {
       );
     }
     const cacheKey = buildProductsCacheKey(searchParams);
-    const payload = await withPublicProductResponseCache(`products:${cacheKey}`, () => loadProductsPayload(searchParams));
+    const cachedPayload = await withPublicProductResponseCache(`products:${cacheKey}`, () => loadProductsPayload(searchParams));
+    const payload = flashSalesEnabled() && Array.isArray((cachedPayload as any).data)
+      ? { ...cachedPayload, data: await decorateProductCardsWithFlashSales((cachedPayload as any).data) }
+      : cachedPayload;
     const status = 'status' in payload ? Number(payload.status || 200) : 200;
     const { status: _status, ...body } = payload as Record<string, unknown>;
     const duration = performance.now() - startedAt;
     recordRouteMetric('GET /api/products', duration, status);
-    return jsonWithEtag(request, body, { status, headers: { ...publicCacheHeaders, 'Server-Timing': `app;dur=${duration.toFixed(1)}` } });
+    return jsonWithEtag(request, body, { status, headers: { ...publicCacheHeaders, ...(flashSalesEnabled() ? { 'Cache-Control': 'public, max-age=0, s-maxage=2, stale-while-revalidate=3' } : {}), 'Server-Timing': `app;dur=${duration.toFixed(1)}` } });
   } catch (error) {
     console.error('Failed to fetch products:', error);
     recordRouteMetric('GET /api/products', performance.now() - startedAt, 500);

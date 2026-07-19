@@ -2,6 +2,7 @@ import type { Pool, PoolConnection } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { quoteVoucher, type VoucherQuote } from '@/lib/vouchers';
 import { resolveProductImageUrl } from '@/lib/productImageUrl';
+import { resolveActiveFlashSaleOffers, type FlashSaleOffer } from '@/lib/flashSales';
 
 type DbExecutor = Pool | PoolConnection;
 
@@ -18,11 +19,13 @@ export type CartQuoteItem = {
   slug: string;
   thumbnail: string;
   price: number;
+  regularPrice: number;
   marketPrice: number;
   available: boolean;
   reason: string | null;
   lineTotal: number;
   lineMarketTotal: number;
+  flashSale: FlashSaleOffer | null;
 };
 
 export type CartQuote = {
@@ -68,7 +71,7 @@ function normalizeInputItems(items: unknown): CartQuoteInputItem[] {
 
 export async function buildCartQuote(
   rawItems: unknown,
-  options?: { voucherCode?: unknown; db?: DbExecutor; lockVoucher?: boolean },
+  options?: { voucherCode?: unknown; db?: DbExecutor; lockVoucher?: boolean; lockFlashSale?: boolean },
 ): Promise<CartQuote> {
   const db = options?.db || pool;
   const inputItems = normalizeInputItems(rawItems);
@@ -89,7 +92,8 @@ export async function buildCartQuote(
   }
 
   const productIds = inputItems.map((item) => item.productId);
-  const [rows] = await db.query(
+  const [[rows], offers] = await Promise.all([
+    db.query(
     `
       SELECT
         p.id, p.storeSKU, p.proName, p.proThum,
@@ -101,7 +105,9 @@ export async function buildCartQuote(
       WHERE p.id IN (?)
     `,
     [productIds],
-  );
+    ),
+    resolveActiveFlashSaleOffers(productIds, db, Boolean(options?.lockFlashSale)),
+  ]);
 
   const rowsById = new Map<number, any>();
   for (const row of rows as any[]) {
@@ -120,24 +126,35 @@ export async function buildCartQuote(
         slug: `product-${inputItem.productId}`,
         thumbnail: '',
         price: 0,
+        regularPrice: 0,
         marketPrice: 0,
         available: false,
         reason: 'not_found',
         lineTotal: 0,
         lineMarketTotal: 0,
+        flashSale: null,
       };
     }
 
-    const price = Number(row.price || 0);
+    const regularPrice = Number(row.price || 0);
+    const flashSale = offers.get(inputItem.productId) || null;
+    const price = flashSale ? flashSale.flashPrice : regularPrice;
     const marketPrice = Number(row.market_price || 0);
     const isOn = Number(row.isOn) === 1;
-    const available = isOn && price > 0;
+    const flashQuantityValid = !flashSale || (
+      flashSale.remainingQuantity >= inputItem.quantity
+      && inputItem.quantity >= flashSale.minQuantityPerOrder
+      && inputItem.quantity <= flashSale.maxQuantityPerOrder
+    );
+    const available = isOn && price > 0 && flashQuantityValid;
     const lineTotal = available ? price * inputItem.quantity : 0;
-    const lineMarketTotal = available ? (marketPrice > 0 ? marketPrice : price) * inputItem.quantity : 0;
+    const lineMarketTotal = available ? Math.max(marketPrice, regularPrice, price) * inputItem.quantity : 0;
 
     let reason: string | null = null;
     if (!isOn) reason = 'inactive';
-    else if (price <= 0) reason = 'invalid_price';
+    else if (regularPrice <= 0) reason = 'invalid_price';
+    else if (flashSale && flashSale.remainingQuantity < inputItem.quantity) reason = 'flash_sale_sold_out';
+    else if (flashSale && (inputItem.quantity < flashSale.minQuantityPerOrder || inputItem.quantity > flashSale.maxQuantityPerOrder)) reason = 'flash_sale_limit';
 
     return {
       productId: Number(row.id),
@@ -147,11 +164,13 @@ export async function buildCartQuote(
       slug: row.slug ? String(row.slug).replace(/^\/+/, '') : `product-${row.id}`,
       thumbnail: resolveProductImageUrl(row.proThum, 'https://placehold.co/300x300/1f2937/a1a1aa?text=HACOM'),
       price,
+      regularPrice,
       marketPrice,
       available,
       reason,
       lineTotal,
       lineMarketTotal,
+      flashSale,
     };
   });
 
@@ -175,13 +194,17 @@ export async function buildCartQuote(
     },
   );
 
-  const voucher = await quoteVoucher(
-    options?.voucherCode,
-    quotedItems.map((item) => ({ productId: item.productId, quantity: item.quantity, price: item.price, available: item.available })),
-    totals.subtotal,
-    db,
-    Boolean(options?.lockVoucher),
-  );
+  const hasExclusiveFlashSale = quotedItems.some((item) => item.available && item.flashSale?.stackingMode === 'exclusive');
+  const requestedVoucher = String(options?.voucherCode || '').trim();
+  const voucher: VoucherQuote = requestedVoucher && hasExclusiveFlashSale
+    ? { code: requestedVoucher.toUpperCase(), status: 'invalid', reason: 'flash_sale_exclusive', message: 'Voucher không áp dụng cùng sản phẩm Flash Sale trong chiến dịch này.', voucherId: null, title: null, discount: 0, eligibleSubtotal: 0, eligibleItemCount: 0, categoryNames: [], note: null }
+    : await quoteVoucher(
+      options?.voucherCode,
+      quotedItems.map((item) => ({ productId: item.productId, quantity: item.quantity, price: item.price, available: item.available })),
+      totals.subtotal,
+      db,
+      Boolean(options?.lockVoucher),
+    );
   totals.voucherDiscount = voucher.discount;
   totals.total = Math.max(0, totals.subtotal - voucher.discount);
   totals.savings = Math.max(0, totals.marketSubtotal - totals.subtotal);

@@ -19,6 +19,7 @@ export interface ProductGridCardData {
   marketPrice?: number;
   brand?: string;
   cardBadges?: ProductCardAttributeBadge[];
+  flashSale?: { campaignId:number;campaignSlug:string;endsAt:string;quotaTotal:number;remainingQuantity:number;maxQuantityPerOrder:number } | null;
 }
 
 interface ProductGridCardProps {
@@ -59,11 +60,14 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
   const hasDiscount = hasPrice && marketPrice > price;
   const discountPercent = hasDiscount ? Math.round(((marketPrice - price) / marketPrice) * 100) : 0;
   const productSlug = product.slug || `product-${product.id}`;
+  const flashSale = product.flashSale || null;
+  const flashRemainingRatio = flashSale?.quotaTotal ? Math.max(0, Math.min(100, flashSale.remainingQuantity / flashSale.quotaTotal * 100)) : 0;
+  const canAddToCart = hasPrice && (!flashSale || flashSale.remainingQuantity > 0);
 
   const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!hasPrice) return;
+    if (!canAddToCart) return;
 
     addCartItem({
       productId: Number(product.id),
@@ -89,6 +93,7 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
           Giảm {discountPercent}%
         </div>
       ) : null}
+      {flashSale ? <div className="absolute left-3 top-3 z-30 rounded-full border border-rose-300/30 bg-rose-600 px-2.5 py-1 text-[10px] font-black text-white shadow-lg shadow-rose-950/40">FLASH</div> : null}
 
       {SHOW_PRODUCT_CARD_FAVORITES ? (
         <FavoriteButton
@@ -114,6 +119,7 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
           <p className="product-grid-card-title mb-3 min-h-10 text-center text-[13px] leading-5 text-[#f5f7fb] drop-shadow-[0_2px_10px_rgba(255,255,255,0.08)] line-clamp-2">
             {product.name}
           </p>
+          {flashSale ? <div className="mb-3"><div className="relative h-5 overflow-hidden rounded-full border border-zinc-700 bg-rose-950/40" role="progressbar" aria-label={`Còn ${flashSale.remainingQuantity} sản phẩm Flash Sale`} aria-valuemin={0} aria-valuemax={flashSale.quotaTotal} aria-valuenow={flashSale.remainingQuantity}><span aria-hidden="true" className={`block h-full bg-gradient-to-r ${flashRemainingRatio > 50 ? 'from-cyan-500 to-emerald-400' : flashRemainingRatio > 20 ? 'from-amber-400 to-orange-500' : 'from-rose-500 to-red-600'}`} style={{ width: `${flashRemainingRatio}%` }} /><span className="absolute inset-0 grid place-items-center text-[9px] font-bold text-white">{flashSale.remainingQuantity > 0 ? `Còn ${flashSale.remainingQuantity} sản phẩm` : 'Đã hết suất'}</span></div></div> : null}
 
           <div
             className={`product-grid-card-footer mt-auto grid min-h-11 items-center gap-1 ${
@@ -159,13 +165,16 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
       {hasPrice ? (
         <button
           type="button"
-          aria-label="Thêm vào giỏ hàng"
+          aria-label={canAddToCart ? "Thêm vào giỏ hàng" : "Sản phẩm Flash Sale đã hết suất"}
           data-product-cart-button
           onClick={handleAddToCart}
+          disabled={!canAddToCart}
           className={`product-grid-card-cart absolute bottom-3.5 right-2.5 z-20 flex size-9 items-center justify-center rounded-xl border transition-all ${
             justAdded
               ? "border-emerald-400 bg-emerald-500/15 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.24)]"
-              : "border-[#303036] bg-[#151518] text-cyan-300 hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.2)]"
+              : canAddToCart
+                ? "border-[#303036] bg-[#151518] text-cyan-300 hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.2)]"
+                : "cursor-not-allowed border-zinc-800 bg-zinc-900 text-zinc-700"
           }`}
         >
           {justAdded ? (

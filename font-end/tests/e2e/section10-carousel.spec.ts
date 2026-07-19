@@ -84,6 +84,8 @@ test("Section 10 shared cards preserve responsive carousel geometry without over
     const { section } = await openSection10(page);
     const item = section.locator(".homepage-product-carousel-item").first();
     const image = item.locator(".product-card-image-frame");
+    const giftSection = section.locator(".gift-section");
+    const firstVisibleItem = section.locator(".carousel-track > .homepage-product-carousel-item").nth(1);
     const expectedCardWidth = width <= 768 ? (width - 60) / 2 : 280;
 
     await expect.poll(() => item.evaluate((element) => (
@@ -93,6 +95,14 @@ test("Section 10 shared cards preserve responsive carousel geometry without over
       const box = element.getBoundingClientRect();
       return Math.round((box.width / box.height) * 1000) / 1000;
     })).toBe(1);
+    if (width < 640) {
+      await expect.poll(() => firstVisibleItem.evaluate((element) => (
+        Math.round(element.getBoundingClientRect().x)
+      ))).toBe(12);
+      await expect(giftSection).toHaveCSS("border-radius", "0px");
+    } else {
+      await expect(giftSection).toHaveCSS("border-radius", "20px");
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     expect(await section.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   }

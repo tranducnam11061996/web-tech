@@ -141,7 +141,7 @@ test('Section 11 matches the compact 397px mobile composition and shared autopla
   expect(featureBox?.height).toBeCloseTo(130, 0);
   expect((headerBox?.y || 0) - (featureBox?.y || 0) - (featureBox?.height || 0)).toBeCloseTo(16, 0);
   expect((carouselBox?.y || 0) - (headerBox?.y || 0) - (headerBox?.height || 0)).toBeCloseTo(16, 0);
-  expect(firstSlideBox?.x).toBeCloseTo(22, 0);
+  expect(firstSlideBox?.x).toBeCloseTo(12, 0);
   expect(firstSlideBox?.width).toBeGreaterThanOrEqual(194);
   expect(firstSlideBox?.width).toBeLessThanOrEqual(196);
   expect((secondSlideBox?.x || 0) - (firstSlideBox?.x || 0) - (firstSlideBox?.width || 0)).toBeCloseTo(16, 0);

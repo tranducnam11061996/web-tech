@@ -1,6 +1,6 @@
 # Project Progress
 
-Last updated: `2026-07-18`
+Last updated: `2026-07-19`
 
 `AI_HANDOFF.md` is the canonical continuation guide. This file records completion evidence, open verification, and the prioritized backlog.
 
@@ -8,7 +8,8 @@ Last updated: `2026-07-18`
 
 | Area | Status | Evidence / qualification |
 |---|---|---|
-| PC Builder | Code implemented; live migration/catalog review pending | Additive schema, extraction proposals, verified/stale lifecycle, typed metrics, revisioned rules/policies, compatibility/quote/beam-search services, public/customer/admin APIs, manual/auto storefront and dedicated hardened checkout are implemented. Unit/type/lint checks pass. Live migration, profile coverage, Playwright, staging p95/k6 and flags remain gated. |
+| Quick tools / incomplete product attributes | Implemented in `web-admin`; destructive DB fixture remains disposable-only | Dark three-step category → attribute → SKU flow with a guarded root-first parent-child disclosure tree, stable admin sibling order, selected/search-path auto-expansion, local accent-insensitive category filtering, and URL-persistent filters. Mapping-aware active descendants, missing-only deduplicated SKU pagination, multi-value checkbox autosave, per-SKU coalescing, optimistic revision conflicts, audit metadata, and cross-consumer cache invalidation remain unchanged. No schema/index/public API change. Read benchmark: category summary ~236 ms cold / ~247 ms under `EXPLAIN ANALYZE`, attribute summary ~10 ms, first 20 missing SKU rows ~9 ms. Both app typechecks/lints/builds, 155 unit tests, 20 applied integration tests, and 19/19 health checks pass; browser write E2E remains gated on an authorized disposable admin environment. |
+| PC Builder | Catalog-live v4 applied and enabled for local admin testing | All sellable category-tree SKUs are SQL-paginated without profile verification. Bidirectional attribute-value relations share a 90% per-side coverage gate so sparse catalog attributes cannot hide valid descendant SKUs; admin exposes the measured coverage and skipped state. Independent SSD/HDD, warning-bound checkout, catalog revisions, searchable admin taxonomy, and the dark responsive modal are implemented. Legacy browser drafts are server-normalized from `storage` to visible `ssd`/`hdd`, persistence waits for hydration, and signature-bound quote state rejects stale responses after reset/rapid changes. Restore-verified clone and live apply-twice/verify passed; historical build/order requote remains compatible. Both apps are running, focused desktop/mobile Playwright passes, local healthcheck passes 19/19, and `ADMIN_WRITE_ENABLED=true` is open only for testing. Auto/release remains 503; benchmark/policy data is retained. |
 | Homepage featured deal cards | Implemented and browser-tested | Section 5 renders five local AVIF category links in a self-contained Server Component without the shared legacy card CSS. The 2545px reference uses a centered 1800px three-column/two-row grid with a full-height Pre-built card; the 428px reference uses the exact two-column asymmetric composition. Focused Playwright verifies both geometries, responsive transitions, routes, image loading, keyboard focus, hover treatment, overflow and WCAG A/AA serious/critical results. |
 | Homepage category promotion cards | Implemented and browser-tested | Section 9 renders five local AVIF category links without shared promo-card CSS. The 2537px reference uses a centered 1800px five-card row with 30px gaps and 5:6 cards; the 429px reference uses two 3:2 cards above three 25:23 cards. Focused Playwright verifies both geometries, all intermediate breakpoints, links, image loading, focus, overflow and WCAG A/AA serious/critical results. |
 | Real combo sets / combo cart / combo orders | Code/schema implemented; active catalog unpopulated | Combo API/UI/quote/order behavior exists, but `it_tech_db` has 0 combo sets/relations; 1,121 imported comboset occurrences remain pending audit because source runtime configuration is incomplete |
@@ -56,7 +57,7 @@ Last updated: `2026-07-18`
 | PCMarket brand sync | Run 8 applied and accepted on `it_tech_db` | Public PCM policy maps `0 -> 96`; E-DRA/TEAMGROUP keep `34 -> 25` and `57 -> 31`; runtime has 90 brand/info rows, 1,587 brand-category rows, PCM 2,276/849 products, and zero noncanonical references |
 | PCMarket article-category import | Applied to `it_tech_db` | Run 6 imported 4 enabled UTF-8 root categories with source IDs, `.html` routes, registry/map/record audit rows, and no article/menu writes; clone apply/verify/rollback and live smoke passed |
 | PCMarket article import | Applied to `it_tech_db` | Run 7 imported 668 articles/content rows, 705 unique category links and 668 routes/registry/maps; ID 83 is quarantined and no menu was created |
-| Database transfer | Current pre-page-view backup restore-verified; post-migration export still required for machine transfer | The fresh rollback artifact has 290 tables/84,299 rows and current accepted schema has 292 tables. Create a new post-migration export before moving machines; destination-version compatibility still requires target testing. |
+| Database transfer | Fresh pre-v4 backup restore-verified; post-v4 export still required for machine transfer | The rollback artifact has 303 tables/97,581 rows and SHA-256 `657d673b...`; current accepted schema has 301 tables after removing verification data. Create a fresh post-v4 export before moving machines; destination-version compatibility still requires target testing. |
 | Functional verification | Required compile/test/build matrix and controlled browser suite pass; performance gates remain pending | Both typecheck/lint/build pipelines pass; 144/144 unit tests and default integration 17 pass/7 fixture- or safety-gated skips. Focused strict-PC browser smoke canonicalizes page 27 to page 25 and renders only valid PC cards; focused product-promotion Playwright passes 2/2 desktop/mobile; the last full four-worker run remains 107 pass/19 expected skips across 126 cases. Strict health is 13/15 because its configured legacy collection probes return 404; documented empty-catalog mode is 15/15. |
 | 1,500-VU capacity | Not yet verified | Full k6 production-like run remains a release blocker |
 
@@ -131,6 +132,15 @@ Last updated: `2026-07-18`
 | Lighthouse CI | Configuration added; local Windows Chrome run was inconclusive because the temporary profile cleanup failed with `EPERM`, so staging artifacts remain required |
 | Regression bundle budget | Fail: product 236.8 KB, cart 175.5 KB, checkout 190.8 KB, combo-checkout 187.4 KB; combo-cart passes at 167.7 KB |
 | Strict release bundle budget | Same four routes fail their stricter limits; combo-cart passes 167.7 KB <170 KB |
+
+## Flash Sale implementation (2026-07-19)
+
+- Implemented additive InnoDB campaign, SKU quota, allocation ledger and HMAC buyer-usage contracts without changing legacy catalog/order tables.
+- Added guarded/idempotent migration verification, admin list/editor/publish/pause workflows, `marketing.flash_sales` RBAC/audit, and the public active/upcoming feed.
+- Integrated Flash price and quota into product projection, cart quote and the existing order transaction. Order completion consumes reserved quota; cancellation/failure releases it; exclusive campaigns reject voucher stacking.
+- Added the dark responsive `/flash-sale` storefront, countdown, scheduled campaign tabs, colored semantic remaining-quota bars, sold-out controls and global product-card indicators.
+- A fresh 301-table/95,625-row logical backup was restore-verified before rollout (SHA-256 `72063f78d1562e078ff71822f3006c80ee3155dba2afecf4c1cc3a0f03d04223`). Guarded Flash Sale apply passed twice on `it_tech_db`, then verify passed. The database now has 305 tables (177 InnoDB/128 MyISAM), including four empty Flash Sale tables with zero invariant violations; runtime is enabled.
+- Verification passes both application TypeScript, quiet ESLint and production builds; backend unit tests pass 160/160; integration tests pass 20 with 10 expected safety/fixture skips; focused desktop/mobile Flash Sale Playwright passes 2/2. Expanded local healthcheck passes 22/22, including public API, admin page and storefront Flash Sale probes. Post-migration admin list and public enabled/empty response smoke pass. Production-like load and a real low-quota campaign checkout lifecycle remain release evidence gates.
 
 ## Latest local performance observations
 

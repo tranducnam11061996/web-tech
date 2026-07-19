@@ -69,6 +69,7 @@ export const config = {
     '/banner/:path*',
     '/sales/:path*',
     '/customers/:path*',
+    '/quick-tools/:path*',
     '/system/:path*',
     '/api/admin/:path*',
   ],

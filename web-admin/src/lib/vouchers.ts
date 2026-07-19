@@ -31,7 +31,7 @@ export type VoucherQuoteItem = {
 export type VoucherQuote = {
   code: string | null;
   status: 'none' | 'applied' | 'invalid';
-  reason: 'not_found' | 'inactive' | 'not_started' | 'expired' | 'exhausted' | 'minimum_order' | 'no_eligible_items' | null;
+  reason: 'not_found' | 'inactive' | 'not_started' | 'expired' | 'exhausted' | 'minimum_order' | 'no_eligible_items' | 'flash_sale_exclusive' | null;
   message: string | null;
   voucherId: number | null;
   title: string | null;

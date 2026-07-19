@@ -1706,6 +1706,34 @@ body.mobile-menu-open {
   }
 }
 
+@media (max-width:639px) {
+  #section-4 .carousel-track {
+    gap: 16px;
+    padding-right: 12px;
+    padding-left: 12px
+  }
+
+  #section-4 .section-4-carousel-item {
+    width: calc((100vw - 40px) / 2)
+  }
+
+  #section-8 .trending-section {
+    border-radius: 0
+  }
+
+  #section-8 .trending-section .carousel-track {
+    padding-left: 12px
+  }
+
+  #section-10 .gift-section {
+    border-radius: 0
+  }
+
+  #section-10 .gift-section .carousel-track {
+    padding-left: 12px
+  }
+}
+
 .announce-bar {
   background: linear-gradient(90deg, #0a0a12, #141420, #0a0a12);
   border-bottom: 1px solid var(--white-04);

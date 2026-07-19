@@ -35,8 +35,8 @@ export default function Section8({
   return (
     <>
       {/*  START section-8  */}
-      <section className="section-8 py-10 bg-dark-200" id="section-8">
-        <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="section-8 pb-10 bg-dark-200" id="section-8">
+        <div className="max-w-[1800px] mx-auto sm:px-6 lg:px-8">
 
           {/*  Trending Products Section  */}
           <div className="trending-section">

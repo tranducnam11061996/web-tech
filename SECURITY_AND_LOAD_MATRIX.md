@@ -1,18 +1,23 @@
 # Security and Load Coverage Matrix
 
-Last updated: `2026-07-18`
+Last updated: `2026-07-19`
 
 ## PC Builder gates
 
 | Surface | Security/data controls | Release evidence required |
 |---|---|---|
-| Candidates / quote / auto | Same-origin POST, bounded strict JSON, per-IP limits, verified/current profiles, published revisions, current sellability/price | Candidate/quote p95 <500ms; auto p95 <1.5s on production-like staging |
+| Candidates / quote | Same-origin POST, bounded strict JSON, per-IP limits, category-scope validation, current sellability/price and raw attribute-value relations | Candidate/quote p95 <500ms on production-like staging |
 | Guest share | 256-bit random token, SHA-256 storage, read-only, 90-day expiry, rate limit, re-quote on read | Expiry/token tests and account isolation tests |
 | Account library | Authenticated session, same-origin writes, owner predicates | Cross-account integration test |
-| PC Builder order | Origin, 48KB limit, phone/IP limits, reCAPTCHA, idempotency, transaction, server quote/rules, warning confirmation | Replay/price/profile-stale/rollback integration tests |
-| Admin extraction/review | `catalog.pc_builder.*` RBAC, write gate, exact database, backup SHA-256, confirmation token, transaction, audit | Restore-verified clone; migration twice; rollback rehearsal |
+| PC Builder order | Origin, 48KB limit, phone/IP limits, reCAPTCHA, idempotency, transaction, catalog-live requote, warning confirmation | Replay/price/category/relation/unavailable/rollback integration tests |
+| Admin component configuration v4 | Read/update RBAC, same-origin write gate, optimistic SHA-256 version, transaction, logical category/attribute validation, soft-disable, audit and cache bump | Restore-verified clone and live apply twice/verify passed; two relation FKs, unique category index and historical requote verified |
+| Gaming Auto / release | Explicit `503 PC_BUILDER_AUTO_DISABLED`; not loaded by current UI | Later-phase design and production-like evidence required before re-enable |
+
+Manual v4 binds warning acceptance to both the current quote fingerprint and diagnostic signature. The server re-quotes inside the order transaction; invalid category scope, changed/unavailable price, missing relation attributes and mismatches remain 409 failures. V4 capacity has not been claimed or staged at 1,500 VUs.
 
 Local checks are functional evidence only. A 1,500-VU capacity claim still requires full k6 on production-like staging.
+
+Catalog-live rollout evidence: a fresh restore-verified clone passed apply twice, verify and historical requote; live migration then passed apply twice/verify with exact database/backup/token guards. `ADMIN_WRITE_ENABLED=true` is open only for the current requested local test window; development CAPTCHA bypass remains false. The earlier 3-VU/15-second read-only smoke completed 135/135 requests, p95 97.57ms and p99 113.54ms, but this remains functional low-load evidence only.
 
 Status meanings: **Implemented** is present in code and locally checked; **Partial** needs route/form coverage or staging evidence; **Not verified** exists as a plan/script but has not passed the target environment gate.
 
@@ -24,6 +29,7 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | `POST /api/page-views` | Strict 512-byte `{eventId,path}`; server resolves one of four public entity types | Required storefront origin, exact same-origin referrer and fetch metadata | Atomic IP 300/min + IP/path 120/min; trusted proxy must overwrite forwarded IP | UUID v4 idempotency; no CAPTCHA | Implemented locally; 150-RPS staging gate pending |
 | `POST /api/cart/quote` | Canonical cart schema, 50 items, qty 1–99 | Storefront origin | IP rate limit | No CAPTCHA by default | Implemented |
 | `POST /api/orders` | Canonical bounded order schema | Storefront origin; optional customer session | IP + phone buckets, honeypot | `order_submit`; required `Idempotency-Key` | Implemented |
+| Flash Sale public read / cart / order | Bounded active/upcoming feed; server price and quota re-quote; atomic conditional quota update; HMAC buyer key | Public read through API; order keeps storefront origin/session contract | Existing quote/order IP + phone controls; 15-second UI polling | Existing order CAPTCHA/idempotency; allocation shares order transaction | Implemented and local runtime enabled; focused E2E passed, real-campaign lifecycle and staging concurrency gates pending |
 | `POST /api/combo-cart/quote` | Canonical set/revision/group/product/qty schema; server prices only | Storefront origin | IP rate limit | No CAPTCHA | Implemented locally |
 | `POST /api/combo-orders` | Bounded combo-order schema; voucher absent/rejected by strict schema; transactional re-quote | Storefront origin; optional customer session | IP + phone buckets, honeypot | `combo_order_submit`; required `Idempotency-Key` | Implemented locally; staging migration/E2E pending |
 | Customer register/login | Canonical identity/password schemas | Anonymous storefront | IP + identifier buckets, honeypot | `customer_register` / `customer_login` | Implemented |
@@ -31,6 +37,8 @@ Status meanings: **Implemented** is present in code and locally checked; **Parti
 | Customer profile/address/password | Canonical schemas on hardened routes | Customer session + origin/ownership | Customer/IP route buckets | Step-up only when anomalous | Implemented |
 | Admin login | Bounded schema | Same-origin entry | IP + account throttling | Risk-based CAPTCHA | Implemented |
 | Admin write APIs | Route payload checks vary by legacy module | Admin session, RBAC, write gate, audit | Session/account controls | No post-login CAPTCHA | Partial: shared auth exists; finish field-schema audit |
+| Flash Sale admin | 500-SKU bound, strict price/quota/order/buyer limits, UTC-normalized schedule, overlap validation, optimistic campaign/item revisions | Same-origin admin session, `marketing.flash_sales.*`, write gate, dedicated publish permission, audit | Session/account controls; guarded migration lock/backup/token | N/A | Implemented; fresh backup restore-verified, live apply twice/verify and empty-list smoke passed |
+| Quick incomplete-attribute autosave | Max 100 deduplicated value IDs; category/attribute/value ownership and mapping-aware product scope; product row lock; revision conflict/idempotency | Same-origin admin session, `catalog.attributes.update`, write gate, authorization + business audit | Per-SKU serialized/coalesced client queue; bounded recursive reads and pagination | N/A | Implemented locally; destructive transaction fixture remains disposable-database gated |
 | Article-category featured toggle | Exact category ID and strict `isFeatured: 0|1`; row lock and focused update | Same-origin admin session, `content.article_categories.update`, write gate, audit | Session/account controls | N/A | Implemented locally |
 | Product-group admin/detail | 4 attributes, 50 values/attribute, 50 products; ownership/config validation | Admin session/RBAC/write gate; public detail read | Transaction locks, unique product assignment, bounded cached read | N/A | Implemented locally |
 | Image uploads | Size, extension, MIME, binary signature, path containment | Admin session/RBAC/write gate | Request/body limits | N/A | Implemented on audited upload routes |

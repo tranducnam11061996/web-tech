@@ -610,12 +610,15 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                     className="bg-[#111115] rounded-xl p-3 flex flex-col items-center justify-center gap-3 text-center border border-transparent hover:border-gray-700 transition"
                     onClick={() => setActiveMobileMenuId(category.id)}
                   >
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d={category.icon}></path>
-                    </svg>
+                    {linkIconPath(category) ? (
+                      <MenuLinkIcon item={category} className="h-8 w-8 text-white" />
+                    ) : (
+                      <Star className="h-8 w-8 text-white" aria-hidden="true" />
+                    )}
                     <span className="text-[11px] text-gray-300 font-semibold leading-tight">
                       {linkLabel(category)}
                       {linkSuffix(category) ? <span className="text-orange-500 ml-1">{linkSuffix(category)}</span> : null}
+                      <MenuLinkBadge item={category} />
                     </span>
                   </div>
                 ))}
@@ -687,7 +690,6 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                   >
                     <Star className="h-4 w-4 text-orange-500" fill="currentColor" aria-hidden="true" /> {menuLabels.faves}
                   </button>
-                  <button type="button" className="px-4 text-gray-500 hover:text-white hidden md:block" aria-label={'T\u00ecm trong menu'}><Search className="h-4 w-4" aria-hidden="true" /></button>
                 </div>
 
                 {/* Categories List */}
@@ -700,10 +702,18 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
                         className={`sidebar-item ${isActive ? 'active' : ''}`}
                         onMouseEnter={() => setActiveDesktopMenuId(category.id)}
                       >
-                        <div className={`faux-icon ${isActive ? 'bg-gradient-active' : ''}`}></div>
+                        {linkIconPath(category) ? (
+                          <MenuLinkIcon
+                            item={category}
+                            className={`h-4 w-4 shrink-0 ${isActive ? 'text-cyan-300' : 'text-gray-400'}`}
+                          />
+                        ) : (
+                          <div className={`faux-icon ${isActive ? 'bg-gradient-active' : ''}`}></div>
+                        )}
                         <span className={`flex-1 ${isActive ? 'font-bold' : ''}`}>
                           {linkLabel(category)}
                           {linkSuffix(category) ? <span className="text-orange-500 ml-1">{linkSuffix(category)}</span> : null}
+                          <MenuLinkBadge item={category} />
                         </span>
                         {isActive ? <ChevronRight className="h-4 w-4 text-gray-500" aria-hidden="true" /> : null}
                       </div>

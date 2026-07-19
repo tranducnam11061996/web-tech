@@ -111,7 +111,7 @@ export default async function Section11({ initialSections }: { initialSections?:
                         <div
                           data-section11-carousel-track
                           data-homepage-carousel-track="mobile"
-                          className="flex w-max snap-x snap-mandatory gap-4 pl-[38px] pr-4 sm:contents"
+                          className="flex w-max snap-x snap-mandatory gap-4 pl-7 pr-4 sm:contents"
                         >
                           {products.map((product) => (
                             <div

@@ -1,14 +1,34 @@
 # AI Handoff — HACOM Workspace
 
-Last verified: `2026-07-18`
+Last verified: `2026-07-19`
 
-## PC Builder implementation (not yet migrated live)
+## Quick tools — incomplete product attributes
 
-- The workspace now contains the additive PC Builder schema/migration, verified-profile/typed-metric model, constrained compatibility engine, server-authoritative candidate/quote/save/share/auto/order APIs, customer build CRUD, admin review dashboard, and responsive storefront routes `/xay-dung-cau-hinh-pc` plus `/thanh-toan-pc-builder`.
-- The migration creates only additive `web_admin_pc_builder_*` / `web_admin_pc_build*` InnoDB tables and columns on `web_admin_storefront_order_meta`; it does not use `hanoi23_db.idv_pcbuilder_relation`. `build_buy` and `build_buy_item` remain the order owner.
-- Profiles must be `verified` with `source_hash=verified_hash`; relevant product changes mark them `stale`. Extraction is dry-run by default. Apply requires the real `it_tech_db`, a restore-verified backup SHA-256, `PC_BUILDER_CONFIRMATION_TOKEN`, and `ADMIN_WRITE_ENABLED=true`.
-- Live migration and catalog extraction have deliberately **not** been executed. Follow `web-admin/database-docs/PC_BUILDER_MIGRATION.md`; do not enable storefront flags until coverage and compatible-build rollout gates pass.
-- `PC_BUILDER_ENABLED` and `PC_BUILDER_AUTO_ENABLED` are opt-in. Auto uses only admin-verified CPU/GPU scores and makes no FPS claim.
+- `web-admin` now exposes `/quick-tools` and `/quick-tools/incomplete-product-attributes` under `catalog.attributes.read`; checkbox autosave additionally requires `catalog.attributes.update`, same-origin admin session checks, and `ADMIN_WRITE_ENABLED=true`.
+- The three-step dark UI selects an active category subtree, unions active category-attribute mappings without leaking an attribute into unrelated branches, and lists only distinct SKU/attribute pairs with no current assignment. Product sale visibility and price do not affect the default scope.
+- Step 01 renders the active taxonomy as a guarded parent-child disclosure tree. It starts root-only, uses the admin sibling order (`ordering DESC`, Vietnamese name, ID), auto-opens the selected/search path, preserves manual expansion when search clears, and searches the one loaded category set locally by accent-insensitive name, breadcrumb, or ID. The category API exposes `parentId`/`ordering` and accepts `selectedCategoryId` so a completed selection and its ancestors remain addressable.
+- `PUT /api/admin/quick-tools/incomplete-product-attributes/products/[productId]/values` replaces only one product/attribute value set. It locks the product row, validates mapping/value ownership, uses a SHA-256 selection revision for conflict/idempotency behavior, writes business audit metadata, and invalidates public product/detail/search/card/PC Builder consumers.
+- This phase adds no table, index, migration, or public/storefront contract. The destructive integration fixture is guarded by `QUICK_ATTRIBUTE_DESTRUCTIVE_TEST=true` plus an explicitly disposable database name.
+- Verification passed: both application typechecks, lints, and production builds; 155/155 backend unit tests; 20 applied integration tests with 9 guarded skips; `EXPLAIN ANALYZE` category summary completed in ~247 ms on the current catalog using the category/product-attribute indexes plus bounded temporary CTE sets; local two-server healthcheck passed 19/19. Browser autosave E2E still requires an authorized admin test session and a disposable write database.
+
+## PC Builder Catalog-live v4 (implemented and applied)
+
+- `pc-builder-v4-catalog-live` is the active Manual contract. Candidates come directly from active category roots/descendants plus `idv_sell_product_price.isOn=1 AND price>0`; there is no product-profile, extraction, review, source-hash or verified-only gate.
+- Compatibility relations are bidirectional and compare raw `idv_product_attribute.attr_value_id` intersections. A relation is enforceable only when the reference attribute covers at least 90% of sellable SKUs in both active category trees; sparse configured relations remain visible in admin with their coverage but are skipped consistently by candidate, quote and order. Within an enforceable relation, missing reference attributes and mismatches are hard errors. Numeric metric rules are disabled and required component gaps remain confirmation warnings.
+- Admin `/product/pc-builder` contains only dynamic category/relation management with searchable parent-child selectors and live sellable SKU counts. Storefront uses the dark full-viewport candidate dialog with SQL pagination, search/sort, price/brand/attribute-value facets, relation context, and SSD/HDD multi-select.
+- The migration removed `web_admin_pc_builder_product_profiles`, `web_admin_pc_builder_product_metrics`, `profile_component_code`, and `profile_revision`; historical `storage` selections are normalized to SSD/HDD during requote without rewriting build/order rows. Benchmark snapshots and Gaming policy data remain independent; Auto/release endpoints return `503 PC_BUILDER_AUTO_DISABLED`.
+- Storefront draft hydration is gated before `localStorage` persistence. Legacy `storage` selections are reconciled from the server quote into visible `ssd`/`hdd` selections and persisted canonically; quote state is keyed by selection signature/request generation so reset or rapid changes cannot restore stale item counts, prices or warnings. Checkout performs the same reconciliation before order submission.
+- Restore-verified boundary: `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v4-rehearsal-2026-07-19T09-15-57-655Z.json`, SHA-256 `657d673b5e7e8b938c54d867e8c3f972b6a087255d73e8846f594872db4efb25`, 303 tables/97,581 rows/1 routine/2 triggers. Retained clone `it_tech_db_backup_test_1784452557655_209400` passed apply twice, verify and historical requote before the same apply-twice/verify sequence ran on `it_tech_db`.
+- Current database inventory is 301 tables (173 InnoDB/128 MyISAM), including nine PC Builder tables. Verification: 150 backend unit tests, 19 applied integration tests (8 guarded/skipped), both app typechecks/lints/builds, 10/10 focused PC Builder Playwright cases across desktop/mobile, and 19/19 two-server health checks.
+
+## PC Builder historical v2/v3 rollout (superseded by v4)
+
+- Dedicated revision `pc-builder-v2` passed clone apply/idempotency/hard rollback/reapply, then applied twice and verified on live `it_tech_db`. Live now has 302 tables (174 InnoDB/128 MyISAM), including ten InnoDB/`utf8mb4_unicode_ci` PC Builder tables and `order_type=standard|combo|pc_builder`.
+- Restore-verified boundary: `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-live-20260719003737.sql`, SHA-256 `f5f66f6c9916e0f995ba4b22c918188bd74a76e07cbe61f38a82feee1fb5db57`; retained clone `it_tech_db_pc_builder_clone_20260719003737`.
+- The former curated manifest/profile gate and its hashes are historical only; v4 removed those tables and flows.
+- Manual remains live (`PC_BUILDER_ENABLED=true`). Auto remains off (`PC_BUILDER_AUTO_ENABLED=false`) and its API is explicitly unavailable until a later phase.
+- Live QA retained standard order `#20` and PC Builder order `#21`, both status `3`; confirmation and completed events for both are `sent`. QA account `tiendinh.ntd+qa@gmail.com` has no live session and must change its temporary password. Its one-time credential artifact is outside Git at `D:\web-tech-backups\pc-builder-qa-live-20260719.json`.
+- Local testing runtime currently has `ADMIN_WRITE_ENABLED=true`, `PC_BUILDER_ENABLED=true`, and `PC_BUILDER_AUTO_ENABLED=false`; both production servers were rebuilt/restarted after v4 cutover. Return the write gate to `false` after configuration testing. `RECAPTCHA_DEVELOPMENT_BYPASS=false`; `hanoi23_db` was not read or modified during rollout.
 
 This is the canonical current-state handoff. Read in this order:
 
@@ -79,7 +99,7 @@ The exact modified/untracked file list is intentionally not duplicated here beca
 
 - Active local database: `it_tech_db`.
 - Retained legacy source: `hanoi23_db`; do not modify it during current work.
-- Accepted schema: 292 physical tables, 164 InnoDB and 128 MyISAM, 1 routine, 2 triggers, zero Latin-1/utf8mb3 columns, and zero importer recovery/stage/restore tables.
+- Accepted schema: 301 physical tables, 173 InnoDB and 128 MyISAM, 1 routine, 2 triggers, zero Latin-1/utf8mb3 columns, and zero importer recovery/stage/restore tables. All nine PC Builder tables are InnoDB/`utf8mb4_unicode_ci`.
 - Catalog: 788 categories; 90 brands; 4,712 product/store/price/info/search rows; 14,455 product-category links; 17,603 product-attribute links; 162 category-attribute links.
 - News: 8 categories (4 imported and 4 locally administered), 668 articles/content rows, and 705 unique article-category links. Source article 83 remains quarantined. Source IDs 682 and 683 were detected later but have not been imported.
 - PCM is brand ID 96. Durable source maps include `0 -> 96`, `34 -> 25`, and `57 -> 31`. PCM owns 2,276 products, 849 enabled.
@@ -100,6 +120,13 @@ At the end of the `2026-07-15` audit, MySQL had stopped and readiness returned 5
 - Public list/search/category paths show enabled products; direct inactive product detail remains addressable with inactive state, while inactive categories return 404.
 - Admin auth/RBAC/audit plus product/category/article/attribute/menu/banner/collection/group/combo/promotion/voucher/customer/order/user/role surfaces. Some older screens still need route-by-route API/validation/UX parity review.
 - Bounded public reads, ETags, worker-local caches, database cache versions, signed search webhook, internal metrics, health endpoints, validated media upload, and background outbox/expiry processing.
+
+## Flash Sale implementation pending rollout
+
+- Code now includes additive campaign/item/allocation/buyer-usage schema ownership in `web-admin`, a guarded `flash-sale:migrate` command, admin Campaign Studio/list APIs and RBAC, public feed/product projection, cart/order re-quote, atomic reserve/consume/release transitions, and the dark `/flash-sale` storefront with colored remaining-quota bars.
+- Flash Sale schema was applied to identified database `it_tech_db` on `2026-07-19` after a fresh logical backup/restore verification (SHA-256 `72063f78d1562e078ff71822f3006c80ee3155dba2afecf4c1cc3a0f03d04223`). Guarded apply passed twice and verify confirmed 4 InnoDB tables, 4 foreign keys, quota/index contracts and system-role permissions. `FLASH_SALES_ENABLED=true`; all Flash Sale tables currently contain zero business rows.
+- Promotional quota is independent of legacy physical stock. `idv_sell_product_price.quantity=-1` remains untouched. Raw guest phone values are not stored in the Flash Sale usage table; an HMAC buyer key is used instead.
+- Current Flash Sale implementation verification: both application TypeScript and quiet ESLint pass; both production builds pass; backend unit suite is 160/160; integration suite is 20 pass with 10 expected safety/fixture skips (including the destructive Flash Sale concurrency fixture); focused desktop/mobile Flash Sale Playwright is 2/2. Local healthcheck now includes public API, admin page and storefront Flash Sale probes and passes 22/22. After migration, the admin list query returns an empty valid result, public Flash Sale API returns `enabled=true` with zero campaigns, `/flash-sale` returns 200 with the dark shell, and anonymous admin API access returns 401.
 
 ## Verification performed on the current working tree
 

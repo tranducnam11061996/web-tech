@@ -1,30 +1,34 @@
-# PC Builder migration and rollout
+# PC Builder Catalog-live v4 migration
 
-Status: code ready; not applied to live `it_tech_db` as of 2026-07-18.
+Status: `pc-builder-v4-catalog-live` was applied twice and verified on `it_tech_db` on `2026-07-19`.
 
-## Preconditions
+## Recovery boundary and rehearsal
 
-1. Confirm `SELECT DATABASE(), @@version` returns exactly `it_tech_db` on the intended MySQL 8.4 target. Keep `ADMIN_WRITE_ENABLED=false` during inspection.
-2. Stop storefront/admin write journeys and the background worker for the maintenance window.
-3. Create a consistent full backup using `DATABASE_TRANSFER.md` with `--lock-all-tables`. Record SHA-256, restore into a separately named disposable database, then verify table/row counts and application reads.
-4. Point an isolated app process at the restored clone. Set `ADMIN_WRITE_ENABLED=true` only there and run `npm.cmd run admin:migrate` twice. Both runs must succeed. Inspect engines, collations, columns, indexes and foreign keys; run typecheck, unit/integration tests and both builds.
-5. Rehearse rollback on the clone. Never use or import `hanoi23_db.idv_pcbuilder_relation`.
+- Backup: `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v4-rehearsal-2026-07-19T09-15-57-655Z.json`
+- SHA-256: `657d673b5e7e8b938c54d867e8c3f972b6a087255d73e8846f594872db4efb25`
+- Verified inventory: 303 tables, 97,581 rows, one routine, two triggers.
+- Retained clone: `it_tech_db_backup_test_1784452557655_209400`.
+- Clone and live both passed `apply -> apply -> verify`; the clone retained one historical build/one PC Builder order and requoted the legacy build successfully.
 
-## Live apply
+## What v4 changes
 
-During an approved window, re-confirm schema and backup SHA-256, enable `ADMIN_WRITE_ENABLED=true`, run `npm.cmd run admin:migrate`, verify the additive objects and immediately return the flag to `false`.
+- Drops `web_admin_pc_builder_product_metrics` before `web_admin_pc_builder_product_profiles`.
+- Drops `web_admin_pc_builder_components.profile_component_code`.
+- Adds/backfills `web_admin_pc_builds.catalog_revision` from `profile_revision`, then drops `profile_revision`.
+- Disables every compatibility rule whose fact starts with `metric:`.
+- Preserves components, relations, builds/items, order #21, benchmark snapshots, policies and release evidence.
 
-Run extraction as dry-run from `/product/pc-builder`. Apply requires all of:
+## Guarded command
 
-- active schema exactly `it_tech_db`;
-- `ADMIN_WRITE_ENABLED=true`;
-- a 64-character SHA-256 for a restore-verified backup;
-- operator input matching `PC_BUILDER_CONFIRMATION_TOKEN`.
+The connection is rebound to the exact `--database`. Apply requires `ADMIN_WRITE_ENABLED=true`, matching restore-verified SHA environment/input, and matching 32+ character confirmation token/input.
 
-Approve profiles in the queue. Keep `PC_BUILDER_ENABLED=false` until every required slot has current verified coverage and at least one full configuration quotes successfully. Keep `PC_BUILDER_AUTO_ENABLED=false` until each published input band produces the required diverse results.
+```powershell
+npm.cmd run pc-builder:migrate -- --mode=apply --database=<it_tech_db-or-verified-clone> --backup-sha256=<sha256>
+npm.cmd run pc-builder:migrate -- --mode=verify --database=<it_tech_db-or-verified-clone> --backup-sha256=<sha256>
+```
 
-## Rollback scope
+Verification requires nine InnoDB/`utf8mb4_unicode_ci` PC Builder tables, no retired profile/metric tables, `category_id` without `profile_component_code`, `catalog_revision` without `profile_revision`, two relation FKs, the unique category index, and zero enabled metric rules.
 
-Disable both feature flags first. Rollback may drop only the eight additive PC Builder tables (children before parents), remove the three additive order-meta columns, and restore `order_type` to `enum('standard','combo')` only after proving no `pc_builder` orders exist or exporting them. Remove only builder-specific attribute seeds identified by the migration record. Never change legacy engines, collations, catalog rows, `build_buy`, or `build_buy_item`.
+## Rollback
 
-MySQL DDL auto-commits, so rollback is an explicit maintenance operation, not an application transaction. Restore the verified backup if any unexpected legacy mutation is detected.
+DDL auto-commits and v4 removes verification data. There is no reverse ALTER mode. Disable `PC_BUILDER_ENABLED` first, then restore the verified backup into a disposable database and compare inventory/hashes before any approved replacement of `it_tech_db`.

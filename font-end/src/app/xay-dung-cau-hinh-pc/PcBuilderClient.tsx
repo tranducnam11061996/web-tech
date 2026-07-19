@@ -1,146 +1,1364 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Check, ChevronDown, Cpu, Gamepad2, Loader2, Plus, Save, Share2, Sparkles, X } from 'lucide-react';
+import Image from "next/image";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  formatPcPrice, pcBuilderApi, PC_BUILDER_DRAFT_KEY,
-  type PcBuilderCandidate, type PcBuilderComponentCode, type PcBuilderDiagnostic, type PcBuilderQuote, type PcBuilderSelection,
-} from '@/lib/pcBuilder';
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Cpu,
+  Filter,
+  Loader2,
+  Plus,
+  RotateCcw,
+  Save,
+  Search,
+  Share2,
+  ShoppingCart,
+  X,
+} from "lucide-react";
+import {
+  formatPcPrice,
+  parsePcBuilderDraft,
+  pcBuilderApi,
+  pcBuilderSelectionSignature,
+  pcBuilderSelectionsFromQuote,
+  PC_BUILDER_DRAFT_KEY,
+  PC_BUILDER_WARNING_CONFIRMATION_KEY,
+  serializePcBuilderDraft,
+  type PcBuilderCandidate,
+  type PcBuilderDiagnostic,
+  type PcBuilderQuote,
+  type PcBuilderSelection,
+} from "@/lib/pcBuilder";
 
-type Bootstrap = {
-  enabled: boolean; autoEnabled: boolean; ruleRevision: string; minimumBudget: number;
-  components: Array<{ code: PcBuilderComponentCode; name: string; required: boolean; maxSelections: number; ordering: number }>;
-  coverage: Array<{ componentCode: PcBuilderComponentCode; total: number; verified: number; pending: number; stale: number }>;
+type Component = {
+  code: string;
+  categoryId: number;
+  name: string;
+  required: boolean;
+  minSelections: number;
+  maxSelections: number;
+  ordering: number;
 };
-type CandidateResponse = { items: PcBuilderCandidate[]; nextCursor: number | null };
-type AutoResponse = { variants: Array<{ variant: 'value' | 'balanced' | 'performance'; quote: PcBuilderQuote; performanceScore: number }>; reason?: string; minimumBudget: number };
+type Bootstrap = {
+  enabled: boolean;
+  migrationRequired?: boolean;
+  disabledReason?: string;
+  ruleRevision: string;
+  minimumBudget: number;
+  components: Component[];
+};
+type CandidateFacets = {
+  prices: Array<{
+    key: string;
+    label: string;
+    min: number;
+    max: number | null;
+    count: number;
+  }>;
+  brands: Array<{ id: number; name: string; count: number }>;
+  attributes: Array<{
+    id: number;
+    code: string;
+    name: string;
+    values: Array<{ id: number; label: string; count: number }>;
+  }>;
+};
+type CandidateResponse = {
+  items: PcBuilderCandidate[];
+  facets: CandidateFacets;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  context: {
+    constrained: boolean;
+    relations: Array<{
+      selectedComponentCode: string;
+      attributeName: string;
+    }>;
+  };
+};
+type Filters = {
+  query: string;
+  sort: "default" | "price_asc" | "price_desc" | "newest";
+  minPrice: number | null;
+  maxPrice: number | null;
+  brandIds: number[];
+  attributeFilters: Record<string, number[]>;
+  page: number;
+};
 
-const VARIANT_LABEL = { value: 'Tiết kiệm', balanced: 'Cân bằng', performance: 'Hiệu năng' } as const;
-const FALLBACK_COMPONENTS: Bootstrap['components'] = [
-  ['cpu','CPU',true,1],['mainboard','Mainboard',true,1],['ram','RAM',true,4],['storage','SSD / HDD',true,4],
-  ['case','Vỏ máy tính',true,1],['psu','Nguồn máy tính',true,1],['gpu','Card đồ họa',false,1],['cooler','Tản nhiệt',false,1],
-  ['monitor','Màn hình',false,2],['keyboard','Bàn phím',false,1],['mouse','Chuột',false,1],['headset','Tai nghe',false,1],
-].map(([code,name,required,maxSelections], ordering) => ({ code: code as PcBuilderComponentCode, name: String(name), required: Boolean(required), maxSelections: Number(maxSelections), ordering }));
-
-function readDraft(): PcBuilderSelection[] {
-  try { const value = JSON.parse(localStorage.getItem(PC_BUILDER_DRAFT_KEY) || '{}'); return value.version === 1 && Array.isArray(value.selections) ? value.selections : []; } catch { return []; }
-}
+const emptyFacets: CandidateFacets = { prices: [], brands: [], attributes: [] };
+const LEGACY_DRAFT_INVALID_CODES = new Set([
+  "BUILD_UNAVAILABLE",
+  "COMPONENT_CATEGORY_MISMATCH",
+  "INVALID_COMPONENT",
+]);
+const defaultFilters = (): Filters => ({
+  query: "",
+  sort: "default",
+  minPrice: null,
+  maxPrice: null,
+  brandIds: [],
+  attributeFilters: {},
+  page: 1,
+});
 
 function DiagnosticList({ items }: { items: PcBuilderDiagnostic[] }) {
   if (!items.length) return null;
-  return <div className="space-y-2" aria-live="polite">{items.map((item) => <div key={`${item.ruleCode}-${item.componentCodes.join('-')}`} className={`flex gap-2 rounded-xl border p-3 text-sm ${item.severity === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-100' : 'border-amber-500/30 bg-amber-500/10 text-amber-100'}`}>
-    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> <span>{item.message}</span>
-  </div>)}</div>;
+  return (
+    <div className="space-y-2" aria-live="polite">
+      {items.map((item) => (
+        <div
+          key={`${item.ruleCode}-${item.componentCodes.join("-")}`}
+          className={`flex gap-2 rounded-xl border p-3 text-sm ${item.severity === "error" ? "border-red-500/30 bg-red-500/10 text-red-100" : "border-amber-500/30 bg-amber-500/10 text-amber-100"}`}
+        >
+          <AlertTriangle
+            className="mt-0.5 h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          <span>{item.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FilterControls({
+  facets,
+  filters,
+  setFilters,
+}: {
+  facets: CandidateFacets;
+  filters: Filters;
+  setFilters: React.Dispatch<React.SetStateAction<Filters>>;
+}) {
+  const toggleBrand = (id: number) =>
+    setFilters((current) => ({
+      ...current,
+      page: 1,
+      brandIds: current.brandIds.includes(id)
+        ? current.brandIds.filter((value) => value !== id)
+        : [...current.brandIds, id],
+    }));
+  const toggleAttribute = (attributeId: number, valueId: number) =>
+    setFilters((current) => {
+      const key = String(attributeId);
+      const selected = current.attributeFilters[key] || [];
+      return {
+        ...current,
+        page: 1,
+        attributeFilters: {
+          ...current.attributeFilters,
+          [key]: selected.includes(valueId)
+            ? selected.filter((item) => item !== valueId)
+            : [...selected, valueId],
+        },
+      };
+    });
+  return (
+    <div className="space-y-6">
+      <button
+        type="button"
+        onClick={() => setFilters(defaultFilters())}
+        className="min-h-11 w-full rounded-xl border border-white/10 px-3 text-sm font-bold text-zinc-300 hover:bg-white/5"
+      >
+        Xóa toàn bộ bộ lọc
+      </button>
+      <details open>
+        <summary className="mb-3 min-h-11 cursor-pointer py-3 text-sm font-black">Khoảng giá</summary>
+        <div className="space-y-2">
+          {facets.prices.map((bucket) => (
+            <label
+              key={bucket.key}
+              className="flex cursor-pointer items-center justify-between gap-3 text-sm text-zinc-300"
+            >
+              <span>
+                <input
+                  type="radio"
+                  name="pc-price"
+                  checked={
+                    filters.minPrice === bucket.min &&
+                    filters.maxPrice === bucket.max
+                  }
+                  onChange={() =>
+                    setFilters((current) => ({
+                      ...current,
+                      page: 1,
+                      minPrice: bucket.min,
+                      maxPrice: bucket.max,
+                    }))
+                  }
+                  className="mr-2 accent-red-500"
+                />
+                {bucket.label}
+              </span>
+              <span className="text-xs text-zinc-600">{bucket.count}</span>
+            </label>
+          ))}
+        </div>
+        {filters.minPrice !== null ? (
+          <button
+            type="button"
+            onClick={() =>
+              setFilters((current) => ({
+                ...current,
+                page: 1,
+                minPrice: null,
+                maxPrice: null,
+              }))
+            }
+            className="mt-3 text-xs font-bold text-red-400"
+          >
+            Bỏ lọc giá
+          </button>
+        ) : null}
+      </details>
+      {facets.brands.length ? (
+        <details open>
+          <summary className="mb-3 min-h-11 cursor-pointer py-3 text-sm font-black">Hãng sản xuất ({facets.brands.length})</summary>
+          <div className="max-h-48 space-y-2 overflow-y-auto">
+            {facets.brands.map((brand) => (
+              <label
+                key={brand.id}
+                className="flex cursor-pointer items-center justify-between gap-3 text-sm text-zinc-300"
+              >
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={filters.brandIds.includes(brand.id)}
+                    onChange={() => toggleBrand(brand.id)}
+                    className="mr-2 accent-red-500"
+                  />
+                  {brand.name}
+                </span>
+                <span className="text-xs text-zinc-600">{brand.count}</span>
+              </label>
+            ))}
+          </div>
+        </details>
+      ) : null}
+      {facets.attributes.map((attribute) => (
+        <details
+          key={attribute.id}
+          className="border-t border-white/10 pt-4"
+        >
+          <summary className="mb-3 min-h-11 cursor-pointer py-3 text-sm font-black">{attribute.name} ({attribute.values.length})</summary>
+          <div className="max-h-52 space-y-2 overflow-y-auto">
+            {attribute.values.map((value) => (
+              <label
+                key={value.id}
+                className="flex cursor-pointer items-center justify-between gap-3 text-sm text-zinc-300"
+              >
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={(
+                      filters.attributeFilters[String(attribute.id)] || []
+                    ).includes(value.id)}
+                    onChange={() =>
+                      toggleAttribute(attribute.id, value.id)
+                    }
+                    className="mr-2 accent-red-500"
+                  />
+                  {value.label}
+                </span>
+                <span className="text-xs text-zinc-600">{value.count}</span>
+              </label>
+            ))}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
 }
 
 export default function PcBuilderClient() {
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
-  const [tab, setTab] = useState<'manual' | 'auto'>('manual');
+  const [bootstrapLoading, setBootstrapLoading] = useState(true);
   const [selections, setSelections] = useState<PcBuilderSelection[]>([]);
   const [quote, setQuote] = useState<PcBuilderQuote | null>(null);
-  const [activeComponent, setActiveComponent] = useState<PcBuilderComponentCode | null>(null);
-  const [candidates, setCandidates] = useState<PcBuilderCandidate[]>([]);
+  const [quoteSelectionSignature, setQuoteSelectionSignature] = useState("");
+  const [draftHydrated, setDraftHydrated] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState("");
+  const [activeComponent, setActiveComponent] = useState<string | null>(null);
+  const [candidateData, setCandidateData] = useState<CandidateResponse>({
+    items: [],
+    facets: emptyFacets,
+    pagination: { page: 1, limit: 18, total: 0, totalPages: 1 },
+    context: { constrained: false, relations: [] },
+  });
   const [candidateLoading, setCandidateLoading] = useState(false);
+  const [candidateError, setCandidateError] = useState("");
+  const [filters, setFilters] = useState<Filters>(defaultFilters());
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [autoForm, setAutoForm] = useState({ budget: 25_000_000, resolution: '1080p', gameType: 'mixed' });
-  const [autoResult, setAutoResult] = useState<AutoResponse | null>(null);
-  const [autoLoading, setAutoLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [confirmCheckout, setConfirmCheckout] = useState(false);
+  const candidateDialogRef = useRef<HTMLDialogElement>(null);
+  const confirmationDialogRef = useRef<HTMLDialogElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+  const quoteRequestIdRef = useRef(0);
+  const restoredLocalDraftRef = useRef(false);
+
+  const updateSelections = useCallback(
+    (
+      updater:
+        | PcBuilderSelection[]
+        | ((current: PcBuilderSelection[]) => PcBuilderSelection[]),
+    ) => {
+      quoteRequestIdRef.current += 1;
+      setSelections(updater);
+    },
+    [],
+  );
+
+  const loadBootstrap = useCallback(async () => {
+    setBootstrapLoading(true);
+    setError("");
+    try {
+      setBootstrap(await pcBuilderApi<Bootstrap>("/api/pc-builder/bootstrap"));
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Không tải được cấu hình Build PC.",
+      );
+    } finally {
+      setBootstrapLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get('share');
-    if (token) {
-      pcBuilderApi<{ quote: PcBuilderQuote }>(`/api/pc-builder/builds/${encodeURIComponent(token)}`)
-        .then((shared) => setSelections(shared.quote.items.map((item) => ({ componentCode: item.componentCode, productId: item.productId, quantity: item.quantity }))))
-        .catch((reason) => setError(reason.message));
-    } else setSelections(readDraft());
-    pcBuilderApi<Bootstrap>('/api/pc-builder/bootstrap').then(setBootstrap).catch((reason) => setError(reason.message));
-  }, []);
-  useEffect(() => { localStorage.setItem(PC_BUILDER_DRAFT_KEY, JSON.stringify({ version: 1, selections, savedAt: new Date().toISOString() })); }, [selections]);
+    let cancelled = false;
+    const controller = new AbortController();
+    const token = new URLSearchParams(window.location.search).get("share");
+    const hydrate = async () => {
+      try {
+        if (token) {
+          const shared = await pcBuilderApi<{ quote: PcBuilderQuote }>(
+            `/api/pc-builder/builds/${encodeURIComponent(token)}`,
+            { signal: controller.signal },
+          );
+          if (!cancelled)
+            setSelections(pcBuilderSelectionsFromQuote(shared.quote));
+        } else {
+          let rawDraft: string | null = null;
+          try {
+            rawDraft = localStorage.getItem(PC_BUILDER_DRAFT_KEY);
+          } catch {
+            /* Storage may be unavailable in private browsing. */
+          }
+          const restored = parsePcBuilderDraft(rawDraft);
+          restoredLocalDraftRef.current = restored.length > 0;
+          if (!cancelled) setSelections(restored);
+        }
+      } catch (reason) {
+        if (!cancelled && (reason as Error).name !== "AbortError")
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : "Không thể khởi tạo cấu hình PC.",
+          );
+      } finally {
+        if (!cancelled) setDraftHydrated(true);
+      }
+    };
+    void hydrate();
+    void loadBootstrap();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [loadBootstrap]);
+
   useEffect(() => {
-    if (!selections.length) { setQuote(null); return; }
+    if (!draftHydrated) return;
+    try {
+      localStorage.setItem(
+        PC_BUILDER_DRAFT_KEY,
+        serializePcBuilderDraft(selections),
+      );
+    } catch {
+      /* The builder remains usable when browser storage is unavailable. */
+    }
+  }, [draftHydrated, selections]);
+
+  useEffect(() => {
+    const requestId = ++quoteRequestIdRef.current;
+    if (!selections.length) {
+      setQuote(null);
+      setQuoteSelectionSignature("");
+      setQuoteLoading(false);
+      sessionStorage.removeItem(PC_BUILDER_WARNING_CONFIRMATION_KEY);
+      return;
+    }
+    const requestedSignature = pcBuilderSelectionSignature(selections);
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       setQuoteLoading(true);
-      pcBuilderApi<PcBuilderQuote>('/api/pc-builder/quote', { method: 'POST', signal: controller.signal, body: JSON.stringify({ selections, assemblyRequired: true }) })
-        .then((data) => { setQuote(data); setError(''); }).catch((reason) => { if (reason.name !== 'AbortError') setError(reason.message); }).finally(() => setQuoteLoading(false));
+      pcBuilderApi<PcBuilderQuote>("/api/pc-builder/quote", {
+        method: "POST",
+        signal: controller.signal,
+        body: JSON.stringify({ selections, assemblyRequired: true }),
+      })
+        .then((nextQuote) => {
+          if (
+            controller.signal.aborted ||
+            requestId !== quoteRequestIdRef.current
+          )
+            return;
+          const normalizedSelections = pcBuilderSelectionsFromQuote(nextQuote);
+          const normalizedSignature = pcBuilderSelectionSignature(
+            normalizedSelections,
+          );
+          setQuote(nextQuote);
+          setQuoteSelectionSignature(normalizedSignature);
+          if (normalizedSignature !== requestedSignature)
+            setSelections((current) =>
+              pcBuilderSelectionSignature(current) === requestedSignature
+                ? normalizedSelections
+                : current,
+            );
+          setError("");
+          if (restoredLocalDraftRef.current) {
+            setRestoreMessage(
+              `Đã khôi phục ${normalizedSelections.length} linh kiện từ cấu hình nháp.`,
+            );
+            restoredLocalDraftRef.current = false;
+          }
+          const saved = sessionStorage.getItem(
+            PC_BUILDER_WARNING_CONFIRMATION_KEY,
+          );
+          if (saved) {
+            try {
+              const confirmation = JSON.parse(saved);
+              if (
+                confirmation.fingerprint !== nextQuote.fingerprint ||
+                confirmation.warningSignature !== nextQuote.warningSignature
+              )
+                sessionStorage.removeItem(PC_BUILDER_WARNING_CONFIRMATION_KEY);
+            } catch {
+              sessionStorage.removeItem(PC_BUILDER_WARNING_CONFIRMATION_KEY);
+            }
+          }
+        })
+        .catch((reason) => {
+          if (
+            reason.name === "AbortError" ||
+            requestId !== quoteRequestIdRef.current
+          )
+            return;
+          const requestError = reason as Error & { code?: string };
+          const hasLegacyStorage = selections.some(
+            (selection) => selection.componentCode === "storage",
+          );
+          if (
+            hasLegacyStorage &&
+            requestError.code &&
+            LEGACY_DRAFT_INVALID_CODES.has(requestError.code)
+          ) {
+            setSelections((current) =>
+              pcBuilderSelectionSignature(current) === requestedSignature
+                ? current.filter(
+                    (selection) => selection.componentCode !== "storage",
+                  )
+                : current,
+            );
+            restoredLocalDraftRef.current = false;
+            setRestoreMessage("");
+            setError(
+              "Một linh kiện trong cấu hình nháp cũ không còn hợp lệ và đã được loại bỏ.",
+            );
+            return;
+          }
+          setError(reason.message);
+        })
+        .finally(() => {
+          if (requestId === quoteRequestIdRef.current)
+            setQuoteLoading(false);
+        });
     }, 250);
-    return () => { controller.abort(); window.clearTimeout(timer); };
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, [selections]);
 
-  const components = bootstrap?.components?.length ? bootstrap.components : FALLBACK_COMPONENTS;
-  const selectedItems = useMemo(() => new Map((quote?.items || []).map((item) => [item.productId, item])), [quote]);
+  useEffect(() => {
+    const dialog = candidateDialogRef.current;
+    if (!dialog) return;
+    if (activeComponent && !dialog.open) dialog.showModal();
+    if (!activeComponent && dialog.open) dialog.close();
+  }, [activeComponent]);
+  useEffect(() => {
+    const dialog = confirmationDialogRef.current;
+    if (!dialog) return;
+    if (confirmCheckout && !dialog.open) dialog.showModal();
+    if (!confirmCheckout && dialog.open) dialog.close();
+  }, [confirmCheckout]);
 
-  const openCandidates = useCallback(async (componentCode: PcBuilderComponentCode) => {
-    setActiveComponent(componentCode); setCandidateLoading(true); setCandidates([]); setSearch('');
-    try {
-      const data = await pcBuilderApi<CandidateResponse>('/api/pc-builder/candidates', { method: 'POST', body: JSON.stringify({ componentCode, selections, limit: 32 }) });
-      setCandidates(data.items);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không tải được sản phẩm.'); } finally { setCandidateLoading(false); }
-  }, [selections]);
+  const closeCandidates = () => {
+    setActiveComponent(null);
+    window.setTimeout(() => openerRef.current?.focus(), 0);
+  };
+  const openCandidates = (componentCode: string, opener: HTMLElement) => {
+    openerRef.current = opener;
+    setFilters(defaultFilters());
+    setCandidateData({
+      items: [],
+      facets: emptyFacets,
+      pagination: { page: 1, limit: 18, total: 0, totalPages: 1 },
+      context: { constrained: false, relations: [] },
+    });
+    setCandidateError("");
+    setActiveComponent(componentCode);
+  };
+
+  useEffect(() => {
+    if (!activeComponent) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(
+      async () => {
+        setCandidateLoading(true);
+        setCandidateError("");
+        try {
+          const data = await pcBuilderApi<CandidateResponse>(
+            "/api/pc-builder/candidates",
+            {
+              method: "POST",
+              signal: controller.signal,
+              body: JSON.stringify({
+                componentCode: activeComponent,
+                selections,
+                page: filters.page,
+                limit: 18,
+                query: filters.query,
+                sort: filters.sort,
+                minPrice: filters.minPrice,
+                maxPrice: filters.maxPrice,
+                brandIds: filters.brandIds,
+                attributeFilters: filters.attributeFilters,
+              }),
+            },
+          );
+          setCandidateData(data);
+        } catch (reason) {
+          if ((reason as Error).name !== "AbortError")
+            setCandidateError(
+              reason instanceof Error
+                ? reason.message
+                : "Không tải được sản phẩm.",
+            );
+        } finally {
+          setCandidateLoading(false);
+        }
+      },
+      filters.query ? 350 : 0,
+    );
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [activeComponent, filters, selections]);
+
+  const components = useMemo(
+    () =>
+      [...(bootstrap?.components || [])].sort(
+        (a, b) => a.ordering - b.ordering,
+      ),
+    [bootstrap],
+  );
+  const currentSelectionSignature = pcBuilderSelectionSignature(selections);
+  const activeQuote =
+    quote && quoteSelectionSignature === currentSelectionSignature
+      ? quote
+      : null;
+  const visibleSelectionCount = useMemo(() => {
+    const componentCodes = new Set(components.map((component) => component.code));
+    return selections.filter((selection) =>
+      componentCodes.has(selection.componentCode),
+    ).length;
+  }, [components, selections]);
+  const activeConfig = components.find(
+    (component) => component.code === activeComponent,
+  );
+  const selectedItems = useMemo(
+    () =>
+      new Map(
+        (activeQuote?.items || []).map((item) => [item.productId, item]),
+      ),
+    [activeQuote],
+  );
 
   const chooseCandidate = (candidate: PcBuilderCandidate) => {
-    if (!activeComponent) return;
-    if (!candidate.compatible && !window.confirm(`Sản phẩm này gây xung đột:\n${candidate.reasons.map((item) => `• ${item.message}`).join('\n')}\n\nVẫn thay đổi để tự xử lý các linh kiện bị ảnh hưởng?`)) return;
-    setSelections((current) => {
-      const max = components.find((item) => item.code === activeComponent)?.maxSelections || 1;
-      const existing = current.filter((item) => item.componentCode === activeComponent);
-      if (max === 1) return [...current.filter((item) => item.componentCode !== activeComponent), { componentCode: activeComponent, productId: candidate.productId, quantity: 1 }];
-      if (existing.some((item) => item.productId === candidate.productId) || existing.length >= max) return current;
-      return [...current, { componentCode: activeComponent, productId: candidate.productId, quantity: 1 }];
+    if (!activeComponent || !activeConfig) return;
+    updateSelections((current) => {
+      const currentForComponent = current.filter(
+        (item) => item.componentCode === activeComponent,
+      );
+      if (candidate.selected)
+        return current.filter(
+          (item) =>
+            !(
+              item.componentCode === activeComponent &&
+              item.productId === candidate.productId
+            ),
+        );
+      if (activeConfig.maxSelections === 1)
+        return [
+          ...current.filter((item) => item.componentCode !== activeComponent),
+          {
+            componentCode: activeComponent,
+            productId: candidate.productId,
+            quantity: 1,
+          },
+        ];
+      if (currentForComponent.length >= activeConfig.maxSelections)
+        return current;
+      return [
+        ...current,
+        {
+          componentCode: activeComponent,
+          productId: candidate.productId,
+          quantity: 1,
+        },
+      ];
     });
-    setActiveComponent(null);
+    if (activeConfig.maxSelections === 1) closeCandidates();
   };
 
+  const reset = () => {
+    if (
+      !selections.length ||
+      window.confirm("Xóa toàn bộ linh kiện đã chọn?")
+    ) {
+      updateSelections([]);
+      setQuote(null);
+      setQuoteSelectionSignature("");
+      setQuoteLoading(false);
+      setRestoreMessage("");
+      sessionStorage.removeItem(PC_BUILDER_WARNING_CONFIRMATION_KEY);
+    }
+  };
   const share = async () => {
     try {
-      const data = await pcBuilderApi<{ shareToken: string }>('/api/pc-builder/builds', { method: 'POST', body: JSON.stringify({ name: 'Cấu hình PC của tôi', mode: 'manual', selections, input: {} }) });
+      const data = await pcBuilderApi<{ shareToken: string }>(
+        "/api/pc-builder/builds",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: "Cấu hình PC của tôi",
+            mode: "manual",
+            selections,
+            input: {},
+          }),
+        },
+      );
       const url = `${location.origin}/xay-dung-cau-hinh-pc?share=${data.shareToken}`;
-      await navigator.clipboard.writeText(url); window.alert('Đã sao chép liên kết chia sẻ. Liên kết có hiệu lực 90 ngày.');
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể chia sẻ cấu hình.'); }
+      await navigator.clipboard.writeText(url);
+      setError("Đã sao chép liên kết chia sẻ, có hiệu lực 90 ngày.");
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Không thể chia sẻ cấu hình.",
+      );
+    }
   };
-
   const saveToAccount = async () => {
     try {
-      const data = await pcBuilderApi<{ id: number }>('/api/customer/pc-builds', { method: 'POST', body: JSON.stringify({ name: 'Cấu hình PC của tôi', mode: 'manual', selections, input: {} }) });
-      window.alert(`Đã lưu cấu hình #${data.id} vào tài khoản.`);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể lưu cấu hình vào tài khoản.'); }
+      const data = await pcBuilderApi<{ id: number }>(
+        "/api/customer/pc-builds",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            name: "Cấu hình PC của tôi",
+            mode: "manual",
+            selections,
+            input: {},
+          }),
+        },
+      );
+      setError(`Đã lưu cấu hình #${data.id} vào tài khoản.`);
+    } catch (reason) {
+      setError(
+        reason instanceof Error ? reason.message : "Không thể lưu cấu hình.",
+      );
+    }
+  };
+  const startCheckout = () => {
+    if (!activeQuote?.compatible) return;
+    if (activeQuote.requiresConfirmation) {
+      setConfirmCheckout(true);
+      return;
+    }
+    sessionStorage.removeItem(PC_BUILDER_WARNING_CONFIRMATION_KEY);
+    window.location.assign("/thanh-toan-pc-builder");
+  };
+  const confirmAndCheckout = () => {
+    if (!activeQuote) return;
+    sessionStorage.setItem(
+      PC_BUILDER_WARNING_CONFIRMATION_KEY,
+      JSON.stringify({
+        fingerprint: activeQuote.fingerprint,
+        warningSignature: activeQuote.warningSignature,
+        confirmedAt: new Date().toISOString(),
+      }),
+    );
+    window.location.assign("/thanh-toan-pc-builder");
   };
 
-  const runAuto = async () => {
-    setAutoLoading(true); setAutoResult(null); setError('');
-    try { setAutoResult(await pcBuilderApi<AutoResponse>('/api/pc-builder/auto', { method: 'POST', body: JSON.stringify({ ...autoForm, cpuBrandIds: [], gpuBrandIds: [] }) })); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Không thể tạo cấu hình tự động.'); }
-    finally { setAutoLoading(false); }
-  };
+  if (bootstrapLoading)
+    return (
+      <main className="grid min-h-[65vh] place-items-center">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-9 w-9 animate-spin text-red-500" />
+          <p className="mt-3 text-sm text-zinc-500">
+            Đang tải cấu hình Build PC…
+          </p>
+        </div>
+      </main>
+    );
+  if (!bootstrap)
+    return (
+      <main className="mx-auto grid min-h-[65vh] max-w-xl place-items-center px-4 text-center">
+        <div className="rounded-3xl border border-white/10 bg-[#151518] p-8">
+          <AlertTriangle className="mx-auto h-12 w-12 text-amber-400" />
+          <h1 className="mt-4 text-2xl font-black">
+            Không tải được PC Builder
+          </h1>
+          <p className="mt-2 text-zinc-400">{error}</p>
+          <button
+            onClick={() => void loadBootstrap()}
+            className="mt-6 rounded-xl bg-red-600 px-6 py-3 font-bold"
+          >
+            Thử lại
+          </button>
+        </div>
+      </main>
+    );
+  if (!bootstrap.enabled)
+    return (
+      <main className="mx-auto grid min-h-[65vh] max-w-2xl place-items-center px-4 text-center">
+        <div className="rounded-3xl border border-white/10 bg-[#151518] p-8 sm:p-12">
+          <Cpu className="mx-auto h-14 w-14 text-zinc-700" />
+          <h1 className="mt-5 text-3xl font-black">
+            PC Builder đang được chuẩn bị
+          </h1>
+          <p className="mt-3 leading-7 text-zinc-400">
+            Catalog hoặc cấu hình danh mục chưa đạt điều kiện mở bán an toàn.
+          </p>
+          <button
+            onClick={() => void loadBootstrap()}
+            className="mt-7 rounded-xl border border-white/10 px-5 py-3 font-bold"
+          >
+            Tải lại
+          </button>
+        </div>
+      </main>
+    );
 
-  if (bootstrap && !bootstrap.enabled) return <main className="mx-auto grid min-h-[65vh] max-w-2xl place-items-center px-4 text-center"><div className="rounded-3xl border border-white/10 bg-[#151518] p-8 sm:p-12"><Cpu className="mx-auto h-14 w-14 text-zinc-700" /><h1 className="mt-5 text-3xl font-black">PC Builder đang được chuẩn bị</h1><p className="mt-3 leading-7 text-zinc-400">Catalog đang trong giai đoạn xác minh tương thích. Tính năng sẽ được mở khi tất cả nhóm linh kiện bắt buộc đạt điều kiện an toàn.</p><Link href="/" className="mt-7 inline-flex rounded-xl bg-red-600 px-6 py-3 font-bold">Về trang chủ</Link></div></main>;
+  return (
+    <main className="mx-auto min-h-screen max-w-[1500px] px-4 pb-28 pt-6 sm:px-6 lg:px-8">
+      <section className="mb-7 overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(220,38,38,.24),transparent_38%),linear-gradient(135deg,#18181c,#0c0c0e)] p-6 sm:p-9">
+        <p className="text-xs font-bold uppercase tracking-[.24em] text-red-400">
+          PC Builder Manual
+        </p>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
+              Xây dựng cấu hình PC của bạn
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
+              Tự chọn toàn bộ linh kiện đang bán. Giá, trạng thái bán và quan hệ
+              thuộc tính được kiểm tra lại trước khi đặt hàng.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-300">
+            Ngân sách tham khảo từ{" "}
+            <strong className="ml-1 text-white">
+              {formatPcPrice(bootstrap.minimumBudget)}
+            </strong>
+          </div>
+        </div>
+      </section>
+      {error ? (
+        <div
+          className="mb-5 flex items-center justify-between rounded-xl border border-blue-500/25 bg-blue-500/10 p-4 text-sm text-blue-100"
+          role="status"
+        >
+          <span>{error}</span>
+          <button onClick={() => setError("")} aria-label="Đóng thông báo">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      ) : null}
+      {restoreMessage ? (
+        <div
+          className="mb-5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-100"
+          role="status"
+          aria-live="polite"
+        >
+          {restoreMessage}
+        </div>
+      ) : null}
 
-  return <main className="mx-auto min-h-screen max-w-[1500px] px-4 pb-28 pt-6 sm:px-6 lg:px-8">
-    <div className="mb-7 overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(220,38,38,.22),transparent_38%),linear-gradient(135deg,#17171b,#0d0d0f)] p-6 sm:p-8">
-      <div className="flex flex-wrap items-end justify-between gap-5"><div><p className="mb-2 text-xs font-bold uppercase tracking-[.24em] text-red-400">PC Builder</p><h1 className="text-3xl font-black tracking-tight sm:text-4xl">Xây dựng cấu hình PC</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">Chỉ hiển thị linh kiện đã được xác minh. Giá và tương thích được kiểm tra lại trước khi đặt hàng.</p></div><div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-300">Ngân sách khả dụng từ <strong className="ml-1 text-white">{formatPcPrice(bootstrap?.minimumBudget || 0)}</strong></div></div>
-    </div>
-    <div role="tablist" aria-label="Chế độ xây dựng" className="mb-6 inline-flex rounded-2xl border border-white/10 bg-white/[.04] p-1">
-      <button role="tab" aria-selected={tab === 'manual'} onClick={() => setTab('manual')} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold ${tab === 'manual' ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}><Cpu className="h-4 w-4" />Tự chọn</button>
-      <button role="tab" aria-selected={tab === 'auto'} onClick={() => setTab('auto')} className={`flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold ${tab === 'auto' ? 'bg-red-600 text-white' : 'text-zinc-400 hover:text-white'}`}><Gamepad2 className="h-4 w-4" />Gaming tự động</button>
-    </div>
-    {error && <div className="mb-5 flex items-center justify-between rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100"><span>{error}</span><button onClick={() => setError('')} aria-label="Đóng thông báo"><X className="h-4 w-4" /></button></div>}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section
+          aria-label="Danh sách danh mục linh kiện"
+          className="overflow-hidden rounded-2xl border border-white/10 bg-[#131316]"
+        >
+          <div className="hidden grid-cols-[60px_240px_minmax(0,1fr)_160px] border-b border-white/10 bg-white/[.035] px-4 py-3 text-xs font-bold uppercase tracking-wider text-zinc-500 md:grid">
+            <span>STT</span>
+            <span>Danh mục</span>
+            <span>Linh kiện đã chọn</span>
+            <span className="text-right">Thao tác</span>
+          </div>
+          {components.map((component, index) => {
+            const chosen = selections.filter(
+              (item) => item.componentCode === component.code,
+            );
+            return (
+              <article
+                key={component.code}
+                className="grid gap-3 border-b border-white/[.07] p-4 last:border-0 md:grid-cols-[44px_220px_minmax(0,1fr)_140px] md:items-center"
+              >
+                <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/[.06] font-mono text-xs font-black text-zinc-400">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div>
+                  <h2 className="font-bold">{component.name}</h2>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {component.required ? "Bắt buộc" : "Tùy chọn"} · tối đa{" "}
+                    {component.maxSelections} SKU
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {chosen.length ? (
+                    chosen.map((selection) => {
+                      const item = selectedItems.get(selection.productId);
+                      return (
+                        <div
+                          key={selection.productId}
+                          className="flex items-center gap-3 rounded-xl bg-black/25 p-2"
+                        >
+                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-white">
+                            {item?.thumbnail ? (
+                              <Image
+                                src={item.thumbnail}
+                                alt=""
+                                fill
+                                sizes="48px"
+                                className="object-contain"
+                              />
+                            ) : null}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-sm font-semibold">
+                              {item?.name || `Sản phẩm #${selection.productId}`}
+                            </p>
+                            <p className="mt-1 text-sm font-black text-red-400">
+                              {item
+                                ? formatPcPrice(item.price)
+                                : "Đang kiểm tra giá"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() =>
+                              updateSelections((current) =>
+                                current.filter(
+                                  (value) =>
+                                    !(
+                                      value.componentCode === component.code &&
+                                      value.productId === selection.productId
+                                    ),
+                                ),
+                              )
+                            }
+                            aria-label={`Bỏ ${item?.name || "sản phẩm"}`}
+                            className="rounded-lg p-2 text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-sm text-zinc-600">Chưa chọn linh kiện</p>
+                  )}
+                </div>
+                <button
+                  onClick={(event) =>
+                    openCandidates(component.code, event.currentTarget)
+                  }
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-black hover:bg-red-500"
+                >
+                  <Plus className="h-4 w-4" />
+                  {chosen.length && component.maxSelections === 1
+                    ? "Thay đổi"
+                    : "Chọn linh kiện"}
+                </button>
+              </article>
+            );
+          })}
+        </section>
+        <aside
+          id="pc-builder-summary"
+          className="h-fit space-y-4 xl:sticky xl:top-5"
+        >
+          <div className="rounded-2xl border border-white/10 bg-[#151518] p-5">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-black">Tóm tắt đơn hàng</h2>
+              {quoteLoading ? (
+                <Loader2
+                  className="h-4 w-4 animate-spin text-zinc-500"
+                  aria-label="Đang cập nhật báo giá"
+                />
+              ) : null}
+            </div>
+            <div className="space-y-3 border-b border-white/10 pb-5 text-sm">
+              <div className="flex justify-between text-zinc-400">
+                <span>
+                  {activeQuote?.totals.itemCount ?? visibleSelectionCount} linh kiện
+                </span>
+                <span>{formatPcPrice(activeQuote?.totals.subtotal || 0)}</span>
+              </div>
+              <div className="flex justify-between text-zinc-400">
+                <span>Phí lắp ráp</span>
+                <span className="font-bold text-emerald-400">Miễn phí</span>
+              </div>
+            </div>
+            <div className="flex items-end justify-between py-5">
+              <span className="font-bold">Tổng cộng</span>
+              <strong className="text-2xl text-red-500">
+                {formatPcPrice(activeQuote?.totals.total || 0)}
+              </strong>
+            </div>
+            <DiagnosticList items={activeQuote?.diagnostics || []} />
+            <button
+              onClick={startCheckout}
+              disabled={!activeQuote?.compatible || quoteLoading}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3.5 text-sm font-black disabled:bg-zinc-800 disabled:text-zinc-500"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Đặt mua & lắp ráp
+            </button>
+          </div>
+          <p className="px-2 text-xs leading-5 text-zinc-500">
+            Chỉ sản phẩm “Có thể đặt hàng” mới xuất hiện. Giá luôn được quote
+            lại khi checkout.
+          </p>
+        </aside>
+      </div>
 
-    {tab === 'manual' ? <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="space-y-3" aria-label="Danh sách linh kiện">{components.map((component, index) => {
-        const chosen = selections.filter((item) => item.componentCode === component.code);
-        return <article key={component.code} className="overflow-hidden rounded-2xl border border-white/10 bg-[#131316]">
-          <div className="flex items-center gap-3 border-b border-white/[.07] px-4 py-3"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[.06] text-xs font-black text-zinc-400">{String(index + 1).padStart(2,'0')}</span><div className="min-w-0 flex-1"><h2 className="font-bold">{component.name}</h2><p className="text-xs text-zinc-500">{component.required ? 'Bắt buộc' : 'Tùy chọn'} · tối đa {component.maxSelections}</p></div><button onClick={() => openCandidates(component.code)} className="flex items-center gap-1 rounded-xl bg-white/[.07] px-3 py-2 text-sm font-bold hover:bg-white/[.12]"><Plus className="h-4 w-4" />Chọn</button></div>
-          {chosen.length ? <div className="divide-y divide-white/[.06]">{chosen.map((selection) => { const item = selectedItems.get(selection.productId); return <div key={selection.productId} className="flex items-center gap-3 p-4"><div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-white"><Image src={item?.thumbnail || 'https://placehold.co/120x120'} alt="" fill sizes="56px" className="object-contain" /></div><div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold">{item?.name || `Sản phẩm #${selection.productId}`}</p><p className="mt-1 text-sm font-black text-red-400">{item ? formatPcPrice(item.price) : 'Đang kiểm tra giá'}</p></div><button onClick={() => setSelections((current) => current.filter((value) => !(value.componentCode === component.code && value.productId === selection.productId)))} className="rounded-lg p-2 text-zinc-500 hover:bg-red-500/10 hover:text-red-400" aria-label={`Bỏ ${item?.name || 'sản phẩm'}`}><X className="h-4 w-4" /></button></div>; })}</div> : <button onClick={() => openCandidates(component.code)} className="flex w-full items-center justify-between px-4 py-5 text-left text-sm text-zinc-500 hover:bg-white/[.02] hover:text-zinc-300"><span>Chưa chọn {component.name.toLowerCase()}</span><ChevronDown className="h-4 w-4 -rotate-90" /></button>}
-        </article>;
-      })}</section>
-      <aside id="pc-builder-summary" className="h-fit space-y-4 xl:sticky xl:top-5"><div className="rounded-2xl border border-white/10 bg-[#151518] p-5"><div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-black">Tóm tắt cấu hình</h2>{quoteLoading && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}</div><div className="space-y-3 border-b border-white/10 pb-5 text-sm"><div className="flex justify-between text-zinc-400"><span>{quote?.totals.itemCount || selections.length} sản phẩm</span><span>{formatPcPrice(quote?.totals.subtotal || 0)}</span></div><div className="flex justify-between text-zinc-400"><span>Phí lắp ráp</span><span className="font-bold text-emerald-400">Miễn phí</span></div></div><div className="flex items-end justify-between py-5"><span className="font-bold">Tổng cộng</span><strong className="text-2xl text-red-500">{formatPcPrice(quote?.totals.total || 0)}</strong></div><DiagnosticList items={quote?.diagnostics || []} /><div className="mt-4 grid grid-cols-2 gap-2"><button onClick={share} disabled={!quote?.compatible} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-3 text-sm font-bold disabled:opacity-40"><Share2 className="h-4 w-4" />Chia sẻ</button><button onClick={saveToAccount} disabled={!quote?.compatible} className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-3 py-3 text-sm font-bold disabled:opacity-40"><Save className="h-4 w-4" />Lưu</button></div><Link aria-disabled={!quote?.compatible} href={quote?.compatible ? '/thanh-toan-pc-builder' : '#'} className={`mt-2 flex w-full items-center justify-center rounded-xl py-3.5 text-sm font-black ${quote?.compatible ? 'bg-red-600 hover:bg-red-500' : 'pointer-events-none bg-zinc-800 text-zinc-500'}`}>Đặt mua & lắp ráp</Link></div><p className="px-2 text-xs leading-5 text-zinc-500">Giá chia sẻ luôn được báo lại tại thời điểm mở liên kết. Không sử dụng số lượng legacy làm tồn kho.</p></aside>
-    </div> : <section className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]"><div className="h-fit rounded-2xl border border-white/10 bg-[#151518] p-5"><div className="mb-5 flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-red-600"><Sparkles className="h-5 w-5" /></span><div><h2 className="font-black">Tạo cấu hình Gaming</h2><p className="text-xs text-zinc-500">Ngân sách chỉ tính thùng máy</p></div></div><label className="mb-4 block text-sm font-bold">Ngân sách<input type="number" min={1_000_000} step={500_000} value={autoForm.budget} onChange={(event) => setAutoForm({ ...autoForm, budget: Number(event.target.value) })} className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-red-500" /></label><label className="mb-4 block text-sm font-bold">Độ phân giải<select value={autoForm.resolution} onChange={(event) => setAutoForm({ ...autoForm, resolution: event.target.value })} className="mt-2 w-full rounded-xl border border-white/10 bg-[#202024] px-4 py-3"><option value="1080p">1080p</option><option value="1440p">1440p</option><option value="4k">4K</option></select></label><label className="mb-5 block text-sm font-bold">Loại game<select value={autoForm.gameType} onChange={(event) => setAutoForm({ ...autoForm, gameType: event.target.value })} className="mt-2 w-full rounded-xl border border-white/10 bg-[#202024] px-4 py-3"><option value="esports">eSports</option><option value="aaa">AAA</option><option value="mixed">Hỗn hợp</option></select></label><button onClick={runAuto} disabled={autoLoading || bootstrap?.autoEnabled === false} className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3.5 font-black disabled:opacity-40">{autoLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}Tạo cấu hình</button></div><div>{autoResult?.variants.length ? <div className="grid gap-4 xl:grid-cols-3">{autoResult.variants.map((entry) => <article key={entry.variant} className="rounded-2xl border border-white/10 bg-[#151518] p-5"><p className="text-xs font-black uppercase tracking-widest text-red-400">{VARIANT_LABEL[entry.variant]}</p><h3 className="mt-2 text-2xl font-black">{formatPcPrice(entry.quote.totals.total)}</h3><div className="my-5 space-y-2">{entry.quote.items.map((item) => <div key={item.productId} className="flex justify-between gap-3 text-xs"><span className="line-clamp-1 text-zinc-400">{item.name}</span><span className="shrink-0 font-bold">{formatPcPrice(item.price)}</span></div>)}</div><button onClick={() => { setSelections(entry.quote.items.map((item) => ({ componentCode: item.componentCode, productId: item.productId, quantity: item.quantity }))); setTab('manual'); }} className="w-full rounded-xl border border-white/10 py-3 text-sm font-bold hover:bg-white/[.06]">Chọn cấu hình này</button></article>)}</div> : <div className="grid min-h-[360px] place-items-center rounded-2xl border border-dashed border-white/10 p-8 text-center"><div><Gamepad2 className="mx-auto h-12 w-12 text-zinc-700" /><h2 className="mt-4 text-lg font-black">Ba phương án rõ ràng</h2><p className="mt-2 max-w-md text-sm leading-6 text-zinc-500">Hệ thống tối ưu theo hiệu năng/giá, độ cân bằng CPU–GPU và hiệu năng cao nhất trong ngân sách. Không ước lượng FPS nếu chưa có benchmark được xác minh.</p></div></div>}</div></section>}
+      <div className="mt-6 grid gap-2 sm:grid-cols-4">
+        <button
+          onClick={reset}
+          disabled={!selections.length}
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold disabled:opacity-40"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Làm lại
+        </button>
+        <button
+          onClick={saveToAccount}
+          disabled={!activeQuote?.compatible}
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold disabled:opacity-40"
+        >
+          <Save className="h-4 w-4" />
+          Lưu cấu hình
+        </button>
+        <button
+          onClick={share}
+          disabled={!activeQuote?.compatible}
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold disabled:opacity-40"
+        >
+          <Share2 className="h-4 w-4" />
+          Chia sẻ
+        </button>
+        <button
+          onClick={startCheckout}
+          disabled={!activeQuote?.compatible}
+          className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-black disabled:opacity-40"
+        >
+          <ShoppingCart className="h-4 w-4" />
+          Xem đơn
+        </button>
+      </div>
 
-    {activeComponent && <div role="dialog" aria-modal="true" aria-label="Chọn linh kiện" className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm"><button className="absolute inset-0 cursor-default" onClick={() => setActiveComponent(null)} aria-label="Đóng" /><div className="relative flex h-full w-full max-w-2xl flex-col border-l border-white/10 bg-[#101012] shadow-2xl"><div className="border-b border-white/10 p-5"><div className="flex items-center justify-between"><div><p className="text-xs uppercase tracking-widest text-zinc-500">Chọn linh kiện</p><h2 className="mt-1 text-xl font-black">{components.find((item) => item.code === activeComponent)?.name}</h2></div><button onClick={() => setActiveComponent(null)} className="rounded-xl p-3 hover:bg-white/[.06]" aria-label="Đóng"><X /></button></div><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Tìm theo tên hoặc SKU…" className="mt-4 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm outline-none focus:border-red-500" /></div><div className="flex-1 overflow-y-auto p-4">{candidateLoading ? <div className="grid h-64 place-items-center"><Loader2 className="h-8 w-8 animate-spin text-red-500" /></div> : <div className="space-y-3">{candidates.filter((item) => !search || `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase())).map((candidate) => <button key={candidate.productId} onClick={() => chooseCandidate(candidate)} className={`flex w-full gap-4 rounded-2xl border p-4 text-left ${candidate.compatible ? 'border-white/10 bg-white/[.025] hover:border-emerald-500/40' : 'border-amber-500/20 bg-amber-500/[.04]'}`}><div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-white"><Image src={candidate.thumbnail || 'https://placehold.co/160x160'} alt="" fill sizes="80px" className="object-contain" /></div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><p className="line-clamp-2 text-sm font-bold">{candidate.name}</p>{candidate.compatible ? <Check className="h-5 w-5 shrink-0 text-emerald-400" /> : <AlertTriangle className="h-5 w-5 shrink-0 text-amber-400" />}</div><p className="mt-1 text-xs text-zinc-500">{candidate.brandName} · {candidate.sku}</p><p className="mt-2 font-black text-red-400">{formatPcPrice(candidate.price)}</p>{!candidate.compatible && <p className="mt-2 text-xs text-amber-300">{candidate.reasons.find((item) => item.severity === 'error')?.message}</p>}</div></button>)}</div>}</div></div></div>}
-    <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#111113]/95 p-3 backdrop-blur xl:hidden"><div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4"><div><p className="text-xs text-zinc-500">Tổng cấu hình</p><p className="font-black text-red-500">{formatPcPrice(quote?.totals.total || 0)}</p></div><a href="#pc-builder-summary" className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black">Xem cấu hình</a></div></div>
-  </main>;
+      <section className="mt-14 border-t border-white/10 pt-10">
+        <p className="text-xs font-bold uppercase tracking-[.2em] text-red-400">
+          Tự chọn linh kiện
+        </p>
+        <h2 className="mt-2 text-2xl font-black">
+          Build PC đúng nhu cầu, kiểm tra trước khi mua
+        </h2>
+        <p className="mt-4 max-w-4xl text-sm leading-7 text-zinc-400">
+          PC Builder giúp gom các linh kiện vào một cấu hình, chỉ đưa ra sản
+          phẩm đang bán, có giá hợp lệ và kiểm tra các quan hệ thuộc tính quan
+          trọng như socket, loại RAM và form factor. Danh mục bắt
+          buộc bị thiếu sẽ được cảnh báo rõ nhưng bạn vẫn có thể xác nhận để
+          hoàn thành đơn.
+        </p>
+        <div className="mt-8 space-y-3">
+          <h2 className="text-xl font-black">Câu hỏi thường gặp</h2>
+          {[
+            [
+              "Tôi có thể đặt hàng khi chưa chọn đủ linh kiện không?",
+              "Có. Hệ thống sẽ liệt kê chính xác các danh mục bắt buộc còn thiếu và yêu cầu bạn xác nhận trước khi sang checkout.",
+            ],
+            [
+              "Vì sao một số sản phẩm không xuất hiện?",
+              "Danh sách gồm toàn bộ sản phẩm đang bán, có giá hợp lệ và thuộc đúng cây category. Khi đã chọn linh kiện liên quan, danh sách được lọc theo thuộc tính tương thích.",
+            ],
+            [
+              "Có thể chọn nhiều SSD hoặc HDD không?",
+              "Có. SSD và HDD là hai dòng riêng, mỗi dòng cho phép chọn nhiều mẫu khác nhau đến giới hạn do quản trị viên cấu hình.",
+            ],
+            [
+              "Giá có được giữ nguyên khi chia sẻ cấu hình không?",
+              "Không. Cấu hình được quote lại khi mở liên kết và trước khi đặt hàng để tránh dùng giá hoặc trạng thái bán đã cũ.",
+            ],
+          ].map(([question, answer]) => (
+            <details
+              key={question}
+              className="group rounded-xl border border-white/10 bg-[#151518] p-4"
+            >
+              <summary className="cursor-pointer list-none pr-8 font-bold marker:hidden">
+                {question}
+              </summary>
+              <p className="mt-3 text-sm leading-6 text-zinc-400">{answer}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+    <dialog
+      ref={candidateDialogRef}
+      aria-labelledby="pc-builder-candidate-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          closeCandidates();
+        }}
+        onClose={() => activeComponent && closeCandidates()}
+        className="fixed inset-0 m-0 h-[100dvh] max-h-none w-screen max-w-none border-0 bg-[#0f0f12] p-0 text-white backdrop:bg-black/75 lg:inset-4 lg:m-auto lg:h-[calc(100dvh-2rem)] lg:w-[calc(100vw-2rem)] lg:rounded-2xl lg:border lg:border-white/10"
+      >
+        <div className="flex h-full flex-col">
+          <header className="flex items-center justify-between border-b border-white/10 bg-[#192a55] px-4 py-4 sm:px-6">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-blue-200">
+                Chọn linh kiện
+              </p>
+              <h2 id="pc-builder-candidate-title" className="mt-1 text-xl font-black">{activeConfig?.name}</h2>
+            </div>
+            <button
+              onClick={closeCandidates}
+              aria-label="Đóng cửa sổ chọn linh kiện"
+              className="rounded-xl p-2 hover:bg-white/10"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </header>
+          <div className="border-b border-white/10 p-3 lg:hidden">
+            <details>
+              <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold">
+                <Filter className="h-4 w-4" />
+                Bộ lọc sản phẩm
+              </summary>
+              <div className="mt-4 max-h-[45vh] overflow-y-auto px-1 pb-2">
+                <FilterControls
+                  facets={candidateData.facets}
+                  filters={filters}
+                  setFilters={setFilters}
+                />
+              </div>
+            </details>
+          </div>
+          <div className="grid min-h-0 flex-1 lg:grid-cols-[320px_minmax(0,1fr)]">
+            <aside className="hidden overflow-y-auto border-r border-white/10 p-5 lg:block">
+              <h3 className="mb-5 font-black">Lọc sản phẩm theo</h3>
+              <FilterControls
+                facets={candidateData.facets}
+                filters={filters}
+                setFilters={setFilters}
+              />
+            </aside>
+            <div className="flex min-w-0 flex-col">
+              <div className="grid gap-3 border-b border-white/10 p-4 sm:grid-cols-[minmax(0,1fr)_210px]">
+                <label className="relative">
+                  <span className="sr-only">Tìm sản phẩm</span>
+                  <Search className="pointer-events-none absolute left-4 top-3.5 h-4 w-4 text-zinc-500" />
+                  <input
+                    autoFocus
+                    value={filters.query}
+                    onChange={(event) =>
+                      setFilters((current) => ({
+                        ...current,
+                        page: 1,
+                        query: event.target.value,
+                      }))
+                    }
+                    placeholder="Tìm kiếm theo tên hoặc SKU…"
+                    className="w-full rounded-xl border border-white/10 bg-black/30 py-3 pl-11 pr-4 text-sm outline-none focus:border-red-500"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="shrink-0 text-zinc-500">Sắp xếp:</span>
+                  <select
+                    value={filters.sort}
+                    onChange={(event) =>
+                      setFilters((current) => ({
+                        ...current,
+                        page: 1,
+                        sort: event.target.value as Filters["sort"],
+                      }))
+                    }
+                    className="w-full rounded-xl border border-white/10 bg-[#1b1b20] px-3 py-3"
+                  >
+                    <option value="default">Mặc định</option>
+                    <option value="price_asc">Giá tăng dần</option>
+                    <option value="price_desc">Giá giảm dần</option>
+                    <option value="newest">Mới nhất</option>
+                  </select>
+                </label>
+              </div>
+              {candidateData.context.constrained ? (
+                <div className="border-b border-blue-400/20 bg-blue-500/10 px-4 py-3 text-sm text-blue-100" role="status">
+                  {candidateData.context.relations.map((relation, index) => (
+                    <span key={`${relation.selectedComponentCode}-${relation.attributeName}`}>
+                      {index ? " · " : ""}Đang lọc linh kiện tương thích {relation.attributeName} với {components.find((item) => item.code === relation.selectedComponentCode)?.name || relation.selectedComponentCode} đã chọn
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between border-b border-white/10 px-4 py-3 text-sm text-zinc-400">
+                <span aria-live="polite">
+                  Tìm thấy{" "}
+                  <strong className="text-white">
+                    {candidateData.pagination.total}
+                  </strong>{" "}
+                  sản phẩm
+                </span>
+                <span>
+                  Trang {candidateData.pagination.page}/
+                  {candidateData.pagination.totalPages}
+                </span>
+              </div>
+              <div
+                className="min-h-0 flex-1 overflow-y-auto"
+                aria-busy={candidateLoading}
+              >
+                {candidateLoading ? (
+                  <div className="grid h-64 place-items-center">
+                    <Loader2
+                      className="h-8 w-8 animate-spin text-red-500"
+                      aria-label="Đang tải sản phẩm"
+                    />
+                  </div>
+                ) : candidateError ? (
+                  <div className="grid h-64 place-items-center p-6 text-center">
+                    <div>
+                      <AlertTriangle className="mx-auto h-9 w-9 text-amber-400" />
+                      <p className="mt-3 text-sm text-zinc-300">
+                        {candidateError}
+                      </p>
+                      <button
+                        onClick={() =>
+                          setFilters((current) => ({ ...current }))
+                        }
+                        className="mt-4 rounded-xl border border-white/10 px-4 py-2 text-sm font-bold"
+                      >
+                        Thử lại
+                      </button>
+                    </div>
+                  </div>
+                ) : candidateData.items.length ? (
+                  <ul className="divide-y divide-white/10">
+                    {candidateData.items.map((candidate) => {
+                      const selected = selections.some(
+                        (selection) =>
+                          selection.componentCode === activeComponent &&
+                          selection.productId === candidate.productId,
+                      );
+                      const full =
+                        selections.filter(
+                          (selection) =>
+                            selection.componentCode === activeComponent,
+                        ).length >= (activeConfig?.maxSelections || 1) &&
+                        !selected;
+                      return (
+                        <li
+                          key={candidate.productId}
+                          className="flex gap-4 p-4 sm:p-5"
+                        >
+                          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-white sm:h-24 sm:w-24">
+                            {candidate.thumbnail ? (
+                              <Image
+                                src={candidate.thumbnail}
+                                alt=""
+                                fill
+                                sizes="96px"
+                                className="object-contain"
+                              />
+                            ) : null}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-sm font-bold sm:text-base">
+                              {candidate.name}
+                            </p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                              Mã SP: {candidate.sku || "—"}
+                              {candidate.warranty
+                                ? ` · Bảo hành: ${candidate.warranty}`
+                                : ""}
+                            </p>
+                            <p className="mt-2 text-lg font-black text-red-400">
+                              {formatPcPrice(candidate.price)}{" "}
+                              <span className="ml-2 text-xs font-bold text-emerald-400">
+                                Có thể đặt hàng
+                              </span>
+                            </p>
+                          </div>
+                          <button
+                            onClick={() =>
+                              chooseCandidate({ ...candidate, selected })
+                            }
+                            disabled={full}
+                            className={`self-center rounded-xl px-4 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-40 ${selected ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "bg-[#243f7d] text-white hover:bg-[#31529b]"}`}
+                          >
+                            {selected ? (
+                              <span className="flex items-center gap-2">
+                                <Check className="h-4 w-4" />
+                                Đã thêm
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-2">
+                                <Plus className="h-4 w-4" />
+                                Thêm
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="grid h-64 place-items-center p-6 text-center text-sm text-zinc-500">
+                    Không có sản phẩm phù hợp với bộ lọc và các linh kiện đã
+                    chọn.
+                  </div>
+                )}
+              </div>
+              <footer className="flex items-center justify-center gap-2 border-t border-white/10 p-4">
+                <button
+                  disabled={candidateData.pagination.page <= 1}
+                  onClick={() =>
+                    setFilters((current) => ({
+                      ...current,
+                      page: current.page - 1,
+                    }))
+                  }
+                  aria-label="Trang trước"
+                  className="rounded-lg border border-white/10 p-2 disabled:opacity-30"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="px-3 text-sm">
+                  {candidateData.pagination.page} /{" "}
+                  {candidateData.pagination.totalPages}
+                </span>
+                <button
+                  disabled={
+                    candidateData.pagination.page >=
+                    candidateData.pagination.totalPages
+                  }
+                  onClick={() =>
+                    setFilters((current) => ({
+                      ...current,
+                      page: current.page + 1,
+                    }))
+                  }
+                  aria-label="Trang sau"
+                  className="rounded-lg border border-white/10 p-2 disabled:opacity-30"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </footer>
+            </div>
+          </div>
+        </div>
+      </dialog>
+
+    <dialog
+      ref={confirmationDialogRef}
+      aria-labelledby="pc-builder-confirmation-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          setConfirmCheckout(false);
+        }}
+        onClose={() => setConfirmCheckout(false)}
+        className="m-auto w-[min(560px,calc(100%-2rem))] rounded-2xl border border-amber-500/30 bg-[#151518] p-0 text-white shadow-2xl backdrop:bg-black/75"
+      >
+        <div className="p-6">
+          <AlertTriangle className="h-10 w-10 text-amber-400" />
+          <h2 id="pc-builder-confirmation-title" className="mt-4 text-xl font-black">Cấu hình chưa đầy đủ</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">
+            Bạn vẫn có thể đặt hàng, nhưng cần xác nhận đã biết các cảnh báo
+            sau:
+          </p>
+          {activeQuote?.missingRequiredComponents.length ? (
+            <ul className="mt-4 list-inside list-disc space-y-2 text-sm text-amber-100">
+              {activeQuote.missingRequiredComponents.map((component) => (
+                <li key={component.componentCode}>{component.name}</li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="mt-4">
+            <DiagnosticList
+              items={(activeQuote?.diagnostics || []).filter(
+                (item) => item.severity === "warning" && !item.ruleCode.startsWith("missing_required_"),
+              )}
+            />
+          </div>
+          <div className="mt-6 flex justify-end gap-2">
+            <button
+              onClick={() => setConfirmCheckout(false)}
+              className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold"
+            >
+              Quay lại chọn
+            </button>
+            <button
+              onClick={confirmAndCheckout}
+              className="rounded-xl bg-red-600 px-4 py-3 text-sm font-black"
+            >
+              Tôi hiểu, tiếp tục
+            </button>
+          </div>
+        </div>
+      </dialog>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#111113]/95 p-3 backdrop-blur xl:hidden">
+        <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
+          <div>
+            <p className="text-xs text-zinc-500">Tổng cấu hình</p>
+            <p className="font-black text-red-500">
+              {formatPcPrice(activeQuote?.totals.total || 0)}
+            </p>
+          </div>
+          <Link
+            href="#pc-builder-summary"
+            className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black"
+          >
+            Xem cấu hình
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
 }

@@ -64,11 +64,11 @@ export default function Section9() {
     <section
       id="section-9"
       aria-label="Danh mục gaming nổi bật"
-      className="w-full bg-[#111212] px-[14px] py-3 md:px-8 md:py-6 xl:px-[60px]"
+      className="w-full bg-[#111212] py-3 md:px-8 md:py-6 xl:px-[60px]"
     >
       <div
         data-section9-grid
-        className="mx-auto grid max-w-[1800px] grid-cols-6 gap-3 md:grid-cols-3 md:gap-4 lg:gap-[30px] min-[1500px]:grid-cols-5 px-4 sm:px-6 lg:px-8"
+        className="mx-auto grid max-w-[1800px] grid-cols-6 gap-3 px-4 sm:px-6 md:grid-cols-3 md:gap-4 md:px-0 lg:gap-[30px] min-[1500px]:grid-cols-5"
       >
         {SECTION_9_CARDS.map((card) => {
           const accentStyle: Section9AccentStyle = {
@@ -106,12 +106,18 @@ export default function Section9() {
               />
 
               <span className="relative z-10 flex h-full flex-col px-2.5 pt-2.5 md:p-5 lg:p-6">
-                <span className="text-center text-[14px] font-extrabold uppercase leading-[16px] text-white/80 md:text-left md:text-2xl md:leading-[1.05] md:text-white/70 min-[1500px]:text-[28px]">
+                <span
+                  data-section9-title
+                  className="text-center text-[14px] font-extrabold uppercase leading-[16px] text-white/80 md:text-left md:text-2xl md:leading-[1.05] md:text-white/70 min-[1500px]:text-[28px]"
+                >
                   <span className="block">{card.title[0]}</span>
                   <span className="block">{card.title[1]}</span>
                 </span>
 
-                <span className="pointer-events-none absolute bottom-4 left-1/2 h-[55%] w-[80%] -translate-x-1/2 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:bottom-6 lg:bottom-8 lg:h-[62%] lg:w-[87%]">
+                <span
+                  data-section9-artwork
+                  className="pointer-events-none absolute bottom-1 left-1/2 h-[55%] w-[80%] -translate-x-1/2 motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out group-hover:scale-[1.03] group-focus-visible:scale-[1.03] md:bottom-6 lg:bottom-8 lg:h-[62%] lg:w-[87%]"
+                >
                   <Image
                     src={card.image}
                     alt={card.alt}

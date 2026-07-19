@@ -19,6 +19,7 @@ export const ADMIN_RESOURCES = [
   'marketing.banners',
   'marketing.banner_locations',
   'marketing.vouchers',
+  'marketing.flash_sales',
   'marketing.product_promotions',
   'sales.orders',
   'crm.customers',
@@ -56,6 +57,7 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { resource: 'marketing.banners', label: 'Banner', actions: ['read', 'create', 'update', 'delete', 'publish'] },
   { resource: 'marketing.banner_locations', label: 'Vi tri banner', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'marketing.vouchers', label: 'Voucher', actions: ['read', 'create', 'update'] },
+  { resource: 'marketing.flash_sales', label: 'Flash Sale', actions: ['read', 'create', 'update', 'delete', 'publish'] },
   { resource: 'marketing.product_promotions', label: 'Khuyen mai san pham', actions: ['read', 'create', 'update', 'delete'] },
   { resource: 'sales.orders', label: 'Don hang storefront', actions: ['read', 'update'] },
   { resource: 'crm.customers', label: 'Khach hang storefront', actions: ['read', 'create', 'update', 'delete'] },
@@ -84,7 +86,7 @@ function permissionsForResources(resources: AdminResource[]) {
 
 const catalogResources = ADMIN_RESOURCES.filter((resource) => resource.startsWith('catalog.'));
 const contentResources = ADMIN_RESOURCES.filter((resource) => resource.startsWith('content.'));
-const marketingResources: AdminResource[] = ['marketing.banners', 'marketing.banner_locations', 'marketing.vouchers', 'marketing.product_promotions', 'catalog.collections'];
+const marketingResources: AdminResource[] = ['marketing.banners', 'marketing.banner_locations', 'marketing.vouchers', 'marketing.flash_sales', 'marketing.product_promotions', 'catalog.collections'];
 const businessResources = ADMIN_RESOURCES.filter((resource) => !resource.startsWith('admin.'));
 
 export const SYSTEM_ROLE_TEMPLATES = [
@@ -133,6 +135,7 @@ export function hasPermission(permissions: readonly string[], permission: AdminP
 }
 
 export function getPagePermission(pathname: string): AdminPermission | null {
+  if (pathname.startsWith('/quick-tools')) return 'catalog.attributes.read';
   if (pathname.startsWith('/system/users')) return 'admin.users.read';
   if (pathname.startsWith('/system/roles')) return 'admin.roles.read';
   if (pathname.startsWith('/system/audit-logs')) return 'admin.audit_logs.read';
@@ -152,6 +155,7 @@ export function getPagePermission(pathname: string): AdminPermission | null {
   if (pathname.startsWith('/banner/banner-list') || pathname.startsWith('/banner/edit')) return 'marketing.banners.read';
   if (pathname.startsWith('/banner/locations')) return 'marketing.banner_locations.read';
   if (pathname.startsWith('/sales/vouchers')) return 'marketing.vouchers.read';
+  if (pathname.startsWith('/sales/flash-sales')) return 'marketing.flash_sales.read';
   if (pathname.startsWith('/sales/product-promotions')) return 'marketing.product_promotions.read';
   if (pathname.startsWith('/sales/orders')) return 'sales.orders.read';
   if (pathname.startsWith('/customers')) return 'crm.customers.read';
@@ -161,6 +165,9 @@ export function getPagePermission(pathname: string): AdminPermission | null {
 export function getApiPermission(pathname: string, method: string): AdminPermission | null {
   const action = method === 'GET' ? 'read' : method === 'POST' ? 'create' : method === 'PATCH' || method === 'PUT' ? 'update' : method === 'DELETE' ? 'delete' : null;
   if (!action) return null;
+  if (pathname.startsWith('/api/admin/quick-tools/incomplete-product-attributes')) {
+    return method === 'GET' ? 'catalog.attributes.read' : 'catalog.attributes.update';
+  }
   if (pathname.includes('/api/admin/users')) return `admin.users.${pathname.includes('reset-password') ? 'update' : action}` as AdminPermission;
   if (pathname.includes('/api/admin/roles')) return `admin.roles.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/audit-logs')) return 'admin.audit_logs.read';
@@ -168,6 +175,11 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
   if (pathname.includes('/api/admin/pc-builder')) {
     if (pathname.endsWith('/publish')) return 'catalog.pc_builder.publish';
     return method === 'GET' ? 'catalog.pc_builder.read' : 'catalog.pc_builder.update';
+  }
+  if (pathname.includes('/api/admin/flash-sales')) {
+    if (pathname.endsWith('/publish')) return 'marketing.flash_sales.publish';
+    if (pathname.endsWith('/pause') || pathname.endsWith('/archive')) return 'marketing.flash_sales.update';
+    return `marketing.flash_sales.${action}` as AdminPermission;
   }
   if (pathname.includes('/api/admin/storefront-orders')) return `sales.orders.${action}` as AdminPermission;
   if (pathname.includes('/api/admin/storefront-customers')) return `crm.customers.${action}` as AdminPermission;
@@ -181,6 +193,7 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
     : pathname.includes('/api/admin/banner-locations') ? 'marketing.banner_locations'
     : pathname.includes('/api/admin/banners') ? 'marketing.banners'
     : pathname.includes('/api/admin/product-promotions') ? 'marketing.product_promotions'
+    : pathname.includes('/api/admin/flash-sales') ? 'marketing.flash_sales'
     : pathname.includes('/api/admin/vouchers') ? 'marketing.vouchers'
     : pathname.includes('/api/admin/collections') ? 'catalog.collections'
     : pathname.includes('/api/admin/combo-sets') ? 'catalog.combo_sets'

@@ -43,16 +43,20 @@ async function carouselGeometry(section: Locator) {
     const track = wrapper.querySelector<HTMLElement>(".carousel-track");
     const item = wrapper.querySelector<HTMLElement>(".section-8-carousel-item");
     const image = wrapper.querySelector<HTMLElement>(".product-card-image-frame");
-    if (!track || !item || !image) return null;
+    const trending = wrapper.closest<HTMLElement>(".trending-section");
+    const firstVisibleItem = track?.children[1] as HTMLElement | undefined;
+    if (!track || !item || !image || !trending || !firstVisibleItem) return null;
     const trackStyle = getComputedStyle(track);
     const cardBox = item.getBoundingClientRect();
     const imageBox = image.getBoundingClientRect();
     return {
       cardWidth: Math.round(cardBox.width * 100) / 100,
+      firstVisibleX: Math.round(firstVisibleItem.getBoundingClientRect().x * 100) / 100,
       gap: trackStyle.columnGap,
       imageRatio: Math.round((imageBox.width / imageBox.height) * 1000) / 1000,
       paddingLeft: trackStyle.paddingLeft,
       paddingRight: trackStyle.paddingRight,
+      trendingRadius: getComputedStyle(trending).borderRadius,
     };
   });
 }
@@ -73,6 +77,12 @@ test("homepage carousel script initializes every track and preserves Section 8 g
   expect(initializedTracks.every((candidate) => candidate.transform.startsWith("translateX(-"))).toBe(true);
   expect(initialGeometry?.cardWidth).toBe(testInfo.project.name === "mobile-chromium" ? 180 : 280);
   expect(initialGeometry?.imageRatio).toBe(1);
+  if (testInfo.project.name === "mobile-chromium") {
+    expect(initialGeometry?.firstVisibleX).toBeCloseTo(13, 0);
+    expect(initialGeometry?.trendingRadius).toBe("0px");
+  } else {
+    expect(initialGeometry?.trendingRadius).toBe("20px");
+  }
 
   const initialVisibleIndex = await visibleOriginalIndex(track);
   if (testInfo.project.name === "desktop-chromium") {

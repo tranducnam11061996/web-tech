@@ -1,14 +1,18 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-18` (live schema remains the prior state; PC Builder below is pending)
+Verified: `2026-07-19` after live PC Builder cutover
 Active local database: `it_tech_db`. Retained legacy source: `hanoi23_db` (read only during the 2026-07-13 cutover).
 Source: live `information_schema` inspection
 
-## Pending PC Builder additive migration
+## PC Builder additive schema
 
-Defined in code but not applied to live `it_tech_db`: `web_admin_pc_builder_components`, `web_admin_pc_builder_product_profiles`, `web_admin_pc_builder_product_metrics`, `web_admin_pc_builder_rule_sets`, `web_admin_pc_builder_rules`, `web_admin_pc_builder_gaming_policies`, `web_admin_pc_builds`, and `web_admin_pc_build_items`. `web_admin_storefront_order_meta.order_type` gains `pc_builder` plus `pc_build_id`, `assembly_required`, and `pc_builder_revision`.
+Revision `pc-builder-v4-catalog-live` is applied and verified on `it_tech_db`. `web_admin_pc_builder_components.category_id` is the nullable unique taxonomy root; `web_admin_pc_builder_component_relations(component_code, related_component_code, attribute_id, ordering, status, timestamps)` stores bidirectional attribute relations. Relations have foreign keys only to component rows; `attribute_id` and `category_id` remain logical references to legacy catalog tables.
 
-Legacy attributes remain the categorical source of truth; typed metrics are additive. Product IDs are logical references because legacy product tables are not converted or constrained. New foreign keys exist only between new InnoDB tables. See `PC_BUILDER_MIGRATION.md`.
+The seed has active taxonomy roots 47/91/119/139/143/77/132/423/127/102/154/178/195. SSD and HDD are independent; inactive `storage` remains without a category ID so historical `web_admin_pc_build_items` foreign keys stay valid. Default relations are CPU–Mainboard/Socket (12), Mainboard–RAM/Loại RAM (16), Mainboard–Case/Form Main (21), CPU–Cooling/Socket (12), and Mainboard–SSD/Loại ổ M.2 (38). Relation rows are configuration, not proof of catalog completeness: runtime measures distinct sellable-product attribute coverage over both enabled category trees and enforces only relations with at least 90% coverage on each side. Sparse rows remain stored and appear in admin as temporarily skipped.
+
+The nine PC Builder tables are components, component relations, benchmark snapshots, rule sets, rules, gaming policies, release gates, builds, and build items. Product profile/metric tables were removed. Builds use `catalog_revision`; order metadata supports `standard|combo|pc_builder` plus `pc_build_id`, `assembly_required`, and `pc_builder_revision`.
+
+Legacy product attributes and numeric `attr_value_id` values are the compatibility source of truth. Product IDs are logical references because legacy product tables are not converted or constrained. New foreign keys exist only between new InnoDB tables. See `PC_BUILDER_MIGRATION.md`.
 
 ## Combo commerce additions
 
@@ -24,11 +28,11 @@ Active `it_tech_db` contains the combo schema but currently has 0 `combo_set` an
 
 | Metric | Value |
 |---|---:|
-| Total physical tables | 292 |
-| InnoDB tables | 164 |
+| Total physical tables | 301 |
+| InnoDB tables | 173 |
 | MyISAM tables | 128 |
 
-After accepted cleanup of runs 2-8, article-category metadata and page-view migrations, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; other character tables use `utf8mb4_unicode_ci`. The 292-table total is the current lean application/audit schema.
+After accepted cleanup and the catalog-live migration, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; all nine PC Builder tables use InnoDB/`utf8mb4_unicode_ci`. The current total is 301 tables (173 InnoDB/128 MyISAM).
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
@@ -166,6 +170,12 @@ Admin attribute CRUD uses these legacy tables without a migration. Attribute and
 `idv_attribute_value.api_key varchar(200)` is indexed and is the canonical public URL slug for a value. As of `2026-07-15`, all 426 rows in `it_tech_db` are populated with 426 distinct `(attributeId,LOWER(api_key))` pairs and zero blanks. Application writes require the lowercase pattern `^[a-z0-9]+(?:-[a-z0-9]+)*$` and enforce uniqueness inside each attribute while holding the attribute transaction lock; no unique index or legacy-table migration was added.
 
 Public category filters share a read-time resolver between metadata and product queries. For a Local attribute without an active category mapping, only values with a real `idv_product_attribute` assignment to a sellable product in the enabled category/descendant scope are eligible. No fallback relation is persisted and no schema migration is required.
+
+### Quick incomplete-attribute workflow (no schema change)
+
+The admin quick tool reads `idv_seller_category`, `idv_product_category`, `idv_attribute`, `idv_attribute_category`, `idv_attribute_value`, and `idv_product_attribute` directly. Category descendants are active-only and bounded; products are not filtered by `idv_sell_product_price.isOn` or price. Attribute applicability starts at each active mapping category and expands only through that mapping branch, so sibling products are not incorrectly marked missing.
+
+Autosave deletes/reinserts only rows matching one `(pro_id, attr_id)` after locking the product and validating every value's `attributeId`. Existing indexes support parent/status traversal, product-category lookup, and `(pro_id, attr_id, attr_value_id)` existence checks. The phase adds no table, column, index, foreign key, or migration.
 
 ## News Tables
 
@@ -535,6 +545,17 @@ One-to-one admin metadata for article categories. No column is added to the impo
 `admin:migrate` creates the table idempotently and backfills missing current category IDs with `0`. Admin list/detail reads left-join the helper and default a missing row to `0`; create, full edit, focused featured toggle, and permanent delete reconcile it transactionally. `PATCH /api/admin/article-categories/[id]/featured` requires `content.article_categories.update` through the standard admin write/origin/session/audit gates. The field is currently admin metadata only and does not alter storefront ordering or visibility.
 
 ## Admin Helper Tables
+
+### Flash Sale campaign and allocation tables
+
+These additive UTF-8 InnoDB tables were applied to `it_tech_db` on `2026-07-19` after restore-verifying a fresh 301-table/95,625-row logical backup (SHA-256 `72063f78d1562e078ff71822f3006c80ee3155dba2afecf4c1cc3a0f03d04223`). Guarded apply passed twice and verify confirmed all four tables, four foreign keys, three quota columns, three hot-path indexes and system-role permissions. All four tables initially contain zero rows and the database inventory is 305 tables: 177 InnoDB and 128 MyISAM.
+
+- `web_admin_flash_sale_campaigns`: campaign identity, publication state, Vietnam-authored schedule stored as UTC `datetime`, stacking/audience policy, banner URLs, ordering, optimistic revision and admin provenance.
+- `web_admin_flash_sale_items`: one row per campaign/product, Flash price, total/reserved/sold promotional quota, order/buyer limits, presentation order, active/featured flags and revision. It has a cascading FK to its campaign and a unique `(campaign_id, product_id)` key.
+- `web_admin_flash_sale_allocations`: immutable order/item price and discount snapshots plus `reserved`/`consumed`/`released` lifecycle. It references campaign and item but intentionally has no physical FK to the legacy order/product tables.
+- `web_admin_flash_sale_buyer_usage`: per-item HMAC buyer key with reserved/consumed counters. Raw phone numbers are not stored in this table; deleting an item cascades its usage rows.
+
+The business invariant is `quota_total >= quota_reserved + quota_sold`. Checkout locks/updates the item atomically, and allocation plus order writes share one InnoDB transaction. This is promotional allocation, not physical inventory: the legacy price table currently uses `quantity=-1` and is not decremented by Flash Sale.
 
 ### Legacy import audit tables
 

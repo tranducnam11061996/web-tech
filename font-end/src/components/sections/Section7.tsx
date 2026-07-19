@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 export default function Section7() {
   return (
     <>
@@ -164,9 +166,9 @@ export default function Section7() {
           </div>
 
           {/*  CTA button  */}
-          <div className="cta-outlined">
+          <Link href="/flash-sale" className="cta-outlined">
             ✦ Shop Flash Deals →
-          </div>
+          </Link>
         </div>
 
       </div>{/*  /features-grid  */}

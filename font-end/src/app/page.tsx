@@ -5,17 +5,13 @@ import Section2 from "../components/sections/Section2";
 import Section3 from "../components/sections/Section3";
 import Section4 from "../components/sections/Section4";
 import Section5 from "../components/sections/Section5";
-import Section6, { section6HomepageProductConfig } from "../components/sections/Section6";
 import Section7 from "../components/sections/Section7";
 import Section8, {
   section8FeaturedCollectionConfig,
   type Section8FeaturedCollection,
 } from "../components/sections/Section8";
 import Section9 from "../components/sections/Section9";
-import Section10, { section10HomepageProductConfig } from "../components/sections/Section10";
 import Section11 from "../components/sections/Section11";
-import Section12 from "../components/sections/Section12";
-import Section13 from "../components/sections/Section13";
 import Section14 from "../components/sections/Section14";
 import Section15, { type HomepageBrand } from "../components/sections/Section15";
 import Section16 from "../components/sections/Section16";
@@ -23,7 +19,6 @@ import Section17, { section17HomepageProductConfig } from "../components/section
 import type {
   HomepageProductSectionConfig,
   HomepageProductSectionData,
-  HomepageProductSectionsPromise,
 } from "../components/sections/HomepageProductSection";
 import type { HeaderMenuData } from "../components/menuData";
 import type { MenuLinkObject } from "../components/menuData";
@@ -31,8 +26,6 @@ import type { HeroBanner } from "../components/sections/HeroBannerCarousel";
 import { internalApiUrl } from "@/lib/apiUrl";
 
 const HOMEPAGE_PRODUCT_SECTION_CONFIGS: HomepageProductSectionConfig[] = [
-  section6HomepageProductConfig,
-  section10HomepageProductConfig,
   section17HomepageProductConfig,
 ];
 
@@ -109,14 +102,10 @@ export default async function Page() {
       <Section3 initialBanners={heroBanners} />
       <Section4 initialItems={bootstrap?.homepageMenu?.shopByCategory} />
       <Section5 />
-      <Section6 sectionDataPromise={homepageProductSectionsPromise} />
       <Section7 />
       <Section8 featuredCollection={bootstrap?.featuredCollection} />
       <Section9 />
-      <Section10 sectionDataPromise={homepageProductSectionsPromise} />
       <Section11 initialSections={bootstrap?.featureSections?.sections} />
-      <Section12 />
-      <Section13 />
       <Section14 />
       <Section15 brands={bootstrap?.brands} />
       <Section16 />

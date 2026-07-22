@@ -4,6 +4,10 @@ Last verified: `2026-07-22`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
+## Homepage product-section bootstrap
+
+The homepage bootstrap currently loads only category `1087` for the retained Section 17 pipeline. Categories `178` and `521` remain valid for the dormant Section 6/10 components but are intentionally excluded from homepage bootstrap/fallback work. The `productSections` response shape and generic `GET /api/categories/homepage-product-sections` endpoint remain unchanged.
+
 ## Managed Header utility links
 
 `/content/menu/header` manages account, cart, favorites and assistant in the `Link tiện ích` area, including order, icon, active state and independent desktop/mobile visibility. Public `GET /api/menu/header` exposes `linkMode`, `systemKey`, `desktopVisible` and `mobileVisible`; canonical system URLs are `/tai-khoan`, `/gio-hang`, `/yeu-thich` and `#` respectively.

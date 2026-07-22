@@ -1,11 +1,47 @@
 # Changelog
 
+## 2026-07-22 - Rebuilt and widened the shared responsive storefront Footer
+
+- Replaced the legacy index-addressed Footer markup with a managed 1800px desktop composition and the approved mobile information sequence, while preserving TrucTiepGAME branding and every manually localized contact/legal string.
+- Expanded the desktop intro/menu/contact/certification columns and increased typography by 1–2px from the 1280px breakpoint; mobile and tablet sizing below that breakpoint remain unchanged.
+- Enabled text entry and browser email autofill in the newsletter field while retaining the explicitly unavailable submit action until a backend exists; centered the managed partner track automatically without compromising native mobile overflow scrolling.
+- Removed the forced 1095px desktop minimum height and the final row's bottom margin so Footer height follows content and ends after its standard 64px bottom padding instead of leaving an additional blank band.
+- Kept the existing four managed menu groups and partner rail contracts, now rendered by data-driven maps so published labels, URLs, suffixes and order can change without fixed array indexing.
+- Added the Header-aligned play mark, vector contact/social/payment marks, same-row local Bộ Công Thương/DMCA certification cards, native-scrolling partner rail, valid disabled-newsletter semantics and component-scoped focus/motion/scrollbar behavior without changing global CSS, API or database.
+- Added focused geometry, breakpoint, dynamic-menu, shared-route, no-overflow and Axe regression coverage; all four Footer Playwright cases pass.
+
+## 2026-07-22 - Rebuilt Homepage Section 15 brand gallery
+
+- Replaced the legacy global-brand-selector presentation with a self-contained responsive gallery while retaining dynamic bootstrap data and canonical brand links.
+- Added two-to-six-column 80px cards, component-scoped ambient glow/noise, mobile-hidden/desktop-thin scrolling, fade/chevron and Vietnamese in-place expand/collapse controls.
+- Restored the desktop double-frame treatment with a 16px-radius outer shell, a 24px-radius inner glass frame and an even 16px gap; mobile remains single-surface and full width.
+- Corrected the outer layout cap so its desktop padding no longer prevents the inner shell from reaching the specified centered 1920px width.
+- Added exact mobile/desktop geometry, breakpoint, scroll, fallback, interaction, reduced-motion and accessibility regression coverage without changing API, database or global CSS.
+
+## 2026-07-22 - Duplicated Section 9 presentation into independent Section 14
+
+- Replaced Section 14's legacy faux promo cards with an independent copy of Section 9's five-card local-AVIF layout while retaining the unique `section-14` mount and homepage position.
+- Namespaced Section 14's configuration, CSS custom property and DOM hooks; it does not import Section 9 or share component code.
+- Added responsive parity, unique-ID, source-independence, image/link/focus, reduced-motion and accessibility regression coverage.
+
+## 2026-07-22 - Temporarily unmounted Homepage Sections 12 and 13
+
+- Removed the static imports and render nodes for Sections 12 and 13 from the storefront homepage while preserving both component files and all shared CSS.
+- Confirmed both sections are static placeholders with no API, bootstrap field or database dependency to disable.
+- Extended the desktop/mobile dormant-section regression to require Sections 6/10/12/13 to be absent while Sections 5/7/9/11/14 remain visible and ordered.
+
+## 2026-07-22 — Temporarily unmounted Homepage Sections 6 and 10
+
+- Removed only the Section 6/10 imports, config registration and JSX mounts from the homepage; their component files, shared renderer, CSS and carousel controller remain untouched for later reactivation.
+- Reduced bootstrap/fallback product-section loading from categories `178,521,1087` to retained Section 17 category `1087`, without deleting the generic endpoint or changing its public response shape.
+- Replaced obsolete Section 10 carousel tests with desktop/mobile absence, surrounding-section order, no-overflow, no-browser-request and bootstrap-category regression coverage. Focused Playwright passes 3 with one intentional cross-project skip.
+
 ## 2026-07-22 — Full workspace audit and GitHub sync
 
 - Audited the complete manual-change bundle across both applications, PC Builder, admin/public contracts, migrations, tests, media, documentation and dependency locks. Replaced invalid nested interactive controls and removed internal new-tab navigation from homepage promotion cards.
 - Corrected Section 5's responsive padding geometry, restored the documented Vietnamese Section 7 AI copy, and completed Section 10's PC văn phòng category-521 integration by loading products across enabled descendants and synchronizing the homepage bootstrap IDs.
 - Hardened E2E assertions against mutable live news counters/order and realistic autoplay observer/animation latency. Added `sharp` `0.35.3` overrides and refreshed both lockfiles; both npm audits now report zero vulnerabilities.
-- Final verification passes both app typechecks, quiet lints and production builds; 166/166 backend unit tests; 24 applied integrations with 12 guarded skips; Playwright 161 passed/51 intentional skips/0 failed; and local healthcheck 22/22. Existing JS performance budgets remain open (combo cart alone passes).
+- Final verification passes both app typechecks, quiet lints and production builds; 166/166 backend unit tests; 24 applied integrations with 12 guarded skips; the expanded 232-case Playwright suite at 171 passed/61 intentional skips/0 failed; and local healthcheck 22/22. Existing JS performance budgets remain open (combo cart alone passes).
 
 ## 2026-07-22 — Managed Header utility links
 

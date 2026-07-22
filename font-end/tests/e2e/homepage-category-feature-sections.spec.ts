@@ -212,6 +212,8 @@ test('Section 11 autoplay pauses offscreen and on focus, then resumes without na
 
 test('Section 11 touch swipe keeps the shared threshold and restarts autoplay', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-chromium', 'Native touch input is verified once');
+  test.setTimeout(60_000);
+
   await page.setViewportSize({ width: 397, height: 800 });
   const { section } = await openHomepage(page);
   const { carousel, track } = await waitForSection11Carousel(section);

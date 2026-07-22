@@ -2,7 +2,7 @@ import pool from '../src/lib/db';
 import { ensureAdminTables } from '../src/lib/admin/common';
 import { ensureProductImageTable } from '../src/lib/admin/images';
 import { ensureHeaderMenuSeeded } from '../src/lib/admin/menus';
-import { ensureBannerMetaTable } from '../src/lib/admin/banners';
+import { ensureBannerLocationInfrastructure, ensureBannerMetaTable } from '../src/lib/admin/banners';
 import { ensureProductCardAttributeRulesTable } from '../src/lib/productCardAttributes';
 import { ensureCategoryFeatureBoxTable } from '../src/lib/categoryFeatureBoxes';
 import { ensureVoucherTables } from '../src/lib/vouchers';
@@ -27,6 +27,7 @@ async function main() {
   await ensureProductImageTable();
   await ensureHeaderMenuSeeded();
   await ensureBannerMetaTable();
+  await ensureBannerLocationInfrastructure();
   await ensureProductCardAttributeRulesTable();
   await ensureCategoryFeatureBoxTable();
   await ensureArticleCategoryMetadataTable();

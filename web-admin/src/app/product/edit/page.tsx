@@ -9,11 +9,13 @@ async function getProductById(id: string) {
       SELECT 
         p.id, p.proName, p.storeSKU, p.brandId, p.url, p.proThum, p.proSummary, p.specialOffer, p.promotion, p.cond, p.product_cat, p.image_collection,
         p.meta_title, p.meta_keyword, p.meta_description,
-        pr.price, pr.market_price, pr.isOn, pr.ordering, 
+        pr.price, pr.market_price, pr.isOn, pr.ordering,
+        CASE WHEN bp.status=1 THEN bp.build_price ELSE NULL END AS buildPcPrice,
         b.name as brandName, u.request_path as routeUrl,
         i.video_code, i.spec, i.multipart_spec, i.description
       FROM idv_sell_product_store p 
       LEFT JOIN idv_sell_product_price pr ON p.id = pr.id 
+      LEFT JOIN web_admin_pc_builder_product_prices bp ON bp.product_id = p.id
       LEFT JOIN idv_brand b ON p.brandId = b.id 
       LEFT JOIN idv_sell_product_info i ON p.id = i.id 
       LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
@@ -144,6 +146,7 @@ export default async function EditProductPage(props: {
           storeSKU: '',
           brandId: 0,
           price: 0,
+          buildPcPrice: null,
           market_price: 0,
           isOn: 1,
           ordering: 0,

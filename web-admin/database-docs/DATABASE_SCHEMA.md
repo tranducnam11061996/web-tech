@@ -1,16 +1,24 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-19` after live PC Builder cutover
+Verified: `2026-07-20` after live PC Builder v6 product-price migration
 Active local database: `it_tech_db`. Retained legacy source: `hanoi23_db` (read only during the 2026-07-13 cutover).
 Source: live `information_schema` inspection
 
 ## PC Builder additive schema
 
+Revision `pc-builder-v6-product-prices` adds `web_admin_pc_builder_product_prices(product_id, build_price, status, created_at, updated_at)`. `product_id` is the primary key and remains a logical reference to the legacy catalog; there is intentionally no FK. The active value is optional and runtime accepts it only when it is a positive integer below the current catalog selling price.
+
+The pre-v6 restore boundary contained 308 tables/95,634 rows/one routine/two triggers. Clone `it_tech_db_backup_test_1784498414364_e3491c` passed `apply → apply → verify`; live apply/verify then passed. The active database now has 309 tables, including thirteen PC Builder tables.
+
+Revision `pc-builder-v5-promotions` adds three InnoDB/`utf8mb4_unicode_ci` tables: `web_admin_pc_builder_promotions` owns schedule, status, priority, discount type/value and optional cap; `web_admin_pc_builder_promotion_targets` stores logical `product|category` targets; `web_admin_pc_builder_promotion_requirements` stores minimum distinct SKU requirements per component. Targets are OR, requirements are AND. Category targets include active descendants at quote time. Physical FKs exist only from target/requirement rows to promotion and from requirements to PC Builder components; catalog product/category IDs remain logical references.
+
+The fresh pre-v5 restore boundary contained 305 tables/95,634 rows/one routine/two triggers. Clone `it_tech_db_backup_test_1784484295044_dba77f` passed apply twice and verify before live apply/verify. The v5 verification contract is 3 tables, 3 FKs and 4 distinct indexes; the active database now has 308 tables.
+
 Revision `pc-builder-v4-catalog-live` is applied and verified on `it_tech_db`. `web_admin_pc_builder_components.category_id` is the nullable unique taxonomy root; `web_admin_pc_builder_component_relations(component_code, related_component_code, attribute_id, ordering, status, timestamps)` stores bidirectional attribute relations. Relations have foreign keys only to component rows; `attribute_id` and `category_id` remain logical references to legacy catalog tables.
 
 The seed has active taxonomy roots 47/91/119/139/143/77/132/423/127/102/154/178/195. SSD and HDD are independent; inactive `storage` remains without a category ID so historical `web_admin_pc_build_items` foreign keys stay valid. Default relations are CPU–Mainboard/Socket (12), Mainboard–RAM/Loại RAM (16), Mainboard–Case/Form Main (21), CPU–Cooling/Socket (12), and Mainboard–SSD/Loại ổ M.2 (38). Relation rows are configuration, not proof of catalog completeness: runtime measures distinct sellable-product attribute coverage over both enabled category trees and enforces only relations with at least 90% coverage on each side. Sparse rows remain stored and appear in admin as temporarily skipped.
 
-The nine PC Builder tables are components, component relations, benchmark snapshots, rule sets, rules, gaming policies, release gates, builds, and build items. Product profile/metric tables were removed. Builds use `catalog_revision`; order metadata supports `standard|combo|pc_builder` plus `pc_build_id`, `assembly_required`, and `pc_builder_revision`.
+The thirteen PC Builder tables are components, component relations, product prices, three promotion tables, benchmark snapshots, rule sets, rules, gaming policies, release gates, builds, and build items. Product profile/metric tables were removed. Builds use `catalog_revision`; order metadata supports `standard|combo|pc_builder` plus `pc_build_id`, `assembly_required`, and `pc_builder_revision`.
 
 Legacy product attributes and numeric `attr_value_id` values are the compatibility source of truth. Product IDs are logical references because legacy product tables are not converted or constrained. New foreign keys exist only between new InnoDB tables. See `PC_BUILDER_MIGRATION.md`.
 
@@ -32,7 +40,7 @@ Active `it_tech_db` contains the combo schema but currently has 0 `combo_set` an
 | InnoDB tables | 173 |
 | MyISAM tables | 128 |
 
-After accepted cleanup and the catalog-live migration, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; all nine PC Builder tables use InnoDB/`utf8mb4_unicode_ci`. The current total is 301 tables (173 InnoDB/128 MyISAM).
+After accepted cleanup and the v6 migration, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; all thirteen PC Builder tables use InnoDB/`utf8mb4_unicode_ci`. The current total is 309 tables; current inventory should be re-read from `information_schema` rather than inferred from older historical sections.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
@@ -454,6 +462,16 @@ Indexes/FK:
 - FK `parent_id -> web_admin_menu_items.id` with cascade.
 
 Migration note: `background_color`, `image_url`, and `sub_text` may be added by `admin:migrate` if missing.
+
+### Banner location holding contract
+
+`idv_seller_ad_location.index_key` has unique index `uk_idv_seller_ad_location_index_key`. Revision `banner-location-unassigned-v1` seeds exactly one protected holding location:
+
+- `template_page = 'unassigned'`
+- `index_key = 'unassigned'`
+- initial name `Chưa có vị trí`
+
+`idv_seller_ad.location` is a logical reference without a physical foreign key. Its `location_index` and `template_page` columns duplicate location data for legacy reads. Permanent location deletion therefore locks both locations, updates all three banner fields, sets `status=0`, and deletes the location in one transaction. `idv_seller_ad_category`, `web_admin_banner_meta`, and `idv_seller_ad_log` continue to reference the retained banner ID. Public banner queries explicitly exclude `unassigned`.
 
 ### `web_admin_banner_meta`
 

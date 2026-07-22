@@ -97,7 +97,7 @@ export default async function Page() {
     ? Promise.resolve(bootstrap.productSections.sections)
     : fetchHomepageProductSections(HOMEPAGE_PRODUCT_SECTION_CONFIGS);
   const locations = bootstrap?.banners?.locations || [];
-  const primary = locations.find((location) => location.key === 'banner_slider_homepage_temp2019');
+  const primary = locations.find((location) => location.key === 'slide_home');
   const fallback = locations.find((location) => location.key === 'fake_slide_trang_chu');
   const heroBanners = (primary?.banners?.length ? primary.banners : fallback?.banners) || undefined;
 

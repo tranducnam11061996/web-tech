@@ -7,7 +7,7 @@ async function openSection10(page: Page) {
 
   page.on("request", (request) => {
     const url = request.url();
-    if (url.includes("/api/categories/homepage-product-sections") || url.includes("categoryIds=137")) {
+    if (url.includes("/api/categories/homepage-product-sections") || url.includes("categoryIds=521")) {
       browserProductSectionRequests.push(url);
     }
   });
@@ -56,7 +56,7 @@ test("Section 10 opts into the canonical Section 11 product card contract", asyn
 
   expect(await signature(section10Card)).toEqual(await signature(section11Card));
   await expect(section10Card.locator("a").first()).toHaveAttribute("href", /^\/.+/);
-  await expect(section.getByRole("link", { name: "Show Now" })).toHaveAttribute("href", /^\/.+/);
+  await expect(section.getByRole("link", { name: "Chọn ngay" })).toHaveAttribute("href", /^\/.+/);
 
   const cartButton = section10Card.locator("[data-product-cart-button]");
   await cartButton.focus();

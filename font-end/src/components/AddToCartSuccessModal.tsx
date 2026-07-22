@@ -106,7 +106,7 @@ export default function AddToCartSuccessModal() {
 
   if (!detail) return null;
 
-  const { item, quantity } = detail;
+  const { item, quantity, batchCount = 1, totalQuantity = quantity } = detail;
 
   return (
     <div
@@ -144,7 +144,7 @@ export default function AddToCartSuccessModal() {
           <div>
             <p className="cart-success-kicker">SYSTEM // CART UPDATED</p>
             <h2 id="cart-success-title">Đã thêm vào giỏ hàng</h2>
-            <p id="cart-success-description">Sản phẩm của bạn đã được ghi nhận.</p>
+            <p id="cart-success-description">{batchCount > 1 ? `${batchCount} mẫu linh kiện đã được ghi nhận.` : "Sản phẩm của bạn đã được ghi nhận."}</p>
           </div>
         </div>
 
@@ -157,10 +157,10 @@ export default function AddToCartSuccessModal() {
             )}
           </div>
           <div className="cart-success-product-copy">
-            <p>{item.name}</p>
-            <span>Số lượng: {quantity}</span>
+            <p>{batchCount > 1 ? `Cấu hình gồm ${batchCount} mẫu linh kiện` : item.name}</p>
+            <span>Tổng số lượng: {totalQuantity}</span>
           </div>
-          <strong>{formatCurrency(item.price * quantity)}</strong>
+          <strong>{batchCount > 1 ? "Đã thêm" : formatCurrency(item.price * quantity)}</strong>
         </div>
 
         <Link href="/gio-hang" className="cart-success-action" onClick={close}>

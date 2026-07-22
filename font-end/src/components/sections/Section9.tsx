@@ -68,7 +68,7 @@ export default function Section9() {
     >
       <div
         data-section9-grid
-        className="mx-auto grid max-w-[1800px] grid-cols-6 gap-3 px-4 sm:px-6 md:grid-cols-3 md:gap-4 md:px-0 lg:gap-[30px] min-[1500px]:grid-cols-5"
+        className="mx-auto grid max-w-[1800px] grid-cols-6 gap-3 px-4 sm:px-6 md:grid-cols-3 md:gap-4 md:px-0 lg:gap-[30px] min-[1500px]:max-w-[1700px] min-[1500px]:grid-cols-5"
       >
         {SECTION_9_CARDS.map((card) => {
           const accentStyle: Section9AccentStyle = {
@@ -122,7 +122,7 @@ export default function Section9() {
                     src={card.image}
                     alt={card.alt}
                     fill
-                    sizes="(max-width: 767px) 48vw, (max-width: 1499px) 33vw, 336px"
+                    sizes="(max-width: 767px) 48vw, (max-width: 1499px) 33vw, (max-width: 1819px) calc((100vw - 240px) / 5), 316px"
                     className="object-contain object-bottom drop-shadow-2xl"
                   />
                 </span>

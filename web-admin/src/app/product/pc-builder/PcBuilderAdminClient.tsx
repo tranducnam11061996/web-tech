@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Save, Search, Trash2, X } from "lucide-react";
+import { Pencil, Plus, Save, Search, Tag, Trash2, X } from "lucide-react";
 
 type Relation = {
   id?: number;
@@ -51,6 +51,22 @@ type AttributeOption = {
   relatedTotal: number;
   enforceable: boolean;
 };
+type PromotionTarget = { type: "product" | "category"; id: number };
+type PromotionRequirement = { componentCode: string; minDistinctSkus: number };
+type PromotionRow = {
+  id?: number;
+  name: string;
+  discountType: "fixed" | "percent";
+  discountValue: number;
+  maxDiscount: number | null;
+  priority: number;
+  status: boolean;
+  startsAt: string | null;
+  endsAt: string | null;
+  targets: PromotionTarget[];
+  requirements: PromotionRequirement[];
+};
+type PromotionConfiguration = { installed?: boolean; version: string; promotions: PromotionRow[] };
 
 function coveragePercent(covered = 0, total = 0) {
   return total > 0 ? Math.round((covered / total) * 100) : 0;
@@ -67,6 +83,27 @@ const emptyRow = (): ComponentRow => ({
   productCount: 0,
   relations: [],
 });
+const emptyPromotion = (): PromotionRow => ({
+  name: "",
+  discountType: "fixed",
+  discountValue: 100_000,
+  maxDiscount: null,
+  priority: 0,
+  status: true,
+  startsAt: null,
+  endsAt: null,
+  targets: [{ type: "category", id: 0 }],
+  requirements: [],
+});
+
+function toLocalDateTimeInput(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16);
+}
 
 function flattenCategories(options: CategoryOption[]) {
   const byParent = new Map<number, CategoryOption[]>();
@@ -172,6 +209,7 @@ function CategoryPicker({
 }
 
 export default function PcBuilderAdminClient({ initialData }: { initialData: Dashboard }) {
+  const [activeTab, setActiveTab] = useState<"components" | "promotions">("components");
   const [configuration, setConfiguration] = useState<Configuration | null>(initialData.componentConfiguration);
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -179,13 +217,23 @@ export default function PcBuilderAdminClient({ initialData }: { initialData: Das
   const [attributes, setAttributes] = useState<Record<number, AttributeOption[]>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [promotionConfiguration, setPromotionConfiguration] = useState<PromotionConfiguration | null>(null);
+  const [promotionDraft, setPromotionDraft] = useState<PromotionRow>(emptyPromotion());
+  const [promotionEditingIndex, setPromotionEditingIndex] = useState<number | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const promotionDialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     fetch("/api/admin/pc-builder/category-options")
       .then((response) => response.json())
       .then((payload) => setCategories(payload.data || []))
       .catch(() => setMessage("Không tải được cây danh mục sản phẩm."));
+  }, []);
+  useEffect(() => {
+    fetch("/api/admin/pc-builder/promotions")
+      .then((response) => response.json())
+      .then((payload) => setPromotionConfiguration(payload.data || null))
+      .catch(() => setMessage("Không tải được cấu hình khuyến mãi Build PC."));
   }, []);
 
   const components = configuration?.components || [];
@@ -265,6 +313,50 @@ export default function PcBuilderAdminClient({ initialData }: { initialData: Das
     }
   };
 
+  const openPromotionEditor = (index: number | null) => {
+    const source = index === null ? emptyPromotion() : promotionConfiguration!.promotions[index];
+    setPromotionDraft({ ...source, targets: source.targets.map((target) => ({ ...target })), requirements: source.requirements.map((item) => ({ ...item })) });
+    setPromotionEditingIndex(index);
+    promotionDialogRef.current?.showModal();
+  };
+
+  const commitPromotionDraft = () => {
+    if (!promotionDraft.name.trim() || promotionDraft.targets.some((target) => target.id <= 0)) {
+      setMessage("Hãy nhập tên và chọn đầy đủ SKU/category mục tiêu.");
+      return;
+    }
+    setPromotionConfiguration((current) => {
+      if (!current) return current;
+      const promotions = [...current.promotions];
+      if (promotionEditingIndex === null) promotions.push(promotionDraft);
+      else promotions[promotionEditingIndex] = promotionDraft;
+      return { ...current, promotions };
+    });
+    promotionDialogRef.current?.close();
+    setMessage("Đã cập nhật bản nháp khuyến mãi. Bấm “Lưu khuyến mãi” để ghi dữ liệu.");
+  };
+
+  const savePromotions = async () => {
+    if (!promotionConfiguration) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/pc-builder/promotions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(promotionConfiguration),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message || "Không thể lưu khuyến mãi.");
+      setPromotionConfiguration(payload.data);
+      setMessage("Đã lưu khuyến mãi Build PC.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Không thể lưu khuyến mãi.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!initialData.installed || !configuration)
     return (
       <main className="p-6 text-white">
@@ -285,17 +377,28 @@ export default function PcBuilderAdminClient({ initialData }: { initialData: Das
             <p className="mt-1 text-sm text-slate-400">Danh mục động, quan hệ thuộc tính và toàn bộ SKU đang bán.</p>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => openEditor(null)} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-700 px-4 font-bold hover:bg-slate-900">
-              <Plus className="h-4 w-4" aria-hidden="true" /> Thêm danh mục
-            </button>
-            <button type="button" disabled={busy} onClick={save} className="flex min-h-11 items-center gap-2 rounded-lg bg-red-600 px-4 font-bold hover:bg-red-500 disabled:opacity-50">
-              <Save className="h-4 w-4" aria-hidden="true" /> {busy ? "Đang lưu…" : "Lưu cấu hình"}
-            </button>
+            {activeTab === "components" ? <>
+              <button type="button" onClick={() => openEditor(null)} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-700 px-4 font-bold hover:bg-slate-900"><Plus className="h-4 w-4" aria-hidden="true" /> Thêm danh mục</button>
+              <button type="button" disabled={busy} onClick={save} className="flex min-h-11 items-center gap-2 rounded-lg bg-red-600 px-4 font-bold hover:bg-red-500 disabled:opacity-50"><Save className="h-4 w-4" aria-hidden="true" /> {busy ? "Đang lưu…" : "Lưu cấu hình"}</button>
+            </> : <>
+              <button type="button" disabled={promotionConfiguration?.installed === false} onClick={() => openPromotionEditor(null)} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-700 px-4 font-bold hover:bg-slate-900 disabled:opacity-50"><Plus className="h-4 w-4" aria-hidden="true" /> Thêm khuyến mãi</button>
+              <button type="button" disabled={busy || !promotionConfiguration || promotionConfiguration.installed === false} onClick={savePromotions} className="flex min-h-11 items-center gap-2 rounded-lg bg-red-600 px-4 font-bold hover:bg-red-500 disabled:opacity-50"><Save className="h-4 w-4" aria-hidden="true" /> {busy ? "Đang lưu…" : "Lưu khuyến mãi"}</button>
+            </>}
           </div>
         </div>
         {message ? <p className="mt-4 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm" role="status">{message}</p> : null}
+        {activeTab === "promotions" && promotionConfiguration?.installed === false ? (
+          <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100" role="status">
+            Schema khuyến mãi PC Builder v5 chưa được cài đặt. Hãy chạy migration chuyên dụng sau khi backup và restore-verify.
+          </p>
+        ) : null}
 
-        <section className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-[#090d19]">
+        <div className="mt-6 flex gap-1 border-b border-slate-800" role="tablist" aria-label="Quản lý PC Builder">
+          <button type="button" role="tab" aria-selected={activeTab === "components"} onClick={() => setActiveTab("components")} className={`min-h-11 border-b-2 px-4 text-sm font-bold ${activeTab === "components" ? "border-red-500 text-white" : "border-transparent text-slate-400"}`}>Danh mục linh kiện</button>
+          <button type="button" role="tab" aria-selected={activeTab === "promotions"} onClick={() => setActiveTab("promotions")} className={`min-h-11 border-b-2 px-4 text-sm font-bold ${activeTab === "promotions" ? "border-red-500 text-white" : "border-transparent text-slate-400"}`}><Tag className="mr-2 inline h-4 w-4" aria-hidden="true" />Khuyến mãi Build PC</button>
+        </div>
+
+        {activeTab === "components" ? <section className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-[#090d19]">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1100px] text-left text-sm">
               <thead className="bg-slate-900/80 text-xs uppercase text-slate-400">
@@ -345,7 +448,24 @@ export default function PcBuilderAdminClient({ initialData }: { initialData: Das
               </tbody>
             </table>
           </div>
-        </section>
+        </section> : <section className="mt-6 overflow-hidden rounded-xl border border-slate-800 bg-[#090d19]">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left text-sm">
+              <thead className="bg-slate-900/80 text-xs uppercase text-slate-400"><tr><th className="p-3">Tên</th><th className="p-3">Mức giảm</th><th className="p-3">Mục tiêu</th><th className="p-3">Điều kiện</th><th className="p-3">Thời gian</th><th className="p-3">Ưu tiên</th><th className="p-3">Trạng thái</th><th className="p-3">Thao tác</th></tr></thead>
+              <tbody>{promotionConfiguration?.promotions.map((promotion, index) => <tr key={promotion.id || `draft-${index}`} className="border-t border-slate-800 align-top">
+                <td className="p-3 font-bold">{promotion.name}</td>
+                <td className="p-3 tabular-nums text-red-300">{promotion.discountType === "percent" ? `${promotion.discountValue}%${promotion.maxDiscount ? ` · tối đa ${promotion.maxDiscount.toLocaleString("vi-VN")}đ` : ""}` : `${promotion.discountValue.toLocaleString("vi-VN")}đ/SKU`}</td>
+                <td className="p-3 text-xs text-slate-300">{promotion.targets.map((target) => `${target.type === "category" ? "Category" : "SKU"} #${target.id}`).join(", ")}</td>
+                <td className="p-3 text-xs text-slate-300">{promotion.requirements.length ? promotion.requirements.map((item) => `${componentByCode.get(item.componentCode)?.name || item.componentCode} ≥ ${item.minDistinctSkus}`).join(" + ") : "Không yêu cầu thêm"}</td>
+                <td className="p-3 text-xs text-slate-400">{promotion.startsAt ? new Date(promotion.startsAt).toLocaleString("vi-VN") : "Ngay"}<br />→ {promotion.endsAt ? new Date(promotion.endsAt).toLocaleString("vi-VN") : "Không giới hạn"}</td>
+                <td className="p-3 tabular-nums">{promotion.priority}</td>
+                <td className={`p-3 ${promotion.status ? "text-emerald-400" : "text-slate-500"}`}>{promotion.status ? "Đang bật" : "Đã tắt"}</td>
+                <td className="p-3"><div className="flex gap-2"><button type="button" onClick={() => openPromotionEditor(index)} className="grid min-h-10 min-w-10 place-items-center rounded border border-slate-700 hover:bg-slate-800" aria-label={`Sửa ${promotion.name}`}><Pencil className="h-4 w-4" /></button><button type="button" onClick={() => setPromotionConfiguration((current) => current && ({ ...current, promotions: current.promotions.filter((_, itemIndex) => itemIndex !== index) }))} className="grid min-h-10 min-w-10 place-items-center rounded border border-red-900 text-red-400 hover:bg-red-950" aria-label={`Xóa ${promotion.name}`}><Trash2 className="h-4 w-4" /></button></div></td>
+              </tr>)}</tbody>
+            </table>
+            {!promotionConfiguration?.promotions.length ? <p className="p-8 text-center text-sm text-slate-400">Chưa có chính sách giảm giá Build PC.</p> : null}
+          </div>
+        </section>}
       </div>
 
       <dialog ref={dialogRef} className="m-auto w-[min(760px,calc(100%-24px))] rounded-xl border border-slate-700 bg-[#070b17] p-0 text-white backdrop:bg-black/75">
@@ -393,6 +513,26 @@ export default function PcBuilderAdminClient({ initialData }: { initialData: Das
             </section>
           </div>
           <footer className="flex justify-end gap-2 border-t border-slate-800 p-4"><button type="button" onClick={() => dialogRef.current?.close()} className="min-h-11 rounded border border-slate-700 px-4">Hủy</button><button type="button" onClick={commitDraft} className="min-h-11 rounded bg-red-600 px-4 font-bold">Cập nhật bản nháp</button></footer>
+        </form>
+      </dialog>
+
+      <dialog ref={promotionDialogRef} className="m-auto w-[min(820px,calc(100%-24px))] rounded-xl border border-slate-700 bg-[#070b17] p-0 text-white backdrop:bg-black/75">
+        <form method="dialog" onSubmit={(event) => event.preventDefault()}>
+          <header className="flex items-start justify-between border-b border-slate-800 p-5"><div><h2 className="text-xl font-black">{promotionEditingIndex === null ? "Thêm khuyến mãi" : "Sửa khuyến mãi"}</h2><p className="text-sm text-slate-400">Giá được server kiểm tra lại khi quote và đặt hàng.</p></div><button type="button" onClick={() => promotionDialogRef.current?.close()} aria-label="Đóng" className="grid min-h-11 min-w-11 place-items-center rounded hover:bg-slate-800"><X /></button></header>
+          <div className="max-h-[72vh] space-y-5 overflow-y-auto p-5">
+            <label className="block text-sm font-bold">Tên chính sách<input value={promotionDraft.name} onChange={(event) => setPromotionDraft((current) => ({ ...current, name: event.target.value }))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3" /></label>
+            <div className="grid gap-3 sm:grid-cols-4">
+              <label className="text-sm font-bold">Loại giảm<select value={promotionDraft.discountType} onChange={(event) => setPromotionDraft((current) => ({ ...current, discountType: event.target.value as "fixed" | "percent", maxDiscount: event.target.value === "fixed" ? null : current.maxDiscount }))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3"><option value="fixed">Số tiền/SKU</option><option value="percent">Phần trăm</option></select></label>
+              <label className="text-sm font-bold">Giá trị<input type="number" min={1} value={promotionDraft.discountValue} onChange={(event) => setPromotionDraft((current) => ({ ...current, discountValue: Number(event.target.value) }))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3" /></label>
+              <label className="text-sm font-bold">Giảm tối đa<input type="number" min={1} disabled={promotionDraft.discountType === "fixed"} value={promotionDraft.maxDiscount || ""} onChange={(event) => setPromotionDraft((current) => ({ ...current, maxDiscount: event.target.value ? Number(event.target.value) : null }))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 disabled:opacity-40" /></label>
+              <label className="text-sm font-bold">Ưu tiên<input type="number" value={promotionDraft.priority} onChange={(event) => setPromotionDraft((current) => ({ ...current, priority: Number(event.target.value) }))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3" /></label>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-bold">Bắt đầu<input type="datetime-local" value={toLocalDateTimeInput(promotionDraft.startsAt)} onChange={(event) => setPromotionDraft((current) => ({ ...current, startsAt: event.target.value ? new Date(event.target.value).toISOString() : null }))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3" /></label><label className="text-sm font-bold">Kết thúc<input type="datetime-local" value={toLocalDateTimeInput(promotionDraft.endsAt)} onChange={(event) => setPromotionDraft((current) => ({ ...current, endsAt: event.target.value ? new Date(event.target.value).toISOString() : null }))} className="mt-1 min-h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-3" /></label></div>
+            <section className="rounded-lg border border-slate-800 p-4"><div className="flex items-center justify-between"><h3 className="font-bold">SKU/category mục tiêu</h3><button type="button" onClick={() => setPromotionDraft((current) => ({ ...current, targets: [...current.targets, { type: "category", id: 0 }] }))} className="min-h-10 rounded border border-slate-700 px-3 text-sm">+ Thêm mục tiêu</button></div><div className="mt-3 space-y-3">{promotionDraft.targets.map((target, index) => <div key={index} className="grid gap-2 rounded-lg bg-slate-950 p-3 sm:grid-cols-[150px_1fr_auto]"><select value={target.type} onChange={(event) => setPromotionDraft((current) => ({ ...current, targets: current.targets.map((item, itemIndex) => itemIndex === index ? { type: event.target.value as "product" | "category", id: 0 } : item) }))} className="min-h-11 rounded border border-slate-700 bg-slate-900 px-2"><option value="category">Category</option><option value="product">SKU</option></select>{target.type === "category" ? <CategoryPicker value={target.id} options={categories} onChange={(category) => setPromotionDraft((current) => ({ ...current, targets: current.targets.map((item, itemIndex) => itemIndex === index ? { ...item, id: category.id } : item) }))} /> : <input type="number" min={1} value={target.id || ""} placeholder="Nhập ID SKU" onChange={(event) => setPromotionDraft((current) => ({ ...current, targets: current.targets.map((item, itemIndex) => itemIndex === index ? { ...item, id: Number(event.target.value) } : item) }))} className="min-h-11 rounded border border-slate-700 bg-slate-900 px-3" />}<button type="button" onClick={() => setPromotionDraft((current) => ({ ...current, targets: current.targets.filter((_, itemIndex) => itemIndex !== index) }))} aria-label="Xóa mục tiêu" className="grid min-h-11 min-w-11 place-items-center rounded text-red-400 hover:bg-red-950"><Trash2 className="h-4 w-4" /></button></div>)}</div></section>
+            <section className="rounded-lg border border-slate-800 p-4"><h3 className="font-bold">Điều kiện component (AND)</h3><div className="mt-3 grid gap-2 sm:grid-cols-2">{components.map((component) => { const requirement=promotionDraft.requirements.find((item) => item.componentCode === component.code); return <label key={component.code} className="flex min-h-11 items-center gap-3 rounded bg-slate-950 px-3 text-sm"><input type="checkbox" checked={Boolean(requirement)} onChange={(event) => setPromotionDraft((current) => ({ ...current, requirements: event.target.checked ? [...current.requirements, { componentCode: component.code || "", minDistinctSkus: 1 }] : current.requirements.filter((item) => item.componentCode !== component.code) }))} /><span className="min-w-0 flex-1 truncate">{component.name}</span>{requirement ? <input aria-label={`Số SKU tối thiểu ${component.name}`} type="number" min={1} max={component.maxSelections} value={requirement.minDistinctSkus} onChange={(event) => setPromotionDraft((current) => ({ ...current, requirements: current.requirements.map((item) => item.componentCode === component.code ? { ...item, minDistinctSkus: Number(event.target.value) } : item) }))} className="w-16 rounded border border-slate-700 bg-slate-900 px-2 py-1" /> : null}</label>; })}</div></section>
+            <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={promotionDraft.status} onChange={(event) => setPromotionDraft((current) => ({ ...current, status: event.target.checked }))} /> Kích hoạt chính sách</label>
+          </div>
+          <footer className="flex justify-end gap-2 border-t border-slate-800 p-4"><button type="button" onClick={() => promotionDialogRef.current?.close()} className="min-h-11 rounded border border-slate-700 px-4">Hủy</button><button type="button" onClick={commitPromotionDraft} className="min-h-11 rounded bg-red-600 px-4 font-bold">Cập nhật bản nháp</button></footer>
         </form>
       </dialog>
     </main>

@@ -1,5 +1,73 @@
 # Changelog
 
+## 2026-07-22 — Full workspace audit and GitHub sync
+
+- Audited the complete manual-change bundle across both applications, PC Builder, admin/public contracts, migrations, tests, media, documentation and dependency locks. Replaced invalid nested interactive controls and removed internal new-tab navigation from homepage promotion cards.
+- Corrected Section 5's responsive padding geometry, restored the documented Vietnamese Section 7 AI copy, and completed Section 10's PC văn phòng category-521 integration by loading products across enabled descendants and synchronizing the homepage bootstrap IDs.
+- Hardened E2E assertions against mutable live news counters/order and realistic autoplay observer/animation latency. Added `sharp` `0.35.3` overrides and refreshed both lockfiles; both npm audits now report zero vulnerabilities.
+- Final verification passes both app typechecks, quiet lints and production builds; 166/166 backend unit tests; 24 applied integrations with 12 guarded skips; Playwright 161 passed/51 intentional skips/0 failed; and local healthcheck 22/22. Existing JS performance budgets remain open (combo cart alone passes).
+
+## 2026-07-22 — Managed Header utility links
+
+- Replaced hardcoded desktop/mobile Header utility controls with the published `Link tiện ích` menu data while retaining the existing wrapper/class geometry, account dropdown, live cart badge, routes and non-navigating assistant button.
+- Added shared system URL/key metadata, `desktopVisible`/`mobileVisible` to the public payload, and `user`, `shopping-cart`, `heart`, `bot` choices to admin preview/fallback contracts.
+- Snapshot and protected-hash guarded the live draft before publishing menu version 18. Typecheck/lint/build passed in both apps; backend unit/integration, focused desktop/mobile Playwright and 22/22 local health checks passed. Global `style.css` was not changed.
+
+## 2026-07-22 — Section 2 artwork spacing
+
+- Split every Circle Story into a 3px gradient ring, a 3px `#111111` spacer and an artwork/fallback surface inset by 6px, matching the supplied reference without changing the 73px/96px outer circles or carousel density.
+- Added focused mobile/desktop geometry assertions for the spacer and artwork sizes; the Section 2 Playwright suite passes 4/4 with autoplay, responsive layout, reduced-motion and accessibility regression coverage intact.
+- Removed the unused desktop-header divider, dark-mode moon and vertical-more controls from the rendered DOM and their Lucide imports, including the duplicate vertical-more control in the mobile bottom navigation; the remaining account, cart, favorites and assistant controls retain their existing behavior.
+- Localized Section 7's AI laptop-finder card into natural Vietnamese TrucTiepGAME copy, including the badge, headline, explanation, CTA and Vietnam-appropriate budget/speed/model metrics, without changing card styling or layout.
+
+## 2026-07-21 - Responsive managed homepage circle stories
+
+- Rebuilt Section 2 around the existing managed `circleStory` bootstrap payload without hardcoded artwork, a client component, another browser request or changes to the menu API/database.
+- Replaced the legacy story selectors/IDs with a self-contained 1920px rail: 73px rings on an 81px mobile step and fourteen centered 96px rings with 32px desktop gaps. Dynamic image/color/text fallbacks and whole-item links remain web-admin controlled.
+- Opted the mobile rail into the existing shared carousel lifecycle for three-second autoplay, drag click suppression, breakpoint cleanup and reduced-motion native scrolling. Focused Playwright passes 4/4; both app typechecks/lints/builds, 164 unit tests, 24 applied integrations with 12 guarded skips, and local healthcheck 22/22 pass.
+
+## 2026-07-21 — Responsive managed homepage hero
+
+- Rebuilt Section 3 around the existing managed `slide_home` payload: a centered 1920px rail, 16/32px responsive insets, 16px radius, 1024×397 mobile art direction and 1920×394 desktop art direction now match the supplied reference without hardcoded Evetech content or global CSS changes.
+- Reworked the hybrid overlay, glass CTA and desktop indicator pill; removed visual arrow controls while retaining five-second autoplay, swipe protection, Arrow/Home/End keyboard navigation, focus/hover/visibility pause and reduced-motion behavior.
+- Corrected homepage bootstrap selection to consume `slide_home` directly instead of issuing the Section 3 fallback banner request. Focused Playwright passes 5/5 across exact mobile/desktop geometry, breakpoint transitions, image sources, interactions and Axe serious/critical coverage.
+
+## 2026-07-21 — Safe permanent deletion for banner locations
+
+- Added a delete action and accessible confirmation dialog to `/banner/locations`; the protected `Chưa có vị trí` row allows name/description edits but cannot be selected as a destination or deleted.
+- Added RBAC/write-gated `DELETE /api/admin/banner-locations/[id]`, transactional banner reassignment/hiding, denormalized location synchronization, post-commit cache invalidation and `banner_location.deleted` audit metadata. Banner media, metadata, category relations and visit logs remain intact.
+- Added guarded migration `banner-location-unassigned-v1`, unique `index_key` enforcement and explicit public-API exclusion for `unassigned`. A 309-table/97,120-row backup was restore-verified; retained clone passed apply twice, verify, rollback, reapply, concurrency and Playwright before live apply-twice/verify created default location ID 88.
+- Verification passed with 164/164 unit tests, 24 integration tests with 12 guarded skips on live, the destructive concurrency test on clone, focused admin Playwright/Axe, both application typechecks/lints/builds and local healthcheck.
+
+## 2026-07-21 — Homepage Section 4 compact category carousel
+
+- Rebuilt Section 4 around the managed `shopByCategory` payload with the reference 1920px desktop rail, 130×110px desktop cards, 90×95px mobile cards and the 398px three-plus-partial-card composition.
+- Moved labels and badges inside linked cards, added responsive gradient header/edge masks and one desktop Next control, and preserved the shared three-second autoplay, drag, pause and reduced-motion lifecycle without changing global CSS or the carousel controller.
+- Added focused Playwright coverage for exact 398px/2542px geometry, responsive density, lazy visible images, Next/autoplay, overflow, focus, WCAG and reduced motion.
+
+## 2026-07-21 — Homepage Section 9 desktop inset
+
+- Reduced the five-card Section 9 desktop grid cap from 1800px to 1700px at the existing 1500px breakpoint, preserving the mobile/tablet layouts, 30px desktop gaps and 5:6 cards.
+- Updated responsive image slot sizing for the new 316px maximum card width and expanded focused Playwright coverage across 1920px, 2537px and 2540px desktop viewports while retaining the exact 429px mobile contract.
+
+## 2026-07-20 — PC Builder v6 direct SKU pricing
+
+- Added optional `Giá Build PC` to product create/edit with integer/below-catalog validation, transactional persistence, old/new audit data, cache invalidation and safe removal on permanent product deletion.
+- Added the logical-reference `web_admin_pc_builder_product_prices` table and guarded v6 migration. A fresh 308-table/95,634-row backup was restore-verified; the retained clone passed migration twice plus verification, followed by successful live apply/verify.
+- Made price eligibility dynamic from all active required components and `minSelections`, counting distinct SKUs rather than quantity. Incomplete builds use catalog/Flash Sale price and skip every Build PC offer.
+- Complete builds apply a valid direct SKU price first and campaign pricing only as fallback for SKUs without that field. Quote/candidate/order now expose and bind the conditional price, applied state, cart subtotal, eligibility and build-price revision.
+- Added dark storefront progress/conditional-price/applied badges and regression coverage for quantity, dynamic required configuration, invalid prices, revision changes and the ordinary-cart boundary.
+- Verified both applications with typecheck, quiet lint and production builds; backend unit 162/162; integration 22 applied/11 guarded; destructive v6 regression on the retained clone; focused Playwright 16/16 desktop/mobile; and isolated production healthcheck 22/22.
+
+## 2026-07-20 — PC Builder v5 promotions, quantity and dark reference redesign
+
+- Rebuilt the Manual storefront as a dense dark component table with detailed SKU rows, responsive mobile cards, quantity `1–4`, a non-sticky summary below the table, Build PC discount lines and the requested save/Excel/PNG/share/print action order.
+- Added local AVIF/WebP Build PC artwork, a dark introduction/callout with disclosure, six semantic FAQ entries and an isolated print sheet. The existing catalog-live candidate modal, global Header/Footer and dark page background remain intact.
+- Added three additive promotion tables plus an optimistic, RBAC/write-gated, audited admin tab for schedule, fixed/percent value, cap, priority, logical SKU/category targets and AND component requirements.
+- Extended quote/order fingerprints and snapshots with quantity-aware totals, regular/cart/final price, price source, promotion metadata and `promotionRevision`. Each line selects one best Build PC rule; Flash Sale and Build PC do not stack and the lower price wins.
+- Added atomic batch cart merge using ordinary cart/Flash Sale price, one cart update event, dynamic real XLSX export, remote-image-independent PNG export and print-only configuration output.
+- Created and restore-verified a fresh 305-table/95,634-row backup (`1f984319…c671`), ran migration twice on retained clone, then applied and verified live (3 tables, 3 FKs, 4 indexes). Added promotion/quantity unit coverage and expanded focused Playwright to 12/12 desktop/mobile cases.
+
 ## 2026-07-19 - Flash Sale implementation (rollout disabled)
 
 - Added an additive four-table InnoDB Flash Sale model for campaigns, SKU quota, order allocations and HMAC buyer usage, plus guarded apply/verify migration tooling and rollback guidance.

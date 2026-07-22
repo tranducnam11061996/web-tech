@@ -12,13 +12,15 @@ import {
   Filter,
   Loader2,
   Plus,
-  RotateCcw,
-  Save,
   Search,
-  Share2,
-  ShoppingCart,
   X,
 } from "lucide-react";
+import { addCartItems } from "@/lib/cart";
+import {
+  downloadPcBuilderExcel,
+  downloadPcBuilderPng,
+} from "@/lib/pcBuilderExports";
+import PcBuilderV5View from "./PcBuilderV5View";
 import {
   formatPcPrice,
   parsePcBuilderDraft,
@@ -298,6 +300,7 @@ export default function PcBuilderClient() {
   const [candidateError, setCandidateError] = useState("");
   const [filters, setFilters] = useState<Filters>(defaultFilters());
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [exporting, setExporting] = useState<"excel" | "png" | null>(null);
   const [error, setError] = useState("");
   const [confirmCheckout, setConfirmCheckout] = useState(false);
   const candidateDialogRef = useRef<HTMLDialogElement>(null);
@@ -692,6 +695,65 @@ export default function PcBuilderClient() {
       );
     }
   };
+  const updateQuantity = (
+    componentCode: string,
+    productId: number,
+    quantity: number,
+  ) => {
+    const nextQuantity = Math.max(1, Math.min(4, Math.trunc(quantity)));
+    updateSelections((current) =>
+      current.map((selection) =>
+        selection.componentCode === componentCode &&
+        selection.productId === productId
+          ? { ...selection, quantity: nextQuantity }
+          : selection,
+      ),
+    );
+  };
+  const addBuildToCart = () => {
+    if (!activeQuote?.compatible || !activeQuote.items.length) return;
+    addCartItems(
+      activeQuote.items.map((item) => ({
+        item: {
+          productId: item.productId,
+          slug: item.slug,
+          name: item.name,
+          sku: item.sku,
+          thumbnail: item.thumbnail,
+          price: item.cartPrice,
+          marketPrice: item.regularPrice,
+        },
+        quantity: item.quantity,
+      })),
+    );
+    setError(
+      `Đã thêm ${activeQuote.items.length} mẫu linh kiện vào giỏ. Giá trong giỏ được tính lại theo giá thường/Flash Sale và không giữ ưu đãi Build PC.`,
+    );
+  };
+  const exportExcel = async () => {
+    if (!activeQuote) return;
+    setExporting("excel");
+    try {
+      await downloadPcBuilderExcel(activeQuote, components);
+      setError("Đã tải file Excel cấu hình PC.");
+    } catch {
+      setError("Không thể tạo file Excel. Vui lòng thử lại.");
+    } finally {
+      setExporting(null);
+    }
+  };
+  const exportPng = async () => {
+    if (!activeQuote) return;
+    setExporting("png");
+    try {
+      await downloadPcBuilderPng(activeQuote, components);
+      setError("Đã tải ảnh cấu hình PC.");
+    } catch {
+      setError("Không thể tạo ảnh cấu hình. Vui lòng thử lại.");
+    } finally {
+      setExporting(null);
+    }
+  };
   const startCheckout = () => {
     if (!activeQuote?.compatible) return;
     if (activeQuote.requiresConfirmation) {
@@ -766,28 +828,6 @@ export default function PcBuilderClient() {
 
   return (
     <main className="mx-auto min-h-screen max-w-[1500px] px-4 pb-28 pt-6 sm:px-6 lg:px-8">
-      <section className="mb-7 overflow-hidden rounded-3xl border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(220,38,38,.24),transparent_38%),linear-gradient(135deg,#18181c,#0c0c0e)] p-6 sm:p-9">
-        <p className="text-xs font-bold uppercase tracking-[.24em] text-red-400">
-          PC Builder Manual
-        </p>
-        <div className="mt-3 flex flex-wrap items-end justify-between gap-5">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight sm:text-4xl">
-              Xây dựng cấu hình PC của bạn
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">
-              Tự chọn toàn bộ linh kiện đang bán. Giá, trạng thái bán và quan hệ
-              thuộc tính được kiểm tra lại trước khi đặt hàng.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-300">
-            Ngân sách tham khảo từ{" "}
-            <strong className="ml-1 text-white">
-              {formatPcPrice(bootstrap.minimumBudget)}
-            </strong>
-          </div>
-        </div>
-      </section>
       {error ? (
         <div
           className="mb-5 flex items-center justify-between rounded-xl border border-blue-500/25 bg-blue-500/10 p-4 text-sm text-blue-100"
@@ -809,236 +849,34 @@ export default function PcBuilderClient() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section
-          aria-label="Danh sách danh mục linh kiện"
-          className="overflow-hidden rounded-2xl border border-white/10 bg-[#131316]"
-        >
-          <div className="hidden grid-cols-[60px_240px_minmax(0,1fr)_160px] border-b border-white/10 bg-white/[.035] px-4 py-3 text-xs font-bold uppercase tracking-wider text-zinc-500 md:grid">
-            <span>STT</span>
-            <span>Danh mục</span>
-            <span>Linh kiện đã chọn</span>
-            <span className="text-right">Thao tác</span>
-          </div>
-          {components.map((component, index) => {
-            const chosen = selections.filter(
-              (item) => item.componentCode === component.code,
-            );
-            return (
-              <article
-                key={component.code}
-                className="grid gap-3 border-b border-white/[.07] p-4 last:border-0 md:grid-cols-[44px_220px_minmax(0,1fr)_140px] md:items-center"
-              >
-                <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/[.06] font-mono text-xs font-black text-zinc-400">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <h2 className="font-bold">{component.name}</h2>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {component.required ? "Bắt buộc" : "Tùy chọn"} · tối đa{" "}
-                    {component.maxSelections} SKU
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  {chosen.length ? (
-                    chosen.map((selection) => {
-                      const item = selectedItems.get(selection.productId);
-                      return (
-                        <div
-                          key={selection.productId}
-                          className="flex items-center gap-3 rounded-xl bg-black/25 p-2"
-                        >
-                          <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-white">
-                            {item?.thumbnail ? (
-                              <Image
-                                src={item.thumbnail}
-                                alt=""
-                                fill
-                                sizes="48px"
-                                className="object-contain"
-                              />
-                            ) : null}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-2 text-sm font-semibold">
-                              {item?.name || `Sản phẩm #${selection.productId}`}
-                            </p>
-                            <p className="mt-1 text-sm font-black text-red-400">
-                              {item
-                                ? formatPcPrice(item.price)
-                                : "Đang kiểm tra giá"}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() =>
-                              updateSelections((current) =>
-                                current.filter(
-                                  (value) =>
-                                    !(
-                                      value.componentCode === component.code &&
-                                      value.productId === selection.productId
-                                    ),
-                                ),
-                              )
-                            }
-                            aria-label={`Bỏ ${item?.name || "sản phẩm"}`}
-                            className="rounded-lg p-2 text-zinc-500 hover:bg-red-500/10 hover:text-red-400"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-zinc-600">Chưa chọn linh kiện</p>
-                  )}
-                </div>
-                <button
-                  onClick={(event) =>
-                    openCandidates(component.code, event.currentTarget)
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2.5 text-sm font-black hover:bg-red-500"
-                >
-                  <Plus className="h-4 w-4" />
-                  {chosen.length && component.maxSelections === 1
-                    ? "Thay đổi"
-                    : "Chọn linh kiện"}
-                </button>
-              </article>
-            );
-          })}
-        </section>
-        <aside
-          id="pc-builder-summary"
-          className="h-fit space-y-4 xl:sticky xl:top-5"
-        >
-          <div className="rounded-2xl border border-white/10 bg-[#151518] p-5">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-black">Tóm tắt đơn hàng</h2>
-              {quoteLoading ? (
-                <Loader2
-                  className="h-4 w-4 animate-spin text-zinc-500"
-                  aria-label="Đang cập nhật báo giá"
-                />
-              ) : null}
-            </div>
-            <div className="space-y-3 border-b border-white/10 pb-5 text-sm">
-              <div className="flex justify-between text-zinc-400">
-                <span>
-                  {activeQuote?.totals.itemCount ?? visibleSelectionCount} linh kiện
-                </span>
-                <span>{formatPcPrice(activeQuote?.totals.subtotal || 0)}</span>
-              </div>
-              <div className="flex justify-between text-zinc-400">
-                <span>Phí lắp ráp</span>
-                <span className="font-bold text-emerald-400">Miễn phí</span>
-              </div>
-            </div>
-            <div className="flex items-end justify-between py-5">
-              <span className="font-bold">Tổng cộng</span>
-              <strong className="text-2xl text-red-500">
-                {formatPcPrice(activeQuote?.totals.total || 0)}
-              </strong>
-            </div>
-            <DiagnosticList items={activeQuote?.diagnostics || []} />
-            <button
-              onClick={startCheckout}
-              disabled={!activeQuote?.compatible || quoteLoading}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 py-3.5 text-sm font-black disabled:bg-zinc-800 disabled:text-zinc-500"
-            >
-              <ShoppingCart className="h-4 w-4" />
-              Đặt mua & lắp ráp
-            </button>
-          </div>
-          <p className="px-2 text-xs leading-5 text-zinc-500">
-            Chỉ sản phẩm “Có thể đặt hàng” mới xuất hiện. Giá luôn được quote
-            lại khi checkout.
-          </p>
-        </aside>
-      </div>
-
-      <div className="mt-6 grid gap-2 sm:grid-cols-4">
-        <button
-          onClick={reset}
-          disabled={!selections.length}
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold disabled:opacity-40"
-        >
-          <RotateCcw className="h-4 w-4" />
-          Làm lại
-        </button>
-        <button
-          onClick={saveToAccount}
-          disabled={!activeQuote?.compatible}
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold disabled:opacity-40"
-        >
-          <Save className="h-4 w-4" />
-          Lưu cấu hình
-        </button>
-        <button
-          onClick={share}
-          disabled={!activeQuote?.compatible}
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-3 text-sm font-bold disabled:opacity-40"
-        >
-          <Share2 className="h-4 w-4" />
-          Chia sẻ
-        </button>
-        <button
-          onClick={startCheckout}
-          disabled={!activeQuote?.compatible}
-          className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-black disabled:opacity-40"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          Xem đơn
-        </button>
-      </div>
-
-      <section className="mt-14 border-t border-white/10 pt-10">
-        <p className="text-xs font-bold uppercase tracking-[.2em] text-red-400">
-          Tự chọn linh kiện
-        </p>
-        <h2 className="mt-2 text-2xl font-black">
-          Build PC đúng nhu cầu, kiểm tra trước khi mua
-        </h2>
-        <p className="mt-4 max-w-4xl text-sm leading-7 text-zinc-400">
-          PC Builder giúp gom các linh kiện vào một cấu hình, chỉ đưa ra sản
-          phẩm đang bán, có giá hợp lệ và kiểm tra các quan hệ thuộc tính quan
-          trọng như socket, loại RAM và form factor. Danh mục bắt
-          buộc bị thiếu sẽ được cảnh báo rõ nhưng bạn vẫn có thể xác nhận để
-          hoàn thành đơn.
-        </p>
-        <div className="mt-8 space-y-3">
-          <h2 className="text-xl font-black">Câu hỏi thường gặp</h2>
-          {[
-            [
-              "Tôi có thể đặt hàng khi chưa chọn đủ linh kiện không?",
-              "Có. Hệ thống sẽ liệt kê chính xác các danh mục bắt buộc còn thiếu và yêu cầu bạn xác nhận trước khi sang checkout.",
-            ],
-            [
-              "Vì sao một số sản phẩm không xuất hiện?",
-              "Danh sách gồm toàn bộ sản phẩm đang bán, có giá hợp lệ và thuộc đúng cây category. Khi đã chọn linh kiện liên quan, danh sách được lọc theo thuộc tính tương thích.",
-            ],
-            [
-              "Có thể chọn nhiều SSD hoặc HDD không?",
-              "Có. SSD và HDD là hai dòng riêng, mỗi dòng cho phép chọn nhiều mẫu khác nhau đến giới hạn do quản trị viên cấu hình.",
-            ],
-            [
-              "Giá có được giữ nguyên khi chia sẻ cấu hình không?",
-              "Không. Cấu hình được quote lại khi mở liên kết và trước khi đặt hàng để tránh dùng giá hoặc trạng thái bán đã cũ.",
-            ],
-          ].map(([question, answer]) => (
-            <details
-              key={question}
-              className="group rounded-xl border border-white/10 bg-[#151518] p-4"
-            >
-              <summary className="cursor-pointer list-none pr-8 font-bold marker:hidden">
-                {question}
-              </summary>
-              <p className="mt-3 text-sm leading-6 text-zinc-400">{answer}</p>
-            </details>
-          ))}
-        </div>
-      </section>
-
+      <PcBuilderV5View
+        components={components}
+        selections={selections}
+        quote={activeQuote}
+        quoteLoading={quoteLoading}
+        visibleSelectionCount={visibleSelectionCount}
+        exporting={exporting}
+        onChoose={openCandidates}
+        onRemove={(componentCode, productId) =>
+          updateSelections((current) =>
+            current.filter(
+              (selection) =>
+                !(
+                  selection.componentCode === componentCode &&
+                  selection.productId === productId
+                ),
+            ),
+          )
+        }
+        onQuantity={updateQuantity}
+        onReset={reset}
+        onSave={() => void saveToAccount()}
+        onExcel={() => void exportExcel()}
+        onPng={() => void exportPng()}
+        onShare={() => void share()}
+        onAddCart={addBuildToCart}
+        onCheckout={startCheckout}
+      />
     <dialog
       ref={candidateDialogRef}
       aria-labelledby="pc-builder-candidate-title"
@@ -1223,6 +1061,11 @@ export default function PcBuilderClient() {
                               <span className="ml-2 text-xs font-bold text-emerald-400">
                                 Có thể đặt hàng
                               </span>
+                              {candidate.buildPcPrice ? (
+                                <span className="mt-1 block text-xs font-bold text-cyan-300">
+                                  Giá Build PC khi đủ bộ: {formatPcPrice(candidate.buildPcPrice)}
+                                </span>
+                              ) : null}
                             </p>
                           </div>
                           <button

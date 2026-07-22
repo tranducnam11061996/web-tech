@@ -2,6 +2,7 @@ import type { RowDataPacket } from 'mysql2';
 import pool from '@/lib/db';
 import { getProductCardBadgesForProductIds } from '@/lib/productCardAttributes';
 import { resolveProductImageUrl } from '@/lib/productImageUrl';
+import { loadEnabledPublicCategoryScope } from '@/lib/publicCategoryScope';
 
 type CategoryRow = RowDataPacket & { id: number; name: string | null; slug: string | null };
 type ProductRow = RowDataPacket & {
@@ -41,18 +42,19 @@ export async function loadHomepageProductSections(categoryIds: number[], product
   const categoriesById = new Map(categoryRows.map((row) => [Number(row.id), { id: Number(row.id), name: String(row.name || ''), slug: normalizeSlug(row.slug || `category?id=${row.id}`) }]));
   const productRowGroups = await Promise.all(categoryIds.map(async (categoryId) => {
     if (!categoriesById.has(categoryId)) return [] as ProductRow[];
+    const categoryScope = await loadEnabledPublicCategoryScope(categoryId);
     const [rows] = await pool.query<ProductRow[]>(`
       SELECT DISTINCT ? AS categoryId, p.id, p.storeSKU, p.proName, p.proThum, pr.price, pr.market_price,
              u.request_path AS slug, b.name AS brandName
       FROM idv_sell_product_store p
       JOIN idv_sell_product_price pr ON p.id = pr.id
-      JOIN idv_product_category pc ON pc.pro_id = p.id AND pc.category_id = ?
+      JOIN idv_product_category pc ON pc.pro_id = p.id AND pc.category_id IN (?)
       LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
       LEFT JOIN idv_brand b ON p.brandId = b.id
       WHERE pr.isOn = 1
       ORDER BY p.id DESC
       LIMIT ?
-    `, [categoryId, categoryId, productLimit]);
+    `, [categoryId, categoryScope, productLimit]);
     return rows;
   }));
   const productRows = productRowGroups.flat();

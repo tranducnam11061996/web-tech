@@ -14,6 +14,11 @@ import { clearPublicBannerCache as clearPublicBannerRuntimeCache } from '@/lib/p
 
 export type BannerScope = 'homepage' | 'global';
 
+export const DEFAULT_BANNER_LOCATION_KEY = 'unassigned';
+export const DEFAULT_BANNER_LOCATION_TEMPLATE = 'unassigned';
+export const DEFAULT_BANNER_LOCATION_NAME = 'Chưa có vị trí';
+export const BANNER_LOCATION_KEY_UNIQUE_INDEX = 'uk_idv_seller_ad_location_index_key';
+
 type BannerRow = RowDataPacket & {
   id: number;
   template_page: string;
@@ -96,6 +101,114 @@ export async function ensureBannerMetaTable(db: PoolConnection | typeof pool = p
       PRIMARY KEY (ad_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+}
+
+export async function ensureBannerLocationInfrastructure(
+  db: PoolConnection | typeof pool = pool,
+): Promise<{ defaultLocationId: number; uniqueIndex: string }> {
+  if ('getConnection' in db && typeof db.getConnection === 'function') {
+    const connection = await db.getConnection();
+    try {
+      return await ensureBannerLocationInfrastructure(connection);
+    } finally {
+      connection.release();
+    }
+  }
+
+  const [modeRows] = await db.query<RowDataPacket[]>('SELECT @@SESSION.sql_mode AS sql_mode');
+  const originalSqlMode = String(modeRows[0]?.sql_mode || '');
+  const migrationSqlMode = originalSqlMode
+    .split(',')
+    .filter((mode) => mode !== 'NO_ZERO_DATE' && mode !== 'NO_ZERO_IN_DATE')
+    .join(',');
+  await db.query('SET SESSION sql_mode = ?', [migrationSqlMode]);
+  try {
+    const [duplicates] = await db.query<RowDataPacket[]>(`
+      SELECT index_key, COUNT(*) AS duplicate_count
+      FROM idv_seller_ad_location
+      GROUP BY index_key
+      HAVING COUNT(*) > 1
+      LIMIT 1
+    `);
+    if (duplicates[0]) {
+      throw new Error(`Cannot enforce unique banner location keys: duplicate index_key ${String(duplicates[0].index_key || '')}`);
+    }
+
+    const [indexes] = await db.query<RowDataPacket[]>(`
+      SELECT INDEX_NAME
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'idv_seller_ad_location'
+        AND INDEX_NAME = ?
+      LIMIT 1
+    `, [BANNER_LOCATION_KEY_UNIQUE_INDEX]);
+    if (!indexes[0]) {
+      await db.query(`
+        ALTER TABLE idv_seller_ad_location
+        ADD UNIQUE KEY ${BANNER_LOCATION_KEY_UNIQUE_INDEX} (index_key)
+      `);
+    }
+
+    await db.query(`
+      INSERT IGNORE INTO idv_seller_ad_location
+        (template_page, index_key, name, description, last_update)
+      VALUES (?, ?, ?, 'Vị trí hệ thống dành cho banner chưa được phân loại', NOW())
+    `, [DEFAULT_BANNER_LOCATION_TEMPLATE, DEFAULT_BANNER_LOCATION_KEY, DEFAULT_BANNER_LOCATION_NAME]);
+
+    const [defaultRows] = await db.query<LocationRow[]>(`
+      SELECT *
+      FROM idv_seller_ad_location
+      WHERE index_key = ?
+      LIMIT 2
+    `, [DEFAULT_BANNER_LOCATION_KEY]);
+    if (defaultRows.length !== 1 || String(defaultRows[0].template_page) !== DEFAULT_BANNER_LOCATION_TEMPLATE) {
+      throw new Error('Default banner location is missing or has an invalid template_page.');
+    }
+
+    return { defaultLocationId: Number(defaultRows[0].id), uniqueIndex: BANNER_LOCATION_KEY_UNIQUE_INDEX };
+  } finally {
+    await db.query('SET SESSION sql_mode = ?', [originalSqlMode]);
+  }
+}
+
+export async function verifyBannerLocationInfrastructure(db: PoolConnection | typeof pool = pool) {
+  const [[indexes], [defaultRows], [duplicates], [orphans]] = await Promise.all([
+    db.query<RowDataPacket[]>(`
+      SELECT NON_UNIQUE
+      FROM information_schema.STATISTICS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'idv_seller_ad_location'
+        AND INDEX_NAME = ?
+    `, [BANNER_LOCATION_KEY_UNIQUE_INDEX]),
+    db.query<LocationRow[]>(`
+      SELECT * FROM idv_seller_ad_location WHERE index_key = ?
+    `, [DEFAULT_BANNER_LOCATION_KEY]),
+    db.query<RowDataPacket[]>(`
+      SELECT index_key
+      FROM idv_seller_ad_location
+      GROUP BY index_key
+      HAVING COUNT(*) > 1
+    `),
+    db.query<RowDataPacket[]>(`
+      SELECT COUNT(*) AS orphan_count
+      FROM idv_seller_ad ad
+      LEFT JOIN idv_seller_ad_location loc ON loc.id = ad.location
+      WHERE loc.id IS NULL
+    `),
+  ]);
+  if (indexes.length !== 1 || Number(indexes[0].NON_UNIQUE) !== 0) throw new Error('Banner location unique index is missing.');
+  if (defaultRows.length !== 1 || String(defaultRows[0].template_page) !== DEFAULT_BANNER_LOCATION_TEMPLATE) {
+    throw new Error('Default banner location contract is invalid.');
+  }
+  if (duplicates.length > 0) throw new Error('Duplicate banner location keys remain.');
+  if (Number(orphans[0]?.orphan_count || 0) !== 0) throw new Error('Orphan banner locations remain.');
+  return {
+    uniqueIndex: BANNER_LOCATION_KEY_UNIQUE_INDEX,
+    defaultLocationId: Number(defaultRows[0].id),
+    defaultLocationKey: DEFAULT_BANNER_LOCATION_KEY,
+    duplicates: 0,
+    orphans: 0,
+  };
 }
 
 async function bannerMetaTableExists(db: PoolConnection | typeof pool = pool) {
@@ -196,6 +309,7 @@ function formatLocation(row: LocationRow) {
     lastUpdate: row.last_update,
     totalBanners: Number(row.total_banners || 0),
     activeBanners: Number(row.active_banners || 0),
+    isDefault: String(row.index_key || '') === DEFAULT_BANNER_LOCATION_KEY,
   };
 }
 
@@ -302,8 +416,8 @@ export async function getPublicBannersByScope(scope: BannerScope) {
     try {
       const now = Math.trunc(Date.now() / 1000);
       const where = scope === 'homepage'
-        ? `loc.template_page = 'homepage' AND ${activePublicWhere(now)}`
-        : `loc.template_page <> 'homepage' AND ${activePublicWhere(now)}`;
+        ? `loc.template_page = 'homepage' AND loc.index_key <> '${DEFAULT_BANNER_LOCATION_KEY}' AND ${activePublicWhere(now)}`
+        : `loc.template_page <> 'homepage' AND loc.index_key <> '${DEFAULT_BANNER_LOCATION_KEY}' AND ${activePublicWhere(now)}`;
       return await loadPublicPayload(key, where, []);
     } catch (error) {
       console.error('[Banners] public scope fallback:', error);
@@ -316,8 +430,9 @@ export async function getPublicBannersByLocation(locationKey: string) {
   const key: PublicBannerCacheKey = `location:${locationKey}`;
   return getCachedPublicBanners(key, async () => {
     try {
+      if (locationKey === DEFAULT_BANNER_LOCATION_KEY) return { locations: [], meta: publicHeadersMeta(key) };
       const now = Math.trunc(Date.now() / 1000);
-      return await loadPublicPayload(key, `loc.index_key = ? AND ${activePublicWhere(now)}`, [locationKey]);
+      return await loadPublicPayload(key, `loc.index_key = ? AND loc.index_key <> ? AND ${activePublicWhere(now)}`, [locationKey, DEFAULT_BANNER_LOCATION_KEY]);
     } catch (error) {
       console.error('[Banners] public location fallback:', error);
       return { locations: [], meta: publicHeadersMeta(key, true) };
@@ -361,6 +476,32 @@ export async function saveBannerLocation(payload: Record<string, unknown>, id?: 
     const indexKey = requireText(payload.key || payload.indexKey || payload.index_key, 'key', 'Ma vi tri', 100);
     const name = requireText(payload.name, 'name', 'Ten vi tri', 150);
     const description = maybeText(payload.description, 250);
+
+    let existing: LocationRow | undefined;
+    if (id) {
+      const [existingRows] = await connection.query<LocationRow[]>(
+        'SELECT * FROM idv_seller_ad_location WHERE id = ? LIMIT 1 FOR UPDATE',
+        [id],
+      );
+      existing = existingRows[0];
+      if (!existing) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay vi tri banner');
+      if (String(existing.index_key) === DEFAULT_BANNER_LOCATION_KEY) {
+        if (templatePage !== DEFAULT_BANNER_LOCATION_TEMPLATE || indexKey !== DEFAULT_BANNER_LOCATION_KEY) {
+          throw new AdminApiError(409, 'CONFLICT', 'Khong the thay doi ma hoac template cua vi tri mac dinh', {
+            location: 'default_location_protected',
+          });
+        }
+        await connection.query(
+          'UPDATE idv_seller_ad_location SET name = ?, description = ?, last_update = NOW() WHERE id = ?',
+          [name, description, id],
+        );
+        return { id, isDefault: true };
+      }
+    } else if (indexKey === DEFAULT_BANNER_LOCATION_KEY || templatePage === DEFAULT_BANNER_LOCATION_TEMPLATE) {
+      throw new AdminApiError(409, 'CONFLICT', 'Ma va template unassigned duoc danh rieng cho vi tri mac dinh', {
+        location: 'reserved_default_location',
+      });
+    }
 
     const [duplicates] = await connection.query<RowDataPacket[]>(
       'SELECT id FROM idv_seller_ad_location WHERE index_key = ? AND id <> ? LIMIT 1',
@@ -469,8 +610,13 @@ export async function getAdminBanner(id: number) {
 }
 
 async function getLocation(connection: PoolConnection, locationId: number) {
-  const [rows] = await connection.query<LocationRow[]>('SELECT * FROM idv_seller_ad_location WHERE id = ? LIMIT 1', [locationId]);
+  const [rows] = await connection.query<LocationRow[]>('SELECT * FROM idv_seller_ad_location WHERE id = ? LIMIT 1 FOR SHARE', [locationId]);
   if (!rows[0]) throw new AdminApiError(400, 'BAD_REQUEST', 'Vi tri banner khong hop le');
+  if (String(rows[0].index_key) === DEFAULT_BANNER_LOCATION_KEY) {
+    throw new AdminApiError(409, 'CONFLICT', 'Hay chon vi tri hien thi truoc khi luu banner', {
+      locationId: 'unassigned_not_selectable',
+    });
+  }
   return rows[0];
 }
 
@@ -617,4 +763,53 @@ export async function deleteBanner(id: number, mode: string) {
     clearPublicBannerRuntimeCache();
     return { id, deleted: true };
   });
+}
+
+export async function deleteBannerLocationInTransaction(connection: PoolConnection, id: number) {
+  const [defaultRows] = await connection.query<LocationRow[]>(
+    'SELECT * FROM idv_seller_ad_location WHERE index_key = ? LIMIT 1 FOR UPDATE',
+    [DEFAULT_BANNER_LOCATION_KEY],
+  );
+  const defaultLocation = defaultRows[0];
+  if (!defaultLocation || String(defaultLocation.template_page) !== DEFAULT_BANNER_LOCATION_TEMPLATE) {
+    throw new AdminApiError(500, 'INTERNAL_ERROR', 'Vi tri banner mac dinh chua duoc khoi tao');
+  }
+
+  const [targetRows] = await connection.query<LocationRow[]>(
+    'SELECT * FROM idv_seller_ad_location WHERE id = ? LIMIT 1 FOR UPDATE',
+    [id],
+  );
+  const target = targetRows[0];
+  if (!target) throw new AdminApiError(404, 'NOT_FOUND', 'Khong tim thay vi tri banner');
+  if (String(target.index_key) === DEFAULT_BANNER_LOCATION_KEY) {
+    throw new AdminApiError(409, 'CONFLICT', 'Khong the xoa vi tri banner mac dinh', {
+      location: 'default_location_protected',
+    });
+  }
+
+  const now = Math.trunc(Date.now() / 1000);
+  const [updateResult] = await connection.query(`
+    UPDATE idv_seller_ad
+    SET location = ?, location_index = ?, template_page = ?, status = 0, lastUpdate = ?
+    WHERE location = ?
+  `, [defaultLocation.id, DEFAULT_BANNER_LOCATION_KEY, DEFAULT_BANNER_LOCATION_TEMPLATE, now, target.id]);
+  await connection.query('DELETE FROM idv_seller_ad_location WHERE id = ?', [target.id]);
+
+  return {
+    id: Number(target.id),
+    deleted: true,
+    deletedLocationKey: String(target.index_key || ''),
+    reassignedBannerCount: Number((updateResult as { affectedRows?: number }).affectedRows || 0),
+    defaultLocation: {
+      id: Number(defaultLocation.id),
+      key: DEFAULT_BANNER_LOCATION_KEY,
+      name: String(defaultLocation.name || DEFAULT_BANNER_LOCATION_NAME),
+    },
+  };
+}
+
+export async function deleteBannerLocation(id: number) {
+  const result = await withTransaction((connection) => deleteBannerLocationInTransaction(connection, id));
+  clearPublicBannerRuntimeCache();
+  return result;
 }

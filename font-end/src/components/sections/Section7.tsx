@@ -10,13 +10,13 @@ export default function Section7() {
       <div className="features-grid">
 
         {/*  ============================================  */}
-        {/*  CARD 1: AI POWERED – NOT SURE WHICH LAPTOP?  */}
+        {/*  CARD 1: AI HỖ TRỢ – CHƯA BIẾT CHỌN LAPTOP NÀO?  */}
         {/*  ============================================  */}
         <div className="feature-card">
           {/*  Top badge  */}
           <div className="top-badge badge-ai">
             <span className="badge-dot"></span>
-            AI Powered
+            AI hỗ trợ
           </div>
 
           {/*  Corner icon  */}
@@ -24,87 +24,73 @@ export default function Section7() {
 
           {/*  Heading  */}
           <h3 className="feature-heading">
-            Not Sure Which<br />
-            <span className="highlight-red">Laptop?</span>
+            Chưa Biết Chọn<br />
+            <span className="highlight-red">Laptop Nào?</span>
           </h3>
 
           {/*  Description  */}
           <p className="feature-desc">
-            Set your budget, pick your purpose, choose your specs, and our AI matches you with the perfect laptop in
-            seconds.
+            AI của TrucTiepGAME phân tích ngân sách và nhu cầu để gợi ý chiếc laptop phù hợp chỉ trong khoảng 40 giây.
           </p>
 
           {/*  CTA button  */}
-          <div className="cta-outlined mb-20">
-            ✦ Launch Finder →
-          </div>
+          <Link href="/laptop" className="cta-outlined mb-20">
+            ✦ Xem chi tiết →
+          </Link>
 
           {/*  Bottom stat pills  */}
           <div className="stat-row">
-            <span className="stat-pill"><span className="stat-value stat-value-red">R8K+</span> Budget</span>
-            <span className="stat-pill"><span className="stat-value stat-value-cyan">~40s</span> Speed</span>
-            <span className="stat-pill"><span className="stat-value stat-value-green">200+</span> Models</span>
+            <span className="stat-pill"><span className="stat-value stat-value-red">8 triệu+</span> Ngân sách</span>
+            <span className="stat-pill"><span className="stat-value stat-value-cyan">~40 giây</span> Tốc độ</span>
+            <span className="stat-pill"><span className="stat-value stat-value-green">200+</span> Mẫu máy</span>
           </div>
         </div>
 
         {/*  ============================================  */}
-        {/*  CARD 2: MOBILE APP – APP ONLY BEST DEALS     */}
+        {/*  CARD 2: AI BUILDER – DON'T GUESS BUILD SMART  */}
         {/*  ============================================  */}
         <div className="feature-card">
           {/*  Top badge  */}
           <div className="top-badge badge-app">
             <span className="badge-dot"></span>
-            Mobile App
+            Màn Hình
           </div>
 
-          {/*  Corner icon (phone)  */}
+          {/*  Corner icon  */}
           <div className="corner-icon">📱</div>
 
           {/*  Heading  */}
           <h3 className="feature-heading">
-            App Only<br />
-            <span className="highlight-green">Best Deals</span>
+            Tổng Kho<br />
+            <span className="highlight-green">Màn Hình</span>
           </h3>
 
           {/*  Description  */}
           <p className="feature-desc">
-            Exclusive prices you won't find on desktop. Download the TrucTiepGAME app and start saving.
+            Màn hình nét căng – làm việc mượt mà – quà tặng liền tay. Đội ngũ TrucTiepGAME sẽ giúp bạn chọn màn hình chuẩn màu, hiển thị sắc nét cho cả làm việc lẫn giải trí
           </p>
 
-          {/*  Tag pills  */}
+          {/*  Bottom stat pills  */}
           <div className="tag-row">
-            <span className="tag-pill"><span className="tag-accent tag-accent-green">FREE</span> Delivery</span>
-            <span className="tag-pill"><span className="tag-accent tag-accent-yellow">DAILY</span> Flash Sales</span>
-            <span className="tag-pill"><span className="tag-accent tag-accent-cyan">EXCLUSIVE</span> Prices</span>
+            <span className="stat-pill">Giá <span className="stat-value stat-value-green">Siêu tốt</span></span>
+            <span className="stat-pill">Giao hàng <span className="stat-value stat-value-cyan">Tận nơi</span></span>
+            <span className="stat-pill">Mẫu mã <span className="stat-value stat-value-yellow">Đa dạng</span></span>
           </div>
 
-          {/*  App Store buttons  */}
-          <div className="store-row">
-            <a href="#" className="store-btn">
-              <div className="store-icon">🍎</div>
-              <div className="store-text">
-                <span className="store-label">Download on the</span>
-                <span className="store-name">App Store</span>
-              </div>
-            </a>
-            <a href="#" className="store-btn">
-              <div className="store-icon">▶</div>
-              <div className="store-text">
-                <span className="store-label">Get it on</span>
-                <span className="store-name">Google Play</span>
-              </div>
-            </a>
-          </div>
+          {/*  CTA button  */}
+          <Link href="/monitor-man-hinh.html" className="cta-outlined">
+            ✦ Xem chi tiết →
+          </Link>
         </div>
 
         {/*  ============================================  */}
-        {/*  CARD 3: AI BUILDER – DON'T GUESS BUILD SMART  */}
+        {/*  CARD 3: AI HỖ TRỢ – CHƯA BIẾT CHỌN LAPTOP NÀO?  */}
         {/*  ============================================  */}
         <div className="feature-card">
           {/*  Top badge  */}
           <div className="top-badge badge-builder">
             <span className="badge-dot"></span>
-            AI Builder
+            PC Builder
           </div>
 
           {/*  Corner icon  */}
@@ -112,25 +98,25 @@ export default function Section7() {
 
           {/*  Heading  */}
           <h3 className="feature-heading">
-            Don't Guess.<br />
-            <span className="highlight-yellow">Build Smart.</span>
+            Công xưởng<br />
+            <span className="highlight-yellow">LẮP RÁP PC Gaming</span>
           </h3>
 
           {/*  Description  */}
           <p className="feature-desc">
-            You dream it. Our AI schemes it. TrucTiepGAME builds the ultimate machine powerful, precise, and perfectly clean.
+            Chọn ngân sách, tựa game và yêu cầu FPS, các chuyên gia TrucTiepGAME sẽ tư vấn dàn PC chiến mượt, lắp ráp chuẩn và test trực tiếp hiệu năng, đúng theo yêu cầu của bạn.
           </p>
 
-          {/*  Bottom stat pills  */}
-          <div className="tag-row">
-            <span className="stat-pill"><span className="stat-value stat-value-green">50K+</span> Builds</span>
-            <span className="stat-pill"><span className="stat-value stat-value-cyan">~60s</span> Speed</span>
-            <span className="stat-pill"><span className="stat-value stat-value-yellow">#1</span> in SA</span>
-          </div>
-
           {/*  CTA button  */}
-          <div className="cta-outlined">
-            Start Building →
+          <Link href="/bo-pc-gaming-livestream.html" className="cta-outlined mb-20">
+            ✦ Xem cấu hình →
+          </Link>
+
+          {/*  Bottom stat pills  */}
+          <div className="stat-row">
+            <span className="stat-pill">Ngân sách <span className="stat-value stat-value-green">Tối ưu</span></span>
+            <span className="stat-pill">Cấu hình <span className="stat-value stat-value-cyan">Chuyên gia</span></span>
+            <span className="stat-pill">Hiệu năng <span className="stat-value stat-value-red">Max ping</span></span>
           </div>
         </div>
 
@@ -141,7 +127,7 @@ export default function Section7() {
           {/*  Top badge  */}
           <div className="top-badge badge-flash">
             <span className="badge-dot"></span>
-            Flash Deals
+            PC Doanh Nghiệp
           </div>
 
           {/*  Corner icon (lightning)  */}
@@ -149,25 +135,25 @@ export default function Section7() {
 
           {/*  Heading  */}
           <h3 className="feature-heading">
-            Don't Blink.<br />
-            <span className="highlight-pink">Deals Vanish.</span>
+            Ưu Đãi KHỦNG<br />
+            <span className="highlight-pink">PC Văn Phòng</span>
           </h3>
 
           {/*  Description  */}
           <p className="feature-desc">
-            Limited-time prices, new drops daily — gone before you know it.
+            Chọn nhu cầu công việc và ngân sách, TrucTiepGAME sẽ tư vấn và triển khai hệ thống cấu hình PC office chạy mượt, tiết kiệm chi phí, phù hợp cho cá nhân và doanh nghiệp.
           </p>
 
           {/*  Tag pills  */}
           <div className="tag-row">
-            <span className="stat-pill"><span className="stat-value stat-value-green">Up to 70%</span> Off</span>
-            <span className="stat-pill"><span className="stat-value stat-value-yellow">24H</span> Only</span>
-            <span className="stat-pill"><span className="stat-value stat-value-pink">Daily</span> Drops</span>
+            <span className="stat-pill">Giảm giá <span className="stat-value stat-value-green">tới 40%</span></span>
+            <span className="stat-pill">Hỗ trợ <span className="stat-value stat-value-yellow">24 / 7</span></span>
+            <span className="stat-pill">Chính sách <span className="stat-value stat-value-pink">Linh hoạt</span></span>
           </div>
 
           {/*  CTA button  */}
-          <Link href="/flash-sale" className="cta-outlined">
-            ✦ Shop Flash Deals →
+          <Link href="/pc-van-phong.html" className="cta-outlined">
+            ✦ Xem cấu hình →
           </Link>
         </div>
 

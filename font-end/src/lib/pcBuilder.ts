@@ -19,6 +19,7 @@ export type PcBuilderCandidate = {
   brandName: string;
   warranty: string;
   price: number;
+  buildPcPrice: number | null;
   marketPrice: number;
   slug: string;
   compatible: boolean;
@@ -27,14 +28,23 @@ export type PcBuilderCandidate = {
 };
 export type PcBuilderQuote = {
   items: Array<
-    PcBuilderCandidate & {
+    Omit<PcBuilderCandidate, "compatible" | "selected" | "reasons"> & {
       componentCode: PcBuilderComponentCode;
       quantity: number;
       lineTotal: number;
+      regularPrice: number;
+      cartPrice: number;
+      buildPriceApplied: boolean;
+      priceSource: "catalog" | "flash_sale" | "pc_builder" | "pc_builder_price";
+      lineDiscount: number;
+      promotion: { id: number; name: string } | null;
       available: boolean;
     }
   >;
   totals: {
+    regularSubtotal: number;
+    cartSubtotal: number;
+    buildDiscount: number;
     subtotal: number;
     assemblyFee: number;
     total: number;
@@ -51,6 +61,9 @@ export type PcBuilderQuote = {
   }>;
   ruleRevision: string;
   catalogRevision: string;
+  promotionRevision: string;
+  buildPriceRevision: string;
+  buildPriceEligible: boolean;
   fingerprint: string;
   warningSignature: string;
 };
@@ -81,14 +94,16 @@ export function parsePcBuilderDraft(raw: string | null) {
         !COMPONENT_CODE_PATTERN.test(componentCode) ||
         !Number.isSafeInteger(productId) ||
         productId <= 0 ||
-        quantity !== 1
+        !Number.isSafeInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 4
       )
         continue;
       const key = `${componentCode}:${productId}`;
       if (selectionKeys.has(key) || productIds.has(productId)) continue;
       selectionKeys.add(key);
       productIds.add(productId);
-      selections.push({ componentCode, productId, quantity: 1 });
+      selections.push({ componentCode, productId, quantity });
     }
     return selections;
   } catch {

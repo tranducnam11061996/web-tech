@@ -5,9 +5,9 @@ import type { CSSProperties } from "react";
 const SECTION_5_CARDS = [
   {
     id: "laptop-deals",
-    eyebrow: "Hot Deals",
+    eyebrow: "Back to School",
     title: ["Laptop", "Deals"],
-    cta: "Explore",
+    cta: "Xem ngay",
     href: "/laptop",
     image: "/images/section-5/laptop-deals.avif",
     alt: "Gaming laptop deals",
@@ -18,9 +18,9 @@ const SECTION_5_CARDS = [
   },
   {
     id: "prebuilt-pc",
-    eyebrow: "Plug & Play",
-    title: ["Pre-Built", "PC's"],
-    cta: "Browse",
+    eyebrow: "Cấu hình tối ưu",
+    title: ["Build", "PC Gaming"],
+    cta: "Chọn cấu hình",
     href: "/bo-pc-gaming-livestream.html",
     image: "/images/section-5/prebuilt-pc.avif",
     alt: "Pre-built gaming PC",
@@ -31,9 +31,9 @@ const SECTION_5_CARDS = [
   },
   {
     id: "graphics-cards",
-    eyebrow: "Performance First",
-    title: ["Graphics", "Cards"],
-    cta: "Shop Now",
+    eyebrow: "Sẵn kho - Giá tốt",
+    title: ["VGA", "Gaming"],
+    cta: "Mua ngay",
     href: "/vga-card-man-hinh.html",
     image: "/images/section-5/graphics-cards.avif",
     alt: "Gaming graphics cards",
@@ -44,9 +44,9 @@ const SECTION_5_CARDS = [
   },
   {
     id: "upgrade-kits",
-    eyebrow: "DIY Warriors",
-    title: ["Upgrade", "Kits"],
-    cta: "Build",
+    eyebrow: "Chính hãng - Giá tốt",
+    title: ["Nâng cấp", "Linh Kiện"],
+    cta: "Chọn ngay",
     href: "/linh-kien-may-tinh.html",
     image: "/images/section-5/upgrade-kits.avif",
     alt: "PC upgrade kits",
@@ -57,9 +57,9 @@ const SECTION_5_CARDS = [
   },
   {
     id: "monitor-deals",
-    eyebrow: "Visual Excellence",
-    title: ["Monitor", "Deals"],
-    cta: "View",
+    eyebrow: "Nét căng – Mượt mà",
+    title: ["Màn hình", "GAMING"],
+    cta: "Xem ngay",
     href: "/monitor-man-hinh.html",
     image: "/images/section-5/monitor-deals.avif",
     alt: "Gaming monitor deals",
@@ -98,7 +98,7 @@ export default function Section5() {
     >
       <div
         data-section5-grid
-        className="mx-auto grid max-w-[1800px] grid-cols-2 gap-3 md:auto-rows-[220px] md:gap-4 lg:aspect-[1920/647] lg:grid-cols-3 lg:grid-rows-2 lg:auto-rows-auto lg:gap-[30px] px-4 sm:px-6 lg:px-8"
+        className="mx-auto grid max-w-[1800px] grid-cols-2 gap-3 md:auto-rows-[220px] md:gap-4 lg:aspect-[1920/647] lg:grid-cols-3 lg:grid-rows-2 lg:auto-rows-auto lg:gap-[30px]"
       >
         {SECTION_5_CARDS.map((card) => {
           const cardStyle: Section5Style = {

@@ -7,6 +7,7 @@ import {
 } from "../src/lib/pcBuilder/types";
 import { evaluatePcBuilderCompatibility } from "../src/lib/pcBuilder/service";
 import { isPcBuilderRelationEnforceable } from "../src/lib/pcBuilder/configuration";
+import { selectBestPcBuilderPromotionPrice, selectPcBuilderProductPrice, type PcBuilderPromotion } from "../src/lib/pcBuilder/promotions";
 import {
   canonicalHardwareModel,
   exactHardwareModelMatch,
@@ -71,7 +72,7 @@ test("dynamic required components are warnings and SKU limits remain independent
     { code: "hdd", name: "HDD", categoryId: 143, required: false, minSelections: 0, maxSelections: 1, ordering: 3, status: true },
   ];
   const selections = [
-    { componentCode: "cpu", productId: 1, quantity: 1 },
+    { componentCode: "cpu", productId: 1, quantity: 4 },
     { componentCode: "hdd", productId: 2, quantity: 1 },
     { componentCode: "hdd", productId: 3, quantity: 1 },
   ];
@@ -97,9 +98,50 @@ test("candidate schema uses stable numeric attribute value IDs and bounded filte
     false,
   );
   assert.equal(
+    pcBuilderQuoteRequestSchema.safeParse({ selections: [{ componentCode: "cpu", productId: 1, quantity: 4 }] }).success,
+    true,
+  );
+  assert.equal(
     pcBuilderQuoteRequestSchema.safeParse({ selections: [{ componentCode: "cpu", productId: 1, quantity: 5 }] }).success,
     false,
   );
+});
+
+test("PC Builder promotion chooses the lowest price, then priority and ID", () => {
+  const promotion = (overrides: Partial<PcBuilderPromotion>): PcBuilderPromotion => ({
+    id: 10,
+    name: "Build PC",
+    discountType: "percent",
+    discountValue: 10,
+    maxDiscount: null,
+    priority: 0,
+    status: true,
+    startsAt: null,
+    endsAt: null,
+    targets: [],
+    requirements: [],
+    ...overrides,
+  });
+  const best = selectBestPcBuilderPromotionPrice(12_345_000, 12_000_000, [
+    promotion({ id: 3, discountType: "fixed", discountValue: 1_000_000, priority: 100 }),
+    promotion({ id: 2, discountValue: 10, maxDiscount: 1_500_000, priority: 5 }),
+    promotion({ id: 1, discountValue: 10, maxDiscount: 1_500_000, priority: 5 }),
+  ]);
+  assert.equal(best?.price, 11_110_000);
+  assert.equal(best?.promotion.id, 1);
+  assert.equal(selectBestPcBuilderPromotionPrice(12_345_000, 10_000_000, [promotion({})]), null);
+});
+
+test("direct SKU Build PC price is dynamically gated and overrides lower cart offers", () => {
+  assert.equal(selectPcBuilderProductPrice(12_000_000, 10_500_000, false), null);
+  assert.equal(selectPcBuilderProductPrice(12_000_000, 10_500_000, true), 10_500_000);
+  assert.equal(selectPcBuilderProductPrice(12_000_000, 12_000_000, true), null);
+  assert.equal(selectPcBuilderProductPrice(12_000_000, 12_500_000, true), null);
+  assert.equal(selectPcBuilderProductPrice(12_000_000, 10_500_000.5, true), null);
+  // The configured price remains authoritative even when a Flash Sale/cart offer is lower.
+  const flashSalePrice = 9_900_000;
+  assert.equal(selectPcBuilderProductPrice(12_000_000, 10_500_000, true), 10_500_000);
+  assert.ok(10_500_000 > flashSalePrice);
 });
 
 test("relation filtering requires at least 90 percent attribute coverage on both category trees", () => {

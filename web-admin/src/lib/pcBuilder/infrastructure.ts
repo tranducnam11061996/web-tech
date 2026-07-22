@@ -304,3 +304,49 @@ export async function ensurePcBuilderTables() {
     await pool.query("UPDATE web_admin_pc_builder_gaming_policies SET status='draft',published_at=NULL WHERE revision='v1' AND status='published' AND published_by IS NULL");
   }
 }
+
+export async function ensurePcBuilderPromotionTables() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_promotions (
+    id bigint unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name varchar(150) NOT NULL,
+    discount_type enum('fixed','percent') NOT NULL,
+    discount_value int unsigned NOT NULL,
+    max_discount int unsigned NULL,
+    priority int NOT NULL DEFAULT 0,
+    status tinyint(1) NOT NULL DEFAULT 1,
+    starts_at datetime NULL,
+    ends_at datetime NULL,
+    created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_pc_builder_promotions_active (status,starts_at,ends_at,priority,id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_promotion_targets (
+    promotion_id bigint unsigned NOT NULL,
+    target_type enum('product','category') NOT NULL,
+    target_id int unsigned NOT NULL,
+    PRIMARY KEY (promotion_id,target_type,target_id),
+    KEY idx_pc_builder_promotion_target (target_type,target_id,promotion_id),
+    CONSTRAINT fk_pc_builder_promotion_target FOREIGN KEY (promotion_id)
+      REFERENCES web_admin_pc_builder_promotions(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_promotion_requirements (
+    promotion_id bigint unsigned NOT NULL,
+    component_code varchar(32) NOT NULL,
+    min_distinct_skus tinyint unsigned NOT NULL DEFAULT 1,
+    PRIMARY KEY (promotion_id,component_code),
+    CONSTRAINT fk_pc_builder_promotion_requirement FOREIGN KEY (promotion_id)
+      REFERENCES web_admin_pc_builder_promotions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_pc_builder_promotion_requirement_component FOREIGN KEY (component_code)
+      REFERENCES web_admin_pc_builder_components(code)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+}
+
+export async function ensurePcBuilderProductPriceTable() {
+  await pool.query(`CREATE TABLE IF NOT EXISTS web_admin_pc_builder_product_prices (
+    product_id int unsigned NOT NULL PRIMARY KEY,
+    build_price int unsigned NOT NULL,
+    status tinyint(1) NOT NULL DEFAULT 1,
+    created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+}

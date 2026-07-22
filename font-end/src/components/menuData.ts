@@ -32,6 +32,10 @@ export type MenuLinkObject = {
   backgroundColor?: string;
   imageUrl?: string;
   subText?: string;
+  linkMode?: 'custom' | 'entity' | 'system';
+  systemKey?: string;
+  desktopVisible?: boolean;
+  mobileVisible?: boolean;
 };
 
 export type MenuLinkItem = string | MenuLinkObject;
@@ -280,10 +284,10 @@ export const fallbackHeaderMenu: HeaderMenuData = {
     { id: 'elegoo', label: 'Elegoo', url: '#', suffixText: '\u2699\uFE0F', badgeText: 'NEW' },
   ],
   utilityLinks: [
-    { id: 'account', label: 'Account', url: '#' },
-    { id: 'cart', label: 'Cart', url: '/gio-hang' },
-    { id: 'favorites', label: 'Favorites', url: '#' },
-    { id: 'assistant', label: 'Assistant', url: '#' },
+    { id: 'account', label: 'T\u00e0i kho\u1ea3n', iconKey: 'user', linkMode: 'system', systemKey: 'account', url: '/tai-khoan', desktopVisible: true, mobileVisible: true },
+    { id: 'cart', label: 'Gi\u1ecf h\u00e0ng', iconKey: 'shopping-cart', linkMode: 'system', systemKey: 'cart', url: '/gio-hang', desktopVisible: true, mobileVisible: true },
+    { id: 'favorites', label: 'Y\u00eau th\u00edch', iconKey: 'heart', linkMode: 'system', systemKey: 'favorites', url: '/yeu-thich', desktopVisible: true, mobileVisible: true },
+    { id: 'assistant', label: 'Tr\u1ee3 l\u00fd AI', iconKey: 'bot', linkMode: 'system', systemKey: 'assistant', url: '#', desktopVisible: true, mobileVisible: true },
   ],
   circleStory: [],
   shopByCategory: [],

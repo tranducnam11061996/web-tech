@@ -27,6 +27,8 @@ export type CartInput = Omit<CartItem, "quantity" | "selected" | "savedForLater"
 export type CartItemAddedDetail = {
   item: CartInput;
   quantity: number;
+  batchCount?: number;
+  totalQuantity?: number;
 };
 
 let cartCache: CartItem[] | null = null;
@@ -203,6 +205,45 @@ export function addCartItem(item: CartInput, quantity = 1, options?: { selectOnl
       }),
     );
   }
+}
+
+export function addCartItems(entries: Array<{ item: CartInput; quantity: number }>) {
+  if (!isBrowser() || entries.length === 0) return;
+  let nextItems = getCartItems();
+  const now = new Date().toISOString();
+  for (const entry of entries) {
+    const qty = clampQuantity(entry.quantity);
+    const existing = nextItems.find((cartItem) => cartItem.productId === entry.item.productId);
+    if (existing) {
+      nextItems = nextItems.map((cartItem) => cartItem.productId === entry.item.productId ? {
+        ...cartItem,
+        ...entry.item,
+        slug: entry.item.slug.replace(/^\/+/, ""),
+        quantity: clampQuantity(cartItem.quantity + qty),
+        selected: true,
+        savedForLater: false,
+      } : cartItem);
+    } else {
+      nextItems = [...nextItems, {
+        ...entry.item,
+        slug: entry.item.slug.replace(/^\/+/, ""),
+        quantity: qty,
+        selected: true,
+        savedForLater: false,
+        addedAt: now,
+      }];
+    }
+  }
+  setCartItems(nextItems);
+  const first = entries[0];
+  window.dispatchEvent(new CustomEvent<CartItemAddedDetail>(CART_ITEM_ADDED_EVENT, {
+    detail: {
+      item: first.item,
+      quantity: first.quantity,
+      batchCount: entries.length,
+      totalQuantity: entries.reduce((total, entry) => total + entry.quantity, 0),
+    },
+  }));
 }
 
 export function updateCartQuantity(productId: number, quantity: number) {

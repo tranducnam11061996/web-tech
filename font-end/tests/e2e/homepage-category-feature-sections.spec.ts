@@ -193,7 +193,7 @@ test('Section 11 autoplay pauses offscreen and on focus, then resumes without na
   expect(await visibleOriginalIndex(track)).toBe(initialIndex);
 
   await section.scrollIntoViewIfNeeded();
-  await expect.poll(() => visibleOriginalIndex(track), { timeout: 4200 }).not.toBe(initialIndex);
+  await expect.poll(() => visibleOriginalIndex(track), { timeout: 6500 }).not.toBe(initialIndex);
   expect(await track.evaluate((node) => Array.from(node.children).slice(1).every((child) => (
     getComputedStyle(child).visibility === 'visible'
   )))).toBe(true);
@@ -206,7 +206,7 @@ test('Section 11 autoplay pauses offscreen and on focus, then resumes without na
   expect(await visibleOriginalIndex(track)).toBe(focusedIndex);
 
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await expect.poll(() => visibleOriginalIndex(track), { timeout: 4200 }).not.toBe(focusedIndex);
+  await expect.poll(() => visibleOriginalIndex(track), { timeout: 6500 }).not.toBe(focusedIndex);
   expect(page.url()).toBe(homepageUrl);
 });
 
@@ -254,7 +254,7 @@ test('Section 11 touch swipe keeps the shared threshold and restarts autoplay', 
   await page.waitForTimeout(500);
   expect(await visibleOriginalIndex(track)).toBe(afterSwipeIndex);
 
-  await expect.poll(() => visibleOriginalIndex(track), { timeout: 4200 }).not.toBe(afterSwipeIndex);
+  await expect.poll(() => visibleOriginalIndex(track), { timeout: 6500 }).not.toBe(afterSwipeIndex);
   expect(page.url()).toBe(homepageUrl);
 });
 

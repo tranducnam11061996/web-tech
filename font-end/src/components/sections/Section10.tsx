@@ -5,14 +5,14 @@ import HomepageProductSection, {
 
 export const section10HomepageProductConfig: HomepageProductSectionConfig = {
   sectionId: "section-10",
-  categoryId: 137,
+  categoryId: 521,
   productLimit: 8,
   ctaTitleLines: [
-    { text: "Find The" },
-    { text: "Perfect", className: "highlight" },
-    { text: "Gift" },
+    { text: "Chạy mượt" },
+    { text: "Office", className: "highlight" },
+    { text: "Hỗ trợ 24/7" },
   ],
-  ctaButtonLabel: "Show Now",
+  ctaButtonLabel: "Chọn ngay",
   productCardVariant: "shared-grid",
 };
 

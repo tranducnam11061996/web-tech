@@ -73,6 +73,9 @@ function getBasicPayload(form: Record<string, any>) {
     sku: text(form.sku).trim(),
     brandId: intValue(form.brandId),
     price: Math.max(0, Number(form.price || 0)),
+    buildPcPrice: form.buildPcPrice === '' || form.buildPcPrice === null || Number(form.buildPcPrice) === 0
+      ? null
+      : Number(form.buildPcPrice),
     marketPrice: Math.max(0, Number(form.marketPrice || 0)),
     status: intValue(form.status) === 0 ? 0 : 1,
     ordering: intValue(form.ordering),
@@ -142,6 +145,7 @@ export function EditProductClient({
     sku: product?.storeSKU || '',
     brandId: product?.brandId || 0,
     price: product?.price || 0,
+    buildPcPrice: product?.buildPcPrice ?? '',
     marketPrice: product?.market_price || 0,
     status: product?.isOn ?? 1,
     ordering: product?.ordering || 0,

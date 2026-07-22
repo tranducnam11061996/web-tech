@@ -14,6 +14,9 @@ type Props = {
 
 export function TabBasic({ product, form, onChange, brands = [], categories = [] }: Props) {
   const current = form || product || {};
+  const buildPcPrice = Number(current.buildPcPrice || 0);
+  const catalogPrice = Number(current.price || 0);
+  const buildPcPriceInvalid = buildPcPrice > 0 && (!Number.isSafeInteger(buildPcPrice) || buildPcPrice >= catalogPrice);
   const update = (field: string) => (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     onChange?.(field, event.target.value);
   };
@@ -51,6 +54,27 @@ export function TabBasic({ product, form, onChange, brands = [], categories = []
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Giá thị trường</label>
           <input value={current.marketPrice ?? current.market_price ?? ''} onChange={update('marketPrice')} className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-orange-400 font-bold focus:border-red-500/50 outline-none transition-all shadow-inner font-mono" />
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="product-build-pc-price" className="text-xs font-bold text-gray-400 uppercase tracking-wider">Giá Build PC</label>
+          <input
+            id="product-build-pc-price"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1000}
+            value={current.buildPcPrice ?? ''}
+            onChange={update('buildPcPrice')}
+            aria-describedby="product-build-pc-price-help"
+            aria-invalid={buildPcPriceInvalid}
+            className="w-full bg-gray-900 border border-gray-700 rounded-sm px-3 py-2 text-sm text-cyan-300 font-bold focus:border-cyan-500/60 focus:ring-1 focus:ring-cyan-500/30 outline-none transition-all shadow-inner font-mono"
+          />
+          <p id="product-build-pc-price-help" className="text-[11px] leading-4 text-gray-500">
+            {buildPcPriceInvalid
+              ? "Giá Build PC phải là số nguyên lớn hơn 0 và nhỏ hơn giá bán."
+              : "Để trống hoặc nhập 0 để tắt. Giá chỉ áp dụng khi cấu hình đủ các nhóm bắt buộc."}
+          </p>
         </div>
 
         <div className="space-y-2">

@@ -2,6 +2,7 @@
 import pool from '@/lib/db';
 import { AdminApiError, maybeText, requireText, toBoolInt, toInt, withTransaction } from '@/lib/admin/common';
 import { HEADER_MENU_ICON_PATHS, HEADER_MENU_SEED, type HeaderMenuSeed, type HeaderMenuSeedNode } from '@/lib/header-menu-seed';
+import { resolveHeaderSystemKey, resolveHeaderSystemUrl } from '@/lib/headerMenuUtilities';
 import { clearPublicMenuCache as clearPublicMenuRuntimeCache } from '@/lib/publicMenus';
 
 export type HeaderMenuArea = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory' | 'shopByCategory';
@@ -658,12 +659,6 @@ async function loadUrlMaps(rows: MenuItemRow[]): Promise<UrlMaps> {
   return { product, article };
 }
 
-function systemUrl(key: string) {
-  if (key === 'cart') return '/gio-hang';
-  if (key === 'search') return '/tim';
-  return '#';
-}
-
 function resolveItemUrl(row: MenuItemRow, maps: UrlMaps) {
   if (row.url_override) return row.url_override;
   if (row.link_mode === 'entity' && row.entity_type === 'product-category' && row.entity_id) {
@@ -672,7 +667,7 @@ function resolveItemUrl(row: MenuItemRow, maps: UrlMaps) {
   if (row.link_mode === 'entity' && row.entity_type === 'article-category' && row.entity_id) {
     return maps.article.get(Number(row.entity_id)) || `/tin-tuc?category=${row.entity_id}`;
   }
-  if (row.link_mode === 'system') return systemUrl(row.custom_url);
+  if (row.link_mode === 'system') return resolveHeaderSystemUrl(row.custom_url);
   return row.custom_url || '#';
 }
 
@@ -695,6 +690,7 @@ function rowToPublicLink(row: MenuItemRow, maps: UrlMaps) {
     imageUrl: row.image_url || '',
     subText: repairMenuText(row.sub_text || ''),
     linkMode: row.link_mode,
+    systemKey: resolveHeaderSystemKey(row.link_mode, row.custom_url),
     entityType: row.entity_type || undefined,
     entityId: row.entity_id || undefined,
     isActive: row.is_active === 1,

@@ -1,6 +1,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { HEADER_MENU_SEED, type HeaderMenuSeed, type HeaderMenuSeedNode } from '@/lib/header-menu-seed';
+import { resolveHeaderSystemKey, resolveHeaderSystemUrl } from '@/lib/headerMenuUtilities';
 
 type HeaderMenuArea = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory' | 'shopByCategory';
 type HeaderMenuNodeType = 'zone' | 'group' | 'link';
@@ -110,7 +111,7 @@ function resolveUrl(row: MenuItemRow, maps: UrlMaps) {
   if (row.url_override) return row.url_override;
   if (row.link_mode === 'entity' && row.entity_type === 'product-category' && row.entity_id) return maps.product.get(Number(row.entity_id)) || `/category?id=${row.entity_id}`;
   if (row.link_mode === 'entity' && row.entity_type === 'article-category' && row.entity_id) return maps.article.get(Number(row.entity_id)) || `/tin-tuc?category=${row.entity_id}`;
-  if (row.link_mode === 'system') return row.custom_url === 'cart' ? '/gio-hang' : row.custom_url === 'search' ? '/tim' : '#';
+  if (row.link_mode === 'system') return resolveHeaderSystemUrl(row.custom_url);
   return row.custom_url || '#';
 }
 
@@ -121,6 +122,10 @@ function toPublicLink(row: MenuItemRow, maps: UrlMaps) {
     id: String(row.id), label, url: resolveUrl(row, maps), iconKey: row.icon_key || '',
     badgeText: repairMenuText(row.badge_text), suffixText,
     backgroundColor: row.background_color || '', imageUrl: row.image_url || '', subText: repairMenuText(row.sub_text || ''),
+    linkMode: row.link_mode,
+    systemKey: resolveHeaderSystemKey(row.link_mode, row.custom_url),
+    desktopVisible: row.desktop_visible === 1,
+    mobileVisible: row.mobile_visible === 1,
   };
 }
 

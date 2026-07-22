@@ -1,6 +1,10 @@
 # Database Export, Restore, and Machine Transfer
 
-Last verified: `2026-07-19`
+Last verified: `2026-07-20`
+
+The latest rollback boundary is `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v6-2026-07-19T22-00-14-364Z.json`, SHA-256 `afa5614534d2c13f799615dd3ac83d76bf5a169d4ec57eff09ea83e3d6d0041b`. Clone `it_tech_db_backup_test_1784498414364_e3491c` matched 308 tables/95,634 rows/one routine/two triggers and passed the additive v6 migration twice plus verification. Live apply/verify then passed; this artifact intentionally predates `web_admin_pc_builder_product_prices`.
+
+The latest pre-PC-Builder-v5 rollback boundary is `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v5-2026-07-19T18-04-55-044Z.json`, SHA-256 `1f9843198e868117bf720dfe17bd836399d9e33a48abb97ee06563a69789c671`. Its retained clone `it_tech_db_backup_test_1784484295044_dba77f` matched 305 tables/95,634 rows/one routine/two triggers and passed the additive three-table v5 migration twice plus verification. Live apply/verify then passed; this artifact intentionally predates the three promotion tables.
 
 This runbook transfers the complete active `it_tech_db` database to another machine. It preserves table definitions/data, mixed InnoDB/MyISAM engines, collations, the search routine, triggers, and import audit. Accepted runs 2-8 no longer have in-database recovery tables; their recovery boundary is the verified external artifacts below. `hanoi23_db` is out of scope and must remain untouched.
 

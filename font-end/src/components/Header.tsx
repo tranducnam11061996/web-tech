@@ -7,8 +7,6 @@ import {
   ChevronRight,
   Heart,
   Menu as MenuGlyph,
-  Moon,
-  MoreVertical,
   Search,
   ShoppingCart,
   Star,
@@ -17,7 +15,7 @@ import {
 import { useCartSummary } from '@/lib/cart';
 import CustomerAccountMenu from './CustomerAccountMenu';
 import { cleanMenuText } from '@/lib/menuUtils';
-import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem } from './menuData';
+import { fallbackHeaderMenu, type HeaderMenuData, type MenuCategory, type MenuLinkItem, type MenuLinkObject } from './menuData';
 
 const API_URL = '';
 const HEADER_MENU_FALLBACK_CACHE_MS = 10 * 1000;
@@ -33,6 +31,10 @@ let cachedHeaderMenuExpiresAt = 0;
 let headerMenuRequest: Promise<HeaderMenuData> | null = null;
 
 const HEADER_MENU_ICON_PATHS: Record<string, string> = {
+  user: 'M12 11a4 4 0 100-8 4 4 0 000 8zM5.5 21a6.5 6.5 0 0113 0',
+  'shopping-cart': 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
+  heart: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  bot: 'M12 8V4H8m-2 6h12a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2zm3 4h.01M9 14h.01M2 14h2m16 0h2',
   laptop: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
   desktop: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
   star: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
@@ -106,7 +108,7 @@ function normalizeHeaderMenuPayload(data: any): HeaderMenuData {
     zones: data?.zones?.length ? data.zones : fallbackHeaderMenu.zones,
     faves: data?.faves || [],
     topNav: data?.topNav || [],
-    utilityLinks: data?.utilityLinks || [],
+    utilityLinks: Array.isArray(data?.utilityLinks) ? data.utilityLinks : fallbackHeaderMenu.utilityLinks,
     circleStory: [],
     shopByCategory: [],
     labels: {
@@ -182,6 +184,44 @@ function MenuLinkIcon({ item, className = 'h-3.5 w-3.5 shrink-0 text-gray-500' }
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d={path} />
     </svg>
   );
+}
+
+function utilitySystemKey(item: MenuLinkObject) {
+  return String(item.systemKey || item.id || '').trim();
+}
+
+function HeaderUtilityIcon({ item, mobile }: { item: MenuLinkObject; mobile: boolean }) {
+  const systemKey = utilitySystemKey(item);
+  const className = mobile ? 'h-6 w-6' : 'h-5 w-5';
+  if (systemKey === 'cart') return <ShoppingCart className={className} aria-hidden="true" />;
+  if (systemKey === 'favorites') return <Heart className={className} aria-hidden="true" />;
+  if (systemKey === 'assistant') return <Bot className={className} aria-hidden="true" />;
+  return <MenuLinkIcon item={item} className={className} />;
+}
+
+function HeaderUtilityLinks({ items, mobile, totalQuantity }: { items: MenuLinkObject[]; mobile: boolean; totalQuantity: number }) {
+  return <>
+    {items.map((item) => {
+      const systemKey = utilitySystemKey(item);
+      const label = linkLabel(item);
+      const key = item.id || `${systemKey}-${label}`;
+      if (systemKey === 'account') {
+        return <CustomerAccountMenu key={key} mobile={mobile} utilityKey={systemKey} />;
+      }
+
+      const className = mobile
+        ? `text-gray-400 hover:text-white transition-colors${systemKey === 'cart' ? ' relative' : ''}`
+        : `hover:text-white transition-colors${systemKey === 'cart' ? ' relative' : ''}`;
+      const icon = <HeaderUtilityIcon item={item} mobile={mobile} />;
+      if (systemKey === 'assistant' || !item.url || item.url === '#') {
+        return <button key={key} type="button" data-header-utility={systemKey || 'custom'} className={className} aria-label={label}>{icon}</button>;
+      }
+      return <Link key={key} href={item.url} data-header-utility={systemKey || 'custom'} className={className} aria-label={label}>
+        {icon}
+        {systemKey === 'cart' ? <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span> : null}
+      </Link>;
+    })}
+  </>;
 }
 
 export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }) {
@@ -385,6 +425,8 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
     zones: cleanHeaderText(headerMenu.labels?.zones || fallbackHeaderMenu.labels.zones),
     faves: cleanHeaderText(headerMenu.labels?.faves || fallbackHeaderMenu.labels.faves),
   };
+  const desktopUtilityLinks = headerMenu.utilityLinks.filter((item) => item.desktopVisible !== false);
+  const mobileUtilityLinks = headerMenu.utilityLinks.filter((item) => item.mobileVisible !== false);
 
   return (
     <>
@@ -489,25 +531,8 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
             </div>
 
             {/* Icons */}
-            <div className="flex items-center gap-6 text-gray-400 shrink-0">
-              <CustomerAccountMenu />
-              <Link href="/gio-hang" className="hover:text-white transition-colors relative" aria-label={'Gi\u1ecf h\u00e0ng'}>
-                <ShoppingCart className="h-5 w-5" aria-hidden="true" />
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
-              </Link>
-              <Link href="/yeu-thich" className="hover:text-white transition-colors" aria-label={'Y\u00eau th\u00edch'}>
-                <Heart className="h-5 w-5" aria-hidden="true" />
-              </Link>
-              <button type="button" className="hover:text-white transition-colors" aria-label={'Tr\u1ee3 l\u00fd'}>
-                <Bot className="h-5 w-5" aria-hidden="true" />
-              </button>
-              <div className="w-px h-5 bg-dark-border mx-2"></div>
-              <button type="button" className="hover:text-white transition-colors" aria-label={'Ch\u1ebf \u0111\u1ed9 t\u1ed1i'}>
-                <Moon className="h-5 w-5" aria-hidden="true" />
-              </button>
-              <button type="button" className="hover:text-white transition-colors" aria-label={'Th\u00eam t\u00f9y ch\u1ecdn'}>
-                <MoreVertical className="h-5 w-5" aria-hidden="true" />
-              </button>
+            <div className="flex items-center gap-6 text-gray-400 shrink-0" data-header-utilities="desktop">
+              <HeaderUtilityLinks items={desktopUtilityLinks} mobile={false} totalQuantity={totalQuantity} />
             </div>
           </div>
 
@@ -769,34 +794,8 @@ export default function Header({ initialMenu }: { initialMenu?: HeaderMenuData }
       </div>
 
       {/* MOBILE BOTTOM NAV BAR (< 768px) */}
-      <div className="md:hidden fixed bottom-0 left-0 w-full h-[60px] bg-dark border-t border-dark-border flex items-center justify-between px-6 z-50">
-        <CustomerAccountMenu mobile />
-        <Link href="/gio-hang" className="text-gray-400 hover:text-white transition-colors relative">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
-          </svg>
-          <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] min-w-4 h-4 px-1 rounded-full flex items-center justify-center font-bold">{totalQuantity}</span>
-        </Link>
-        <Link href="/yeu-thich" aria-label="Sản phẩm yêu thích" className="text-gray-400 hover:text-white transition-colors">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-          </svg>
-        </Link>
-        <button type="button" aria-label="Hỗ trợ khách hàng" className="text-gray-400 hover:text-white transition-colors">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-          </svg>
-        </button>
-        <button type="button" aria-label="Ứng dụng di động" className="text-gray-400 hover:text-white transition-colors">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
-          </svg>
-        </button>
-        <button type="button" aria-label="Mở thêm tùy chọn" className="text-gray-400 hover:text-white transition-colors">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
-          </svg>
-        </button>
+      <div className="md:hidden fixed bottom-0 left-0 w-full h-[60px] bg-dark border-t border-dark-border flex items-center justify-between px-6 z-50" data-header-utilities="mobile">
+        <HeaderUtilityLinks items={mobileUtilityLinks} mobile totalQuantity={totalQuantity} />
       </div>
 
       {/* END Header */}

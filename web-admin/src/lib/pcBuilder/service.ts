@@ -19,6 +19,7 @@ import {
   type PcBuilderAttributeRelation,
   type PcBuilderComponentConfig,
 } from "./configuration";
+import { resolvePcBuilderPricing } from "./promotions";
 
 type DbExecutor = Pool | PoolConnection;
 type RuleRow = RowDataPacket & {
@@ -76,7 +77,7 @@ export function evaluatePcBuilderCompatibility(
   for (const component of options?.components || []) {
     const selectedCount = selections
       .filter((selection) => selection.componentCode === component.code)
-      .reduce((total, selection) => total + selection.quantity, 0);
+      .length;
     if (component.required && selectedCount < component.minSelections)
       diagnostics.push({
         ruleCode: `missing_required_${component.code}`,
@@ -307,13 +308,28 @@ export async function buildPcBuilderQuote(
     const component = componentByCode.get(selection.componentCode);
     if (!component?.status)
       throw new PublicRequestError(400, "INVALID_COMPONENT", "Danh mục linh kiện không còn hoạt động trong PC Builder.");
-    if (selection.quantity !== 1)
-      throw new PublicRequestError(400, "INVALID_SELECTION_QUANTITY", "Mỗi mẫu linh kiện chỉ được thêm một lần.");
   }
-  const [loaded, cart] = await Promise.all([
+  const requiredComponentProgress = runtime.activeComponents
+    .filter((component) => component.required)
+    .map((component) => ({
+      componentCode: component.code,
+      name: component.name,
+      minSelections: component.minSelections,
+      selectedCount: normalizedSelections.filter((item) => item.componentCode === component.code).length,
+    }));
+  const missingRequiredComponents = requiredComponentProgress
+    .filter((component) => component.selectedCount < component.minSelections);
+  const buildPriceEligible = missingRequiredComponents.length === 0;
+  const [loaded, cart, presentationRows] = await Promise.all([
     loadCatalogFacts(db, normalizedSelections, runtime.components),
     buildCartQuote(normalizedSelections.map((item) => ({ productId: item.productId, quantity: item.quantity })), { db }),
+    db.query<RowDataPacket[]>(`SELECT product.id,product.warranty,product.brandId,brand.name brand_name
+      FROM idv_sell_product_store product LEFT JOIN idv_brand brand ON brand.id=product.brandId
+      WHERE product.id IN (?)`, [normalizedSelections.map((item) => item.productId)]).then(([rows]) => rows),
   ]);
+  const presentationByProduct = new Map(presentationRows.map((row) => [Number(row.id), row]));
+  const pricing = await resolvePcBuilderPricing(db, normalizedSelections, cart.items, { buildPriceEligible });
+  const pricingByProduct = new Map(pricing.items.map((item) => [item.productId, item]));
   const selectionByProduct = new Map(normalizedSelections.map((item) => [item.productId, item]));
   const diagnostics = evaluatePcBuilderCompatibility(loaded.facts, runtime.rules, normalizedSelections, {
     components: runtime.activeComponents,
@@ -327,6 +343,20 @@ export async function buildPcBuilderQuote(
         componentCodes: [selectionByProduct.get(item.productId)?.componentCode || "unknown"],
       });
   const items = cart.items.map((item) => ({
+    ...(() => {
+      const price = pricingByProduct.get(item.productId)!;
+      return {
+        price: price.price,
+        regularPrice: price.regularPrice,
+        cartPrice: price.cartPrice,
+        buildPcPrice: price.buildPcPrice,
+        buildPriceApplied: price.buildPriceApplied,
+        priceSource: price.priceSource,
+        lineDiscount: price.lineDiscount,
+        promotion: price.promotion,
+        lineTotal: price.price * item.quantity,
+      };
+    })(),
     componentCode: selectionByProduct.get(item.productId)!.componentCode,
     productId: item.productId,
     quantity: item.quantity,
@@ -334,28 +364,23 @@ export async function buildPcBuilderQuote(
     sku: item.sku,
     slug: item.slug,
     thumbnail: item.thumbnail,
-    price: item.price,
-    lineTotal: item.lineTotal,
+    warranty: String(presentationByProduct.get(item.productId)?.warranty || ""),
+    brandId: Number(presentationByProduct.get(item.productId)?.brandId || 0),
+    brandName: String(presentationByProduct.get(item.productId)?.brand_name || ""),
+    marketPrice: item.marketPrice,
     available: item.available,
   }));
-  const missingRequiredComponents = runtime.activeComponents
-    .filter((component) => component.required)
-    .map((component) => ({
-      componentCode: component.code,
-      name: component.name,
-      minSelections: component.minSelections,
-      selectedCount: normalizedSelections.filter((item) => item.componentCode === component.code).length,
-    }))
-    .filter((component) => component.selectedCount < component.minSelections);
   const catalogRevision = stableHash({
     seed: loaded.catalogRevisionSeed,
-    prices: items.map((item) => [item.productId, item.price]),
+    prices: items.map((item) => [item.productId, item.regularPrice, item.cartPrice]),
   });
   const fingerprint = stableHash({
     selections: [...normalizedSelections].sort((a, b) => a.componentCode.localeCompare(b.componentCode) || a.productId - b.productId),
     ruleRevision: runtime.revision,
     catalogRevision,
-    prices: items.map((item) => [item.productId, item.price]),
+    promotionRevision: pricing.promotionRevision,
+    buildPriceRevision: pricing.buildPriceRevision,
+    prices: items.map((item) => [item.productId, item.price, item.quantity]),
   });
   const warningSignature = stableHash(
     diagnostics
@@ -365,13 +390,24 @@ export async function buildPcBuilderQuote(
   );
   return {
     items,
-    totals: { subtotal: cart.totals.subtotal, assemblyFee: 0, total: cart.totals.subtotal, itemCount: cart.totals.itemCount },
+    totals: {
+      regularSubtotal: items.reduce((total, item) => total + item.regularPrice * item.quantity, 0),
+      cartSubtotal: items.reduce((total, item) => total + item.cartPrice * item.quantity, 0),
+      buildDiscount: items.reduce((total, item) => total + item.lineDiscount, 0),
+      subtotal: items.reduce((total, item) => total + item.lineTotal, 0),
+      assemblyFee: 0,
+      total: items.reduce((total, item) => total + item.lineTotal, 0),
+      itemCount: cart.totals.itemCount,
+    },
     diagnostics,
     compatible: !diagnostics.some((item) => item.severity === "error"),
     requiresConfirmation: diagnostics.some((item) => item.severity === "warning"),
     missingRequiredComponents,
     ruleRevision: runtime.revision,
     catalogRevision,
+    promotionRevision: pricing.promotionRevision,
+    buildPriceRevision: pricing.buildPriceRevision,
+    buildPriceEligible,
     fingerprint,
     warningSignature,
   };
@@ -441,10 +477,14 @@ function candidateUniverseSql() {
     UNION ALL SELECT category.id FROM idv_seller_category category JOIN tree ON category.parentId=tree.id WHERE category.status=1
   ), universe AS (
     SELECT DISTINCT store.id,store.proName,store.storeSKU,store.proThum,store.brandId,store.warranty,
-      price.price,price.market_price FROM tree
+      price.price,price.market_price,
+      CASE WHEN build_price.status=1 AND build_price.build_price>0 AND build_price.build_price<price.price
+        THEN build_price.build_price ELSE NULL END build_pc_price
+      FROM tree
     JOIN idv_product_category pc ON pc.category_id=tree.id
     JOIN idv_sell_product_store store ON store.id=pc.pro_id
     JOIN idv_sell_product_price price ON price.id=store.id AND price.isOn=1 AND price.price>0
+    LEFT JOIN web_admin_pc_builder_product_prices build_price ON build_price.product_id=store.id
   )`;
 }
 
@@ -616,6 +656,7 @@ export async function listPcBuilderCandidates(input: CandidateFilterInput) {
       brandId: Number(row.brandId || 0),
       brandName: String(row.brandName || ""),
       price: Number(row.price),
+      buildPcPrice: row.build_pc_price === null ? null : Number(row.build_pc_price),
       marketPrice: Number(row.market_price || 0),
       slug: String(row.slug || "").replace(/^\/+/, ""),
       compatible: true,

@@ -1,10 +1,24 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-19`
+Last verified: `2026-07-22`
 
 `web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
+## Managed Header utility links
+
+`/content/menu/header` manages account, cart, favorites and assistant in the `Link tiện ích` area, including order, icon, active state and independent desktop/mobile visibility. Public `GET /api/menu/header` exposes `linkMode`, `systemKey`, `desktopVisible` and `mobileVisible`; canonical system URLs are `/tai-khoan`, `/gio-hang`, `/yeu-thich` and `#` respectively.
+
+For the guarded canonical replacement, run `npm.cmd run header-utilities:publish` only with `ADMIN_WRITE_ENABLED=true` against identified database `it_tech_db`. The command snapshots the full draft under ignored `var/migrations/header-menu-utility-links/`, hashes every non-utility menu area/settings before and after save, publishes, verifies the public payload and restores the prior state on failure.
+
 ## PC Builder
+
+PC Builder v6 adds optional direct SKU pricing through `web_admin_pc_builder_product_prices`. Product create/edit accepts `Giá Build PC`; blank/`0` disables it and active values must be integer VND below the catalog selling price. Run the guarded migration only after restore verification: `npm.cmd run pc-builder:v6:migrate -- --mode=apply|verify --database=<identified-db> --backup-sha256=<sha256>`.
+
+Quote derives `buildPriceEligible` from every active required component and `minSelections`, counting distinct SKUs rather than quantity. Incomplete builds use catalog/Flash Sale only and skip campaign promotions. Complete builds give a valid direct SKU price absolute precedence; campaign pricing is fallback only for SKUs without a direct price. Candidate exposes the conditional price, while quote/order add `buildPcPrice`, `buildPriceApplied`, `cartSubtotal` and `buildPriceRevision`. Normal cart/product pricing APIs remain unchanged.
+
+PC Builder v5 adds quantity-aware (`1–4`) quotes and three additive promotion tables. Admin `/product/pc-builder` now has a “Khuyến mãi Build PC” tab; `GET/PUT /api/admin/pc-builder/promotions` manages scheduled fixed/percent rules, caps, priority, logical SKU/category-descendant targets and AND requirements by distinct component SKU count. Writes use `catalog.pc_builder.update`, same-origin checks, `ADMIN_WRITE_ENABLED`, optimistic SHA-256 versioning, one transaction, audit and cache bump.
+
+Run the guarded v5 migration only after a restore-verified backup: `npm.cmd run pc-builder:v5:migrate -- --mode=apply|verify --database=<identified-db> --backup-sha256=<sha256>`. The local `it_tech_db` apply/verify is complete; clone rehearsal passed apply twice. Quote now returns `regularPrice`, `cartPrice`, final `price`, `priceSource`, `lineDiscount`, promotion metadata, `regularSubtotal`, `buildDiscount` and `promotionRevision`. Order always re-quotes in its transaction and snapshots those values.
 
 Catalog-live v4 uses `web_admin_pc_builder_components.category_id` plus `web_admin_pc_builder_component_relations`. Admin category configuration is `GET/PUT /api/admin/pc-builder/components`; option endpoints are `/category-options` and `/relation-attributes`. Category selectors render the active parent-child taxonomy with local ID/name search and descendant sellable-product counts. Relation options and configured rows expose sellable-product attribute coverage. Runtime applies a relation only at 90% or greater coverage on both category trees; lower-coverage relations remain configured but are visibly marked and skipped by candidate/quote/order. All writes require same-origin, `catalog.pc_builder.update`, audit authorization and `ADMIN_WRITE_ENABLED=true`; omitted existing rows are soft-disabled.
 
@@ -43,6 +57,23 @@ Admin combo APIs support create/update plus product relation remove/reorder. Pub
 - Authenticated/RBAC-protected admin APIs and screens for catalog, content, commerce, users, roles, and customer CRM.
 - MySQL connection pool, legacy schema integration, additive `web_admin_*` tables, cache invalidation, and search infrastructure.
 - Transactional email outbox, expired-record cleanup, readiness/liveness, and media serving.
+
+### Banner location deletion
+
+`DELETE /api/admin/banner-locations/[id]` requires the normal same-origin admin session, `ADMIN_WRITE_ENABLED=true`, and `marketing.banner_locations.delete`. It permanently removes only the selected non-default location. Every owned banner is moved in the same transaction to the protected `unassigned` / `Chưa có vị trí` location, has its denormalized location fields synchronized, and is hidden; banner rows, media, metadata, category mappings, and visit logs remain intact. Public banner APIs always exclude `unassigned`.
+
+The dedicated migration requires a restore-verified backup hash and an environment-only confirmation token:
+
+```powershell
+$env:ADMIN_WRITE_ENABLED='true'
+$env:BANNER_LOCATION_RESTORE_VERIFIED_SHA256='<sha256>'
+$env:BANNER_LOCATION_MIGRATION_CONFIRMATION_TOKEN='<64-character-secret>'
+$env:BANNER_LOCATION_MIGRATION_CONFIRMATION_INPUT=$env:BANNER_LOCATION_MIGRATION_CONFIRMATION_TOKEN
+npm.cmd run banner-locations:migrate -- --mode=apply --database=it_tech_db --backup-sha256=<sha256>
+npm.cmd run banner-locations:migrate -- --mode=verify --database=it_tech_db --backup-sha256=<sha256>
+```
+
+`rollback` is permitted only while no banner references the default location. Return `ADMIN_WRITE_ENABLED=false` after migration.
 
 ## Managed Footer menus
 

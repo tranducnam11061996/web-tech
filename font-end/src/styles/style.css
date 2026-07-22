@@ -334,6 +334,86 @@ body {
   }
 }
 
+.pc-builder-v5 {
+  font-variant-numeric: tabular-nums;
+}
+
+.pc-builder-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .pc-builder-print-sheet,
+  .pc-builder-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .pc-builder-print-sheet {
+    position: absolute;
+    inset: 0;
+    display: block !important;
+    width: 100%;
+    background: #fff;
+    color: #111827;
+    font-family: Arial, sans-serif;
+  }
+
+  .pc-builder-print-sheet h1 {
+    margin: 0 0 4px;
+    font-size: 22px;
+  }
+
+  .pc-builder-print-sheet > p {
+    margin: 0 0 18px;
+    color: #4b5563;
+    font-size: 11px;
+  }
+
+  .pc-builder-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+  }
+
+  .pc-builder-print-sheet th,
+  .pc-builder-print-sheet td {
+    border: 1px solid #d1d5db;
+    padding: 7px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .pc-builder-print-sheet th {
+    background: #e5e7eb;
+  }
+
+  .pc-builder-print-sheet th:nth-child(3),
+  .pc-builder-print-sheet td:nth-child(3),
+  .pc-builder-print-sheet th:last-child,
+  .pc-builder-print-sheet td:last-child {
+    text-align: right;
+  }
+
+  .pc-builder-print-sheet .print-total {
+    display: flex;
+    justify-content: flex-end;
+    gap: 32px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 2px solid #111827;
+    font-size: 16px;
+  }
+}
+
 .badge-new {
   background-color: #064e3b;
   text-transform: uppercase

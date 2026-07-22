@@ -13,7 +13,7 @@ function maskPhone(phone: string) {
   return `${value.slice(0, -4)}****`;
 }
 
-export default function CustomerAccountMenu({ mobile = false }: { mobile?: boolean }) {
+export default function CustomerAccountMenu({ mobile = false, utilityKey }: { mobile?: boolean; utilityKey?: string }) {
   const router = useRouter();
   const { user, loading, logout } = useCustomerSession();
   const [open, setOpen] = useState(false);
@@ -37,7 +37,7 @@ export default function CustomerAccountMenu({ mobile = false }: { mobile?: boole
   };
 
   const guest = !loading && !user;
-  return <div ref={rootRef} className={`customer-account-menu relative ${mobile ? "" : "shrink-0"}`} onMouseEnter={() => !mobile && setOpen(true)} onMouseLeave={() => !mobile && setOpen(false)}>
+  return <div ref={rootRef} data-header-utility={utilityKey} className={`customer-account-menu relative ${mobile ? "" : "shrink-0"}`} onMouseEnter={() => !mobile && setOpen(true)} onMouseLeave={() => !mobile && setOpen(false)}>
     <button type="button" onClick={() => setOpen((value) => !value)} onFocus={() => !mobile && setOpen(true)} aria-haspopup="menu" aria-expanded={open} aria-label={guest ? "Mở menu đăng nhập" : `Mở menu tài khoản ${displayName}`} className={`flex items-center text-gray-400 transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300 ${mobile ? "justify-center" : "max-w-[180px] gap-2"}`}>
       <User className={mobile ? "h-6 w-6" : "h-5 w-5 shrink-0"} aria-hidden="true" />
       {!mobile && !loading && user ? <span className="truncate text-xs font-bold text-slate-200">{displayName}</span> : null}

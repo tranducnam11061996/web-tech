@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "overrides": {
-    "postcss": "8.5.10"
+    "postcss": "8.5.10",
+    "sharp": "0.35.3"
   },
   "scripts": {
     "dev": "node scripts/dev-with-worker.mjs",
@@ -14,8 +15,12 @@
     "start": "next start",
     "lint": "eslint",
     "admin:migrate": "tsx scripts/run-admin-migration.ts",
+    "banner-locations:migrate": "tsx scripts/run-banner-location-migration.ts",
+    "header-utilities:publish": "tsx scripts/publish-header-utility-links.ts",
     "flash-sale:migrate": "tsx scripts/run-flash-sale-migration.ts",
     "pc-builder:migrate": "tsx scripts/run-pc-builder-migration.ts",
+    "pc-builder:v5:migrate": "tsx scripts/run-pc-builder-v5-migration.ts",
+    "pc-builder:v6:migrate": "tsx scripts/run-pc-builder-v6-migration.ts",
     "pc-builder:history-hash": "tsx scripts/hash-pc-builder-storage-history.ts",
     "pc-builder:commerce-qa": "tsx scripts/run-pc-builder-commerce-qa.ts",
     "import:legacy": "tsx scripts/import-legacy.ts",

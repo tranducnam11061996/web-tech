@@ -1,4 +1,42 @@
-# PC Builder Catalog-live v4 migration
+# PC Builder migrations
+
+## v6 product prices — applied 2026-07-20
+
+Revision `pc-builder-v6-product-prices` creates only `web_admin_pc_builder_product_prices`. It has a product primary key but no FK to the legacy catalog and does not rewrite catalog prices, component configuration, builds, items or order history.
+
+- Backup: `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v6-2026-07-19T22-00-14-364Z.json`
+- SHA-256: `afa5614534d2c13f799615dd3ac83d76bf5a169d4ec57eff09ea83e3d6d0041b`
+- Restore verification: 308 tables, 95,634 rows, one routine and two triggers.
+- Rehearsal clone: `it_tech_db_backup_test_1784498414364_e3491c`; `apply → apply → verify` passed.
+- Live: `apply → verify` passed with one InnoDB/`utf8mb4_unicode_ci` table, five columns, one primary-key index, no FK and no orphans.
+
+```powershell
+npm.cmd run pc-builder:v6:migrate -- --mode=apply --database=<it_tech_db-or-verified-clone> --backup-sha256=<sha256>
+npm.cmd run pc-builder:v6:migrate -- --mode=verify --database=<it_tech_db-or-verified-clone> --backup-sha256=<sha256>
+```
+
+Apply requires `ADMIN_WRITE_ENABLED=true`, the matching restore-verified SHA and the existing PC Builder confirmation-token pair. DDL auto-commits. Rollback is to stop PC Builder/product writes and restore the verified pre-v6 bundle into a disposable database before any approved replacement; do not drop the table casually after prices have been configured.
+
+## v5 promotions — applied 2026-07-20
+
+Revision `pc-builder-v5-promotions` creates only `web_admin_pc_builder_promotions`, `web_admin_pc_builder_promotion_targets` and `web_admin_pc_builder_promotion_requirements`. It does not rewrite component, build, item or order history.
+
+- Backup: `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v5-2026-07-19T18-04-55-044Z.json`
+- SHA-256: `1f9843198e868117bf720dfe17bd836399d9e33a48abb97ee06563a69789c671`
+- Restore verification: 305 tables, 95,634 rows, one routine and two triggers.
+- Rehearsal clone: `it_tech_db_backup_test_1784484295044_dba77f`; `apply → apply → verify` passed.
+- Live: `apply → verify` passed with three InnoDB/`utf8mb4_unicode_ci` tables, three FKs and four distinct indexes.
+
+Guarded command:
+
+```powershell
+npm.cmd run pc-builder:v5:migrate -- --mode=apply --database=<it_tech_db-or-verified-clone> --backup-sha256=<sha256>
+npm.cmd run pc-builder:v5:migrate -- --mode=verify --database=<it_tech_db-or-verified-clone> --backup-sha256=<sha256>
+```
+
+Apply requires `ADMIN_WRITE_ENABLED=true`, an exact restore-verified SHA environment/input pair and the existing PC Builder confirmation-token pair. DDL auto-commits; rollback is disabling PC Builder writes and restoring the verified pre-v5 bundle into a disposable database before any approved database replacement.
+
+## v4 catalog-live history
 
 Status: `pc-builder-v4-catalog-live` was applied twice and verified on `it_tech_db` on `2026-07-19`.
 

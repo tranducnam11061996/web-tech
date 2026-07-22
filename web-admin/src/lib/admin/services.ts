@@ -122,9 +122,11 @@ async function getExistingProductForUpdate(connection: PoolConnection, productId
   const [rows] = await connection.query<RowDataPacket[]>(
     `
       SELECT p.id, p.storeSKU, p.proName, p.brandId, p.url, p.product_cat,
-             pr.price, pr.market_price, pr.isOn, pr.ordering
+             pr.price, pr.market_price, pr.isOn, pr.ordering,
+             CASE WHEN bp.status=1 THEN bp.build_price ELSE NULL END AS buildPcPrice
       FROM idv_sell_product_store p
       LEFT JOIN idv_sell_product_price pr ON pr.id = p.id
+      LEFT JOIN web_admin_pc_builder_product_prices bp ON bp.product_id = p.id
       WHERE p.id = ?
       LIMIT 1
       FOR UPDATE
@@ -247,6 +249,37 @@ async function tableExists(connection: PoolConnection, tableName: string) {
   return rows.length > 0;
 }
 
+const PC_BUILDER_PRODUCT_PRICE_TABLE = 'web_admin_pc_builder_product_prices';
+
+function parseBuildPcPrice(value: unknown, catalogPrice: number) {
+  if (value === undefined) return undefined;
+  if (value === null || String(value).trim() === '' || Number(value) === 0) return null;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed >= catalogPrice) {
+    throw new AdminApiError(400, 'BAD_REQUEST', 'Giá Build PC phải là số nguyên lớn hơn 0 và nhỏ hơn giá bán.', {
+      buildPcPrice: 'invalid_price',
+    });
+  }
+  return parsed;
+}
+
+async function writeBuildPcPrice(
+  connection: PoolConnection,
+  productId: number,
+  buildPcPrice: number | null | undefined,
+) {
+  if (buildPcPrice === undefined) return;
+  if (!(await tableExists(connection, PC_BUILDER_PRODUCT_PRICE_TABLE))) {
+    throw new AdminApiError(409, 'CONFLICT', 'Schema giá Build PC v6 chưa được cài đặt.');
+  }
+  if (buildPcPrice === null) {
+    await connection.query(`UPDATE ${PC_BUILDER_PRODUCT_PRICE_TABLE} SET status=0 WHERE product_id=?`, [productId]);
+    return;
+  }
+  await connection.query(`INSERT INTO ${PC_BUILDER_PRODUCT_PRICE_TABLE} (product_id,build_price,status)
+    VALUES (?,?,1) ON DUPLICATE KEY UPDATE build_price=VALUES(build_price),status=1`, [productId, buildPcPrice]);
+}
+
 function removeCategoryIdFromCsv(value: unknown, categoryId: number) {
   return csvCategoryIds(optionalIdList(value, 100).filter((id) => id !== categoryId));
 }
@@ -327,10 +360,13 @@ export async function listProductsFromRequest(url: string) {
 export async function getProduct(id: number) {
   const [rows] = await pool.query<RowDataPacket[]>(
     `
-      SELECT p.*, pr.price, pr.market_price, pr.isOn, pr.ordering, i.video_code, i.spec, i.multipart_spec, i.description,
+      SELECT p.*, pr.price, pr.market_price, pr.isOn, pr.ordering,
+             CASE WHEN bp.status=1 THEN bp.build_price ELSE NULL END AS buildPcPrice,
+             i.video_code, i.spec, i.multipart_spec, i.description,
              u.request_path AS slug
       FROM idv_sell_product_store p
       LEFT JOIN idv_sell_product_price pr ON pr.id = p.id
+      LEFT JOIN web_admin_pc_builder_product_prices bp ON bp.product_id = p.id
       LEFT JOIN idv_sell_product_info i ON i.id = p.id
       LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
       WHERE p.id = ?
@@ -461,6 +497,7 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     const productId = id || (await allocateProductId(connection));
     const brandId = toInt(payload.brandId);
     const price = Math.max(0, Number(payload.price || 0));
+    const buildPcPrice = parseBuildPcPrice(payload.buildPcPrice, price);
     const marketPrice = Math.max(0, Number(payload.marketPrice || payload.market_price || 0));
     const status = toBoolInt(payload.status ?? payload.isOn, 1);
     const categoryInput = payload.categoryIds ?? payload.categories ?? payload.categoryId;
@@ -554,6 +591,7 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
       `,
       [productId, price, marketPrice, status, toInt(payload.ordering), now],
     );
+    await writeBuildPcPrice(connection, productId, buildPcPrice);
 
     await connection.query(
       `
@@ -594,7 +632,7 @@ export async function saveProduct(payload: Record<string, unknown>, id?: number)
     await upsertUrl(connection, `module:product/view:product-detail/view_id:${productId}`, slug, 'product:product-detail');
     if (!id) await markRegistry(connection, 'product', productId);
 
-    return { id: productId, slug, sku, name, isUpdate };
+    return { id: productId, slug, sku, name, isUpdate, buildPcPrice: buildPcPrice ?? null };
   });
 
   try {
@@ -626,6 +664,7 @@ export async function updateProductSection(productId: number, section: ProductSe
       const sku = requireText(data.sku || data.storeSKU, 'sku', 'SKU', 15);
       const brandId = toInt(data.brandId);
       const price = Math.max(0, Number(data.price || 0));
+      const buildPcPrice = parseBuildPcPrice(data.buildPcPrice, price);
       const marketPrice = Math.max(0, Number(data.marketPrice || data.market_price || 0));
       const status = toBoolInt(data.status ?? data.isOn, 1);
       const ordering = toInt(data.ordering);
@@ -662,6 +701,7 @@ export async function updateProductSection(productId: number, section: ProductSe
         `,
         [productId, price, marketPrice, status, ordering, now],
       );
+      await writeBuildPcPrice(connection, productId, buildPcPrice);
       await upsertProductInfoFields(connection, productId, {
         video_code: maybeText(data.videoCode || data.video_code),
         spec: maybeText(data.spec),
@@ -683,7 +723,9 @@ export async function updateProductSection(productId: number, section: ProductSe
         ordering,
         status,
       });
-      return { id: productId, section, slug, sku, name, categoryIds };
+      return { id: productId, section, slug, sku, name, categoryIds,
+        previousBuildPcPrice: existing.buildPcPrice === null ? null : Number(existing.buildPcPrice),
+        buildPcPrice: buildPcPrice ?? null };
     }
 
     if (section === 'description') {
@@ -811,6 +853,9 @@ export async function deleteProduct(id: number, mode: string) {
     }
     if (await tableExists(connection, 'web_admin_customer_favorites')) {
       await connection.query('DELETE FROM web_admin_customer_favorites WHERE product_id = ?', [id]);
+    }
+    if (await tableExists(connection, PC_BUILDER_PRODUCT_PRICE_TABLE)) {
+      await connection.query(`DELETE FROM ${PC_BUILDER_PRODUCT_PRICE_TABLE} WHERE product_id = ?`, [id]);
     }
     await deleteBuyingGuideForEntity(connection, 'product', id);
     await connection.query('DELETE FROM idv_sell_product_info WHERE id = ?', [id]);

@@ -11,6 +11,7 @@ type BannerLocation = {
   key: string;
   templatePage: string;
   name: string;
+  isDefault: boolean;
 };
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
@@ -66,7 +67,8 @@ function BannerEditInner() {
       .then((payload) => {
         const items = payload?.data?.items || [];
         setLocations(items);
-        setForm((current) => current.locationId ? current : { ...current, locationId: items[0]?.id ? String(items[0].id) : '' });
+        const firstAssignable = items.find((item: BannerLocation) => !item.isDefault);
+        setForm((current) => current.locationId ? current : { ...current, locationId: firstAssignable?.id ? String(firstAssignable.id) : '' });
       })
       .catch(() => undefined);
   }, []);
@@ -195,7 +197,9 @@ function BannerEditInner() {
               <Field label="Vị trí">
                 <select value={form.locationId} onChange={update('locationId')} className="field-input">
                   {locations.map((location) => (
-                    <option key={location.id} value={location.id}>{location.templatePage} · {location.name || location.key}</option>
+                    <option key={location.id} value={location.id} disabled={location.isDefault}>
+                      {location.templatePage} · {location.name || location.key}{location.isDefault ? ' (chọn vị trí khác để lưu)' : ''}
+                    </option>
                   ))}
                 </select>
               </Field>

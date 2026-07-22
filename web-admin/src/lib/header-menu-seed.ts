@@ -1,3 +1,5 @@
+import { HEADER_UTILITY_DEFINITIONS } from '@/lib/headerMenuUtilities';
+
 export type HeaderMenuSeedNode = {
   label: string;
   nodeType: 'zone' | 'group' | 'link';
@@ -64,6 +66,10 @@ function zone(label: string, iconKey: string, children: HeaderMenuSeedNode[], ex
 }
 
 export const HEADER_MENU_ICON_PATHS: Record<string, string> = {
+  user: 'M12 11a4 4 0 100-8 4 4 0 000 8zM5.5 21a6.5 6.5 0 0113 0',
+  'shopping-cart': 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
+  heart: 'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
+  bot: 'M12 8V4H8m-2 6h12a2 2 0 012 2v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5a2 2 0 012-2zm3 4h.01M9 14h.01M2 14h2m16 0h2',
   laptop: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
   desktop: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
   star: 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z',
@@ -300,12 +306,11 @@ export const HEADER_MENU_SEED: HeaderMenuSeed = {
     link('Clearance', '#', { suffixText: '🏷️' }),
     link('Elegoo', '#', { suffixText: '⚙️', badgeText: 'NEW' }),
   ],
-  utilityLinks: [
-    link('Account', '#', { iconKey: 'more', linkMode: 'system', customUrl: 'account' }),
-    link('Cart', '/gio-hang', { iconKey: 'case', linkMode: 'system', customUrl: 'cart' }),
-    link('Favorites', '#', { iconKey: 'star', linkMode: 'system', customUrl: 'favorites' }),
-    link('Assistant', '#', { iconKey: 'cpu', linkMode: 'system', customUrl: 'assistant' }),
-  ],
+  utilityLinks: HEADER_UTILITY_DEFINITIONS.map((item) => link(item.label, item.url, {
+    iconKey: item.iconKey,
+    linkMode: 'system',
+    customUrl: item.systemKey,
+  })),
   circleStory: [],
   shopByCategory: [
     shopCategory('ASUS', { badgeText: 'NEW' }),

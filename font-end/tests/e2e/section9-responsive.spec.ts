@@ -56,33 +56,37 @@ test("Section 9 matches the mobile 2/3 card composition", async ({ page }, testI
   expect(pageErrors).toEqual([]);
 });
 
-test("Section 9 matches the 1800px five-card desktop geometry", async ({ page }, testInfo) => {
+test("Section 9 matches the centered 1700px five-card desktop geometry", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Exact desktop geometry is verified once");
-  await page.setViewportSize({ width: 2537, height: 1000 });
 
-  const { pageErrors, section } = await openSection9(page);
-  const grid = section.locator("[data-section9-grid]");
-  const cards = section.locator("[data-section9-card]");
-  const gridBox = await grid.boundingBox();
-  const boxes = await cards.evaluateAll((elements) => elements.map((element) => {
-    const box = element.getBoundingClientRect();
-    return { x: box.x, y: box.y, width: box.width, height: box.height };
-  }));
+  for (const width of [1920, 2537, 2540]) {
+    await page.setViewportSize({ width, height: 1000 });
 
-  expect(gridBox).not.toBeNull();
-  expect(gridBox?.width).toBeCloseTo(1800, 0);
-  expect(gridBox?.x).toBeCloseTo((2537 - 1800) / 2, 0);
-  expect(boxes).toHaveLength(5);
-  for (const box of boxes) {
-    expect(box.width).toBeCloseTo(336, 0);
-    expect(box.height).toBeCloseTo(box.width * 6 / 5, 0);
-    expect(box.y).toBeCloseTo(boxes[0].y, 0);
+    const { pageErrors, section } = await openSection9(page);
+    const grid = section.locator("[data-section9-grid]");
+    const cards = section.locator("[data-section9-card]");
+    const gridBox = await grid.boundingBox();
+    const boxes = await cards.evaluateAll((elements) => elements.map((element) => {
+      const box = element.getBoundingClientRect();
+      return { x: box.x, y: box.y, width: box.width, height: box.height };
+    }));
+
+    expect(gridBox).not.toBeNull();
+    expect(gridBox?.width).toBeCloseTo(1700, 0);
+    expect(gridBox?.x).toBeCloseTo((width - 1700) / 2, 0);
+    expect(boxes).toHaveLength(5);
+    for (const box of boxes) {
+      expect(box.width).toBeCloseTo(316, 0);
+      expect(box.height).toBeCloseTo(box.width * 6 / 5, 0);
+      expect(box.y).toBeCloseTo(boxes[0].y, 0);
+    }
+    for (let index = 1; index < boxes.length; index += 1) {
+      expect(boxes[index].x - boxes[index - 1].x - boxes[index - 1].width).toBeCloseTo(30, 0);
+    }
+
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect(pageErrors).toEqual([]);
   }
-  for (let index = 1; index < boxes.length; index += 1) {
-    expect(boxes[index].x - boxes[index - 1].x - boxes[index - 1].width).toBeCloseTo(30, 0);
-  }
-
-  expect(pageErrors).toEqual([]);
 });
 
 test("Section 9 preserves responsive transitions, links and accessibility", async ({ page }, testInfo) => {

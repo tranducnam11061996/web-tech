@@ -1,5 +1,6 @@
 import { fail, ok, requireAdminWrite, toInt } from '@/lib/admin/common';
 import { deleteProduct, getProduct, saveProduct, updateProductSection } from '@/lib/admin/services';
+import { writeAdminAudit } from '@/lib/admin/auth';
 
 export async function GET(_request: Request, context: RouteContext<'/api/admin/products/[id]'>) {
   try {
@@ -12,16 +13,25 @@ export async function GET(_request: Request, context: RouteContext<'/api/admin/p
 
 export async function PATCH(request: Request, context: RouteContext<'/api/admin/products/[id]'>) {
   try {
-    await requireAdminWrite(request);
+    const actor = await requireAdminWrite(request);
     const { id } = await context.params;
     const body = await request.json().catch(() => ({}));
     if (body?.section) {
+      const saved = await updateProductSection(toInt(id), body.section, body.data || {});
+      if (body.section === 'basic') await writeAdminAudit({ actorUserId: actor.id, action: 'product.build_pc_price_saved',
+        resource: 'product', resourceId: id, request, metadata: {
+          previousBuildPcPrice: (saved as { previousBuildPcPrice?: number | null }).previousBuildPcPrice ?? null,
+          buildPcPrice: (saved as { buildPcPrice?: number | null }).buildPcPrice ?? null,
+        } });
       return ok(
-        await updateProductSection(toInt(id), body.section, body.data || {}),
+        saved,
         'Cap nhat tab san pham thanh cong',
       );
     }
-    return ok(await saveProduct(body, toInt(id)), 'Cap nhat san pham thanh cong');
+    const saved = await saveProduct(body, toInt(id));
+    await writeAdminAudit({ actorUserId: actor.id, action: 'product.build_pc_price_saved', resource: 'product',
+      resourceId: id, request, metadata: { buildPcPrice: body?.buildPcPrice ?? null } });
+    return ok(saved, 'Cap nhat san pham thanh cong');
   } catch (error) {
     return fail(error);
   }

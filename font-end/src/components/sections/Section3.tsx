@@ -2,7 +2,7 @@ import { HeroBannerCarousel, type HeroBanner } from './HeroBannerCarousel';
 import { internalApiUrl } from '@/lib/apiUrl';
 
 const API_URL = internalApiUrl('');
-const PRIMARY_HERO_LOCATION = 'banner_slider_homepage_temp2019';
+const PRIMARY_HERO_LOCATION = 'slide_home';
 const FALLBACK_HERO_LOCATION = 'fake_slide_trang_chu';
 
 const fallbackBanners: HeroBanner[] = [
@@ -45,12 +45,8 @@ export default async function Section3({ initialBanners }: { initialBanners?: He
   const banners = initialBanners || await getHeroBanners();
 
   return (
-    <>
-      {/*  START section-3  */}
-      <section className="section-3 hero-section" id="section-3">
-        <HeroBannerCarousel banners={banners} />
-      </section>
-      {/*  END section-3  */}
-    </>
+    <section className="section-3 relative mx-auto w-full max-w-[1920px]" id="section-3">
+      <HeroBannerCarousel banners={banners} />
+    </section>
   );
 }

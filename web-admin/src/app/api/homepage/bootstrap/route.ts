@@ -34,7 +34,7 @@ export async function GET(request: Request) {
       const [menus, banners, productSections, featureSections, brands, featuredCollection] = await Promise.all([
         timed('menu', getPublishedMenuBundle),
         timed('banners', () => getPublicBannersByScope('homepage')),
-        timed('product_sections', () => loadHomepageProductSections([178, 137, 1087], 8)),
+        timed('product_sections', () => loadHomepageProductSections([178, 521, 1087], 8)),
         timed('feature_sections', () => getHomepageCategoryFeatureSections(3, 9)),
         timed('brands', getHomepageBrands),
         timed('featured_collection', async () => {

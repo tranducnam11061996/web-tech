@@ -20,6 +20,7 @@ type PublicPayload = {
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const FALLBACK_CACHE_TTL_MS = 10 * 1000;
+const DEFAULT_BANNER_LOCATION_KEY = 'unassigned';
 const cache = new Map<CacheKey, { value: PublicPayload; expiresAt: number }>();
 const flights = new Map<CacheKey, Promise<PublicPayload>>();
 let generation = 0;
@@ -110,7 +111,11 @@ export async function getPublicBannersByScope(scope: BannerScope) {
   return withCache(scope, async () => {
     try {
       const now = Math.trunc(Date.now() / 1000);
-      return await loadPayload(scope, `${scope === 'homepage' ? "loc.template_page = 'homepage'" : "loc.template_page <> 'homepage'"} AND ${activeWhere(now)}`, []);
+      return await loadPayload(
+        scope,
+        `${scope === 'homepage' ? "loc.template_page = 'homepage'" : "loc.template_page <> 'homepage'"} AND loc.index_key <> ? AND ${activeWhere(now)}`,
+        [DEFAULT_BANNER_LOCATION_KEY],
+      );
     } catch (error) {
       console.error('[PublicBanners] scope fallback:', error);
       return { locations: [], meta: payloadMeta(scope, true) };
@@ -121,7 +126,14 @@ export async function getPublicBannersByScope(scope: BannerScope) {
 export async function getPublicBannersByLocation(locationKey: string) {
   const key = `location:${locationKey}` as const;
   return withCache(key, async () => {
-    try { return await loadPayload(key, `loc.index_key = ? AND ${activeWhere(Math.trunc(Date.now() / 1000))}`, [locationKey]); }
+    try {
+      if (locationKey === DEFAULT_BANNER_LOCATION_KEY) return { locations: [], meta: payloadMeta(key) };
+      return await loadPayload(
+        key,
+        `loc.index_key = ? AND loc.index_key <> ? AND ${activeWhere(Math.trunc(Date.now() / 1000))}`,
+        [locationKey, DEFAULT_BANNER_LOCATION_KEY],
+      );
+    }
     catch (error) {
       console.error('[PublicBanners] location fallback:', error);
       return { locations: [], meta: payloadMeta(key, true) };

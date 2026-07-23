@@ -64,9 +64,11 @@ test("Section 15 matches the centered six-column desktop composition", async ({ 
   await page.setViewportSize({ width: 2537, height: 1000 });
 
   const { cards, pageErrors, section } = await openSection15(page);
+  const wrapper = section.locator("[data-section15-wrapper]");
   const shell = section.locator("[data-section15-shell]");
   const innerFrame = section.locator("[data-section15-inner-frame]");
   const scroll = section.locator("[data-section15-scroll]");
+  const wrapperBox = await wrapper.boundingBox();
   const shellBox = await shell.boundingBox();
   const innerFrameBox = await innerFrame.boundingBox();
   const scrollMetrics = await scroll.evaluate((element) => ({
@@ -79,9 +81,12 @@ test("Section 15 matches the centered six-column desktop composition", async ({ 
     return { x: box.x, y: box.y, width: box.width, height: box.height };
   }));
 
+  expect(wrapperBox).not.toBeNull();
+  expect(wrapperBox?.width).toBeCloseTo(1800, 0);
+  expect(wrapperBox?.x).toBeCloseTo((2537 - 1800) / 2, 0);
   expect(shellBox).not.toBeNull();
-  expect(shellBox?.width).toBeCloseTo(1920, 0);
-  expect(shellBox?.x).toBeCloseTo((2537 - 1920) / 2, 0);
+  expect(shellBox?.width).toBeCloseTo(1736, 0);
+  expect(shellBox?.x).toBeCloseTo((2537 - 1736) / 2, 0);
   await expect(shell).toHaveCSS("border-radius", "16px");
   expect(innerFrameBox).not.toBeNull();
   expect(innerFrameBox?.x).toBeCloseTo((shellBox?.x ?? 0) + 16, 0);

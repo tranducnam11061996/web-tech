@@ -48,7 +48,7 @@ test('varies the homepage bootstrap cache key by collection identity and limit',
 
   assert.equal(
     buildHomepageBootstrapCacheKey(request),
-    'homepage:bootstrap:v2:collection:896:goi-y-cho-ban:10',
+    'homepage:bootstrap:v3:collection:896:goi-y-cho-ban:10',
   );
   assert.notEqual(
     buildHomepageBootstrapCacheKey(request),
@@ -56,6 +56,6 @@ test('varies the homepage bootstrap cache key by collection identity and limit',
   );
   assert.equal(
     buildHomepageBootstrapCacheKey(null),
-    'homepage:bootstrap:v2:no-featured-collection',
+    'homepage:bootstrap:v3:no-featured-collection',
   );
 });

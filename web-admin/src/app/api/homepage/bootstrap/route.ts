@@ -12,6 +12,7 @@ import {
   loadHomepageFeaturedCollection,
   parseHomepageFeaturedCollectionRequest,
 } from '@/lib/homepageFeaturedCollection';
+import { loadHomepageFeaturedNews } from '@/lib/publicNews';
 
 const headers = {
   'Access-Control-Allow-Origin': '*',
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
 
   try {
     const data = await withPublicProductResponseCache(buildHomepageBootstrapCacheKey(featuredCollectionRequest), async () => {
-      const [menus, banners, productSections, featureSections, brands, featuredCollection] = await Promise.all([
+      const [menus, banners, productSections, featureSections, brands, featuredCollection, featuredNews] = await Promise.all([
         timed('menu', getPublishedMenuBundle),
         timed('banners', () => getPublicBannersByScope('homepage')),
         timed('product_sections', () => loadHomepageProductSections([1087], 8)),
@@ -46,6 +47,7 @@ export async function GET(request: Request) {
             return null;
           }
         }),
+        timed('featured_news', () => loadHomepageFeaturedNews(10)),
       ]);
       return {
         headerMenu: menus.headerMenu,
@@ -55,6 +57,7 @@ export async function GET(request: Request) {
         featureSections,
         brands,
         featuredCollection,
+        featuredNews,
       };
     });
     timings.push(`bootstrap;dur=${(performance.now() - startedAt).toFixed(1)}`);

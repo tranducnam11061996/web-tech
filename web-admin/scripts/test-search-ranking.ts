@@ -2,15 +2,19 @@ import assert from 'node:assert/strict';
 import pool from '../src/lib/db';
 import { loadPublicSearchPayload } from '../src/lib/publicSearch';
 import {
+  getSearchIntent,
+  matchesStrictIntentProductName,
   matchesStrictPcProductName,
   SEARCH_EXCLUSIONS,
   normalizeSearchText,
+  type SearchIntent,
 } from '../src/lib/searchRules';
 
 type SearchPayload = Awaited<ReturnType<typeof loadPublicSearchPayload>> & {
-  data?: Array<{ name: string | null; brand?: string | null }>;
+  data?: Array<{ id: number; name: string | null; brand?: string | null }>;
   pagination?: { page: number; limit: number; total: number; totalPages: number };
   attributes?: Array<{ filter_code: string; values: Array<{ name: string; productCount: number }> }>;
+  priceBounds?: { min: number; max: number };
 };
 
 async function loadSearch(query: string, page = 1, sort?: 'price_desc' | 'newest') {
@@ -78,6 +82,48 @@ function assertStrictPcResults(query: string, products: Array<{ name: string | n
   }
 }
 
+function assertStrictIntentResults(
+  query: string,
+  intent: Exclude<SearchIntent, 'printer'>,
+  products: Array<{ name: string | null }>,
+) {
+  assert.ok(products.length > 0, `Expected strict-intent results for "${query}"`);
+  for (const product of products) {
+    const normalizedName = normalizeSearchText(product.name || '');
+    assert.equal(
+      matchesStrictIntentProductName(intent, normalizedName),
+      true,
+      `Unexpected ${intent} result for "${query}": ${product.name}`,
+    );
+  }
+}
+
+function sortedIds(products: Array<{ id: number }>) {
+  return products.map((product) => product.id).sort((left, right) => left - right);
+}
+
+function assertFacetBounds(query: string, payload: SearchPayload) {
+  const total = payload.pagination?.total || 0;
+  for (const attribute of payload.attributes || []) {
+    for (const value of attribute.values) {
+      assert.ok(value.productCount > 0, `Facet counts must be positive for "${query}"`);
+      assert.ok(value.productCount <= total, `Facet count cannot exceed strict candidate total for "${query}"`);
+    }
+  }
+  assert.ok((payload.priceBounds?.min || 0) >= 0, `Minimum price must be non-negative for "${query}"`);
+  assert.ok((payload.priceBounds?.max || 0) >= (payload.priceBounds?.min || 0), `Price bounds must be ordered for "${query}"`);
+}
+
+const strictAliasGroups: Array<{
+  intent: Exclude<SearchIntent, 'printer'>;
+  queries: string[];
+}> = [
+  { intent: 'windows11', queries: ['win 11', 'win11', 'windows 11'] },
+  { intent: 'microphone', queries: ['mic', 'micro'] },
+  { intent: 'hdd', queries: ['hdd'] },
+  { intent: 'speaker', queries: ['loa'] },
+];
+
 async function main() {
   const laptopResults = await search('laptop');
   assertNoExcludedNames('laptop', laptopResults);
@@ -98,6 +144,22 @@ async function main() {
   const pcLastPage = await loadSearch('PC', 1_000);
   assert.equal(pcLastPage.pagination?.page, pcLastPage.pagination?.totalPages, 'Out-of-range PC page must clamp to the final page');
   assertStrictPcResults('PC (out-of-range page)', pcLastPage.data || []);
+
+  for (const { intent, queries } of strictAliasGroups) {
+    let expectedIds: number[] | null = null;
+    for (const sort of [undefined, 'price_desc', 'newest'] as const) {
+      for (const query of queries) {
+        assert.equal(getSearchIntent(query), intent, `Unexpected intent for "${query}"`);
+        const result = await searchAll(query, sort);
+        const label = `${query}${sort ? ` (${sort})` : ''}`;
+        assertStrictIntentResults(label, intent, result.products);
+        assertFacetBounds(label, result.first);
+        const ids = sortedIds(result.products);
+        if (!expectedIds) expectedIds = ids;
+        else assert.deepEqual(ids, expectedIds, `Aliases and sort modes must keep the same candidate IDs for "${label}"`);
+      }
+    }
+  }
 
   const printerProbe = await loadPublicSearchPayload(new URLSearchParams({ q: 'may in', page: '1', limit: '24' })) as SearchPayload;
   if ((printerProbe.pagination?.total || 0) > 0) {

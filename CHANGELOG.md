@@ -1,5 +1,47 @@
 # Changelog
 
+## 2026-07-23 - Audited manual component edits and synchronized the release gate
+
+- Audited the complete dirty workspace after the manual component edits. Corrected Section 9/14 identifiers, Vietnamese accessible image names, section labels and destination assertions; made search pagination coverage derive its live last page; and rejected product titles beginning with `Micro-ATX` from the exact `micro`/`mic` intent.
+- Kept the new Section 14 artwork intact while bypassing Next image transformation only for `phanmem.png`, whose optimizer request consistently aborted. Hardened Section 16 geometry coverage to inspect the carousel card actually intersecting the viewport and updated category SEO sorting coverage to use the mobile filter dialog below 1024px.
+- Upgraded both applications from Next.js 16.2.9 to the patched 16.2.11 release after production dependency audit found the `<16.2.11` advisory range. Both production dependency audits now report zero vulnerabilities.
+- Final verification on 16.2.11 passes both application typechecks, quiet lints and production builds; 173/173 backend unit tests; 25 applied integrations with 12 guarded skips; live ranking over 2,528 active products; full Playwright at 121 desktop pass/10 intentional skips and 74 mobile pass/57 intentional skips; and production local healthcheck 22/22.
+
+## 2026-07-23 - Applied the mobile catalog layout to search
+
+- Changed `/tim` below 1024px to the category catalog's two-card grid, compact 12px/8px spacing and solid-blue `Bộ lọc` toolbar trigger while retaining the existing desktop sidebar, sort control and three-/four-column grid.
+- Moved mobile search sort, price and attributes into a native left dialog backed by the existing URL state. Desktop and mobile share one filter renderer with prefixed IDs; changes preserve `q`, reset pagination and keep the drawer open, while reset also preserves sort.
+- Moved desktop and max-five-token mobile pagination builders into the shared pagination library and reused them from category and search. Added focused Playwright coverage for 390/768/1023/1024px layout, card containment, drawer geometry/focus/dismissal, URL sort/price/attribute/reset behavior, pagination start/middle/end, overflow and Axe.
+- Focused search Playwright passes 4/4 per Chromium project and the shared category/catalog regression passes 24/24. Both application typecheck/lint/build pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips, and strict/empty-catalog local healthchecks at 22/22 pass.
+
+## 2026-07-23 - Added mobile category grids and filter drawer
+
+- Changed product-category pages below 1024px to a 2×2 positive-count child-category layout and a two-card product grid with compact 12px insets/8px gaps, while retaining the desktop sidebar, four child-category columns and three-/four-column catalog from 1024px.
+- Replaced the mobile sort row with an ellipsized title and labeled filter trigger. A left native dialog now renders shared sort, price, child-category and attribute controls with unique surface IDs and shared URL handlers; applying controls keeps it open and reset preserves sort.
+- Added phone bottom-navigation clearance, tablet full-height behavior, background scroll locking, button/Escape/backdrop dismissal, focus restoration, desktop auto-close, native control semantics and WCAG-compliant filter-count contrast. Desktop promotion cards remain sidebar-only.
+- Promoted the mobile filter trigger to the solid active blue treatment, removed its duplicate sort-chevron SVG, capped mobile pagination at five adaptive non-wrapping tokens and aligned the static category article to the 12px product-grid inset below 640px. Desktop pagination and spacing remain unchanged.
+- Added focused Playwright coverage at 390/768/1023/1024px for grid/card geometry, price/cart containment, pagination start/middle/end, static alignment, drawer dimensions/focus/dismissal, URL sort/price/attribute/reset behavior, overflow and Axe. Both Chromium projects pass 5/5; both application pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips, and strict/empty-catalog healthchecks at 22/22 pass.
+
+## 2026-07-23 - Tightened exact Windows 11, microphone, HDD and speaker search
+
+- Replaced the one-off strict-PC branch with a shared exact-intent registry while retaining the PC behavior. Canonicalized `win 11`/`win11`/`windows 11` to `windows 11` and `mic`/`micro` to `mic` before Fuse selection, query construction and ranking.
+- Added positive product-title predicates for standalone Windows 11 software, microphones, HDDs and speakers, preventing matches through laptop/PC specifications, Microsoft/Micro-ATX/Mini/Mica, SSD/NVMe and monitor speaker specifications without category-dependent filtering.
+- Split the storage synonym group into `SSD ↔ ổ cứng thể rắn` and `HDD ↔ ổ cứng cơ`; generic `ổ cứng` remains neutral. No schema, API-shape, storefront, migration or search-data rebuild change was made.
+- Expanded unit and live full-page ranking coverage across all seven aliases and default/price/newest ordering. The active catalog returns `2/2/2`, `3/3`, `6` and `6`; focused browser smoke confirms every rendered card, both application verification pipelines pass, backend tests pass at 173 unit plus 25 applied integration/12 guarded skip, and local healthcheck passes 22/22.
+
+## 2026-07-22 - Centered standalone category-content images on desktop
+
+- Scoped a dedicated static-HTML hook to product-category pages so shared product descriptions remain unchanged.
+- From 1024px, centered root-level images and single-image paragraphs at a minimum 60% content width with responsive containment, 20px vertical spacing and a 12px corner radius.
+- Added focused desktop/mobile Playwright coverage for geometry, selector boundaries, disclosure behavior and horizontal overflow.
+
+## 2026-07-22 - Connected Homepage Section 16 to featured news
+
+- Added a bounded, deduplicated query for the ten newest public articles across active news categories marked featured, merging primary and junction category membership with deterministic display-category selection.
+- Added `featuredNews` to homepage bootstrap v3 and replaced Section 16 sample cards with server-provided news while retaining its existing carousel/card markup and runtime.
+- Reused the existing image wrapper for thumbnails, clamped titles/summaries to one/three lines, and added the category tag plus right-aligned Vietnamese `Xem thêm` action row.
+- Updated the CTA to `✦ Xem thêm →` and removed the card's upward hover translation so the carousel viewport no longer clips its top corners; hover feedback now changes only border color and shadow.
+
 ## 2026-07-22 - Rebuilt and widened the shared responsive storefront Footer
 
 - Replaced the legacy index-addressed Footer markup with a managed 1800px desktop composition and the approved mobile information sequence, while preserving TrucTiepGAME branding and every manually localized contact/legal string.
@@ -15,7 +57,7 @@
 - Replaced the legacy global-brand-selector presentation with a self-contained responsive gallery while retaining dynamic bootstrap data and canonical brand links.
 - Added two-to-six-column 80px cards, component-scoped ambient glow/noise, mobile-hidden/desktop-thin scrolling, fade/chevron and Vietnamese in-place expand/collapse controls.
 - Restored the desktop double-frame treatment with a 16px-radius outer shell, a 24px-radius inner glass frame and an even 16px gap; mobile remains single-surface and full width.
-- Corrected the outer layout cap so its desktop padding no longer prevents the inner shell from reaching the specified centered 1920px width.
+- Aligned the Section 15 desktop wrapper with the rest of the homepage at a centered 1800px maximum width while retaining its existing 32px side padding and centered inner shell.
 - Added exact mobile/desktop geometry, breakpoint, scroll, fallback, interaction, reduced-motion and accessibility regression coverage without changing API, database or global CSS.
 
 ## 2026-07-22 - Duplicated Section 9 presentation into independent Section 14

@@ -4,51 +4,51 @@ import type { CSSProperties } from "react";
 
 const SECTION_14_CARDS = [
   {
-    id: "gaming-headsets",
-    title: ["Gaming", "Headsets"],
-    href: "/tim?q=tai%20nghe%20gaming",
-    image: "/images/section-9/gaming-headsets.avif",
-    alt: "Gaming Headsets",
+    id: "ssd-deals",
+    title: ["SSD", "DEAL"],
+    href: "/o-cung-ssd.html",
+    image: "/images/section-9/ssd.avif",
+    alt: "Ổ cứng SSD khuyến mại",
     accent: "#6366f1",
     mobileSpan: "col-span-3",
     mobileAspect: "aspect-[3/2]",
   },
   {
-    id: "gaming-keyboards",
-    title: ["Gaming", "Keyboards"],
-    href: "/tim?q=ban%20phim%20gaming",
-    image: "/images/section-9/gaming-keyboards.avif",
-    alt: "Gaming Keyboards",
+    id: "streaming-equipment",
+    title: ["Thiết Bị", "Stream"],
+    href: "/thiet-bi-stream-elgato.html",
+    image: "/images/section-9/streaming.avif",
+    alt: "Thiết bị streaming",
     accent: "#ec4899",
     mobileSpan: "col-span-3",
     mobileAspect: "aspect-[3/2]",
   },
   {
-    id: "gaming-mouse",
-    title: ["Gaming", "Mouse"],
-    href: "/tim?q=chuot%20gaming",
-    image: "/images/section-9/gaming-mouse.avif",
-    alt: "Gaming Mouse",
+    id: "hdd-deals",
+    title: ["HDD", "DEAL"],
+    href: "/o-cung-hdd.html",
+    image: "/images/section-9/hdd.png",
+    alt: "Ổ cứng HDD khuyến mại",
     accent: "#f59e0b",
     mobileSpan: "col-span-2",
     mobileAspect: "aspect-[25/23]",
   },
   {
-    id: "new-arrivals",
-    title: ["New", "Arrivals"],
-    href: "/tim?sort=newest",
-    image: "/images/section-9/new-arrivals.avif",
-    alt: "New Arrivals",
+    id: "hot-components",
+    title: ["Linh Kiện", "HOT"],
+    href: "/linh-kien-may-tinh.html",
+    image: "/images/section-9/linhkien.avif",
+    alt: "Linh kiện máy tính nổi bật",
     accent: "#10b981",
     mobileSpan: "col-span-2",
     mobileAspect: "aspect-[25/23]",
   },
   {
-    id: "open-box",
-    title: ["Open", "Box"],
-    href: "/tim?q=open%20box",
-    image: "/images/section-9/open-box.avif",
-    alt: "Open Box",
+    id: "licensed-software",
+    title: ["Phần mềm", "Bản quyền"],
+    href: "/phan-mem",
+    image: "/images/section-9/phanmem.png",
+    alt: "Phần mềm bản quyền",
     accent: "#06b6d4",
     mobileSpan: "col-span-2",
     mobileAspect: "aspect-[25/23]",
@@ -63,7 +63,7 @@ export default function Section14() {
   return (
     <section
       id="section-14"
-      aria-label="Danh mục gaming nổi bật"
+      aria-label="Danh mục linh kiện và phần mềm nổi bật"
       className="w-full bg-[#111212] py-3 md:px-8 md:py-6 xl:px-[60px]"
     >
       <div
@@ -122,6 +122,7 @@ export default function Section14() {
                     src={card.image}
                     alt={card.alt}
                     fill
+                    unoptimized={card.id === "licensed-software"}
                     sizes="(max-width: 767px) 48vw, (max-width: 1499px) 33vw, (max-width: 1819px) calc((100vw - 240px) / 5), 316px"
                     className="object-contain object-bottom drop-shadow-2xl"
                   />

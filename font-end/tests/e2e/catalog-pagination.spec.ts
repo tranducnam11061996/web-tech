@@ -68,7 +68,12 @@ test("category pagination is URL-driven, reloadable, and resets for filters", as
   await page.goForward();
   await expect(page).toHaveURL(/linh-kien-may-tinh\.html\?page=2$/);
 
-  await page.locator("select").first().selectOption("price_asc");
+  if (test.info().project.name === "mobile-chromium") {
+    await page.locator("[data-category-filter-trigger]").click();
+    await page.locator('select[data-category-sort="mobile"]').selectOption("price_asc");
+  } else {
+    await page.locator('select[data-category-sort="desktop"]').selectOption("price_asc");
+  }
   await expect(page).toHaveURL(/linh-kien-may-tinh\.html\?sort=price_asc$/);
   expect(pageErrors).toEqual([]);
 });

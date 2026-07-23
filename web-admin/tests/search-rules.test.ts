@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { FuseResult } from 'fuse.js';
 import {
+  buildFuseQuery,
   getActiveExclusions,
+  getCanonicalSearchQuery,
   getSearchIntent,
   injectSearchSynonyms,
+  matchesStrictIntentProductName,
   matchesStrictPcProductName,
   normalizeSearchText,
   rankLexicalResults,
@@ -23,6 +26,11 @@ function product(name: string, searchText = name, id = 1): LexicalSearchProduct 
 
 function fuseResult(item: LexicalSearchProduct, score = 0.01): FuseResult<LexicalSearchProduct> {
   return { item, refIndex: 0, score };
+}
+
+function rankedNames(query: string, names: string[]) {
+  return rankLexicalResults(names.map((name, index) => fuseResult(product(name, name, index + 1))), query)
+    .map(({ product: item }) => item.normalizedName);
 }
 
 test('strict PC intent accepts complete PC titles and bundles', () => {
@@ -64,6 +72,89 @@ test('strict PC title gate applies only to the exact PC query', () => {
   assert.equal(rankLexicalResults([fuseResult(ram)], 'ram pc').length, 1);
   assert.equal(rankLexicalResults([fuseResult(gamingPc)], 'pc gaming').length, 1);
   assert.equal(getSearchIntent('pc gaming'), null);
+});
+
+test('strict intent aliases resolve to stable canonical queries', () => {
+  for (const query of ['win 11', 'win11', 'windows 11', 'WIN  11']) {
+    assert.equal(getSearchIntent(query), 'windows11', query);
+    assert.equal(getCanonicalSearchQuery(query), 'windows 11', query);
+    assert.deepEqual(buildFuseQuery(query), buildFuseQuery('windows 11'), query);
+  }
+  for (const query of ['mic', 'micro']) {
+    assert.equal(getSearchIntent(query), 'microphone', query);
+    assert.equal(getCanonicalSearchQuery(query), 'mic', query);
+  }
+  assert.equal(getSearchIntent('hdd'), 'hdd');
+  assert.equal(getSearchIntent('loa'), 'speaker');
+});
+
+test('Windows 11 intent keeps standalone software and rejects bundled hardware', () => {
+  const names = [
+    'Windows 11 Pro 64-bit All Language',
+    'Microsoft Windows 11 Pro Download',
+    'Phan mem Windows 11 Home',
+    'Phan mem Microsoft Windows 11 Pro',
+    'Laptop HP Pavilion kem Windows 11',
+    'PC Office i5 kem Windows 11 Pro',
+    'VGA Gigabyte WINDFORCE 11GB',
+    'Windows 10 Pro',
+  ];
+  const expected = names.slice(0, 4).map(normalizeSearchText);
+
+  for (const query of ['win 11', 'win11', 'windows 11']) {
+    assert.deepEqual(rankedNames(query, names).sort(), [...expected].sort(), query);
+  }
+});
+
+test('microphone intent rejects Microsoft, Micro-ATX, Mini and Mica false positives', () => {
+  const accepted = ['Mic thu am Elgato Wave 3', 'Micro thu am USB', 'Microphone HyperX QuadCast'];
+  const rejected = [
+    'Phan mem Microsoft Office 2021',
+    'Phan mem Microsoft Windows 11 Pro',
+    'Mainboard ASRock A620AM-HVS Micro-ATX',
+    'Micro-ATX Case compact',
+    'Vo Case Cooler Master Mini Tower',
+    'Vo Case Mica trong suot',
+  ];
+
+  for (const query of ['mic', 'micro']) {
+    assert.deepEqual(rankedNames(query, [...accepted, ...rejected]).sort(), accepted.map(normalizeSearchText).sort(), query);
+  }
+});
+
+test('HDD intent rejects SSD and NVMe products', () => {
+  const accepted = ['HDD Western Digital 4TB', 'O cung HDD Seagate Barracuda 2TB'];
+  const rejected = ['O cung SSD Samsung 990 PRO', 'SSD Kioxia NVMe 2TB', 'O cung gan ngoai 2TB'];
+  assert.deepEqual(rankedNames('hdd', [...accepted, ...rejected]).sort(), accepted.map(normalizeSearchText).sort());
+});
+
+test('speaker intent rejects monitors that only mention integrated speakers', () => {
+  const accepted = ['Loa Edifier MR3 Bluetooth', 'Bo loa Logitech Z407'];
+  const rejected = ['Man hinh ASUS TUF VG279Q3R 27 inch IPS Loa', 'Gia treo loa de ban'];
+  assert.deepEqual(rankedNames('loa', [...accepted, ...rejected]).sort(), accepted.map(normalizeSearchText).sort());
+});
+
+test('strict title predicates activate only for exact intent queries', () => {
+  assert.equal(matchesStrictIntentProductName('windows11', normalizeSearchText('PC kem Windows 11')), false);
+  assert.equal(matchesStrictIntentProductName('microphone', normalizeSearchText('Mainboard Micro-ATX')), false);
+  assert.equal(matchesStrictIntentProductName('hdd', normalizeSearchText('O cung SSD NVMe')), false);
+  assert.equal(matchesStrictIntentProductName('speaker', normalizeSearchText('Man hinh co Loa')), false);
+  assert.equal(getSearchIntent('windows 11 pro'), null);
+  assert.equal(getSearchIntent('mic hyperx'), null);
+  assert.equal(getSearchIntent('hdd 4tb'), null);
+  assert.equal(getSearchIntent('loa edifier'), null);
+});
+
+test('storage synonyms keep SSD and HDD semantics separate', () => {
+  const ssd = injectSearchSynonyms(normalizeSearchText('O cung SSD Samsung'));
+  const hdd = injectSearchSynonyms(normalizeSearchText('O cung HDD Seagate'));
+  const genericStorage = injectSearchSynonyms(normalizeSearchText('O cung'));
+
+  assert.match(ssd, /(^|\s)o cung the ran(\s|$)/);
+  assert.doesNotMatch(ssd, /(^|\s)hdd(\s|$)/);
+  assert.match(hdd, /(^|\s)o cung co(\s|$)/);
+  assert.doesNotMatch(hdd, /(^|\s)ssd(\s|$)/);
+  assert.equal(genericStorage, 'o cung');
 });
 
 test('synonyms and explicit exclusion opt-outs retain their existing behavior', () => {

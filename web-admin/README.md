@@ -2,11 +2,11 @@
 
 Last verified: `2026-07-22`
 
-`web-admin` is a Next.js 16.2.9 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
+`web-admin` is a Next.js 16.2.11 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
 ## Homepage product-section bootstrap
 
-The homepage bootstrap currently loads only category `1087` for the retained Section 17 pipeline. Categories `178` and `521` remain valid for the dormant Section 6/10 components but are intentionally excluded from homepage bootstrap/fallback work. The `productSections` response shape and generic `GET /api/categories/homepage-product-sections` endpoint remain unchanged.
+The homepage bootstrap currently loads only category `1087` for the retained Section 17 product pipeline. Categories `178` and `521` remain valid for the dormant Section 6/10 components but are intentionally excluded from homepage bootstrap/fallback work. Bootstrap v3 also returns `featuredNews`: at most ten newest unique public articles across active article categories marked featured, with deterministic primary-category preference. The `productSections` response shape and generic `GET /api/categories/homepage-product-sections` endpoint remain unchanged.
 
 ## Managed Header utility links
 
@@ -307,6 +307,7 @@ Product-detail performance contracts:
 - Category-detail reads and `GET /api/products?...&feature_scope=configured` may reuse a feature box enabled for either homepage or the retained category-page flag. This read-only scope exists for the storefront category banner and never changes the stored flags; the default `category` and `homepage` scopes retain their individual gating behavior.
 - `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`, `/api/menu/footer`, `/api/menu/bottom-footer`.
 - `/api/homepage/bootstrap` optionally accepts bounded `collectionId`, `collectionSlug`, and `collectionLimit` parameters. When ID and slug identify the same active collection, `data.featuredCollection` contains only its metadata and the requested sellable product cards; invalid, missing, empty, or failed collection loads return `featuredCollection: null` without failing the remaining homepage bootstrap.
+- `/api/homepage/bootstrap` also returns `data.featuredNews`, capped at ten newest unique public articles whose active primary or linked category is marked featured in `web_admin_article_category_meta`. Each item includes the selected public category ID/name; an active featured primary `catId` wins over linked categories.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
 - `/api/news`, `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
 
@@ -440,7 +441,10 @@ For local development without Google, leave the frontend site key empty and set 
 - Worker-local public caches are bounded and use normalized keys.
 - `web_admin_cache_versions` propagates invalidation between clustered API workers.
 - Search prewarms at process start and uses single-flight/stale data during rebuild.
-- The exact normalized query `pc` uses a positive product-title intent gate: names must start with `PC`, `Bộ PC`, or `Full bộ PC`. This rejects prefix-only `PCM`/`PCIe`/`PCE` matches and accessory titles such as `RAM PC` or `Case ... PC` while retaining complete PC bundles that mention included monitors or Windows. Other queries, exclusions, and synonym groups are unchanged.
+- The exact normalized query `pc` uses a positive product-title intent gate: names must start with `PC`, `Bộ PC`, or `Full bộ PC`. This rejects prefix-only `PCM`/`PCIe`/`PCE` matches and accessory titles such as `RAM PC` or `Case ... PC` while retaining complete PC bundles that mention included monitors or Windows.
+- The same strict-intent registry canonicalizes exact `win 11`/`win11`/`windows 11` searches to `windows 11` and exact `mic`/`micro` searches to `mic`. Positive title predicates keep only standalone Windows 11 software, microphones, HDDs, or speakers for exact `hdd` and `loa`; queries with additional qualifiers use the general search path.
+- Storage synonyms are deliberately type-safe: `ssd` maps to `o cung the ran`, `hdd` maps to `o cung co`, and generic `o cung` is not expanded into either type. Strict candidate filtering runs before price/attribute filters, sort, pagination and facets.
+- These rules require no migration or `search:rebuild`. Restart API workers after deployment so their lexical and public-response caches reload the new rules.
 - `product_data_search`, its normalize function, triggers, and FK remain part of the production search contract.
 - `search-tool` is not runtime code.
 

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import ProductGridCard from "../../components/ProductGridCard";
@@ -10,9 +11,12 @@ import {
   type SidebarSectionVisibility,
 } from "../../lib/sidebarFilterVisibility";
 import {
+  buildDesktopPaginationItems,
+  buildMobilePaginationItems,
   buildQueryPath,
   CATALOG_PAGE_SIZE,
   normalizeCatalogPage,
+  type PaginationItem,
 } from "../../lib/pagination";
 
 const unsafeFilterValuePattern = /^(?:javascript\s*:|https?:\/\/|data\s*:|\/\/)/i;
@@ -117,11 +121,13 @@ function AttributeFilterBlock({
   isLast,
   isOpen,
   isFilterSearchActive,
+  idPrefix,
 }: {
   attr: PreparedAttribute;
   isLast: boolean;
   isOpen: boolean;
   isFilterSearchActive: boolean;
+  idPrefix: string;
 }) {
   const [showAll, setShowAll] = useState(false);
   const [isExpanded, setIsExpanded] = useState(isOpen);
@@ -135,6 +141,7 @@ function AttributeFilterBlock({
     : attr.sectionVisibility.visibleValues;
   const collapsedCount = attr.sectionVisibility.collapsedCount;
   const hasVisibleFilterValues = attr.sectionVisibility.visibleValues.length > 0;
+  const contentId = `${idPrefix}-attribute-${attr.id}`;
 
   useEffect(() => {
     if (isFilterSearchActive && hasVisibleFilterValues) {
@@ -174,11 +181,17 @@ function AttributeFilterBlock({
     <div
       className={`filter-section ${isExpanded ? "open" : ""}`}
       style={isLast ? { borderBottom: "none" } : {}}
-      data-group={`attr-${attr.id}`}
+      data-group={`${idPrefix}-attr-${attr.id}`}
     >
-      <div className="filter-title" onClick={() => setIsExpanded((open) => !open)}>
+      <button
+        type="button"
+        className="filter-title"
+        onClick={() => setIsExpanded((open) => !open)}
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
+      >
         <span className="flex items-center gap-2">
-          <span className="text-sm">{getAttributeIcon(attr.icon)}</span> {attr.name}
+          <span className="text-sm" aria-hidden="true">{getAttributeIcon(attr.icon)}</span> {attr.name}
         </span>
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
@@ -188,8 +201,8 @@ function AttributeFilterBlock({
             d="M19 9l-7 7-7-7"
           />
         </svg>
-      </div>
-      <div className="filter-content mt-3" style={!isExpanded ? { display: "none" } : {}}>
+      </button>
+      <div id={contentId} className="filter-content mt-3" hidden={!isExpanded}>
         <div className="space-y-2">
           {displayValues.map((val) => {
             const valSlug = val.apiKey || slugify(val.name);
@@ -240,7 +253,7 @@ function AttributeFilterBlock({
                   {val.name}
                 </span>
                 {val.productCount > 0 && (
-                  <span className="text-[11px] px-2 py-[2px] rounded-md font-medium bg-[#27272a] text-[#a87b51] ml-2">
+                  <span className="text-[11px] px-2 py-[2px] rounded-md font-medium bg-[#27272a] text-[#d6a879] ml-2">
                     {val.productCount}
                   </span>
                 )}
@@ -250,6 +263,7 @@ function AttributeFilterBlock({
         </div>
         {collapsedCount > 0 && (
           <button
+            type="button"
             className="flex items-center gap-3 mt-4 mb-2 ml-1 text-[15px] text-gray-400 hover:text-white transition-colors font-medium"
             onClick={() => setShowAll((value) => !value)}
           >
@@ -295,11 +309,16 @@ export default function SearchClient({ initialData }: SearchClientProps) {
   const [isSidebarSearchOpen, setIsSidebarSearchOpen] = useState(false);
   const [sidebarSearchKeyword, setSidebarSearchKeyword] = useState("");
   const [isPriceFilterOpen, setIsPriceFilterOpen] = useState(true);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<PriceBounds>(() => {
     return initialBounds.min > 0 ? initialBounds : { min: 0, max: 0 };
   });
 
-  const sidebarSearchInputRef = useRef<HTMLInputElement>(null);
+  const desktopSearchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+  const mobileFilterDialogRef = useRef<HTMLDialogElement>(null);
+  const mobileFilterTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileFilterCloseRef = useRef<HTMLButtonElement>(null);
   const searchParamsHook = useSearchParams();
   const searchKey = searchParamsHook?.toString() || "";
   const router = useRouter();
@@ -313,9 +332,44 @@ export default function SearchClient({ initialData }: SearchClientProps) {
 
   useEffect(() => {
     if (isSidebarSearchOpen) {
-      sidebarSearchInputRef.current?.focus();
+      const isDesktop = window.matchMedia("(min-width: 1024px)").matches;
+      (isDesktop ? desktopSearchInputRef : mobileSearchInputRef).current?.focus();
     }
   }, [isSidebarSearchOpen]);
+
+  const closeMobileFilter = () => {
+    setIsMobileFilterOpen(false);
+    window.setTimeout(() => mobileFilterTriggerRef.current?.focus(), 0);
+  };
+
+  useEffect(() => {
+    const dialog = mobileFilterDialogRef.current;
+    if (!dialog) return;
+
+    if (isMobileFilterOpen && !dialog.open) {
+      dialog.showModal();
+      document.body.classList.add("category-filter-dialog-open");
+      window.requestAnimationFrame(() => mobileFilterCloseRef.current?.focus());
+    } else if (!isMobileFilterOpen && dialog.open) {
+      dialog.close();
+      document.body.classList.remove("category-filter-dialog-open");
+    }
+
+    return () => document.body.classList.remove("category-filter-dialog-open");
+  }, [isMobileFilterOpen]);
+
+  useEffect(() => {
+    const desktopQuery = window.matchMedia("(min-width: 1024px)");
+    const handleDesktopChange = (event: MediaQueryListEvent) => {
+      if (event.matches) setIsMobileFilterOpen(false);
+    };
+    desktopQuery.addEventListener("change", handleDesktopChange);
+    return () => desktopQuery.removeEventListener("change", handleDesktopChange);
+  }, []);
+
+  useEffect(() => {
+    setIsMobileFilterOpen(false);
+  }, [query]);
 
   useEffect(() => {
     const nextBounds = normalizePriceBounds(priceBounds);
@@ -583,11 +637,204 @@ export default function SearchClient({ initialData }: SearchClientProps) {
       }
     : { left: "0%", right: "100%" };
 
+  const handleSortChange = (value: string) => {
+    const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
+    if (value) newParams.set("sort", value);
+    else newParams.delete("sort");
+    newParams.delete("page");
+
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
+    startTransition(() => {
+      router.push(buildQueryPath(currentPath, newParams.toString(), {}), { scroll: false });
+    });
+  };
+
+  const renderSortSelect = (surface: "desktop" | "mobile") => (
+    <div className={`relative shrink-0 ${surface === "desktop" ? "min-w-[170px]" : "w-full"}`}>
+      <label htmlFor={`${surface}-search-sort`} className={surface === "mobile" ? "mb-2 block text-xs font-semibold text-gray-400" : "sr-only"}>
+        Sắp xếp sản phẩm
+      </label>
+      <select
+        id={`${surface}-search-sort`}
+        data-search-sort={surface}
+        aria-label="Sắp xếp sản phẩm"
+        className="w-full appearance-none rounded-xl border border-[#323238] bg-[#18181b] py-2.5 pl-4 pr-10 text-[15px] font-bold text-gray-300 outline-none transition-colors hover:border-[#4a4a52] focus:border-cyan-600"
+        onChange={(event) => handleSortChange(event.target.value)}
+        value={searchParamsHook?.get("sort") || ""}
+      >
+        <option value="">Sắp xếp mặc định</option>
+        <option value="price_asc">Giá: Thấp → Cao</option>
+        <option value="price_desc">Giá: Cao → Thấp</option>
+        <option value="newest">Mới nhất</option>
+      </select>
+      {surface === "desktop" && (
+        <svg aria-hidden="true" className="pointer-events-none absolute bottom-3.5 right-3.5 h-3 w-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7" />
+        </svg>
+      )}
+    </div>
+  );
+
+  const renderFilterPanel = (surface: "desktop" | "mobile") => {
+    const idPrefix = `${surface}-search-filter`;
+    const searchInputRef = surface === "desktop" ? desktopSearchInputRef : mobileSearchInputRef;
+    const priceContentId = `${idPrefix}-price-content`;
+
+    return (
+      <div className={surface === "desktop" ? "rounded-2xl border border-[#1a1a1e] bg-[#111115] p-5" : "px-4 pb-6"}>
+        {surface === "desktop" && (
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal aria-hidden="true" className="h-4 w-4 text-gray-400" />
+              <span className="text-[15px] font-extrabold text-white">Bộ lọc</span>
+            </div>
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-gray-500 transition-colors hover:text-white"
+              aria-expanded={isSidebarSearchOpen}
+              aria-controls={`${idPrefix}-search`}
+              onClick={() => {
+                setIsSidebarSearchOpen((open) => {
+                  if (open) setSidebarSearchKeyword("");
+                  return !open;
+                });
+              }}
+            >
+              <Search aria-hidden="true" className="h-3.5 w-3.5" />
+              Tìm nhanh
+            </button>
+          </div>
+        )}
+
+        {surface === "mobile" && <div className="mb-5">{renderSortSelect("mobile")}</div>}
+
+        <div id={`${idPrefix}-search`} className={`${isSidebarSearchOpen ? "" : "hidden"} mb-4`}>
+          <label htmlFor={`${idPrefix}-search-input`} className="sr-only">Tìm nhanh bộ lọc</label>
+          <div className="relative">
+            <Search aria-hidden="true" className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500" />
+            <input
+              ref={searchInputRef}
+              type="search"
+              maxLength={100}
+              id={`${idPrefix}-search-input`}
+              placeholder="Nhập từ khóa tìm kiếm bộ lọc..."
+              className="w-full rounded-lg border border-[#323238] bg-[#18181b] py-2 pl-9 pr-9 text-sm text-gray-300 outline-none transition-colors focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
+              value={sidebarSearchKeyword}
+              onChange={(event) => setSidebarSearchKeyword(event.target.value)}
+            />
+            <button
+              type="button"
+              aria-label="Đóng tìm kiếm bộ lọc"
+              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-gray-500 hover:bg-white/5 hover:text-white"
+              onClick={() => {
+                setIsSidebarSearchOpen(false);
+                setSidebarSearchKeyword("");
+              }}
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {activeFilters.length > 0 && (
+          <div id={`${idPrefix}-active-filters`}>
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-xs font-semibold text-gray-400">Bộ lọc đã chọn:</span>
+              <span className="rounded bg-[#1a1a1e] px-1.5 py-0.5 text-[10px] font-bold text-gray-500">{activeFilters.length}</span>
+              <button type="button" className="ml-auto text-[11px] text-cyan-500 hover:underline" onClick={handleClearAll}>
+                Bỏ chọn tất cả
+              </button>
+            </div>
+            <div className="mb-4 mt-2 flex flex-wrap gap-2">
+              {activeFilters.map((filter) => (
+                <button
+                  type="button"
+                  key={filter.isPrice ? "price" : `${filter.key}-${filter.valSlug}`}
+                  className="flex items-center gap-1 rounded border border-cyan-800/50 bg-cyan-900/30 px-2 py-1 text-left text-[11px] text-cyan-400 transition-colors hover:bg-cyan-900/50"
+                  onClick={() => handleRemoveFilter(filter)}
+                  aria-label={`Bỏ bộ lọc ${filter.isPrice ? "khoảng giá" : filter.valName}`}
+                >
+                  {filter.valName}
+                  <X aria-hidden="true" className="h-3 w-3" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div
+          className={`filter-section ${isPriceFilterOpen ? "open" : ""}`}
+          style={isFilterSearchActive && !matchesSidebarSearch("Khoảng Giá") ? { display: "none" } : {}}
+        >
+          <button
+            type="button"
+            className="filter-title"
+            onClick={() => setIsPriceFilterOpen((open) => !open)}
+            aria-expanded={isPriceFilterOpen}
+            aria-controls={priceContentId}
+          >
+            <span className="flex items-center gap-2"><span aria-hidden="true" className="text-sm">💰</span> Khoảng Giá</span>
+            <svg aria-hidden="true" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+          <div id={priceContentId} className="filter-content mt-2 px-1" hidden={!isPriceFilterOpen}>
+            {hasPriceBounds ? (
+              <>
+                <div className="dual-range-container">
+                  <div className="dual-range-track" style={priceTrackStyles} />
+                  <input type="range" id={`${idPrefix}-price-min`} aria-label="Giá tối thiểu" className="dual-range-slider" min={priceBounds.min} max={priceBounds.max} value={currentPrice.min} step={1000} onChange={(event) => handlePriceChange(event, "min")} onMouseUp={handlePriceCommit} onTouchEnd={handlePriceCommit} />
+                  <input type="range" id={`${idPrefix}-price-max`} aria-label="Giá tối đa" className="dual-range-slider" min={priceBounds.min} max={priceBounds.max} value={currentPrice.max} step={1000} onChange={(event) => handlePriceChange(event, "max")} onMouseUp={handlePriceCommit} onTouchEnd={handlePriceCommit} />
+                </div>
+                <div className="mt-4 flex justify-between text-[10px] text-gray-500">
+                  <span>Từ: {new Intl.NumberFormat("vi-VN").format(currentPrice.min)} đ</span>
+                  <span>Đến: {new Intl.NumberFormat("vi-VN").format(currentPrice.max)} đ</span>
+                </div>
+              </>
+            ) : (
+              <div className="py-2 text-[12px] text-gray-500">Không có khoảng giá khả dụng cho kết quả hiện tại.</div>
+            )}
+          </div>
+        </div>
+
+        {visibleAttributes.map((attr, index) => (
+          <AttributeFilterBlock
+            key={`${surface}-${attr.id}`}
+            attr={attr}
+            isLast={index === visibleAttributes.length - 1}
+            isOpen={index < 4}
+            isFilterSearchActive={isFilterSearchActive}
+            idPrefix={idPrefix}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  const renderPaginationItems = (items: PaginationItem[]) => items.map((page, index) =>
+    page === "..." ? (
+      <span key={`dots-${index}`} aria-hidden="true" className="flex size-10 items-center justify-center rounded-xl bg-[#18181b] font-medium text-gray-500">...</span>
+    ) : (
+      <button
+        key={page}
+        type="button"
+        aria-label={`Đến trang ${page}`}
+        aria-current={currentPage === page ? "page" : undefined}
+        onClick={() => navigateToPage(page)}
+        disabled={isPending || isLoading}
+        className={`flex size-10 items-center justify-center rounded-xl text-[15px] font-semibold tabular-nums transition-colors ${currentPage === page
+            ? "bg-[#0b63e5] text-white shadow-[0_4px_12px_rgba(11,99,229,0.3)]"
+            : "bg-[#18181b] text-gray-400 hover:bg-[#27272a] hover:text-white"
+          }`}
+      >
+        {page}
+      </button>
+    ),
+  );
+
   return (
     <div className="bg-[#0a0a0c] min-h-screen text-white font-sans">
       <Header />
 
-      <div className="max-w-[1800px] mx-auto px-6 pt-6">
+      <div className="max-w-[1800px] mx-auto px-3 pt-6 sm:px-6">
         <div className="flex flex-col gap-4 mb-6">
           <div>
             <h1 className="text-xl md:text-2xl font-extrabold text-white tracking-tight">
@@ -596,202 +843,97 @@ export default function SearchClient({ initialData }: SearchClientProps) {
             <p className="text-[13px] text-gray-500 mt-1">Tìm thấy {totalProducts} sản phẩm</p>
           </div>
 
-          <div className="flex flex-col md:flex-row items-center justify-between bg-[#111115] border border-[#1a1a1e] rounded-2xl p-4">
-            <h2 className="text-[15px] font-extrabold text-white mb-4 md:mb-0 pl-1 tracking-wide">
+          <div data-search-toolbar className="flex min-w-0 items-center justify-between gap-2 rounded-2xl border border-[#1a1a1e] bg-[#111115] p-2 sm:p-4">
+            <h2 className="min-w-0 flex-1 truncate pl-1 text-[15px] font-extrabold text-white">
               {totalProducts} sản phẩm
             </h2>
-            <div className="flex items-center gap-4 w-full md:w-auto">
-              <div className="relative shrink-0 min-w-[170px]">
-                <select
-                  className="w-full appearance-none bg-[#18181b] border border-[#27272a] text-[15px] font-bold text-gray-300 rounded-xl pl-4 pr-10 py-2.5 focus:outline-none focus:border-cyan-700 hover:border-[#3f3f46] transition-all cursor-pointer"
-                  onChange={(e) => {
-                    const newParams = new URLSearchParams(searchParamsHook?.toString() || "");
-                    if (e.target.value) newParams.set("sort", e.target.value);
-                    else newParams.delete("sort");
-                    newParams.delete("page");
-
-                    const currentPath = typeof window !== "undefined" ? window.location.pathname : "/tim";
-                    startTransition(() => {
-                      router.push(buildQueryPath(currentPath, newParams.toString(), {}), { scroll: false });
-                    });
-                  }}
-                  defaultValue={searchParamsHook?.get("sort") || ""}
-                >
-                  <option value="">Sắp xếp mặc định</option>
-                  <option value="price_asc">Giá: Thấp {"->"} Cao</option>
-                  <option value="price_desc">Giá: Cao {"->"} Thấp</option>
-                  <option value="newest">Mới nhất</option>
-                </select>
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none flex flex-col gap-[2px]">
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="3"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </div>
-              </div>
-            </div>
+            <div className="hidden lg:block">{renderSortSelect("desktop")}</div>
+            <button
+              ref={mobileFilterTriggerRef}
+              type="button"
+              data-search-filter-trigger
+              className="flex h-10 shrink-0 items-center gap-2 rounded-xl border border-[#3b82f6] bg-[#0b63e5] px-3 text-sm font-semibold text-white shadow-sm hover:border-[#60a5fa] hover:bg-[#0a58cc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa] focus-visible:ring-offset-2 focus-visible:ring-offset-[#111115] lg:hidden"
+              aria-haspopup="dialog"
+              aria-expanded={isMobileFilterOpen}
+              aria-controls="mobile-search-filter-dialog"
+              onClick={() => setIsMobileFilterOpen(true)}
+            >
+              <SlidersHorizontal aria-hidden="true" className="size-[18px]" />
+              Bộ lọc
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-[1800px] mx-auto flex gap-6 px-6 pb-6">
-        <aside className="w-[300px] shrink-0 hidden lg:block">
-          <div className="bg-[#111115] border border-[#1a1a1e] rounded-2xl p-5 mb-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-base">🔧</span>
-                <span className="text-[15px] font-extrabold text-white">Bộ Lọc</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs text-gray-500">
-                <button
-                  className="hover:text-white transition"
-                  onClick={() => {
-                    setIsSidebarSearchOpen((open) => {
-                      if (open) setSidebarSearchKeyword("");
-                      return !open;
-                    });
-                  }}
-                >
-                  🔍 Tìm Nhanh
-                </button>
-              </div>
+      <dialog
+        ref={mobileFilterDialogRef}
+        id="mobile-search-filter-dialog"
+        data-search-mobile-filter-dialog
+        aria-labelledby="mobile-search-filter-title"
+        className="fixed inset-y-0 left-0 m-0 h-[calc(100dvh-60px)] max-h-none w-[min(340px,calc(100vw-48px))] max-w-none overflow-hidden border-0 border-r border-[#303036] bg-[#202124] p-0 text-white shadow-2xl backdrop:bg-black/70 md:h-dvh lg:hidden"
+        onCancel={(event) => {
+          event.preventDefault();
+          closeMobileFilter();
+        }}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) closeMobileFilter();
+        }}
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex shrink-0 items-center gap-2 border-b border-[#303036] px-4 py-3">
+            <SlidersHorizontal aria-hidden="true" className="h-5 w-5 text-gray-400" />
+            <h2 id="mobile-search-filter-title" className="text-lg font-extrabold">Bộ lọc</h2>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                className="flex h-10 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-gray-400 hover:bg-white/5 hover:text-white"
+                aria-expanded={isSidebarSearchOpen}
+                aria-controls="mobile-search-filter-search"
+                onClick={() => {
+                  setIsSidebarSearchOpen((open) => {
+                    if (open) setSidebarSearchKeyword("");
+                    return !open;
+                  });
+                }}
+              >
+                <Search aria-hidden="true" className="h-4 w-4" />
+                <span className="sr-only sm:not-sr-only">Tìm nhanh</span>
+              </button>
+              <button
+                type="button"
+                className="flex h-10 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-gray-400 hover:bg-white/5 hover:text-white"
+                onClick={handleClearAll}
+              >
+                <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                Đặt lại
+              </button>
+              <button
+                ref={mobileFilterCloseRef}
+                type="button"
+                aria-label="Đóng bộ lọc"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-[#45454c] text-gray-300 hover:bg-white/5 hover:text-white"
+                onClick={closeMobileFilter}
+              >
+                <X aria-hidden="true" className="h-5 w-5" />
+              </button>
             </div>
-
-            <div className={`${isSidebarSearchOpen ? "" : "hidden"} mb-4 transition-all`}>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">🔍</span>
-                <input
-                  ref={sidebarSearchInputRef}
-                  type="text"
-                  maxLength={100}
-                  placeholder="Nhập từ khóa tìm kiếm bộ lọc ..."
-                  className="w-full bg-[#18181b] border border-[#27272a] rounded-lg py-2 pl-8 pr-8 text-sm text-gray-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
-                  value={sidebarSearchKeyword}
-                  onChange={(event) => setSidebarSearchKeyword(event.target.value)}
-                />
-                <button
-                  type="button"
-                  aria-label="Đóng tìm kiếm bộ lọc"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white text-xs transition"
-                  onClick={() => {
-                    setIsSidebarSearchOpen(false);
-                    setSidebarSearchKeyword("");
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            <div
-              id="active-filters-sidebar"
-              style={activeFilters.length === 0 ? { display: "none" } : {}}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-gray-400 font-semibold">Bộ lọc đã chọn :</span>
-                <span className="bg-[#1a1a1e] text-[10px] text-gray-500 px-1.5 py-0.5 rounded font-bold">
-                  {activeFilters.length}
-                </span>
-                <span
-                  className="text-[10px] text-cyan-500 ml-auto cursor-pointer hover:underline"
-                  onClick={handleClearAll}
-                >
-                  Bỏ chọn tất cả
-                </span>
-              </div>
-              <div className="flex gap-2 mb-4 flex-wrap mt-2">
-                {activeFilters.map((filter) => (
-                  <span
-                    key={filter.isPrice ? "price" : `${filter.key}-${filter.valSlug}`}
-                    className="bg-cyan-900/30 text-cyan-400 border border-cyan-800/50 text-[11px] px-2 py-1 rounded flex items-center gap-1 cursor-pointer hover:bg-cyan-900/50 transition-colors"
-                    onClick={() => handleRemoveFilter(filter)}
-                  >
-                    {filter.isPrice ? filter.valName : filter.valName}
-                    <span className="text-cyan-500 hover:text-white">✕</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div
-              className={`filter-section ${isPriceFilterOpen ? "open" : ""}`}
-              style={isFilterSearchActive && !matchesSidebarSearch("Khoảng Giá") ? { display: "none" } : {}}
-            >
-              <div className="filter-title" onClick={() => setIsPriceFilterOpen((open) => !open)}>
-                <span className="flex items-center gap-2">
-                  <span className="text-sm">💰</span> Khoảng Giá
-                </span>
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </div>
-              <div className="filter-content px-1 mt-2" style={!isPriceFilterOpen ? { display: "none" } : {}}>
-                {hasPriceBounds ? (
-                  <>
-                    <div className="dual-range-container">
-                      <div className="dual-range-track" style={priceTrackStyles}></div>
-                      <input
-                        type="range"
-                        aria-label="Giá tối thiểu"
-                        className="dual-range-slider"
-                        min={priceBounds.min}
-                        max={priceBounds.max}
-                        value={currentPrice.min}
-                        step={1000}
-                        onChange={(e) => handlePriceChange(e, "min")}
-                        onMouseUp={handlePriceCommit}
-                        onTouchEnd={handlePriceCommit}
-                      />
-                      <input
-                        type="range"
-                        aria-label="Giá tối đa"
-                        className="dual-range-slider"
-                        min={priceBounds.min}
-                        max={priceBounds.max}
-                        value={currentPrice.max}
-                        step={1000}
-                        onChange={(e) => handlePriceChange(e, "max")}
-                        onMouseUp={handlePriceCommit}
-                        onTouchEnd={handlePriceCommit}
-                      />
-                    </div>
-                    <div className="flex justify-between text-[10px] text-gray-500 mt-4">
-                      <span>Từ: {new Intl.NumberFormat("vi-VN").format(currentPrice.min)} đ</span>
-                      <span>Đến: {new Intl.NumberFormat("vi-VN").format(currentPrice.max)} đ</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-[12px] text-gray-500 py-2">Không có khoảng giá khả dụng cho kết quả hiện tại.</div>
-                )}
-              </div>
-            </div>
-
-            {visibleAttributes.map((attr, index) => (
-              <AttributeFilterBlock
-                key={attr.id}
-                attr={attr}
-                isLast={index === visibleAttributes.length - 1}
-                isOpen={index < 4}
-                isFilterSearchActive={isFilterSearchActive}
-              />
-            ))}
           </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-4">
+            {renderFilterPanel("mobile")}
+          </div>
+        </div>
+      </dialog>
+
+      <div className="max-w-[1800px] mx-auto flex gap-6 px-3 pb-6 sm:px-6">
+        <aside data-search-desktop-filter className="hidden w-[300px] shrink-0 lg:block">
+          <div className="mb-5">{renderFilterPanel("desktop")}</div>
         </aside>
 
         <main className="flex-1 min-w-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" id="productGrid">
+          <div data-search-product-grid className="grid grid-cols-2 gap-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4" id="productGrid">
             {errorText ? (
               <div
-                className="col-span-1 my-4 flex flex-col items-center justify-center rounded-2xl border border-red-500/40 bg-[#111115] px-5 py-20 text-center sm:col-span-2 xl:col-span-4"
+                className="col-span-2 my-4 flex flex-col items-center justify-center rounded-2xl border border-red-500/40 bg-[#111115] px-5 py-20 text-center lg:col-span-3 xl:col-span-4"
                 role="alert"
               >
                 <h3 className="mb-2 text-lg font-bold text-white">Không thể tải kết quả tìm kiếm</h3>
@@ -807,7 +949,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                 </button>
               </div>
             ) : isLoading ? (
-              <div className="col-span-1 sm:col-span-2 xl:col-span-4 flex flex-col items-center justify-center py-32 text-center">
+              <div className="col-span-2 flex flex-col items-center justify-center py-32 text-center lg:col-span-3 xl:col-span-4">
                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 mb-4"></div>
                 <p className="text-gray-400 text-sm font-medium animate-pulse">Đang tìm kiếm sản phẩm...</p>
               </div>
@@ -816,7 +958,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                 <ProductGridCard key={product.id} product={product} />
               ))
             ) : (
-              <div className="col-span-1 sm:col-span-2 xl:col-span-4 flex flex-col items-center justify-center py-20 text-center bg-[#111115] rounded-2xl border border-[#1a1a1e] my-4">
+              <div className="col-span-2 my-4 flex flex-col items-center justify-center rounded-2xl border border-[#1a1a1e] bg-[#111115] py-20 text-center lg:col-span-3 xl:col-span-4">
                 <div className="w-20 h-20 mb-5 rounded-full bg-[#1a1a1e] border border-[#27272a] flex items-center justify-center text-3xl">
                   🔍
                 </div>
@@ -835,13 +977,13 @@ export default function SearchClient({ initialData }: SearchClientProps) {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2 mt-12 mb-10">
+            <nav data-search-pagination aria-label="Phân trang sản phẩm" className="mt-12 mb-10 flex flex-nowrap items-center justify-center gap-2">
               <button
                 type="button"
                 aria-label="Trang trước"
                 onClick={() => navigateToPage(currentPage - 1)}
                 disabled={currentPage === 1 || isPending || isLoading}
-                className="w-10 h-10 flex items-center justify-center bg-[#18181b] rounded-xl text-gray-400 hover:text-white hover:bg-[#27272a] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#18181b] text-gray-400 transition-colors hover:bg-[#27272a] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <svg
                   width="16"
@@ -857,63 +999,11 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                 </svg>
               </button>
 
-              <div className="flex gap-2 flex-wrap justify-center">
-                {(() => {
-                  const range: number[] = [];
-                  const rangeWithDots: Array<number | "..."> = [];
-                  let lastPage: number | undefined;
-
-                  for (let page = 1; page <= totalPages; page += 1) {
-                    if (page === 1 || page === totalPages) {
-                      range.push(page);
-                    } else if (currentPage <= 3 && page <= 5) {
-                      range.push(page);
-                    } else if (currentPage >= totalPages - 2 && page >= totalPages - 4) {
-                      range.push(page);
-                    } else if (page >= currentPage - 1 && page <= currentPage + 1) {
-                      range.push(page);
-                    }
-                  }
-
-                  for (const page of range) {
-                    if (lastPage !== undefined) {
-                      if (page - lastPage === 2) {
-                        rangeWithDots.push(lastPage + 1);
-                      } else if (page - lastPage !== 1) {
-                        rangeWithDots.push("...");
-                      }
-                    }
-                    rangeWithDots.push(page);
-                    lastPage = page;
-                  }
-
-                  return rangeWithDots.map((page, index) =>
-                    page === "..." ? (
-                      <span
-                        key={`dots-${index}`}
-                        className="w-10 h-10 flex items-center justify-center rounded-xl bg-[#18181b] text-gray-500 font-medium"
-                      >
-                        ...
-                      </span>
-                    ) : (
-                      <button
-                        key={page}
-                        type="button"
-                        aria-label={`Đến trang ${page}`}
-                        aria-current={currentPage === page ? "page" : undefined}
-                        onClick={() => navigateToPage(page as number)}
-                        disabled={isPending || isLoading}
-                        className={`w-10 h-10 flex items-center justify-center rounded-xl text-[15px] font-semibold transition-all ${
-                          currentPage === page
-                            ? "bg-[#0b63e5] text-white shadow-[0_4px_12px_rgba(11,99,229,0.3)]"
-                            : "bg-[#18181b] text-gray-400 hover:text-white hover:bg-[#27272a]"
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ),
-                  );
-                })()}
+              <div data-search-pagination-pages="mobile" className="flex flex-nowrap justify-center gap-2 lg:hidden">
+                {renderPaginationItems(buildMobilePaginationItems(currentPage, totalPages))}
+              </div>
+              <div data-search-pagination-pages="desktop" className="hidden flex-wrap justify-center gap-2 lg:flex">
+                {renderPaginationItems(buildDesktopPaginationItems(currentPage, totalPages))}
               </div>
 
               <button
@@ -921,7 +1011,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                 aria-label="Trang sau"
                 onClick={() => navigateToPage(currentPage + 1)}
                 disabled={currentPage === totalPages || isPending || isLoading}
-                className="w-10 h-10 flex items-center justify-center bg-[#18181b] rounded-xl text-gray-400 hover:text-white hover:bg-[#27272a] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#18181b] text-gray-400 transition-colors hover:bg-[#27272a] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
               >
                 <svg
                   width="16"
@@ -936,7 +1026,7 @@ export default function SearchClient({ initialData }: SearchClientProps) {
                   <polyline points="9 18 15 12 9 6"></polyline>
                 </svg>
               </button>
-            </div>
+            </nav>
           )}
         </main>
       </div>

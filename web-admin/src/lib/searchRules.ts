@@ -8,7 +8,8 @@ export const SYNONYM_GROUPS: string[][] = [
   ['man hinh', 'monitor', 'lcd', 'display'],
   ['cpu', 'chip', 'bo vi xu ly', 'vi xu ly'],
   ['ram', 'bo nho trong', 'bo nho ram'],
-  ['ssd', 'o cung', 'hdd', 'o cung the ran'],
+  ['ssd', 'o cung the ran'],
+  ['hdd', 'o cung co'],
 ];
 
 export const SEARCH_EXCLUSIONS: Record<string, string[]> = {
@@ -21,8 +22,14 @@ export const PRINTER_INTENT_PHRASE = 'may in';
 const PRINTER_INTENT_OPT_OUTS = ['muc', 'cap', 'day', 'khay', 'sua', 'phu kien'];
 export const STRICT_PC_INTENT_QUERY = 'pc';
 
-const synonymRegexes = SYNONYM_GROUPS.map((group) => group.map((phrase) => ({ phrase, regex: standalonePattern(phrase) })));
-const strictPcProductNameRegexes = ['pc', 'bo pc', 'full bo pc'].map(startsWithPattern);
+export type SearchIntent = 'pc' | 'windows11' | 'microphone' | 'hdd' | 'speaker' | 'printer';
+
+type StrictSearchIntentDefinition = {
+  intent: Exclude<SearchIntent, 'printer'>;
+  aliases: readonly string[];
+  canonicalQuery: string;
+  matchesName: (normalizedName: string) => boolean;
+};
 
 export interface LexicalSearchProduct {
   id: number;
@@ -42,7 +49,7 @@ export function normalizeSearchText(value: string): string {
   return String(value || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[đĐ]/g, 'd')
+    .replace(/[\u0111\u0110]/g, 'd')
     .replace(/[^a-zA-Z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -65,15 +72,82 @@ export function containsStandalonePhrase(text: string, phrase: string) {
   return standalonePattern(phrase).test(text);
 }
 
-export function getSearchIntent(normalizedQuery: string) {
-  if (normalizedQuery === STRICT_PC_INTENT_QUERY) return 'pc' as const;
+const synonymRegexes = SYNONYM_GROUPS.map((group) => group.map((phrase) => ({ phrase, regex: standalonePattern(phrase) })));
+const strictPcProductNameRegexes = ['pc', 'bo pc', 'full bo pc'].map(startsWithPattern);
+const windows11ProductNameRegexes = ['windows', 'microsoft windows', 'phan mem windows', 'phan mem microsoft windows'].map(startsWithPattern);
+const microphoneProductNameRegexes = ['mic', 'micro', 'microphone'].map(startsWithPattern);
+const microphoneFalsePositiveRegexes = ['micro atx'].map(startsWithPattern);
+const speakerProductNameRegexes = ['loa', 'bo loa'].map(startsWithPattern);
+
+const STRICT_SEARCH_INTENTS: readonly StrictSearchIntentDefinition[] = [
+  {
+    intent: 'pc',
+    aliases: [STRICT_PC_INTENT_QUERY],
+    canonicalQuery: STRICT_PC_INTENT_QUERY,
+    matchesName: (normalizedName) => strictPcProductNameRegexes.some((regex) => regex.test(normalizedName)),
+  },
+  {
+    intent: 'windows11',
+    aliases: ['win 11', 'win11', 'windows 11'],
+    canonicalQuery: 'windows 11',
+    matchesName: (normalizedName) =>
+      windows11ProductNameRegexes.some((regex) => regex.test(normalizedName))
+      && containsStandalonePhrase(normalizedName, '11'),
+  },
+  {
+    intent: 'microphone',
+    aliases: ['mic', 'micro'],
+    canonicalQuery: 'mic',
+    matchesName: (normalizedName) =>
+      microphoneProductNameRegexes.some((regex) => regex.test(normalizedName))
+      && !microphoneFalsePositiveRegexes.some((regex) => regex.test(normalizedName)),
+  },
+  {
+    intent: 'hdd',
+    aliases: ['hdd'],
+    canonicalQuery: 'hdd',
+    matchesName: (normalizedName) =>
+      startsWithPattern('hdd').test(normalizedName)
+      || (startsWithPattern('o cung').test(normalizedName) && containsStandalonePhrase(normalizedName, 'hdd')),
+  },
+  {
+    intent: 'speaker',
+    aliases: ['loa'],
+    canonicalQuery: 'loa',
+    matchesName: (normalizedName) => speakerProductNameRegexes.some((regex) => regex.test(normalizedName)),
+  },
+];
+
+const strictSearchIntentByAlias = new Map(
+  STRICT_SEARCH_INTENTS.flatMap((definition) => definition.aliases.map((alias) => [alias, definition] as const)),
+);
+const strictSearchIntentByName = new Map(STRICT_SEARCH_INTENTS.map((definition) => [definition.intent, definition] as const));
+
+function getStrictSearchIntentDefinition(query: string) {
+  return strictSearchIntentByAlias.get(normalizeSearchText(query)) || null;
+}
+
+export function getCanonicalSearchQuery(query: string) {
+  const normalizedQuery = normalizeSearchText(query);
+  return getStrictSearchIntentDefinition(normalizedQuery)?.canonicalQuery || normalizedQuery;
+}
+
+export function getSearchIntent(query: string): SearchIntent | null {
+  const normalizedQuery = normalizeSearchText(query);
+  const strictIntent = getStrictSearchIntentDefinition(normalizedQuery);
+  if (strictIntent) return strictIntent.intent;
   if (!containsStandalonePhrase(normalizedQuery, PRINTER_INTENT_PHRASE)) return null;
   if (PRINTER_INTENT_OPT_OUTS.some((word) => containsStandalonePhrase(normalizedQuery, word))) return null;
-  return 'printer' as const;
+  return 'printer';
+}
+
+export function matchesStrictIntentProductName(intent: SearchIntent, normalizedName: string) {
+  if (intent === 'printer') return true;
+  return strictSearchIntentByName.get(intent)?.matchesName(normalizedName) ?? false;
 }
 
 export function matchesStrictPcProductName(normalizedName: string) {
-  return strictPcProductNameRegexes.some((regex) => regex.test(normalizedName));
+  return matchesStrictIntentProductName('pc', normalizedName);
 }
 
 export function injectSearchSynonyms(text: string): string {
@@ -116,9 +190,10 @@ function getRank(name: string, phrase: string) {
   return 5;
 }
 
-export function buildFuseQuery(normalizedQuery: string) {
-  const tokens = normalizedQuery.split(' ').filter(Boolean);
-  if (getSearchIntent(normalizedQuery) === 'printer') {
+export function buildFuseQuery(query: string) {
+  const canonicalQuery = getCanonicalSearchQuery(query);
+  const tokens = canonicalQuery.split(' ').filter(Boolean);
+  if (getSearchIntent(canonicalQuery) === 'printer') {
     const printerTokenIndex = tokens.findIndex((token, index) => token === 'may' && tokens[index + 1] === 'in');
     const remainingTokens = tokens.filter((_, index) => index !== printerTokenIndex && index !== printerTokenIndex + 1);
     return {
@@ -128,7 +203,7 @@ export function buildFuseQuery(normalizedQuery: string) {
       ],
     };
   }
-  if (tokens.length <= 1) return `${normalizedQuery.length <= 4 ? "'" : ''}${normalizedQuery}`;
+  if (tokens.length <= 1) return `${canonicalQuery.length <= 4 ? "'" : ''}${canonicalQuery}`;
   return {
     $and: tokens.map((token) => ({ searchText: `${token.length <= 4 ? "'" : ''}${token}` })),
   };
@@ -138,7 +213,7 @@ export function rankLexicalResults(
   rawResults: Array<FuseResult<LexicalSearchProduct>>,
   query: string,
 ): RankedLexicalProduct[] {
-  const normalizedQuery = normalizeSearchText(query);
+  const normalizedQuery = getCanonicalSearchQuery(query);
   const searchIntent = getSearchIntent(normalizedQuery);
   const tokens = normalizedQuery.split(' ').filter(Boolean);
   const specTokens = tokens.filter((token) => /\d/.test(token));
@@ -151,7 +226,7 @@ export function rankLexicalResults(
     if (score >= 0.4) continue;
 
     const product = result.item;
-    if (searchIntent === 'pc' && !matchesStrictPcProductName(product.normalizedName)) continue;
+    if (searchIntent && searchIntent !== 'printer' && !matchesStrictIntentProductName(searchIntent, product.normalizedName)) continue;
 
     const hasSuffixOnlyMatch = tokens.some((token) =>
       product.normalizedName.includes(token) && !new RegExp(`(^|\\s)${escapeRegex(token)}`).test(product.normalizedName),

@@ -42,7 +42,7 @@ export default async function Section11({ initialSections }: { initialSections?:
   return (
     <>
       <div className="announce-bar">
-        <p>Experience Next-Level Gaming Performance With Our PC &amp; Laptop Range</p>
+        <p>Nâng tầm trải nghiệm chơi game và học tập - phù hợp với ngân sách của bạn</p>
       </div>
 
       {sections.map((section, index) => {

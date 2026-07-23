@@ -5,50 +5,50 @@ import type { CSSProperties } from "react";
 const SECTION_9_CARDS = [
   {
     id: "gaming-headsets",
-    title: ["Gaming", "Headsets"],
-    href: "/tim?q=tai%20nghe%20gaming",
+    title: ["Tai Nghe", "Gaming"],
+    href: "/tai-nghe-choi-game.html",
     image: "/images/section-9/gaming-headsets.avif",
-    alt: "Gaming Headsets",
+    alt: "Tai nghe gaming",
     accent: "#6366f1",
     mobileSpan: "col-span-3",
     mobileAspect: "aspect-[3/2]",
   },
   {
     id: "gaming-keyboards",
-    title: ["Gaming", "Keyboards"],
-    href: "/tim?q=ban%20phim%20gaming",
+    title: ["Bàn Phím", "Gaming"],
+    href: "/ban-phim-choi-game.html",
     image: "/images/section-9/gaming-keyboards.avif",
-    alt: "Gaming Keyboards",
+    alt: "Bàn phím gaming",
     accent: "#ec4899",
     mobileSpan: "col-span-3",
     mobileAspect: "aspect-[3/2]",
   },
   {
     id: "gaming-mouse",
-    title: ["Gaming", "Mouse"],
-    href: "/tim?q=chuot%20gaming",
+    title: ["Chuột", "Gaming"],
+    href: "/chuot-choi-game.html",
     image: "/images/section-9/gaming-mouse.avif",
-    alt: "Gaming Mouse",
+    alt: "Chuột gaming",
     accent: "#f59e0b",
     mobileSpan: "col-span-2",
     mobileAspect: "aspect-[25/23]",
   },
   {
-    id: "new-arrivals",
-    title: ["New", "Arrivals"],
-    href: "/tim?sort=newest",
-    image: "/images/section-9/new-arrivals.avif",
-    alt: "New Arrivals",
+    id: "gaming-chairs",
+    title: ["Ghế", "Gaming"],
+    href: "/ghe-choi-game.html",
+    image: "/images/section-9/ghe.png",
+    alt: "Ghế gaming",
     accent: "#10b981",
     mobileSpan: "col-span-2",
     mobileAspect: "aspect-[25/23]",
   },
   {
-    id: "open-box",
-    title: ["Open", "Box"],
-    href: "/tim?q=open%20box",
-    image: "/images/section-9/open-box.avif",
-    alt: "Open Box",
+    id: "computer-speakers",
+    title: ["Loa", "Máy Tính"],
+    href: "/loa-may-tinh.html",
+    image: "/images/section-9/loa.png",
+    alt: "Loa máy tính",
     accent: "#06b6d4",
     mobileSpan: "col-span-2",
     mobileAspect: "aspect-[25/23]",
@@ -63,7 +63,7 @@ export default function Section9() {
   return (
     <section
       id="section-9"
-      aria-label="Danh mục gaming nổi bật"
+      aria-label="Danh mục thiết bị gaming nổi bật"
       className="w-full bg-[#111212] py-3 md:px-8 md:py-6 xl:px-[60px]"
     >
       <div

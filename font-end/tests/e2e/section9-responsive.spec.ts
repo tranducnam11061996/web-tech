@@ -108,17 +108,18 @@ test("Section 9 preserves responsive transitions, links and accessibility", asyn
   await page.setViewportSize({ width: 429, height: 900 });
   const { pageErrors, section } = await openSection9(page);
   const expectedLinks = [
-    "/tim?q=tai%20nghe%20gaming",
-    "/tim?q=ban%20phim%20gaming",
-    "/tim?q=chuot%20gaming",
-    "/tim?sort=newest",
-    "/tim?q=open%20box",
+    "/tai-nghe-choi-game.html",
+    "/ban-phim-choi-game.html",
+    "/chuot-choi-game.html",
+    "/ghe-choi-game.html",
+    "/loa-may-tinh.html",
   ];
+  const expectedAlts = ["Tai nghe gaming", "Bàn phím gaming", "Chuột gaming", "Ghế gaming", "Loa máy tính"];
   const cards = section.locator("[data-section9-card]");
 
   for (let index = 0; index < expectedLinks.length; index += 1) {
     await expect(cards.nth(index)).toHaveAttribute("href", expectedLinks[index]);
-    await expect(cards.nth(index).locator("img")).toHaveAttribute("alt", /\S+/);
+    await expect(cards.nth(index).locator("img")).toHaveAttribute("alt", expectedAlts[index]);
   }
   await cards.first().focus();
   await expect(cards.first()).toBeFocused();

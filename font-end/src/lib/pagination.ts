@@ -1,5 +1,52 @@
 export const CATALOG_PAGE_SIZE = 24;
 export const MAX_CATALOG_PAGE = 1_000;
+export type PaginationItem = number | "...";
+
+export function buildDesktopPaginationItems(
+  currentPage: number,
+  totalPages: number,
+): PaginationItem[] {
+  const range: number[] = [];
+  const items: PaginationItem[] = [];
+  let previousPage: number | undefined;
+
+  for (let page = 1; page <= totalPages; page += 1) {
+    if (
+      page === 1 ||
+      page === totalPages ||
+      (currentPage <= 3 && page <= 5) ||
+      (currentPage >= totalPages - 2 && page >= totalPages - 4) ||
+      (page >= currentPage - 1 && page <= currentPage + 1)
+    ) {
+      range.push(page);
+    }
+  }
+
+  for (const page of range) {
+    if (previousPage) {
+      if (page - previousPage === 2) items.push(previousPage + 1);
+      else if (page - previousPage !== 1) items.push("...");
+    }
+    items.push(page);
+    previousPage = page;
+  }
+
+  return items;
+}
+
+export function buildMobilePaginationItems(
+  currentPage: number,
+  totalPages: number,
+): PaginationItem[] {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+  if (currentPage <= 3) return [1, 2, 3, "...", totalPages];
+  if (currentPage >= totalPages - 2) {
+    return [1, "...", totalPages - 2, totalPages - 1, totalPages];
+  }
+  return [1, "...", currentPage, "...", totalPages];
+}
 
 export function normalizeCatalogPage(value: unknown): number {
   const normalizedValue = Array.isArray(value) ? value[0] : value;

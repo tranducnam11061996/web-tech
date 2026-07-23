@@ -17,7 +17,11 @@ test('category title falls back to the category name and keeps only sorting cont
   await expect(page.getByRole('heading', { name: 'PC SSD 512GB (423 sản phẩm)' }).first()).toBeVisible();
   await expect(page.getByPlaceholder('Search...')).toHaveCount(0);
 
-  const sort = page.locator('select').first();
+  let sort = page.locator('[data-category-sort="desktop"]');
+  if ((page.viewportSize()?.width || 0) < 1024) {
+    await page.locator('[data-category-filter-trigger]').click();
+    sort = page.locator('[data-category-sort="mobile"]');
+  }
   await expect(sort).toBeVisible();
   await sort.selectOption('price_asc');
   await expect(page).toHaveURL(/pc-ssd-512gb\?sort=price_asc$/);

@@ -1,6 +1,38 @@
 # AI Handoff — HACOM Workspace
 
-Last verified: `2026-07-22`
+Last verified: `2026-07-23`
+
+## Final audit and dependency patch
+
+- The complete manual component bundle has been audited across storefront layout/accessibility, homepage data contracts, search ranking, backend integration, media and tests. Section 9/14 accessible names and routes now match their new content; the licensed-software PNG bypasses only the failing Next optimizer path; mobile category sorting coverage opens the actual filter dialog; and carousel geometry tests select an in-viewport card.
+- Both applications now use Next.js 16.2.11. Production dependency audits report zero vulnerabilities. Final verification passes both app typechecks, quiet lints and builds, 173/173 backend unit tests, 25 applied integrations with 12 guarded skips, live ranking over 2,528 products, full Playwright at 121 desktop pass/10 intentional skips and 74 mobile pass/57 intentional skips, and production local healthcheck 22/22.
+- Existing JavaScript performance-budget failures remain open and were not reclassified by this audit; do not claim the release is performance-budget clean or validated for 1,500 VUs.
+
+## Strict search intents for Windows 11, microphones, HDD and speakers
+
+- Production lexical search now resolves exact aliases through one positive title-intent registry before Fuse selection, ranking, filtering, sorting, pagination and facet construction. `win 11`/`win11`/`windows 11` share canonical query `windows 11`; `mic`/`micro` share canonical query `mic`; exact `hdd`, `loa` and the existing `pc` intent retain their own title predicates. Queries with extra qualifiers keep the general search behavior.
+- The storage synonym group no longer merges SSD, HDD and generic `o cung`: SSD maps only to `o cung the ran`, HDD maps only to `o cung co`, and generic `o cung` remains an unforced storage query. No database, API response, storefront or `product_data_search` change was required.
+- The active catalog now returns `2/2/2` Windows 11 software products, `3/3` microphones, 6 HDDs and 6 speakers for the seven requested aliases. Full-page ranking regression passes across default/price/newest with identical alias candidate IDs; focused browser smoke verifies every rendered card. Both app typecheck/lint/build pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips, and local healthcheck 22/22 pass.
+
+## Desktop category static-content images
+
+- Product-category static HTML now has a category-only DOM hook. From the `lg` breakpoint, a root-level image or the sole element inside a direct paragraph is a centered block with `min-width: 60%`, `max-width: 100%`, automatic height, 20px vertical margins and a 12px corner radius.
+- Product-description HTML and viewports below 1024px retain their existing image presentation. Focused desktop/mobile Playwright covers the live `/bo-pc-gaming-livestream.html` CMS structure, the direct-image and multi-image selector boundaries, disclosure behavior and horizontal containment.
+
+## Mobile product-category grid and filter drawer
+
+- Product-category pages below 1024px now use 12px page insets, an 8px two-column grid for the four available positive-count child categories, and a two-column `ProductGridCard` catalog. At 1024px the existing four-column child-category row, 300px sidebar, desktop sort and three-column grid return; `xl` remains four columns.
+- The mobile toolbar contains the ellipsized catalog title and a labeled filter trigger. Its native left dialog reuses the same sort, price, child-category and attribute render helper/state as desktop with surface-prefixed IDs; filter/sort changes keep the drawer open, update the canonical query and reset page, while reset preserves sort.
+- The trigger now uses solid catalog blue with a white 18px icon and visible focus ring. Mobile sort uses only the shared native-select background arrow. Mobile pagination is capped at five adaptive tokens (`1 2 3 … N`, `1 … current … N`, or `1 … N-2 N-1 N`) in one row; desktop keeps the previous wider range.
+- Below 640px, the static category article aligns with the product grid at a 12px viewport inset and removes its nested horizontal padding. Its vertical spacing, disclosure/fade, sanitized CMS content and all spacing from 640px remain unchanged.
+- The drawer is at most 340px wide, leaves the fixed 60px bottom navigation uncovered on phones, fills tablet height, locks background scroll, supports close button/Escape/backdrop, restores trigger focus and auto-closes at desktop. Native buttons, labels, expansion state and corrected count-badge contrast provide keyboard and WCAG support; desktop promo cards remain outside the drawer.
+- Focused Playwright passes 5/5 on each desktop/mobile Chromium project across 390/768/1023/1024px, including card/footer containment, pagination start/middle/end, static alignment, URL behavior and Axe serious/critical checks. Both app typecheck/lint/build pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips, and strict plus empty-catalog local healthchecks at 22/22 pass.
+
+## Mobile search grid and filter drawer
+
+- Search results below 1024px now match the category catalog surface: 12px page insets, an 8px two-column `ProductGridCard` grid, an ellipsized result count and a solid-blue `Bộ lọc` trigger. At 1024px the existing desktop sidebar, toolbar sort and three-/four-column grid remain unchanged.
+- A native left dialog reuses one render helper with the desktop sidebar for sort, price and attribute controls. Surface-prefixed IDs prevent duplicate controls; query updates retain `q`, reset page to one and keep the drawer open, while reset preserves both `q` and sort. The drawer retains phone bottom-nav clearance, tablet full height, scroll locking, focus restoration and button/Escape/backdrop/desktop dismissal.
+- Category and search now share pure desktop/mobile pagination token helpers. Mobile search uses at most five non-wrapping tokens while desktop preserves its wider range. Focused Playwright passes 4/4 in each desktop/mobile Chromium project across 390/768/1023/1024px, and the shared category/catalog regression passes 24/24. Both app typecheck/lint/build pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips, and both local healthcheck modes at 22/22 pass.
 
 ## Responsive shared storefront Footer
 
@@ -31,9 +63,15 @@ Last verified: `2026-07-22`
 
 - Section 15 keeps the bootstrap-provided brand order, canonical `/brand/[slug]` links, product counts and PCMarket logo URLs while presenting them in a self-contained two-to-six-column gallery. Missing or failed logos fall back to the managed brand name.
 - The initial gallery uses a 366px mobile / 378px desktop internal scroll viewport, bottom fade and chevron; `Xem tất cả` or the chevron expands all rows in place and `Thu gọn` restores the scroll viewport at the top. The component no longer consumes the legacy global `.brands-*` or generic section header selectors.
-- Mobile uses two 80px cards with 16px gaps; the centered 1920px desktop shell uses six columns with 20px gaps. Background glows, logo/card motion, keyboard focus and the thin desktop scrollbar are component-scoped and reduced-motion safe.
+- Mobile uses two 80px cards with 16px gaps; the centered 1800px desktop wrapper uses six columns with 20px gaps. Background glows, logo/card motion, keyboard focus and the thin desktop scrollbar are component-scoped and reduced-motion safe.
 - From the `lg` breakpoint, the desktop shell is a 16px-radius outer frame and its glass panel is inset by 16px with a 24px radius. The inner frame remains hidden below 1024px, so mobile geometry is unchanged.
-- The outer layout cap accounts for its 32px desktop padding on both sides, so the inner shell can actually reach the specified 1920px width. Focused geometry, breakpoint, scrolling, interaction, reduced-motion and Axe coverage passes across desktop and mobile.
+- The outer wrapper is capped at 1800px to align with the homepage; its existing 32px desktop padding produces a centered 1736px inner shell. Focused geometry, breakpoint, scrolling, interaction, reduced-motion and Axe coverage passes across desktop and mobile.
+
+## Homepage Section 16 featured-category news
+
+- Section 16 now renders the ten newest public articles across every active article category marked featured in `web_admin_article_category_meta`. The backend merges primary `catId` and active `idv_article_category` membership, deduplicates articles, orders by `createDate DESC,id DESC`, and prefers an active featured primary category for the card tag.
+- `featuredNews` is loaded in parallel inside homepage bootstrap version 3, so the storefront Server Component receives the news through the existing single bootstrap request and makes no browser news request. Empty data hides Section 16 instead of restoring static sample cards.
+- The existing card/carousel geometry remains intact. Article thumbnails fill the existing image wrapper as backgrounds, titles ellipsize on one line, summaries clamp at three lines, and the only added card structure is a bottom action row containing a bordered category tag and the right-aligned `✦ Xem thêm →` article link. Card hover remains stationary and uses only border/shadow feedback so its top corners are never clipped by the carousel viewport.
 
 ## Managed Header utility links
 

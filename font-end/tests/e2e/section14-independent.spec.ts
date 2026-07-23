@@ -9,7 +9,7 @@ async function waitForArtwork(section: Locator, cardSelector: string) {
   await expect(section.locator(`${cardSelector} img`)).toHaveCount(5);
   await expect.poll(() => section.locator("img").evaluateAll((images) => (
     images.every((image) => (image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0)
-  ))).toBe(true);
+  )), { timeout: 20_000 }).toBe(true);
 }
 
 async function readGeometry(section: Locator, gridSelector: string, cardSelector: string) {
@@ -101,16 +101,23 @@ test("Section 14 preserves links, focus, reduced motion and accessibility", asyn
   const { pageErrors, section14 } = await openHomepage(page);
   const cards = section14.locator("[data-section14-card]");
   const expectedLinks = [
-    "/tim?q=tai%20nghe%20gaming",
-    "/tim?q=ban%20phim%20gaming",
-    "/tim?q=chuot%20gaming",
-    "/tim?sort=newest",
-    "/tim?q=open%20box",
+    "/o-cung-ssd.html",
+    "/thiet-bi-stream-elgato.html",
+    "/o-cung-hdd.html",
+    "/linh-kien-may-tinh.html",
+    "/phan-mem",
+  ];
+  const expectedAlts = [
+    "Ổ cứng SSD khuyến mại",
+    "Thiết bị streaming",
+    "Ổ cứng HDD khuyến mại",
+    "Linh kiện máy tính nổi bật",
+    "Phần mềm bản quyền",
   ];
 
   for (let index = 0; index < expectedLinks.length; index += 1) {
     await expect(cards.nth(index)).toHaveAttribute("href", expectedLinks[index]);
-    await expect(cards.nth(index).locator("img")).toHaveAttribute("alt", /\S+/);
+    await expect(cards.nth(index).locator("img")).toHaveAttribute("alt", expectedAlts[index]);
   }
 
   await cards.first().focus();

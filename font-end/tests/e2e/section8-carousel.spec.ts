@@ -275,7 +275,7 @@ test("previous and next controls plus indicator dots follow the index.html DOM o
   await secondDot.click();
 
   await expect(secondDot).toHaveClass(/active/);
-  await expect.poll(() => visibleOriginalIndex(promoTrack)).toBe("3");
+  await expect.poll(() => visibleOriginalIndex(promoTrack)).toBe("4");
 });
 
 test("raw script init is idempotent and clone cleanup prevents duplicate buffers", async ({ page }, testInfo) => {

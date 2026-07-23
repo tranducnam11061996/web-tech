@@ -149,7 +149,7 @@ export default function Footer() {
             <div>
               <div className="mb-7">
                 <BrandMark />
-                <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 xl:text-[11px]">Cùng bạn sở hữu dàn máy mơ ước</p>
+                <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500 xl:text-[11px]">Cùng bạn setup góc gaming mơ ước</p>
               </div>
               <p className="max-w-sm text-sm leading-[1.65] text-zinc-400 xl:max-w-[460px] xl:text-[15px]">
                 Nâng tầm trải nghiệm chơi game và học tập của bạn với cấu hình tối ưu, linh kiện cao cấp, phù hợp với ngân sách của bạn

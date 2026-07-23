@@ -72,8 +72,8 @@ export function parseHomepageFeaturedCollectionRequest(searchParams: URLSearchPa
 }
 
 export function buildHomepageBootstrapCacheKey(request: HomepageFeaturedCollectionRequest | null) {
-  if (!request) return 'homepage:bootstrap:v2:no-featured-collection';
-  return `homepage:bootstrap:v2:collection:${request.collectionId}:${encodeURIComponent(request.collectionSlug)}:${request.collectionLimit}`;
+  if (!request) return 'homepage:bootstrap:v3:no-featured-collection';
+  return `homepage:bootstrap:v3:collection:${request.collectionId}:${encodeURIComponent(request.collectionSlug)}:${request.collectionLimit}`;
 }
 
 export async function loadHomepageFeaturedCollection(

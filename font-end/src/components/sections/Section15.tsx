@@ -77,10 +77,10 @@ export default function Section15({ brands = [] }: { brands?: HomepageBrand[] })
       aria-labelledby="homepage-brands-title"
       className="w-full bg-[#111111] pb-1 pt-5"
     >
-      <div className="mx-auto max-w-[1984px] sm:px-6 lg:px-8">
+      <div data-section15-wrapper className="mx-auto max-w-[1800px] sm:px-6 lg:px-8">
         <div
           data-section15-shell
-          className="relative mx-auto mb-5 max-w-[1920px] overflow-hidden bg-[#121212] px-4 py-10 md:px-12 md:py-16 lg:rounded-2xl"
+          className="relative mx-auto mb-5 max-w-[1800px] overflow-hidden bg-[#121212] px-4 py-10 md:px-12 md:py-16 lg:rounded-2xl"
         >
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden opacity-70">
             {SECTION_GLOWS.map((glow) => (

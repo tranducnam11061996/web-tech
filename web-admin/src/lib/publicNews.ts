@@ -174,6 +174,63 @@ export async function loadPublicNewsLanding() {
   return { news, reviews, categories };
 }
 
+export async function loadHomepageFeaturedNews(limit = 10) {
+  const resolvedLimit = Math.min(20, Math.max(1, Number.isInteger(limit) ? limit : 10));
+  const [rows] = await pool.query<RowDataPacket[]>(`
+    WITH featured_categories AS (
+      SELECT c.id,c.name,c.ordering
+      FROM idv_seller_news_category c
+      JOIN ${ARTICLE_CATEGORY_METADATA_TABLE} meta
+        ON meta.category_id=c.id AND meta.is_featured=1
+      WHERE c.status=1
+    ), membership AS (
+      SELECT n.id AS article_id,n.catId AS category_id
+      FROM idv_seller_news n
+      JOIN featured_categories featured ON featured.id=n.catId
+      WHERE n.status=1
+      UNION DISTINCT
+      SELECT ac.article_id,ac.category_id
+      FROM idv_article_category ac FORCE INDEX (idx_webtech_news_category_article)
+      JOIN featured_categories featured ON featured.id=ac.category_id
+      JOIN idv_seller_news n ON n.id=ac.article_id AND n.status=1
+      WHERE ac.status=1 AND ac.article_type='article'
+    ), latest_articles AS (
+      SELECT n.id AS article_id
+      FROM membership
+      JOIN idv_seller_news n ON n.id=membership.article_id AND n.status=1
+      GROUP BY n.id,n.createDate
+      ORDER BY n.createDate DESC,n.id DESC
+      LIMIT ?
+    ), selected_categories AS (
+      SELECT latest.article_id,
+             CAST(SUBSTRING_INDEX(
+               GROUP_CONCAT(featured.id ORDER BY
+                 (featured.id=n.catId) DESC,
+                 featured.ordering DESC,
+                 featured.id ASC
+               ),
+               ',',1
+             ) AS UNSIGNED) AS category_id
+      FROM latest_articles latest
+      JOIN membership ON membership.article_id=latest.article_id
+      JOIN idv_seller_news n ON n.id=latest.article_id
+      JOIN featured_categories featured ON featured.id=membership.category_id
+      GROUP BY latest.article_id,n.catId
+    )
+    SELECT n.id,n.title,n.url,n.request_path,n.thumnail,n.summary,n.createDate,n.lastUpdate,
+           COALESCE(page_views.view_count,n.visit,0) AS visit,n.comment_count,n.catId,
+           category.id AS display_category_id,category.name AS category_name
+    FROM latest_articles latest
+    JOIN selected_categories selected ON selected.article_id=latest.article_id
+    JOIN idv_seller_news n ON n.id=latest.article_id AND n.status=1
+    JOIN featured_categories category ON category.id=selected.category_id
+    LEFT JOIN web_admin_page_view_totals page_views
+      ON page_views.entity_type='article' AND page_views.entity_id=n.id
+    ORDER BY n.createDate DESC,n.id DESC
+  `, [resolvedLimit]);
+  return rows.map(item);
+}
+
 export async function loadPopularPublicNews(limit = 4) {
   const [rows] = await pool.query<RowDataPacket[]>(`
     SELECT n.id,n.title,n.url,n.request_path,n.thumnail,n.summary,n.createDate,n.lastUpdate,

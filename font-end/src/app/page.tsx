@@ -24,6 +24,7 @@ import type { HeaderMenuData } from "../components/menuData";
 import type { MenuLinkObject } from "../components/menuData";
 import type { HeroBanner } from "../components/sections/HeroBannerCarousel";
 import { internalApiUrl } from "@/lib/apiUrl";
+import type { NewsItem } from "@/lib/news";
 
 const HOMEPAGE_PRODUCT_SECTION_CONFIGS: HomepageProductSectionConfig[] = [
   section17HomepageProductConfig,
@@ -67,6 +68,7 @@ type HomepageBootstrap = {
   featureSections: { sections?: any[] };
   brands?: HomepageBrand[];
   featuredCollection?: Section8FeaturedCollection | null;
+  featuredNews?: NewsItem[];
 };
 
 async function fetchHomepageBootstrap(): Promise<HomepageBootstrap | null> {
@@ -75,6 +77,7 @@ async function fetchHomepageBootstrap(): Promise<HomepageBootstrap | null> {
     url.searchParams.set("collectionId", String(section8FeaturedCollectionConfig.collectionId));
     url.searchParams.set("collectionSlug", section8FeaturedCollectionConfig.collectionSlug);
     url.searchParams.set("collectionLimit", String(section8FeaturedCollectionConfig.productLimit));
+    url.searchParams.set("contentVersion", "3");
     const response = await fetch(url.toString(), { next: { revalidate: 60 } });
     if (!response.ok) return null;
     const payload = await response.json();
@@ -108,7 +111,7 @@ export default async function Page() {
       <Section11 initialSections={bootstrap?.featureSections?.sections} />
       <Section14 />
       <Section15 brands={bootstrap?.brands} />
-      <Section16 />
+      <Section16 articles={bootstrap?.featuredNews} />
       <Section17 sectionDataPromise={homepageProductSectionsPromise} />
 
       <Footer />

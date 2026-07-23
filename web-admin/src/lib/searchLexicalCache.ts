@@ -5,6 +5,7 @@ import { clearPublicProductResponseCache } from './publicProductCache';
 import {
   buildFuseQuery,
   containsStandalonePhrase,
+  getCanonicalSearchQuery,
   getSearchIntent,
   injectSearchSynonyms,
   normalizeSearchText,
@@ -153,11 +154,12 @@ async function ensureLexicalCache() {
 export async function rankLexicalSearch(query: string) {
   const normalizedQuery = normalizeSearchText(query);
   if (!normalizedQuery) return [];
+  const canonicalQuery = getCanonicalSearchQuery(normalizedQuery);
   await ensureLexicalCache();
-  const fuse = normalizedQuery.length <= 4 ? lexicalCache.shortFuse : lexicalCache.longFuse;
+  const fuse = canonicalQuery.length <= 4 ? lexicalCache.shortFuse : lexicalCache.longFuse;
   if (!fuse) throw new Error('Search lexical cache is not ready');
-  const ranked = rankLexicalResults(fuse.search(buildFuseQuery(normalizedQuery)), normalizedQuery);
-  if (getSearchIntent(normalizedQuery) !== 'printer') return ranked;
+  const ranked = rankLexicalResults(fuse.search(buildFuseQuery(canonicalQuery)), canonicalQuery);
+  if (getSearchIntent(canonicalQuery) !== 'printer') return ranked;
   return ranked.filter(({ product }) =>
     containsStandalonePhrase(product.normalizedName, PRINTER_INTENT_PHRASE)
     && Array.from(product.categoryIds).some((categoryId) => lexicalCache.printerCategoryIds.has(categoryId)),

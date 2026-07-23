@@ -2,7 +2,8 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { AdminApiError, maybeText, requireText, toBoolInt, withTransaction } from '@/lib/admin/common';
 import { clearFooterMenuCache } from '@/lib/footerMenus';
-import { FOOTER_MENU_GROUPS, createFooterMenuDraft } from '@/lib/footer-menu-seed';
+import { createFooterMenuDraft } from '@/lib/footer-menu-seed';
+import { assertFooterMenuDraft } from '@/lib/admin/managedFooterMenuValidation';
 import { ensureHeaderMenuTables, type HeaderMenuDraft, type HeaderMenuDraftNode } from './menus';
 
 const FOOTER_MENU_CODE = 'footer';
@@ -40,32 +41,6 @@ function emptyFooterDraft() {
 
 function footerNodeCount(nodes: HeaderMenuDraftNode[]): number {
   return nodes.reduce((total, node) => total + 1 + footerNodeCount(node.children || []), 0);
-}
-
-function assertFooterDraft(draft: HeaderMenuDraft) {
-  const zones = draft.zones || [];
-  if (zones.length !== 1 || zones[0]?.nodeType !== 'zone' || requireText(zones[0]?.label, 'menu', 'Ten menu', 255) !== FOOTER_MENU_NAME) {
-    throw new AdminApiError(400, 'BAD_REQUEST', 'Footer Menu phai co mot nut goc duy nhat');
-  }
-  for (const area of ['faves', 'topNav', 'utilityLinks', 'circleStory', 'shopByCategory'] as const) {
-    if ((draft[area] || []).length > 0) throw new AdminApiError(400, 'BAD_REQUEST', 'Footer Menu chi ho tro bon nhom link');
-  }
-
-  const groups = zones[0].children || [];
-  if (groups.length !== FOOTER_MENU_GROUPS.length) throw new AdminApiError(400, 'BAD_REQUEST', 'Footer Menu phai co dung bon nhom link');
-  groups.forEach((group, groupIndex) => {
-    const expected = FOOTER_MENU_GROUPS[groupIndex];
-    if (group.nodeType !== 'group' || requireText(group.label, `groups.${groupIndex}.label`, 'Ten nhom', 255) !== expected.label) {
-      throw new AdminApiError(400, 'BAD_REQUEST', `Nhom thu ${groupIndex + 1} phai la ${expected.label}`);
-    }
-    const links = group.children || [];
-    if (links.length !== expected.links.length) throw new AdminApiError(400, 'BAD_REQUEST', `Nhom ${expected.label} phai co dung ${expected.links.length} link`);
-    links.forEach((link, linkIndex) => {
-      if (link.nodeType !== 'link') throw new AdminApiError(400, 'BAD_REQUEST', `Muc ${linkIndex + 1} cua nhom ${expected.label} phai la link`);
-      requireText(link.label, `groups.${groupIndex}.links.${linkIndex}.label`, 'Nhan link', 255);
-      if (String(link.linkMode || 'custom') !== 'custom') throw new AdminApiError(400, 'BAD_REQUEST', 'Footer Menu chi ho tro link tuy chinh');
-    });
-  });
 }
 
 async function getMenuId(connection: PoolConnection) {
@@ -197,7 +172,7 @@ export async function getFooterMenuAdmin() {
 }
 
 export async function saveFooterMenuDraft(draft: HeaderMenuDraft) {
-  assertFooterDraft(draft);
+  assertFooterMenuDraft(draft);
   return withTransaction(async (connection) => {
     await ensureHeaderMenuTables(connection);
     const menuId = await getMenuId(connection);

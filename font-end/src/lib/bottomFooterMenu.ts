@@ -27,7 +27,13 @@ let bottomFooterMenuRequest: Promise<BottomFooterMenuData> | null = null;
 
 function normalizeBottomFooterMenu(data: unknown): BottomFooterMenuData {
   const source = data as BottomFooterMenuData | null;
-  if (!source?.heading || !Array.isArray(source.links) || source.links.length !== PARTNERS.length) return fallbackBottomFooterMenu;
+  const validLinks = Array.isArray(source?.links) && source.links.every((link) => (
+    typeof link?.id === 'string'
+    && typeof link.label === 'string'
+    && link.label.trim().length > 0
+    && typeof link.url === 'string'
+  ));
+  if (typeof source?.heading !== 'string' || source.heading.trim().length === 0 || !validLinks) return fallbackBottomFooterMenu;
   return { heading: source.heading, links: source.links, meta: source.meta };
 }
 

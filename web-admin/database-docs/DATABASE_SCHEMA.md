@@ -1,6 +1,6 @@
 # Database Runtime Schema Reference
 
-Verified: `2026-07-20` after live PC Builder v6 product-price migration
+Verified: `2026-07-24` after Combo Set category-scope migration
 Active local database: `it_tech_db`. Retained legacy source: `hanoi23_db` (read only during the 2026-07-13 cutover).
 Source: live `information_schema` inspection
 
@@ -24,23 +24,25 @@ Legacy product attributes and numeric `attr_value_id` values are the compatibili
 
 ## Combo commerce additions
 
-Migration verification on `2026-07-12`: applied twice successfully to local `hanoi23_db` to confirm idempotency.
+The original Combo commerce migration was applied twice successfully to local `hanoi23_db` on `2026-07-12`. The additive category-scope migration was applied idempotently to identified local `it_tech_db` on `2026-07-24`.
 
-Active `it_tech_db` contains the combo schema but currently has 0 `combo_set` and 0 `combo_set_product` rows. Imported PCMarket comboset occurrences remain pending audit data and were not written to these runtime tables.
+Active `it_tech_db` currently has 1 `combo_set`, 1 `combo_set_product` row and 0 selected category roots. Imported PCMarket comboset occurrences remain pending audit data and were not written to these runtime tables.
 
 - Legacy `combo_set.config` remains PHP-serialized with discount types `number|percent`; application code normalizes `number` to `fixed` and writes legacy values back unchanged.
 - `combo_set_product` migration adds unique index `uq_combo_set_product_product_set(product_id,set_id)` and read/delete index `idx_combo_set_product_set_product(set_id,product_id)` after a duplicate preflight. It does not remove orphan rows.
+- `web_admin_combo_set_categories` stores selected dynamic category roots with primary key `(combo_set_id,category_id)`, reverse index `(category_id,combo_set_id)`, audit timestamp/actor, and an `ON DELETE CASCADE` FK to `combo_set`. Category IDs intentionally remain logical references. Product-category import backup/detach/rollback preserves the table and temporarily disables affected Combo Sets during a category swap.
+- Effective Combo applicability is the union of direct product rows and selected roots found in the anchor product’s current ancestor chain. `combo_set.product_count` remains the direct count for legacy compatibility.
 - `web_admin_storefront_order_meta` gains `order_type enum('standard','combo')`, `combo_set_id`, `combo_anchor_product_id`, plus `(order_type,order_id)` and `(combo_set_id,order_id)` indexes. Existing rows default to `standard`.
 
 ## Physical Summary
 
 | Metric | Value |
 |---|---:|
-| Total physical tables | 301 |
-| InnoDB tables | 173 |
+| Total physical tables | 310 |
+| InnoDB tables | 182 |
 | MyISAM tables | 128 |
 
-After accepted cleanup and the v6 migration, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; all thirteen PC Builder tables use InnoDB/`utf8mb4_unicode_ci`. The current total is 309 tables; current inventory should be re-read from `information_schema` rather than inferred from older historical sections.
+After accepted cleanup, PC Builder v6 and the Combo category-scope migration, the active database has zero Latin-1 tables/columns and zero import recovery/stage/restore objects. Two existing tables retain `utf8mb4_0900_ai_ci`; all thirteen PC Builder tables and the Combo scope table use InnoDB/`utf8mb4_unicode_ci`. The current total is 310 tables; current inventory should be re-read from `information_schema` rather than inferred from older historical sections.
 
 Most legacy relations are logical, not physical. Do not assume FK/cascade exists unless explicitly documented below.
 
@@ -257,11 +259,14 @@ Voucher runtime data is intentionally separate from legacy MyISAM `idv_coupon` t
 
 - `web_admin_vouchers`: canonical code, active state, quota, discount rule, minimum order value, and optional UTC validity range.
 - `web_admin_voucher_categories`: selected category roots; application includes descendants at quote time.
+- `web_admin_voucher_products`: direct product scope with primary key `(voucher_id, product_id)`, reverse index `(product_id, voucher_id)`, and `ON DELETE CASCADE` ownership FK to `web_admin_vouchers`. Product IDs remain logical references to the legacy catalog.
 - `web_admin_voucher_redemptions`: immutable order snapshot plus `redeemed` / `released` state. `order_id` is unique to enforce one voucher per storefront order.
 
-Product-detail voucher discovery reads the same tables and treats an empty category link set as global. A linked category includes all descendants, matching checkout quote behavior; public payloads do not expose exact remaining quantity or redemption history.
+Product-detail discovery and checkout use the same scope rule: a product is eligible when directly linked or inside a selected category root/descendant. The two sets are combined with OR semantics and deduplicated; only when both relation sets are empty is the voucher global. Public payloads do not expose configured product IDs, exact remaining quantity or redemption history.
 
 For limited vouchers, `remaining_quantity` is decremented only while creating the order and is incremented only when a pending order becomes failed or cancelled.
+
+The direct-product table was applied to identified `it_tech_db` on `2026-07-24` after restore-verifying a 310-table/100,214-row logical backup with SHA-256 `b11e4e7bae11db0f46d0b7720c9df0b0caa791bdef6aed53949c49c3d0f1a199`. Migration verification preserved 2 vouchers and 31 category links and created 0 initial direct-product links; live inventory became 311 tables.
 
 ## Product Promotions
 

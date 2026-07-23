@@ -17,6 +17,9 @@ test("managed promotions precede numbered rich-text editor promotions", async ({
   await expect(items.nth(0)).toContainText("Tặng chuột không dây Edra EM611W");
   await expect(items.nth(1)).toContainText("Lưu ý về Hệ điều hành");
   await expect(items.nth(2)).toContainText("Bộ PC này đã áp dụng CTKM SHOCK");
+  await expect(items.nth(0).locator(".purchase-promo-text > strong")).toContainText(
+    "Tặng chuột không dây Edra EM611W",
+  );
   await expect(promotionSection.locator('[data-promotion-source="product-editor"] strong')).toHaveCount(2);
   await expect(promotionSection.getByText("Xem chi tiết")).toHaveCount(0);
 

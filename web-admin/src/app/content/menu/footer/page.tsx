@@ -10,7 +10,8 @@ export default async function FooterMenuPage() {
       initialData={initialData}
       allowedAreas={['zones']}
       title="Quản lý Footer Menu"
-      sectionLabel="Bốn nhóm link footer"
+      sectionLabel="Các nhóm link Footer"
+      editorProfile="footer"
       verifyEndpoint="/api/menu/footer"
       adminEndpoint="/api/admin/menus/footer"
       publishEndpoint="/api/admin/menus/footer/publish"

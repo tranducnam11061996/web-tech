@@ -10,7 +10,8 @@ export default async function BottomFooterMenuPage() {
       initialData={initialData}
       allowedAreas={['zones']}
       title="Quản lý Bottom Footer"
-      sectionLabel="Trusted Partners"
+      sectionLabel="Nhóm link Bottom Footer"
+      editorProfile="bottom-footer"
       verifyEndpoint="/api/menu/bottom-footer"
       adminEndpoint="/api/admin/menus/bottom-footer"
       publishEndpoint="/api/admin/menus/bottom-footer/publish"

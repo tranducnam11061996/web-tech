@@ -6,9 +6,8 @@ import Breadcrumb from '../../../components/Breadcrumb';
 import FeaturedNewsCategories from '../../../components/FeaturedNewsCategories';
 import MostReadNews from '../../../components/MostReadNews';
 import PcBuildPromotionBanner from '../../../components/PcBuildPromotionBanner';
+import NewsCardMeta from '../../../components/NewsCardMeta';
 import {
-  formatNewsDate,
-  formatNewsDateTime,
   sanitizeNewsHtml,
   type NewsArticle,
   type NewsCategory,
@@ -45,14 +44,7 @@ function RelatedArticleCard({ article, index }: { article: NewsItem; index: numb
       </div>
       <div className="flex-1 flex flex-col justify-start min-w-0">
         <h3 className="text-[14px] font-bold text-white mb-2 group-hover:text-blue-400 transition line-clamp-3 leading-snug">{article.title}</h3>
-        <div className="flex items-center gap-1 text-[12px] text-blue-400 mb-1">
-          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
-          <span>PCM</span>
-        </div>
-        <div className="flex items-center gap-1 text-[11px] text-gray-500">
-          <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-          <span>{formatNewsDateTime(article.createDate)}</span>
-        </div>
+        <NewsCardMeta article={article} className="mt-1 text-[11px]" />
       </div>
     </Link>
   );
@@ -69,8 +61,6 @@ export default function ArticleView({ article, categories, popularNews }: {
   const tags = articleTags(article.tags);
   const categoryName = trail.at(-1)?.name || article.category_name || '';
   const featuredCategories = categories.filter((category) => category.isFeatured);
-  const updatedDate = formatNewsDate(article.lastUpdate || article.createDate);
-  const views = Number(article.visit || 0).toLocaleString('vi-VN');
 
   return (
     <>
@@ -89,16 +79,7 @@ export default function ArticleView({ article, categories, popularNews }: {
                 {categoryName ? <span className="bg-blue-500/10 text-blue-400 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider border border-blue-500/30">{categoryName}</span> : null}
               </div>
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-white leading-tight">{article.title}</h1>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400 border-b border-[#1a1a1e] pb-6">
-                <div className="flex items-center gap-2">
-                  <div aria-hidden="true" className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold">P</div>
-                  <span className="font-medium text-white">PCM</span>
-                </div>
-                <span aria-hidden="true">•</span>
-                <span>{updatedDate}</span>
-                <span aria-hidden="true">•</span>
-                <span>{views} lượt xem</span>
-              </div>
+              <NewsCardMeta article={article} className="border-b border-[#1a1a1e] pb-6 text-sm" />
             </header>
 
             <article data-article-content className="space-y-6 text-gray-300 leading-relaxed text-[16px] md:text-[17px]">

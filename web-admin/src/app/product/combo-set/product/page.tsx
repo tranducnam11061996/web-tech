@@ -1,117 +1,59 @@
-import { Suspense } from 'react';
-import pool from '@/lib/db';
-import { ComboSetProductTable } from '@/components/products/combo-set/ComboSetProductTable';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
-import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
-import { resolveProductImageUrl } from '@/lib/productImageUrl';
+import { ComboSetScopeManager } from '@/components/products/combo-set/ComboSetScopeManager';
+import { parsePaginationParams } from '@/lib/admin/pagination';
+import { getAdminComboSetScope } from '@/lib/comboSetScopes';
 
-async function getComboSetInfo(id: number) {
-  const [rows] = await pool.query('SELECT title FROM combo_set WHERE id = ?', [id]);
-  return (rows as any[])[0]?.title || 'Unknown Combo Set';
-}
-
-async function getComboProducts(comboId: number, page: number, limit: number) {
-  try {
-    const offset = (page - 1) * limit;
-
-    const countQuery = `
-      SELECT COUNT(csp.product_id) as total 
-      FROM combo_set_product csp
-      JOIN idv_sell_product_store p ON csp.product_id = p.id
-      WHERE csp.set_id = ?
-    `;
-    const [countResult] = await pool.query(countQuery, [comboId]);
-    const totalItems = Number((countResult as any[])[0]?.total || 0);
-
-    const query = `
-      SELECT p.id, p.storeSKU, p.proName, p.proThum, 
-             pr.price, pr.market_price, pr.isOn
-      FROM combo_set_product csp
-      JOIN idv_sell_product_store p ON csp.product_id = p.id
-      LEFT JOIN idv_sell_product_price pr ON p.id = pr.id
-      WHERE csp.set_id = ?
-      ORDER BY csp.id DESC
-      LIMIT ? OFFSET ?
-    `;
-    
-    const [rows] = await pool.query(query, [comboId, Number(limit), Number(offset)]);
-
-    const products = (rows as any[]).map((row: any) => ({
-      id: row.id,
-      sku: row.storeSKU,
-      name: row.proName,
-      price: row.price || 0,
-      marketPrice: row.market_price || 0,
-      imageUrl: resolveProductImageUrl(row.proThum, 'https://via.placeholder.com/60'),
-      status: row.isOn?.toString() || '0'
-    }));
-
-    return {
-      products,
-      pagination: buildPagination(totalItems, page, limit),
-    };
-  } catch (error) {
-    console.error('Failed to fetch combo products:', error);
-    return { products: [], pagination: buildPagination(0, 1, limit) };
-  }
-}
-
-export default async function ComboSetProductPage(props: { 
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }> 
+export default async function ComboSetProductPage(props: {
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const searchParams = await props.searchParams;
   const comboId = Number(searchParams?.id);
   const { page, limit } = parsePaginationParams(searchParams);
 
-  if (!comboId) {
+  if (!Number.isInteger(comboId) || comboId <= 0) {
     return (
-      <div className="flex-1 p-6 bg-[#0a0a0f] flex flex-col items-center justify-center text-gray-500 font-mono">
+      <div className="flex flex-1 flex-col items-center justify-center bg-[#0a0a0f] p-6 font-mono text-gray-500">
         <h1>ID Combo Set không hợp lệ.</h1>
-        <Link href="/product/combo-set/list" className="mt-4 text-blue-500 hover:underline">Quay lại danh sách</Link>
+        <Link href="/product/combo-set/list" className="mt-4 text-blue-500 hover:underline focus-visible:outline-2 focus-visible:outline-blue-400">Quay lại danh sách</Link>
       </div>
     );
   }
 
-  const title = await getComboSetInfo(comboId);
-  const { products, pagination } = await getComboProducts(comboId, page, limit);
-
+  const scope = await getAdminComboSetScope(comboId, page, limit);
   return (
-    <div className="flex flex-col h-full bg-[#0a0a0f] relative overflow-hidden">
-      {/* Background glow effects */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-red-600/5 rounded-full blur-[150px] pointer-events-none"></div>
+    <div className="relative flex h-full flex-col overflow-hidden bg-[#0a0a0f]">
+      <div className="pointer-events-none absolute right-0 top-0 h-96 w-96 rounded-full bg-blue-600/10 blur-[120px]" />
+      <div className="pointer-events-none absolute bottom-0 left-0 h-[500px] w-[500px] rounded-full bg-red-600/5 blur-[150px]" />
 
-      <div className="flex flex-col h-full p-4 md:p-6 z-10 relative space-y-6">
-        
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-900/50 p-5 rounded-lg border border-gray-800 backdrop-blur-sm shadow-xl">
+      <div className="relative z-10 flex h-full flex-col space-y-6 p-4 md:p-6">
+        <header className="flex flex-col justify-between gap-4 rounded-lg border border-gray-800 bg-gray-900/50 p-5 shadow-xl backdrop-blur-sm md:flex-row md:items-center">
           <div className="flex items-center gap-4">
-            <Link href="/product/combo-set/list">
-              <button className="p-2 bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-all shadow-sm">
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+            <Link href="/product/combo-set/list" aria-label="Quay lại danh sách Combo Set" className="rounded bg-gray-800 p-2 text-gray-400 shadow-sm hover:bg-gray-700 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400">
+              <ChevronLeft className="h-5 w-5" aria-hidden="true" />
             </Link>
             <div>
-              <h1 className="text-xl md:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300 tracking-wider uppercase drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]">
-                CÁC SẢN PHẨM ĐƯỢC ÁP DỤNG COMBO
+              <h1 className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-xl font-black uppercase tracking-wider text-transparent drop-shadow-[0_0_10px_rgba(59,130,246,0.5)] md:text-2xl">
+                Các sản phẩm được áp dụng combo
               </h1>
-              <p className="text-sm text-gray-400 font-medium flex items-center gap-2 mt-1">
-                Combo Set: <span className="text-white font-bold bg-gray-800 px-2 py-0.5 rounded text-xs">{title}</span>
+              <p className="mt-1 flex items-center gap-2 text-sm font-medium text-gray-400">
+                Combo Set: <span className="rounded bg-gray-800 px-2 py-0.5 text-xs font-bold text-white">{scope.combo.title}</span>
               </p>
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* Content */}
-        <div className="flex-1 overflow-hidden min-h-[400px]">
-          <Suspense fallback={
-            <div className="w-full h-full flex items-center justify-center text-gray-500">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-            </div>
-          }>
-            <ComboSetProductTable products={products} pagination={pagination} />
-          </Suspense>
+        <div className="min-h-[400px] flex-1 overflow-hidden">
+          <ComboSetScopeManager
+            comboSetId={comboId}
+            products={scope.products}
+            pagination={scope.pagination}
+            directProductIds={scope.directProductIds}
+            selectedCategoryIds={scope.selectedCategories.map((category) => category.id)}
+            categories={scope.categories}
+            brands={scope.brands}
+            effectiveProductCount={scope.effectiveProductCount}
+          />
         </div>
       </div>
     </div>

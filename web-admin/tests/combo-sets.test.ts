@@ -13,12 +13,30 @@ import {
   normalizeComboNumericText,
   prependComboItem,
 } from '../src/components/products/combo-set/edit/comboSetEditorState';
+import {
+  canonicalizeCategoryRoots,
+  collectCategoryDescendants,
+} from '../src/lib/categoryHierarchy';
 
 test('combo-set create navigation and API permissions use the intended contracts', () => {
   assert.equal(getPagePermission('/product/combo-set/edit'), 'catalog.combo_sets.read');
   assert.equal(getApiPermission('/api/admin/combo-sets', 'POST'), 'catalog.combo_sets.create');
   assert.equal(getApiPermission('/api/admin/combo-sets/12', 'PATCH'), 'catalog.combo_sets.update');
+  assert.equal(getApiPermission('/api/admin/combo-sets/12/scope', 'PATCH'), 'catalog.combo_sets.update');
   assert.equal(getApiPermission('/api/admin/combo-sets/12', 'DELETE'), 'catalog.combo_sets.delete');
+});
+
+test('combo category scope keeps minimal roots and expands descendants without cycling', () => {
+  const rows = [
+    { id: 1, parentId: 0 },
+    { id: 2, parentId: 1 },
+    { id: 3, parentId: 2 },
+    { id: 4, parentId: 4 },
+  ];
+  const parents = new Map(rows.map((row) => [row.id, row.parentId]));
+  assert.deepEqual(canonicalizeCategoryRoots([3, 1, 2, 1], parents), [1]);
+  assert.deepEqual(collectCategoryDescendants([1], rows), [1, 2, 3]);
+  assert.deepEqual(collectCategoryDescendants([4], rows), [4]);
 });
 
 test('combo end-time mode treats zero as unlimited and positive timestamps as limited', () => {

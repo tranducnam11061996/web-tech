@@ -4,6 +4,30 @@ Last verified: `2026-07-24`
 
 `font-end` is the customer-facing Next.js 16.2.11/React 19.2.4 storefront. It consumes `web-admin` APIs and must never access MySQL or backend secrets directly.
 
+## Voucher scope presentation
+
+Product-detail voucher discovery may now match the current product through a direct SKU relation, a selected category root/descendant, or the global empty-scope state. The public payload still omits configured SKU IDs. `ProductVoucherModal` presents the existing admin-authored voucher description and no longer infers a `Phạm vi` line from category names, preventing direct-SKU vouchers from being mislabeled as global. Cart and checkout continue to show apply/error state and discount amount without an inferred scope note.
+
+## Shared news metadata and PC Build promotion
+
+The article header, related-article cards, news-category list cards and all three first-row hero cards use the existing server-rendered `createDate` and `visit` values through the shared `NewsCardMeta` renderer. A semantic `dd/mm/yyyy` time and a Vietnamese-localized, non-negative view count replace the PCM author label, remain left-aligned beside each other with a 16px gap on the existing dark surfaces, and can wrap only when a narrow viewport requires it.
+
+The shared news-sidebar PC Build banner displays `PC BUILD BỞI CHUYÊN GIA`. Its `PC VĂN PHÒNG` and `PC GAMING` offer cards intentionally link to `/pc-van-phong.html` with protected new-tab semantics, so news landing, category and article pages expose the same destination and keyboard focus treatment.
+
+## Product-promotion emphasis
+
+Product-detail promotions preserve their managed-first ordering. Plain promotions supplied by web-admin render their text in semantic `<strong>`, matching the bold formatting already preserved from safe editor HTML; an optional `Xem chi tiết` link remains outside that emphasis and retains its existing internal/external navigation semantics.
+
+## Product-gallery control layering
+
+The product-detail thumbnail rail uses an isolated local stacking context. Previous/Next arrows sit above ordinary thumbnails at layer `1`, while specification and video utility buttons sit at layer `2`. This preserves arrow scrolling but guarantees that a utility wins pointer hit-testing wherever the controls overlap; no page-wide z-index, pointer-event suppression, geometry or carousel-state change is involved.
+
+## Product-detail Combo configurator
+
+The product-detail add-on picker uses the canonical `ProductGridCard` instead of a modal-specific card. Inside the dialog, the card displays `comboUnitPrice` against the current sell price and replaces the ordinary cart action with an immediate add/remove-Combo control; it carries `aria-pressed`, does not write `hacom.cart.v1`, and leaves the default shared-card behavior unchanged elsewhere. Product image/title links open in protected new tabs.
+
+The tech-premium dialog keeps its header, selected count, keyboard tab rail, search/meta toolbar and optional pagination outside the scrolling product area. Its grid uses two columns below 640px, then three/four/five/six columns at 640/1024/1280/1600px; sparse desktop groups are centered at the full 280px card density. The shared dialog hook owns body scroll lock, focus trap, Escape and focus restoration, while loading skeletons, retry and query-aware empty states cover asynchronous group loading. Public Combo APIs, quote and Combo Cart contracts are unchanged.
+
 ## Shared Brand and Collection detail layout
 
 `/brand/[slug]` and `/collection/[slug]` use one server-rendered catalog-detail layout. Both render breadcrumb, sanitized editor HTML, product heading/count, two canonical price-sort links, the shared `ProductGridCard` grid and numeric pagination in the same order and with identical geometry. The grid is 2/3/4/6 columns at mobile/`sm`/`lg`/`xl`; page one is omitted from canonical links.
@@ -20,9 +44,9 @@ Desktop and mobile Header utility controls consume `utilityLinks` from `GET /api
 
 ## Shared responsive Footer
 
-`Footer.tsx` is shared across the storefront. It consumes the existing four groups from `GET /api/menu/footer` and the non-wrapping partner rail from `GET /api/menu/bottom-footer`; published labels, suffixes, URLs and order are rendered dynamically. Contact details, TrucTiepGAME copy, Vietnamese legal text, social controls and the local Bộ Công Thương/DMCA certification images remain source-owned.
+`Footer.tsx` is shared across the storefront. It consumes a dynamic group/link array from `GET /api/menu/footer` and a dynamically named partner list from `GET /api/menu/bottom-footer`; published labels, suffixes, URLs and order are rendered without seed cardinality checks. Groups with no links are hidden, an empty Footer list removes the nav, and an empty Bottom Footer list removes the partner rail without activating fallback data. Contact details, TrucTiepGAME copy, Vietnamese legal text, social controls and the local Bộ Công Thương/DMCA certification images remain source-owned.
 
-Desktop centers the composition in an 1800px container with the intro beside four menu columns, one contact/social/certification row, partner rail and legal/payment split. From `1280px`, the wider columns use a balanced 1–2px typography increase; below that breakpoint the existing mobile/tablet type scale is unchanged. Footer height follows its content and retains only the standard 64px bottom padding after the final line. Mobile uses 24px insets, two menu columns, four stacked contact cards and same-row certifications. The newsletter email field accepts typing and browser autofill, while its submit button remains disabled with an accessible unavailable description until a backend exists. The partner track centers automatically when it fits and remains natively scrollable when it overflows.
+Desktop centers the composition in an 1800px container with the intro beside a four-column wrapping menu grid, one contact/social/certification row, optional partner rail and legal/payment split. From `1280px`, the wider columns use a balanced 1–2px typography increase; below that breakpoint the existing mobile/tablet type scale is unchanged. Footer height follows its content and retains only the standard 64px bottom padding after the final line. Mobile uses 24px insets, a two-column wrapping menu grid, four stacked contact cards and same-row certifications. The newsletter email field accepts typing and browser autofill, while its submit button remains disabled with an accessible unavailable description until a backend exists. The partner track centers automatically when it fits and remains natively scrollable when it overflows.
 
 ## PC Builder storefront
 

@@ -2,6 +2,64 @@
 
 Last verified: `2026-07-24`
 
+## Voucher direct-product scope
+
+- `/sales/vouchers` now combines direct SKU scope with the existing dynamic category-root scope using OR semantics. Leaving both scopes empty remains global; direct selections are capped at 500, may include hidden catalog rows, and are stored in `web_admin_voucher_products`.
+- Product-detail discovery and checkout quote use the same global/direct/category rule. Discount math, minimum-order behavior, quota locking and redemption transaction boundaries are unchanged; duplicate direct/category matches contribute to eligible subtotal only once.
+- Admin voucher GET/POST/PUT now project and persist `productIds`; the list exposes `productCount`. Missing catalog IDs are omitted from the edit draft and removed on the next explicit save. The storefront voucher modal relies on the authored `description` and no longer renders an inferred scope line; checkout scope notes are no longer generated.
+- The additive migration was applied to identified `it_tech_db` after a 310-table/100,214-row restore-verified logical backup (SHA-256 `b11e4e7bae11db0f46d0b7720c9df0b0caa791bdef6aed53949c49c3d0f1a199`). Live verification found 2 vouchers, 31 category links and 0 initial product links; schema integration and the full destructive clone integration both pass. Both app typechecks, quiet lints and production builds pass, backend unit tests pass 208/208, integrations pass 28 with 14 guarded skips, and local healthcheck passes 22/22.
+
+## Footer menus use dynamic managed content
+
+- `Footer Menu` keeps one structural root but accepts zero or more arbitrarily named groups and zero or more custom links per group. `Bottom Footer` keeps one structural group whose heading and custom-link count are dynamic. Both admin validators enforce the three-level tree and a 200-node safety ceiling without comparing names or counts to seed data.
+- The shared editor protects the structural root (and the single Bottom Footer group), exposes only valid group/link actions, duplicates nodes beside their source under the same parent, hides the unused frontend-label setting, and retains draft/publish, ordering, active state and visibility controls. Published empty content is valid: empty/inactive Footer groups are omitted, an empty Footer nav and Bottom Footer rail are not rendered, and only a missing/corrupt/unavailable published source uses the code seed fallback.
+- Public API URLs and shapes remain unchanged: Footer returns a dynamic `groups` array and Bottom Footer returns a dynamic `heading` plus `links`. No schema, migration, permission, write-gate or current database data change is required.
+- Verification passes both app typechecks, quiet lints and production builds, 205/205 backend unit tests, 27 applied integrations with 13 guarded skips, focused Footer Playwright 6/6, and local healthcheck 22/22.
+
+## Shared news metadata and PC Build links
+
+- News-category list cards, all three first-row hero cards, the article header and every related-article card use the shared `NewsCardMeta` renderer instead of PCM author metadata. It renders a semantic `<time>` using the existing `dd/mm/yyyy` formatter followed immediately by an eye-labelled, Vietnamese-localized non-negative `visit` count. The pair is left-aligned with a fixed 16px gap on the existing dark surfaces and can wrap only when the available width requires it.
+- The shared red `PcBuildPromotionBanner` labels its pill `PC BUILD BỞI CHUYÊN GIA`. Both full-card links (`PC VĂN PHÒNG` and `PC GAMING`) intentionally target `/pc-van-phong.html` in protected new tabs, matching the requested route contract across news landing, category and article sidebars.
+- Focused article/category Playwright passes 13 applied desktop/mobile cases with 3 intentional project skips, including API metadata binding for the article header, related cards, all hero/list cards, exact same-row left geometry, protected popup navigation, sticky/normal-flow behavior and overflow. Both app typecheck/lint/build pipelines pass, backend unit tests pass 198/198, integrations pass 27 with 13 guarded skips, and local healthcheck passes 22/22.
+
+## Managed product promotions use the same bold emphasis
+
+- Storefront product detail now wraps the plain text of every `source="managed"` promotion in semantic `<strong>`, matching the editor-authored promotion lines that already retain their allowed bold markup. An optional `Xem chi tiết` link remains outside the strong element and keeps its existing navigation behavior.
+- The requested product route confirms promotion number 1 renders one direct strong element at computed weight 700. Focused promotion Playwright passes desktop/mobile with ordering, rich-text, overflow and Axe coverage; both app typecheck/lint/build pipelines pass, backend unit tests pass 198/198, integrations pass 27 with 13 guarded skips, and local healthcheck passes 22/22.
+
+## Product-gallery utility controls stay above rail arrows
+
+- The thumbnail rail now owns an isolated stacking context. Its navigation arrows use local layer `1`, while every `.product-gallery-utility` (including specifications and video) is positioned on local layer `2`, so an overlapping Previous arrow can no longer intercept pointer interaction intended for a utility.
+- Thumbnail geometry, arrow scrolling, carousel state and the specification dialog remain unchanged; no global z-index or `pointer-events` workaround was introduced.
+- Focused gallery Playwright passes all 3 desktop cases and the applicable mobile layering case, including overlap hit-testing, specification-modal opening, unchanged rail position on the utility click, working Next/Previous controls and zero horizontal overflow. Both app typecheck/lint/build pipelines pass, backend unit tests pass 198/198, integrations pass 27 with 13 guarded skips, and local healthcheck passes 22/22.
+
+## Product-detail Combo configurator
+
+- The add-on picker now presents a responsive tech-premium configurator rather than a separate legacy card surface. Its fixed header, accessible keyboard tabs, search/meta toolbar and optional pagination surround the only scrollable product grid; the grid uses two/three/four/five/six columns at `<640`/`640`/`1024`/`1280`/`1600px`, while sparse desktop groups are centered at the canonical 280px card width.
+- Modal products render the shared `ProductGridCard` DOM and container-query styling. An internal Combo action mode displays `comboUnitPrice` against the current sell price, toggles the parent selection immediately with `aria-pressed`, and never calls or identifies as the ordinary cart action. Product links open in protected new tabs; the default card/cart/link contract everywhere else remains unchanged.
+- The dialog reuses the shared scroll-lock/focus-trap/Escape/restore hook, exposes Arrow/Home/End tab navigation and includes card-shaped loading skeletons, retry and query-aware empty states. No Combo API, quote, cart, schema or database contract changed.
+- Focused Combo Playwright passes 5 applied desktop/mobile cases with one intentional project skip across the 390/768/1024/1440/1920 matrix, selection persistence, cart isolation, new-tab navigation, focus restoration and Axe serious/critical coverage. Shared-card regression passes 11/11; both app typecheck/lint/build pipelines pass, backend unit tests pass 198/198, integrations pass 27 with 13 guarded skips, and local healthcheck passes 22/22.
+
+## Desktop product gallery follows the purchase column
+
+- In the three-column product-detail layout from `1200px`, `ProductCarousel` measures its visible gallery content against `.product-purchase-column` with `ResizeObserver`. A shorter gallery uses native `position: sticky` at the established 110px desktop offset; an equal/taller gallery and all narrower layouts remain in normal flow.
+- The outer `.product-gallery-column` receives a boundary height equal to the purchase column, so the sticky content stops at the purchase-column bottom even when the middle information column is taller. No scroll listener, API, product data or carousel interaction contract changed.
+- Focused desktop Playwright passes 2/2 across 1200/1440/1920px plus breakpoint and dynamic-height cases. The related product-detail regression passes 4 applied cases with one intentional project skip; both app typecheck/lint/build pipelines pass, backend unit tests pass 198/198, integrations pass 27 with 13 guarded skips, and local healthcheck passes 22/22.
+
+## Product-detail Combo footer follows the add-on selection
+
+- `ProductComboBuilder` no longer renders `.product-bundle-footer` until at least one add-on SKU is selected. Selecting the first SKU mounts the subtotal/savings and `Mua combo` action immediately (including the existing quote-loading state); removing the final SKU or switching Combo Sets removes the footer from the DOM and tab order.
+- Quote, Combo Cart, API and CSS contracts are unchanged. Focused Playwright passes in desktop and mobile Chromium on `/pc-ultra-gaming-i7-14700kf-rtx-5070-12gb`.
+
+## Combo Set product and category scope
+
+- `/product/combo-set/product?id=...` now manages one effective scope assembled from direct `combo_set_product` rows and dynamic category roots in `web_admin_combo_set_categories`. The page exposes immediate-save product search plus a draft/save two-column category tree, then deduplicates the effective product list and labels every row with its direct/category source.
+- Category roots include current and future descendants at read/quote time; public Combo summaries and quote validation use the same server-owned applicability check. Direct relations retain their legacy per-product ordering and `combo_set.product_count` remains the direct count.
+- The additive table has a cascading FK only to `combo_set`; category IDs remain logical references. Category import backup/detach/rollback now preserves this scope, and the shared cycle-safe category hierarchy cache is invalidated through the existing category mutation path.
+- `PATCH /api/admin/combo-sets/[id]/scope` requires `catalog.combo_sets.update` and supports `add-product`, `remove-product`, and canonical `replace-categories`. The Product Group SKU picker now wraps the same accessible catalog picker primitive without changing its `assignment=available` behavior.
+- The category modal intentionally uses `overflow: clip` on its outer panel. `overflow: hidden` still made that panel a scroll container, so Chrome focus-scrolled it when a visually hidden tree checkbox was selected, moving header/body/footer upward and leaving an equal blank area below. Only the middle row is scrollable; the opaque compositor-free backdrop, definite `92vh`/`760px` height and disabled middle-row scroll anchoring are secondary safeguards.
+- The migration was applied idempotently to identified local database `it_tech_db`; Combo `713` remains unchanged at one direct product and zero category roots. Both app typecheck/lint/build pipelines pass, backend unit tests pass 198/198, integrations pass 27 with 13 guarded skips, the write-enabled focused scope integration passes 1/1, and healthcheck passes 22/22.
+
 ## Combo Set creation, permissions and unlimited end time
 
 - `/product/combo-set/list` now links `Thêm mới` directly to `/product/combo-set/edit`; the edit route's existing no-ID branch initializes a new Combo Set and its client submits the existing canonical payload to `POST /api/admin/combo-sets`.

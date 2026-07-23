@@ -28,6 +28,9 @@ import FavoriteButton from "./FavoriteButton";
 import { openProductSpecifications } from "./ProductSpecificationsOpenButton";
 
 const ProductVideoModal = dynamic(() => import("./ProductVideoModal"), { ssr: false });
+const PRODUCT_GALLERY_DESKTOP_QUERY = "(min-width: 1200px)";
+const PRODUCT_GALLERY_HEIGHT_EPSILON_PX = 1;
+const PRODUCT_GALLERY_BOUNDARY_PROPERTY = "--product-gallery-sticky-boundary-height";
 
 function normalizeGalleryImages(input: unknown): ProductGalleryImage[] {
   if (!Array.isArray(input)) return [];
@@ -89,6 +92,8 @@ export default function ProductCarousel({
   const mainRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const railRef = useRef<HTMLDivElement>(null);
+  const galleryColumnRef = useRef<HTMLElement>(null);
+  const galleryStickyContentRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const dragTranslateRef = useRef(0);
   const autoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -110,6 +115,68 @@ export default function ProductCarousel({
     window.addEventListener("resize", checkRailScroll);
     return () => window.removeEventListener("resize", checkRailScroll);
   }, [checkRailScroll, totalSlides]);
+
+  useEffect(() => {
+    const galleryColumn = galleryColumnRef.current;
+    const galleryContent = galleryStickyContentRef.current;
+    const purchaseColumn = galleryColumn
+      ?.closest<HTMLElement>(".product-hero-grid")
+      ?.querySelector<HTMLElement>(".product-purchase-column");
+    if (!galleryColumn || !galleryContent || !purchaseColumn) return;
+
+    const desktopMedia = window.matchMedia(PRODUCT_GALLERY_DESKTOP_QUERY);
+    let animationFrame: number | null = null;
+
+    const clearStickyBoundary = () => {
+      delete galleryColumn.dataset.gallerySticky;
+      galleryColumn.style.removeProperty(PRODUCT_GALLERY_BOUNDARY_PROPERTY);
+    };
+
+    const measure = () => {
+      if (!desktopMedia.matches) {
+        clearStickyBoundary();
+        return;
+      }
+
+      const galleryHeight = galleryContent.getBoundingClientRect().height;
+      const purchaseHeight = purchaseColumn.getBoundingClientRect().height;
+      const shouldStick =
+        galleryHeight > PRODUCT_GALLERY_HEIGHT_EPSILON_PX &&
+        purchaseHeight > galleryHeight + PRODUCT_GALLERY_HEIGHT_EPSILON_PX;
+
+      if (!shouldStick) {
+        clearStickyBoundary();
+        return;
+      }
+
+      galleryColumn.dataset.gallerySticky = "true";
+      galleryColumn.style.setProperty(
+        PRODUCT_GALLERY_BOUNDARY_PROPERTY,
+        `${purchaseHeight}px`,
+      );
+    };
+
+    const scheduleMeasurement = () => {
+      if (animationFrame !== null) return;
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        measure();
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(scheduleMeasurement);
+    resizeObserver.observe(galleryContent);
+    resizeObserver.observe(purchaseColumn);
+    desktopMedia.addEventListener("change", scheduleMeasurement);
+    scheduleMeasurement();
+
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+      desktopMedia.removeEventListener("change", scheduleMeasurement);
+      clearStickyBoundary();
+    };
+  }, [productData.id]);
 
   const showMessage = useCallback((message: string) => {
     setActionMessage(message);
@@ -280,7 +347,12 @@ export default function ProductCarousel({
   };
 
   return (
-    <section className="product-gallery-column" aria-label="Hình ảnh sản phẩm">
+    <section
+      ref={galleryColumnRef}
+      className="product-gallery-column"
+      aria-label="Hình ảnh sản phẩm"
+    >
+      <div ref={galleryStickyContentRef} className="product-gallery-sticky-content">
       <div
         className="product-gallery-stage"
         ref={mainRef}
@@ -486,6 +558,7 @@ export default function ProductCarousel({
             <ChevronRight aria-hidden="true" />
           </button>
         )}
+      </div>
       </div>
       {isVideoModalOpen ? (
         <ProductVideoModal

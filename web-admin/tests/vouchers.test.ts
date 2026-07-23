@@ -11,7 +11,11 @@ import {
   normalizeVoucherDigits,
   validateVoucherNumericFields,
 } from '../src/components/vouchers/voucherForm';
-import { productMatchesVoucherCategories } from '../src/lib/vouchers';
+import {
+  normalizeVoucherProductIds,
+  productMatchesVoucherCategories,
+  productMatchesVoucherScope,
+} from '../src/lib/vouchers';
 
 const parentById = new Map<number, number>([
   [6, 0],
@@ -38,6 +42,27 @@ test('a voucher category does not apply outside its category tree', () => {
 test('category matching terminates safely when legacy category data cycles', () => {
   const cyclicParents = new Map<number, number>([[1, 2], [2, 1]]);
   assert.equal(productMatchesVoucherCategories([1], [3], cyclicParents), false);
+});
+
+test('voucher product scope applies globally only when both scope lists are empty', () => {
+  assert.equal(productMatchesVoucherScope(100, [610], [], [], parentById), true);
+  assert.equal(productMatchesVoucherScope(100, [610], [200], [], parentById), false);
+  assert.equal(productMatchesVoucherScope(100, [610], [], [6], parentById), false);
+});
+
+test('voucher product and category scopes are combined with OR semantics', () => {
+  assert.equal(productMatchesVoucherScope(100, [610], [100], [6], parentById), true);
+  assert.equal(productMatchesVoucherScope(200, [600], [100], [6], parentById), true);
+  assert.equal(productMatchesVoucherScope(300, [610], [100], [6], parentById), false);
+});
+
+test('voucher product ids are normalized, deduplicated and bounded', () => {
+  assert.deepEqual(normalizeVoucherProductIds([3, '2', 3, 0, -1, 'invalid']), [3, 2]);
+  assert.deepEqual(normalizeVoucherProductIds(undefined), []);
+  assert.throws(
+    () => normalizeVoucherProductIds(Array.from({ length: 501 }, (_, index) => index + 1)),
+    /tối đa 500/,
+  );
 });
 
 test('voucher numeric text input keeps only digits', () => {

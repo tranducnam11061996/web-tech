@@ -309,7 +309,7 @@ function ProductPurchaseColumn({
                 {promotionHtml
                   ? <div className="purchase-promo-rich-text" dangerouslySetInnerHTML={{ __html: promotionHtml }} />
                   : <>
-                      {promo.text}
+                      <strong>{promo.text}</strong>
                       {promo.detailUrl ? <>{" "}<a href={promo.detailUrl} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} className="purchase-promo-detail-link">
                         Xem chi tiết
                       </a></> : null}

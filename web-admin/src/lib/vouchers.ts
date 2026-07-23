@@ -58,6 +58,7 @@ export type PublicProductVoucher = {
 
 const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 const CATEGORY_TREE_TTL_MS = 5 * 60_000;
+const MAX_VOUCHER_PRODUCT_IDS = 500;
 type VoucherCategoryTree = {
   children: Map<number, number[]>;
   parentById: Map<number, number>;
@@ -109,12 +110,6 @@ function parseUtcDate(value: string | null) {
   return value ? new Date(`${value.replace(' ', 'T')}Z`) : null;
 }
 
-function formatCategoryNote(categoryNames: string[], eligibleItemCount: number) {
-  if (categoryNames.length === 0) return null;
-  const names = categoryNames.join(', ');
-  return `Voucher chỉ áp dụng cho ${eligibleItemCount} sản phẩm thuộc danh mục ${names}.`;
-}
-
 export async function ensureVoucherTables(db: DbExecutor = pool) {
   await db.query(`
     CREATE TABLE IF NOT EXISTS web_admin_vouchers (
@@ -137,6 +132,16 @@ export async function ensureVoucherTables(db: DbExecutor = pool) {
       PRIMARY KEY (id),
       UNIQUE KEY uk_web_admin_vouchers_code (code),
       KEY idx_web_admin_vouchers_status_time (status, starts_at, ends_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS web_admin_voucher_products (
+      voucher_id int unsigned NOT NULL,
+      product_id int unsigned NOT NULL,
+      PRIMARY KEY (voucher_id, product_id),
+      KEY idx_web_admin_voucher_products_product (product_id, voucher_id),
+      CONSTRAINT fk_web_admin_voucher_products_voucher
+        FOREIGN KEY (voucher_id) REFERENCES web_admin_vouchers(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
   await db.query(`
@@ -180,6 +185,17 @@ async function getVoucherCategories(db: DbExecutor, voucherId: number) {
   return rows.map((row) => ({ id: Number(row.category_id), name: String(row.name || '').trim() })).filter((row) => row.id > 0);
 }
 
+async function getVoucherProductIds(db: DbExecutor, voucherId: number) {
+  const [rows] = await db.query<RowDataPacket[]>(`
+    SELECT vp.product_id
+    FROM web_admin_voucher_products vp
+    JOIN idv_sell_product_store p ON p.id = vp.product_id
+    WHERE vp.voucher_id = ?
+    ORDER BY vp.product_id ASC
+  `, [voucherId]);
+  return rows.map((row) => Number(row.product_id)).filter((id) => Number.isInteger(id) && id > 0);
+}
+
 async function getCategoryTree() {
   if (categoryTreeCache && categoryTreeCache.expiresAt > Date.now()) return categoryTreeCache.tree;
   if (categoryTreeFlight) return categoryTreeFlight;
@@ -205,8 +221,16 @@ async function getCategoryTree() {
 
 export function invalidateVoucherCategoryCache() { categoryTreeCache = null; }
 
-async function getEligibleProductIds(db: DbExecutor, productIds: number[], rootCategoryIds: number[]) {
-  if (rootCategoryIds.length === 0) return new Set(productIds);
+async function getEligibleProductIds(
+  db: DbExecutor,
+  productIds: number[],
+  rootCategoryIds: number[],
+  directProductIds: number[],
+) {
+  if (rootCategoryIds.length === 0 && directProductIds.length === 0) return new Set(productIds);
+  const directProducts = new Set(directProductIds);
+  const eligibleProducts = new Set(productIds.filter((productId) => directProducts.has(productId)));
+  if (rootCategoryIds.length === 0 || productIds.length === 0) return eligibleProducts;
   const { children } = await getCategoryTree();
   const targetCategories = new Set<number>(rootCategoryIds);
   const queue = [...rootCategoryIds];
@@ -223,7 +247,8 @@ async function getEligibleProductIds(db: DbExecutor, productIds: number[], rootC
     'SELECT DISTINCT pro_id, category_id FROM idv_product_category WHERE pro_id IN (?) AND category_id IN (?)',
     [productIds, Array.from(targetCategories)],
   );
-  return new Set(links.map((row) => Number(row.pro_id)));
+  for (const row of links) eligibleProducts.add(Number(row.pro_id));
+  return eligibleProducts;
 }
 
 export function productMatchesVoucherCategories(
@@ -245,6 +270,19 @@ export function productMatchesVoucherCategories(
   return false;
 }
 
+export function productMatchesVoucherScope(
+  productId: number,
+  productCategoryIds: number[],
+  directProductIds: number[],
+  voucherCategoryIds: number[],
+  parentById: Map<number, number>,
+) {
+  if (directProductIds.length === 0 && voucherCategoryIds.length === 0) return true;
+  if (directProductIds.includes(productId)) return true;
+  if (voucherCategoryIds.length === 0) return false;
+  return productMatchesVoucherCategories(productCategoryIds, voucherCategoryIds, parentById);
+}
+
 export async function getPublicProductVouchers(productId: number): Promise<PublicProductVoucher[]> {
   if (!Number.isInteger(productId) || productId <= 0) return [];
   const [productCategoryRows, tree] = await Promise.all([
@@ -264,11 +302,18 @@ export async function getPublicProductVouchers(productId: number): Promise<Publi
       current = Number(tree.parentById.get(current) || 0);
     }
   }
-  const categoryScope = ancestorIds.size > 0
-    ? `(NOT EXISTS (SELECT 1 FROM web_admin_voucher_categories unrestricted WHERE unrestricted.voucher_id = v.id)
-       OR EXISTS (SELECT 1 FROM web_admin_voucher_categories scoped WHERE scoped.voucher_id = v.id AND scoped.category_id IN (?)))`
-    : `NOT EXISTS (SELECT 1 FROM web_admin_voucher_categories unrestricted WHERE unrestricted.voucher_id = v.id)`;
-  const bindings = ancestorIds.size > 0 ? [Array.from(ancestorIds)] : [];
+  const scopeParts = [
+    `(NOT EXISTS (SELECT 1 FROM web_admin_voucher_categories unrestricted_categories WHERE unrestricted_categories.voucher_id = v.id)
+      AND NOT EXISTS (SELECT 1 FROM web_admin_voucher_products unrestricted_products WHERE unrestricted_products.voucher_id = v.id))`,
+    `EXISTS (SELECT 1 FROM web_admin_voucher_products direct_products
+      WHERE direct_products.voucher_id = v.id AND direct_products.product_id = ?)`,
+  ];
+  const bindings: unknown[] = [productId];
+  if (ancestorIds.size > 0) {
+    scopeParts.push(`EXISTS (SELECT 1 FROM web_admin_voucher_categories scoped_categories
+      WHERE scoped_categories.voucher_id = v.id AND scoped_categories.category_id IN (?))`);
+    bindings.push(Array.from(ancestorIds));
+  }
   const [voucherRows] = await pool.query<RowDataPacket[]>(`
       SELECT candidates.id, candidates.code, candidates.title, candidates.description,
         candidates.discount_type, candidates.discount_value, candidates.max_discount,
@@ -284,7 +329,7 @@ export async function getPublicProductVouchers(productId: number): Promise<Publi
           AND (v.starts_at IS NULL OR v.starts_at <= UTC_TIMESTAMP())
           AND (v.ends_at IS NULL OR v.ends_at > UTC_TIMESTAMP())
           AND (v.quantity_mode = 'unlimited' OR v.remaining_quantity > 0)
-          AND ${categoryScope}
+          AND (${scopeParts.join(' OR ')})
         ORDER BY (v.ends_at IS NULL) ASC, v.ends_at ASC, v.id DESC
         LIMIT 50
       ) candidates
@@ -352,8 +397,14 @@ export async function quoteVoucher(
   }
 
   const categories = await getVoucherCategories(db, Number(voucher.id));
+  const directProductIds = await getVoucherProductIds(db, Number(voucher.id));
   const availableItems = items.filter((item) => item.available && item.price > 0 && item.quantity > 0);
-  const eligibleIds = await getEligibleProductIds(db, availableItems.map((item) => item.productId), categories.map((category) => category.id));
+  const eligibleIds = await getEligibleProductIds(
+    db,
+    availableItems.map((item) => item.productId),
+    categories.map((category) => category.id),
+    directProductIds,
+  );
   const eligibleItems = availableItems.filter((item) => eligibleIds.has(item.productId));
   const eligibleSubtotal = eligibleItems.reduce((total, item) => total + item.price * item.quantity, 0);
   if (eligibleSubtotal <= 0) return voucherError(code, 'no_eligible_items', 'Voucher không áp dụng cho sản phẩm trong đơn hàng.');
@@ -379,7 +430,7 @@ export async function quoteVoucher(
     eligibleSubtotal,
     eligibleItemCount,
     categoryNames,
-    note: formatCategoryNote(categoryNames, eligibleItemCount),
+    note: null,
   };
 }
 
@@ -453,6 +504,18 @@ function parseVietnamDateTime(value: unknown) {
   return utc.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+export function normalizeVoucherProductIds(value: unknown) {
+  const productIds = Array.from(new Set(
+    (Array.isArray(value) ? value : [])
+      .map((id: unknown) => toInt(id))
+      .filter((id: number) => id > 0),
+  ));
+  if (productIds.length > MAX_VOUCHER_PRODUCT_IDS) {
+    throw new AdminApiError(400, 'BAD_REQUEST', `Danh sách SKU chỉ hỗ trợ tối đa ${MAX_VOUCHER_PRODUCT_IDS} sản phẩm.`, { productIds: 'max_items' });
+  }
+  return productIds;
+}
+
 function validateVoucherPayload(payload: any) {
   const code = normalizeVoucherCode(requireText(payload?.code, 'code', 'Mã voucher', 64));
   if (!/^[A-Z0-9_-]{3,64}$/.test(code)) throw new AdminApiError(400, 'BAD_REQUEST', 'Mã voucher chỉ gồm chữ, số, gạch dưới hoặc gạch ngang.');
@@ -473,9 +536,10 @@ function validateVoucherPayload(payload: any) {
     throw new AdminApiError(400, 'BAD_REQUEST', 'Thời gian bắt đầu và kết thúc phải đầy đủ, hợp lệ.');
   }
   const categoryIds = Array.from(new Set((Array.isArray(payload?.categoryIds) ? payload.categoryIds : []).map((id: unknown) => toInt(id)).filter((id: number) => id > 0)));
+  const productIds = normalizeVoucherProductIds(payload?.productIds);
   const rawDescription = String(payload?.description || '').trim();
   if (rawDescription.length > 4000) throw new AdminApiError(400, 'BAD_REQUEST', 'Mô tả voucher vượt quá 4.000 ký tự.', { description: 'max_length' });
-  return { code, title, description: maybeText(rawDescription, 4000), status: toBoolInt(payload?.status, 1), quantityMode, totalQuantity, discountType, discountValue, maxDiscount, minimumOrderValue: Math.max(0, toInt(payload?.minimumOrderValue)), startsAt, endsAt, categoryIds };
+  return { code, title, description: maybeText(rawDescription, 4000), status: toBoolInt(payload?.status, 1), quantityMode, totalQuantity, discountType, discountValue, maxDiscount, minimumOrderValue: Math.max(0, toInt(payload?.minimumOrderValue)), startsAt, endsAt, categoryIds, productIds };
 }
 
 export async function listAdminVouchers() {
@@ -486,7 +550,11 @@ export async function listAdminVouchers() {
       DATE_FORMAT(DATE_ADD(v.starts_at, INTERVAL 7 HOUR), '%Y-%m-%dT%H:%i') AS startsAt,
       DATE_FORMAT(DATE_ADD(v.ends_at, INTERVAL 7 HOUR), '%Y-%m-%dT%H:%i') AS endsAt,
       COALESCE(SUM(CASE WHEN r.status = 'redeemed' AND o.status = 3 THEN 1 ELSE 0 END), 0) AS usedCount,
-      COALESCE(SUM(CASE WHEN r.status = 'redeemed' AND o.status IN (1, 2) THEN 1 ELSE 0 END), 0) AS pendingCount
+      COALESCE(SUM(CASE WHEN r.status = 'redeemed' AND o.status IN (1, 2) THEN 1 ELSE 0 END), 0) AS pendingCount,
+      (SELECT COUNT(*)
+       FROM web_admin_voucher_products vp
+       JOIN idv_sell_product_store p ON p.id = vp.product_id
+       WHERE vp.voucher_id = v.id) AS productCount
     FROM web_admin_vouchers v
     LEFT JOIN web_admin_voucher_redemptions r ON r.voucher_id = v.id
     LEFT JOIN build_buy o ON o.id = r.order_id
@@ -512,6 +580,7 @@ export async function listAdminVouchers() {
     quantityMode: row.quantity_mode, totalQuantity: row.total_quantity === null ? null : Number(row.total_quantity), remainingQuantity: row.remaining_quantity === null ? null : Number(row.remaining_quantity),
     discountType: row.discount_type, discountValue: Number(row.discount_value), maxDiscount: row.max_discount === null ? null : Number(row.max_discount), minimumOrderValue: Number(row.minimum_order_value),
     startsAt: row.startsAt || null, endsAt: row.endsAt || null, usedCount: Number(row.usedCount), pendingCount: Number(row.pendingCount),
+    productCount: Number(row.productCount || 0),
     categories: categoriesByVoucher.get(Number(row.id)) || [],
   }));
 }
@@ -525,14 +594,24 @@ export async function getAdminVoucher(id: number) {
   `, [id]);
   const row = rows[0];
   if (!row) throw new AdminApiError(404, 'NOT_FOUND', 'Không tìm thấy voucher.');
-  const categories = await getVoucherCategories(pool, id);
-  const [redemptions] = await pool.query<RowDataPacket[]>(`
+  const [categories, products, redemptions] = await Promise.all([
+    getVoucherCategories(pool, id),
+    pool.query<RowDataPacket[]>(`
+      SELECT vp.product_id AS id, p.storeSKU, p.proName, COALESCE(pr.isOn, 0) AS isOn
+      FROM web_admin_voucher_products vp
+      JOIN idv_sell_product_store p ON p.id = vp.product_id
+      LEFT JOIN idv_sell_product_price pr ON pr.id = p.id
+      WHERE vp.voucher_id = ?
+      ORDER BY p.proName ASC, vp.product_id ASC
+    `, [id]).then(([productRows]) => productRows),
+    pool.query<RowDataPacket[]>(`
     SELECT r.order_id, r.code_snapshot, r.discount_amount, r.status, r.redeemed_at, r.released_at, o.status AS order_status
     FROM web_admin_voucher_redemptions r
     LEFT JOIN build_buy o ON o.id = r.order_id
     WHERE r.voucher_id = ?
     ORDER BY r.id DESC LIMIT 50
-  `, [id]);
+    `, [id]).then(([redemptionRows]) => redemptionRows),
+  ]);
   return {
     ...row,
     quantityMode: row.quantity_mode,
@@ -545,6 +624,13 @@ export async function getAdminVoucher(id: number) {
     startsAt: row.starts_at,
     endsAt: row.ends_at,
     categoryIds: categories.map((category) => category.id),
+    productIds: products.map((product) => Number(product.id)),
+    products: products.map((product) => ({
+      id: Number(product.id),
+      storeSKU: String(product.storeSKU || ''),
+      proName: String(product.proName || ''),
+      isOn: Number(product.isOn || 0),
+    })),
     redemptions: redemptions.map((redemption) => ({
       orderId: Number(redemption.order_id),
       discountAmount: Number(redemption.discount_amount),
@@ -587,8 +673,19 @@ export async function saveAdminVoucher(payload: any, voucherId?: number) {
         throw new AdminApiError(400, 'BAD_REQUEST', 'Danh mục áp dụng không tồn tại.');
       }
     }
+    if (value.productIds.length > 0) {
+      const [productRows] = await connection.query<RowDataPacket[]>(
+        'SELECT COUNT(*) AS total FROM idv_sell_product_store WHERE id IN (?)',
+        [value.productIds],
+      );
+      if (Number(productRows[0]?.total || 0) !== value.productIds.length) {
+        throw new AdminApiError(400, 'BAD_REQUEST', 'Danh sách SKU áp dụng chứa sản phẩm không tồn tại.', { productIds: 'invalid' });
+      }
+    }
     await connection.query('DELETE FROM web_admin_voucher_categories WHERE voucher_id = ?', [id]);
     if (value.categoryIds.length > 0) await connection.query('INSERT INTO web_admin_voucher_categories (voucher_id, category_id) VALUES ?', [value.categoryIds.map((categoryId) => [id, categoryId])]);
+    await connection.query('DELETE FROM web_admin_voucher_products WHERE voucher_id = ?', [id]);
+    if (value.productIds.length > 0) await connection.query('INSERT INTO web_admin_voucher_products (voucher_id, product_id) VALUES ?', [value.productIds.map((productId) => [id, productId])]);
     await connection.commit();
     clearPublicCatalogDetailCache();
     return getAdminVoucher(id);

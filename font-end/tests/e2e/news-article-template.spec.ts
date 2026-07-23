@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
 
 const slug = process.env.PLAYWRIGHT_NEWS_ARTICLE_SLUG || 'o-cung-ssd-samsung-pcie-6-0-bat-dau-duoc-san-xuat-hang-loat';
 const articlePath = `/tin-tuc/${slug}`;
@@ -8,6 +8,22 @@ async function articlePayload(request: APIRequestContext) {
   const response = await request.get(`/api/news/${slug}`);
   expect(response.ok()).toBeTruthy();
   return response.json();
+}
+
+function expectedNewsDate(value: string) {
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+async function expectNewsViews(locator: Locator, value: unknown) {
+  await expect(locator).toContainText('Lượt xem:');
+  const renderedViews = Number((await locator.textContent())?.replace(/\D/g, '') || 0);
+  const apiViews = Math.max(0, Math.trunc(Number(value) || 0));
+  // View counters can advance between the API fixture request and the cached page render.
+  expect(Math.abs(renderedViews - apiViews)).toBeLessThanOrEqual(5);
 }
 
 test('news article binds the single-article template to public API data', async ({ page, request }, testInfo) => {
@@ -20,6 +36,14 @@ test('news article binds the single-article template to public API data', async 
   await expect(page.locator('[data-article-content]')).toContainText(payload.data.summary);
   await expect(page.locator('[data-article-header] > div').first().locator('span.text-sm.text-gray-500')).toHaveCount(0);
   await expect(page.getByText('Cùng danh mục', { exact: true })).toHaveCount(0);
+
+  const headerMeta = page.locator('[data-article-header] > [data-news-card-meta]');
+  await expect(headerMeta).toBeVisible();
+  await expect(headerMeta.getByText('PCM', { exact: true })).toHaveCount(0);
+  await expect(headerMeta.locator('[data-news-card-date]')).toHaveAttribute('datetime', payload.data.createDate);
+  await expect(headerMeta.locator('[data-news-card-date]')).toHaveText(expectedNewsDate(payload.data.createDate));
+  await expectNewsViews(headerMeta.locator('[data-news-card-views]'), payload.data.visit);
+
   await expect(page.locator('[data-featured-news-categories]')).toBeVisible();
   await expect(page.locator('[data-most-read-news]')).toBeVisible();
   await expect(page.locator('[data-pc-build-promotion]')).toBeVisible();
@@ -38,6 +62,33 @@ test('news article binds the single-article template to public API data', async 
     payload.data.relatedNews.map((article: { url: string }) => `/tin-tuc/${article.url}`),
   );
   expect(await related.evaluateAll((elements, currentPath) => elements.some((element) => element.getAttribute('href') === currentPath), articlePath)).toBeFalsy();
+
+  for (const [index, article] of payload.data.relatedNews.entries()) {
+    const relatedMeta = related.nth(index).locator('[data-news-card-meta]');
+    await expect(relatedMeta.getByText('PCM', { exact: true })).toHaveCount(0);
+    await expect(relatedMeta.locator('[data-news-card-date]')).toHaveAttribute('datetime', article.createDate);
+    await expect(relatedMeta.locator('[data-news-card-date]')).toHaveText(expectedNewsDate(article.createDate));
+    await expectNewsViews(relatedMeta.locator('[data-news-card-views]'), article.visit);
+  }
+
+  for (const metadata of await page.locator('[data-article-main] [data-news-card-meta]').all()) {
+    const geometry = await metadata.evaluate((element) => {
+      const date = element.querySelector<HTMLElement>('[data-news-card-date]')!;
+      const views = element.querySelector<HTMLElement>('[data-news-card-views]')!;
+      const containerBox = element.getBoundingClientRect();
+      const dateBox = date.getBoundingClientRect();
+      const viewsBox = views.getBoundingClientRect();
+      return {
+        leftInset: dateBox.left - containerBox.left,
+        topOffset: Math.abs(dateBox.top - viewsBox.top),
+        horizontalGap: viewsBox.left - dateBox.right,
+      };
+    });
+    expect(Math.abs(geometry.leftInset)).toBeLessThanOrEqual(1);
+    expect(geometry.topOffset).toBeLessThanOrEqual(1);
+    expect(geometry.horizontalGap).toBeGreaterThanOrEqual(12);
+    expect(geometry.horizontalGap).toBeLessThanOrEqual(20);
+  }
 
   if (!String(payload.data.tags || '').trim()) {
     await expect(page.locator('[data-article-tags-share]').getByText('Tags:', { exact: true })).toHaveCount(0);

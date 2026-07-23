@@ -25,6 +25,15 @@ export interface ProductGridCardData {
 interface ProductGridCardProps {
   product: ProductGridCardData;
   onFavoriteChange?: (favorited: boolean) => void;
+  action?:
+    | { type?: "cart" }
+    | {
+        type: "combo";
+        selected: boolean;
+        onToggle: () => void;
+        disabled?: boolean;
+      };
+  productLinkTarget?: "_blank";
 }
 
 function formatPrice(value: number) {
@@ -52,22 +61,35 @@ function CurrencyValue({
   );
 }
 
-export default function ProductGridCard({ product, onFavoriteChange }: ProductGridCardProps) {
+export default function ProductGridCard({
+  product,
+  onFavoriteChange,
+  action = { type: "cart" },
+  productLinkTarget,
+}: ProductGridCardProps) {
   const [justAdded, setJustAdded] = useState(false);
   const price = Number(product.price || 0);
   const marketPrice = Number(product.marketPrice || 0);
-  const hasPrice = price > 0;
+  const isComboAction = action.type === "combo";
+  const comboSelected = isComboAction && action.selected;
+  const hasPrice = isComboAction ? Number.isFinite(price) && price >= 0 : price > 0;
   const hasDiscount = hasPrice && marketPrice > price;
   const discountPercent = hasDiscount ? Math.round(((marketPrice - price) / marketPrice) * 100) : 0;
   const productSlug = product.slug || `product-${product.id}`;
   const flashSale = product.flashSale || null;
   const flashRemainingRatio = flashSale?.quotaTotal ? Math.max(0, Math.min(100, flashSale.remainingQuantity / flashSale.quotaTotal * 100)) : 0;
   const canAddToCart = hasPrice && (!flashSale || flashSale.remainingQuantity > 0);
+  const canUseAction = isComboAction ? !action.disabled : canAddToCart;
 
-  const handleAddToCart = (event: MouseEvent<HTMLButtonElement>) => {
+  const handleAction = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!canAddToCart) return;
+    if (!canUseAction) return;
+
+    if (isComboAction) {
+      action.onToggle();
+      return;
+    }
 
     addCartItem({
       productId: Number(product.id),
@@ -85,8 +107,13 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
 
   return (
     <article
-      className="product-grid-card group relative flex h-full flex-col overflow-hidden rounded-xl border border-[#27272a] bg-gradient-to-b from-[#1a1a1d] to-[#111113] shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-[border-color,box-shadow] duration-200 ease-out hover:border-[#3f3f46] hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)]"
+      className={`product-grid-card group relative flex h-full flex-col overflow-hidden rounded-xl border bg-gradient-to-b from-[#1a1a1d] to-[#111113] shadow-[0_4px_12px_rgba(0,0,0,0.2)] transition-[border-color,box-shadow] duration-200 ease-out hover:shadow-[0_8px_30px_rgba(0,0,0,0.6)] ${
+        comboSelected
+          ? "border-cyan-400 shadow-[0_8px_30px_rgba(34,211,238,0.14)]"
+          : "border-[#27272a] hover:border-[#3f3f46]"
+      }`}
       data-product-card
+      data-combo-selected={isComboAction ? String(comboSelected) : undefined}
     >
       {hasDiscount ? (
         <div className="product-grid-card-discount absolute right-3 top-3 z-30 rounded-full bg-gradient-to-r from-red-600 via-rose-500 to-orange-500 px-2.5 py-1 text-[10px] font-black text-white shadow-[0_10px_26px_rgba(239,68,68,0.3)] ring-1 ring-white/10">
@@ -102,7 +129,12 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
         />
       ) : null}
 
-      <ProductCardLink href={`/${productSlug}`} className="flex h-full flex-1 flex-col">
+      <ProductCardLink
+        href={`/${productSlug}`}
+        className="flex h-full flex-1 flex-col"
+        target={productLinkTarget}
+        rel={productLinkTarget === "_blank" ? "noopener noreferrer" : undefined}
+      >
         <div className="product-card-image-frame bg-[#151518]">
           <ProgressiveImage
             src={product.thumbnail || ""}
@@ -165,19 +197,28 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
       {hasPrice ? (
         <button
           type="button"
-          aria-label={canAddToCart ? "Thêm vào giỏ hàng" : "Sản phẩm Flash Sale đã hết suất"}
-          data-product-cart-button
-          onClick={handleAddToCart}
-          disabled={!canAddToCart}
-          className={`product-grid-card-cart absolute bottom-3.5 right-2.5 z-20 flex size-9 items-center justify-center rounded-xl border transition-all ${
-            justAdded
-              ? "border-emerald-400 bg-emerald-500/15 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.24)]"
+          aria-label={
+            isComboAction
+              ? `${comboSelected ? "Bỏ" : "Thêm"} ${product.name} ${comboSelected ? "khỏi" : "vào"} combo`
               : canAddToCart
+                ? "Thêm vào giỏ hàng"
+                : "Sản phẩm Flash Sale đã hết suất"
+          }
+          aria-pressed={isComboAction ? comboSelected : undefined}
+          {...(isComboAction
+            ? { "data-product-combo-button": "" }
+            : { "data-product-cart-button": "" })}
+          onClick={handleAction}
+          disabled={!canUseAction}
+          className={`product-grid-card-cart absolute bottom-3.5 right-2.5 z-20 flex size-9 items-center justify-center rounded-xl border transition-all ${
+            comboSelected || justAdded
+              ? "border-emerald-400 bg-emerald-500/15 text-emerald-300 shadow-[0_0_22px_rgba(16,185,129,0.24)]"
+              : canUseAction
                 ? "border-[#303036] bg-[#151518] text-cyan-300 hover:border-emerald-400 hover:text-emerald-300 hover:shadow-[0_0_20px_rgba(34,211,238,0.2)]"
                 : "cursor-not-allowed border-zinc-800 bg-zinc-900 text-zinc-700"
           }`}
         >
-          {justAdded ? (
+          {comboSelected || justAdded ? (
             <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
             </svg>
@@ -186,6 +227,7 @@ export default function ProductGridCard({ product, onFavoriteChange }: ProductGr
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M6 6h15l-1.5 9h-12L6 6Z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M6 6 5 3H2" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M9 20.25h.01M18 20.25h.01" />
+              {isComboAction ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M18 2v6M15 5h6" /> : null}
             </svg>
           )}
         </button>

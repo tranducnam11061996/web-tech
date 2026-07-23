@@ -1,8 +1,9 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { AdminApiError, maybeText, requireText, toBoolInt, withTransaction } from '@/lib/admin/common';
-import { BOTTOM_FOOTER_MENU_HEADING, BOTTOM_FOOTER_MENU_LINKS, createBottomFooterMenuDraft } from '@/lib/bottom-footer-menu-seed';
+import { createBottomFooterMenuDraft } from '@/lib/bottom-footer-menu-seed';
 import { clearBottomFooterMenuCache } from '@/lib/bottomFooterMenus';
+import { assertBottomFooterMenuDraft } from '@/lib/admin/managedFooterMenuValidation';
 import { ensureHeaderMenuTables, type HeaderMenuDraft, type HeaderMenuDraftNode } from './menus';
 
 const BOTTOM_FOOTER_MENU_CODE = 'bottom_footer';
@@ -35,29 +36,6 @@ type BottomFooterItemRow = RowDataPacket & {
 
 function bottomFooterNodeCount(nodes: HeaderMenuDraftNode[]): number {
   return nodes.reduce((total, node) => total + 1 + bottomFooterNodeCount(node.children || []), 0);
-}
-
-function assertBottomFooterDraft(draft: HeaderMenuDraft) {
-  const zones = draft.zones || [];
-  if (zones.length !== 1 || zones[0]?.nodeType !== 'zone' || requireText(zones[0]?.label, 'menu', 'Tên menu', 255) !== BOTTOM_FOOTER_MENU_NAME) {
-    throw new AdminApiError(400, 'BAD_REQUEST', 'Bottom Footer phải có một nút gốc duy nhất');
-  }
-  for (const area of ['faves', 'topNav', 'utilityLinks', 'circleStory', 'shopByCategory'] as const) {
-    if ((draft[area] || []).length > 0) throw new AdminApiError(400, 'BAD_REQUEST', 'Bottom Footer chỉ hỗ trợ nhóm Trusted Partners');
-  }
-  const groups = zones[0].children || [];
-  if (groups.length !== 1 || groups[0]?.nodeType !== 'group' || requireText(groups[0]?.label, 'group.label', 'Tên nhóm', 255) !== BOTTOM_FOOTER_MENU_HEADING) {
-    throw new AdminApiError(400, 'BAD_REQUEST', 'Bottom Footer phải có một nhóm Trusted Partners');
-  }
-  const links = groups[0].children || [];
-  if (links.length !== BOTTOM_FOOTER_MENU_LINKS.length) {
-    throw new AdminApiError(400, 'BAD_REQUEST', `Trusted Partners phải có đúng ${BOTTOM_FOOTER_MENU_LINKS.length} link`);
-  }
-  links.forEach((link, index) => {
-    if (link.nodeType !== 'link') throw new AdminApiError(400, 'BAD_REQUEST', `Mục ${index + 1} của Trusted Partners phải là link`);
-    requireText(link.label, `links.${index}.label`, 'Nhãn link', 255);
-    if (String(link.linkMode || 'custom') !== 'custom') throw new AdminApiError(400, 'BAD_REQUEST', 'Bottom Footer chỉ hỗ trợ link tùy chỉnh');
-  });
 }
 
 async function getMenuId(connection: PoolConnection) {
@@ -187,7 +165,7 @@ export async function getBottomFooterMenuAdmin() {
 }
 
 export async function saveBottomFooterMenuDraft(draft: HeaderMenuDraft) {
-  assertBottomFooterDraft(draft);
+  assertBottomFooterMenuDraft(draft);
   return withTransaction(async (connection) => {
     await ensureHeaderMenuTables(connection);
     const menuId = await getMenuId(connection);

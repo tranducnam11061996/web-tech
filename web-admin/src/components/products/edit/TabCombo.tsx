@@ -251,7 +251,7 @@ export function TabCombo({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-bold text-gray-200 uppercase tracking-widest flex items-center gap-2">
             <span className="w-1 h-4 bg-red-500 rounded-full inline-block shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
-            Combo set đang áp dụng
+            Combo set gán trực tiếp
           </h3>
           <button
             type="button"

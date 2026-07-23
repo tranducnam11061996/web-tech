@@ -3,7 +3,8 @@ import Header from '../../../components/Header';
 import Footer from '../../../components/Footer';
 import ProgressiveImage from '../../../components/ProgressiveImage';
 import CategorySidebar from '../../../components/CategorySidebar';
-import { formatNewsDate, newsPlainText, type NewsCategory, type NewsItem } from '../../../lib/news';
+import NewsCardMeta from '../../../components/NewsCardMeta';
+import { newsPlainText, type NewsCategory, type NewsItem } from '../../../lib/news';
 import { NewsCategoryShareControls } from './NewsCategoryControls';
 
 type Category = {
@@ -47,12 +48,6 @@ function paginationItems(page: number, totalPages: number): Array<number | 'elli
   return result;
 }
 
-function AuthorIcon({ className }: { className: string }) {
-  return (
-    <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
-  );
-}
-
 function NewsImage({ article, className }: { article: NewsItem; className: string }) {
   if (!article.thumnail) return null;
   return <ProgressiveImage src={article.thumnail} alt={article.title} fallbackText="" className={className} />;
@@ -72,13 +67,7 @@ function HeroNews({ articles, categoryName }: { articles: NewsItem[]; categoryNa
           <span className="bg-blue-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-full uppercase w-fit mb-4 shadow-[0_0_15px_rgba(37,99,235,0.5)] tracking-wide">{categoryName}</span>
           <h2 className="text-2xl md:text-3xl font-black text-white leading-tight mb-3 group-hover:text-blue-400 transition-colors">{primary.title}</h2>
           <p className="text-gray-300 text-sm line-clamp-2 mb-4 hidden md:block">{newsPlainText(primary.summary)}</p>
-          <div className="flex items-center gap-4 text-[12px] text-gray-400">
-            <span className="flex items-center gap-1.5"><AuthorIcon className="w-3.5 h-3.5 text-blue-500" /><span className="font-bold text-gray-200">PCM</span></span>
-            <span className="flex items-center gap-1.5">
-              <svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-3.5 h-3.5 text-gray-500"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
-              {formatNewsDate(primary.createDate)}
-            </span>
-          </div>
+          <NewsCardMeta article={primary} className="text-[12px]" />
         </div>
       </Link>
 
@@ -88,7 +77,7 @@ function HeroNews({ articles, categoryName }: { articles: NewsItem[]; categoryNa
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/50 to-transparent flex flex-col justify-end p-6">
             <span className="bg-red-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase w-fit mb-3">{secondary.category_name || categoryName}</span>
             <h3 className="text-lg font-bold text-white leading-snug mb-3 group-hover:text-red-400 transition-colors">{secondary.title}</h3>
-            <div className="flex items-center gap-3 text-[11px] text-gray-400"><span className="flex items-center gap-1"><AuthorIcon className="w-3 h-3 text-red-500" />PCM</span></div>
+            <NewsCardMeta article={secondary} className="text-[11px]" />
           </div>
         </Link>
       )}
@@ -99,7 +88,7 @@ function HeroNews({ articles, categoryName }: { articles: NewsItem[]; categoryNa
           <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/50 to-transparent flex flex-col justify-end p-6">
             <span className="bg-green-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full uppercase w-fit mb-3">{tertiary.category_name || categoryName}</span>
             <h3 className="text-lg font-bold text-white leading-snug mb-3 group-hover:text-green-400 transition-colors">{tertiary.title}</h3>
-            <div className="flex items-center gap-3 text-[11px] text-gray-400"><span className="flex items-center gap-1"><AuthorIcon className="w-3 h-3 text-green-500" />PCM</span></div>
+            <NewsCardMeta article={tertiary} className="text-[11px]" />
           </div>
         </Link>
       )}
@@ -165,10 +154,7 @@ export default function CategoryView({ category, categoryNews, categories, popul
                     <div className="p-5 flex flex-col flex-1">
                       <h2 className="text-[16px] font-bold text-white mb-2 group-hover:text-blue-400 transition-colors leading-snug">{article.title}</h2>
                       <p className="text-[13px] text-gray-400 line-clamp-2 mb-4 flex-1">{newsPlainText(article.summary)}</p>
-                      <div className="flex items-center justify-between border-t border-[#1a1a1e] pt-4 mt-auto">
-                        <div className="flex items-center gap-2"><AuthorIcon className="w-4 h-4 text-gray-500" /><span className="text-[12px] font-medium text-gray-300">PCM</span></div>
-                        <span className="text-[11px] text-gray-500">{formatNewsDate(article.createDate)}</span>
-                      </div>
+                      <NewsCardMeta article={article} className="border-t border-[#1a1a1e] pt-4 mt-auto text-[11px]" />
                     </div>
                   </Link>
                 ))}

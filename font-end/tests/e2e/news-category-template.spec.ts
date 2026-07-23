@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator } from '@playwright/test';
 
 const slug = process.env.PLAYWRIGHT_NEWS_CATEGORY_SLUG || 'tin-cong-nghe.html';
 const categoryPath = `/tin-tuc/${slug}`;
@@ -8,6 +8,22 @@ async function categoryPayload(request: APIRequestContext, page = 1, sort = 'lat
   const response = await request.get(`/api/news-category/${slug}?page=${page}&limit=21&sort=${sort}`);
   expect(response.ok()).toBeTruthy();
   return response.json();
+}
+
+function expectedNewsDate(value: string) {
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+async function expectNewsViews(locator: Locator, value: unknown) {
+  await expect(locator).toContainText('Lượt xem:');
+  const renderedViews = Number((await locator.textContent())?.replace(/\D/g, '') || 0);
+  const apiViews = Math.max(0, Math.trunc(Number(value) || 0));
+  // View counters can advance between the API fixture request and the cached page render.
+  expect(Math.abs(renderedViews - apiViews)).toBeLessThanOrEqual(5);
 }
 
 test('news category uses the template structure and real API data without duplicated cards', async ({ page, request }, testInfo) => {
@@ -19,7 +35,15 @@ test('news category uses the template structure and real API data without duplic
   const listItems = page.locator('[data-news-list-item]');
   await expect(heroes).toHaveCount(3);
   await expect(listItems).toHaveCount(Math.max(0, payload.news.length - 3));
-  await expect(page.locator('[data-pc-build-promotion]')).toContainText('HIỆU NĂNG TỐI ĐA');
+  const promotion = page.locator('[data-pc-build-promotion]');
+  await expect(promotion).toContainText('HIỆU NĂNG TỐI ĐA');
+  await expect(promotion).toContainText('PC BUILD BỞI CHUYÊN GIA');
+  for (const name of ['PC VĂN PHÒNG', 'PC GAMING']) {
+    const promotionLink = promotion.getByRole('link', { name: new RegExp(name) });
+    await expect(promotionLink).toHaveAttribute('href', '/pc-van-phong.html');
+    await expect(promotionLink).toHaveAttribute('target', '_blank');
+    await expect(promotionLink).toHaveAttribute('rel', 'noopener noreferrer');
+  }
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(payload.data.name);
   await expect(page.locator('main').getByRole('link', { name: 'Tất cả', exact: true })).toHaveCount(0);
   await expect(page.locator('main').getByText('Sắp xếp:', { exact: true })).toHaveCount(0);
@@ -29,6 +53,42 @@ test('news category uses the template structure and real API data without duplic
   expect(await heroes.evaluateAll((elements) => elements.map((element) => element.getAttribute('href')))).toEqual(expectedHeroHrefs);
   const listHrefs = await listItems.evaluateAll((elements) => elements.map((element) => element.getAttribute('href')));
   expect(listHrefs.some((href) => expectedHeroHrefs.includes(href || ''))).toBeFalsy();
+
+  for (const [index, article] of payload.news.slice(0, 3).entries()) {
+    const heroMeta = heroes.nth(index).locator('[data-news-card-meta]');
+    await expect(heroMeta.getByText('PCM', { exact: true })).toHaveCount(0);
+    await expect(heroMeta.locator('[data-news-card-date]')).toHaveAttribute('datetime', article.createDate);
+    await expect(heroMeta.locator('[data-news-card-date]')).toHaveText(expectedNewsDate(article.createDate));
+    await expectNewsViews(heroMeta.locator('[data-news-card-views]'), article.visit);
+  }
+
+  if (payload.news.length > 3) {
+    const expectedArticle = payload.news[3];
+    const firstListMeta = listItems.first().locator('[data-news-card-meta]');
+    await expect(firstListMeta.getByText('PCM', { exact: true })).toHaveCount(0);
+    await expect(firstListMeta.locator('[data-news-card-date]')).toHaveAttribute('datetime', expectedArticle.createDate);
+    await expect(firstListMeta.locator('[data-news-card-date]')).toHaveText(expectedNewsDate(expectedArticle.createDate));
+    await expectNewsViews(firstListMeta.locator('[data-news-card-views]'), expectedArticle.visit);
+  }
+
+  for (const metadata of await page.locator('[data-news-card-meta]').all()) {
+    const geometry = await metadata.evaluate((element) => {
+      const date = element.querySelector<HTMLElement>('[data-news-card-date]')!;
+      const views = element.querySelector<HTMLElement>('[data-news-card-views]')!;
+      const containerBox = element.getBoundingClientRect();
+      const dateBox = date.getBoundingClientRect();
+      const viewsBox = views.getBoundingClientRect();
+      return {
+        leftInset: dateBox.left - containerBox.left,
+        rowOffset: Math.abs(dateBox.top - viewsBox.top),
+        horizontalGap: viewsBox.left - dateBox.right,
+      };
+    });
+    expect(geometry.leftInset).toBeLessThanOrEqual(1);
+    expect(geometry.rowOffset).toBeLessThanOrEqual(1);
+    expect(geometry.horizontalGap).toBeGreaterThanOrEqual(12);
+    expect(geometry.horizontalGap).toBeLessThanOrEqual(20);
+  }
 
   const featured = payload.categories.filter((category: { isFeatured: boolean }) => category.isFeatured);
   const missingFeaturedIcons = featured.filter((category: { image?: string }) => !category.image);
@@ -58,6 +118,23 @@ test('news category uses the template structure and real API data without duplic
     expect(heroBoxes[1].y).toBeGreaterThan(heroBoxes[0].y + heroBoxes[0].height - 2);
     expect(heroBoxes[2].y).toBeGreaterThan(heroBoxes[1].y + heroBoxes[1].height - 2);
     expect(sidebarBox?.y || 0).toBeGreaterThan((listBox?.y || 0) + (listBox?.height || 0) - 2);
+  }
+});
+
+test('PC build promotion links open the requested category in protected new tabs', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-chromium', 'new-tab behavior is covered once');
+  await page.goto(categoryPath);
+  const currentUrl = page.url();
+  const promotion = page.locator('[data-pc-build-promotion]');
+
+  for (const name of ['PC VĂN PHÒNG', 'PC GAMING']) {
+    const popupPromise = page.waitForEvent('popup');
+    await promotion.getByRole('link', { name: new RegExp(name) }).click();
+    const popup = await popupPromise;
+    await popup.waitForLoadState('domcontentloaded');
+    expect(new URL(popup.url()).pathname).toBe('/pc-van-phong.html');
+    expect(page.url()).toBe(currentUrl);
+    await popup.close();
   }
 });
 

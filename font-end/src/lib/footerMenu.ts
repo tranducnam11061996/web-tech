@@ -43,8 +43,20 @@ let footerMenuRequest: Promise<FooterMenuData> | null = null;
 
 function normalizeFooterMenu(data: unknown): FooterMenuData {
   const source = data as { groups?: FooterMenuGroup[]; meta?: FooterMenuData['meta'] } | null;
-  if (!Array.isArray(source?.groups) || source.groups.length !== GROUPS.length) return fallbackFooterMenu;
-  const valid = source.groups.every((group, index) => Array.isArray(group?.links) && group.links.length === GROUPS[index][1].length);
+  if (!Array.isArray(source?.groups)) return fallbackFooterMenu;
+  const valid = source.groups.every((group) => (
+    typeof group?.id === 'string'
+    && typeof group.label === 'string'
+    && group.label.trim().length > 0
+    && Array.isArray(group.links)
+    && group.links.every((link) => (
+      typeof link?.id === 'string'
+      && typeof link.label === 'string'
+      && link.label.trim().length > 0
+      && typeof link.url === 'string'
+      && typeof link.suffixText === 'string'
+    ))
+  ));
   if (!valid) return fallbackFooterMenu;
   return { groups: source.groups, meta: source.meta };
 }

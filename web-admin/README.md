@@ -4,6 +4,12 @@ Last verified: `2026-07-24`
 
 `web-admin` is a Next.js 16.2.11 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
+## Combo Set scope management
+
+`/product/combo-set/product?id=<id>` manages direct SKUs and dynamic category roots. Direct selection saves immediately through `PATCH /api/admin/combo-sets/[id]/scope`; category selection is drafted in the shared two-column hierarchy selector and saved as one canonical root list. The effective table is a deduplicated union with source badges, while `combo_set.product_count` remains the legacy direct-relation count.
+
+`web_admin_combo_set_categories` stores only `(combo_set_id, category_id)` roots. Runtime discovery, group loading and quote/order validation resolve the anchor product’s current category ancestors, so selecting a parent automatically includes current/future descendants. Run `npm.cmd run admin:migrate` with `ADMIN_WRITE_ENABLED=true` only against an identified database before deploying this code.
+
 ## Brand management
 
 `/product/brand` keeps list payloads small and requests full Brand data only after an Edit action opens. `GET /api/admin/brands/[id]` returns the Brand row plus its `idv_brand_info` row for `sellerId=0`; guarded `PATCH` validates and updates both in one transaction, inserting the info row when legacy data is missing and clearing the public response cache afterward.
@@ -17,6 +23,10 @@ Brand logos are selected with a native file control, previewed locally and uploa
 `/sales/vouchers` keeps numeric values as digit-only text while the administrator edits them, then validates and converts them to the existing numeric payload before create/update. Limited quantity must be positive; discounts must be positive; percent discounts are capped at 100 and require a positive maximum divisible by 1,000; blank minimum order value becomes zero.
 
 Voucher category scope uses two columns on desktop: removable selected categories on the left and the complete active parent-child tree on the right. The right column includes local accent-insensitive name/ID search. Selecting one category removes conflicting selected ancestors/descendants and stores only that category ID; runtime descendant matching remains server-owned. Inactive or deleted IDs from older vouchers stay visible as removable warning chips.
+
+The same form now accepts up to 500 direct SKUs through the shared paginated product picker, including currently hidden catalog rows. Direct SKUs and category roots are combined with OR semantics and deduplicated at quote time; leaving both empty keeps the existing global-voucher behavior. Admin list responses expose `productCount`, detail responses expose existing `products`/`productIds`, and POST/PUT replace both relation sets transactionally. Missing product IDs are omitted from the edit draft and removed on the next explicit save.
+
+`web_admin_voucher_products(voucher_id,product_id)` owns direct scope with a composite primary key, reverse `(product_id,voucher_id)` index and cascading FK to `web_admin_vouchers`; product IDs remain logical references. Run the guarded admin migration against an identified database before deploying code that reads the table. Product-detail discovery and checkout use the same global/direct/category predicate, while the storefront relies on the authored voucher description and does not infer scope text.
 
 ## Homepage product-section bootstrap
 
@@ -101,8 +111,9 @@ npm.cmd run banner-locations:migrate -- --mode=verify --database=it_tech_db --ba
 
 ## Managed Footer menus
 
-- `Footer Menu` is administered at `/content/menu/footer`; its public endpoint is `GET /api/menu/footer`.
-- `Bottom Footer` is administered at `/content/menu/bottom-footer`; its public endpoint is `GET /api/menu/bottom-footer`. It has exactly one `Trusted Partners` group with 19 links, matching the fixed Footer markup.
+- `Footer Menu` is administered at `/content/menu/footer`; its public endpoint is `GET /api/menu/footer`. One protected root owns zero or more dynamically named groups, each with zero or more custom links.
+- `Bottom Footer` is administered at `/content/menu/bottom-footer`; its public endpoint is `GET /api/menu/bottom-footer`. It retains exactly one protected group, but the group heading and custom-link count are dynamic.
+- Both validators enforce the three-level structure and a 200-node safety ceiling without comparing labels or cardinality to seed content. Explicitly empty published content is valid; seed fallback is reserved for a missing, malformed, or unavailable published source.
 - Both menus use draft/publish versions, `content.menus` RBAC, `ADMIN_WRITE_ENABLED=true` for mutations, public ETag responses, and cache invalidation after publication.
 
 ## Article-category featured state
@@ -393,7 +404,7 @@ npm.cmd run db:backfill-attribute-api-keys -- --apply --expected-database=it_tec
 $env:ADMIN_WRITE_ENABLED='false'
 ```
 
-Footer Menu is managed at `/content/menu/footer` through `GET/PUT /api/admin/menus/footer` and `POST /api/admin/menus/footer/publish`. Its one root contains exactly four groups with fixed link capacities matching the existing Footer markup; the public `GET /api/menu/footer` payload is cacheable and all initial links use `#`.
+Footer Menu is managed at `/content/menu/footer` through `GET/PUT /api/admin/menus/footer` and `POST /api/admin/menus/footer/publish`. Its one protected root accepts a dynamic ordered list of groups and custom links, including an explicitly empty menu; the public `GET /api/menu/footer` payload remains cacheable and keeps the same response shape.
 
 Product and category editors manage independent buying guides through `GET/PUT /api/admin/products/[id]/buying-guide` and `GET/PUT /api/admin/product-categories/[id]/buying-guide`. PUT replaces the bounded ordered item list in one transaction and invalidates only catalog-detail response caches.
 

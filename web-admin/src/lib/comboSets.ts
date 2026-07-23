@@ -8,6 +8,7 @@ import { AdminApiError, withTransaction } from '@/lib/admin/common';
 import { PublicRequestError } from '@/lib/publicRequest';
 import { clearPublicCatalogDetailCache } from '@/lib/publicProductCache';
 import { resolveProductImageUrl } from '@/lib/productImageUrl';
+import { getApplicableComboSetIds, isProductInComboSetScope } from '@/lib/comboSetScopes';
 
 type DbExecutor = Pool | PoolConnection;
 
@@ -178,12 +179,16 @@ function isSellableProduct(row: RowDataPacket | undefined) {
 }
 
 export async function getPublicComboSetSummaries(anchorProductId: number): Promise<PublicComboSetSummary[]> {
+  const applicableSetIds = await getApplicableComboSetIds(pool, anchorProductId);
+  if (applicableSetIds.length === 0) return [];
   const [setRows] = await pool.query<RowDataPacket[]>(`
-    SELECT cs.id,cs.title,cs.config,cs.status,cs.from_time,cs.to_time,csp.ordering
-    FROM combo_set_product csp JOIN combo_set cs ON cs.id=csp.set_id
-    WHERE csp.product_id=?
-    ORDER BY csp.ordering ASC,cs.id DESC
-  `, [anchorProductId]);
+    SELECT cs.id,cs.title,cs.config,cs.status,cs.from_time,cs.to_time,
+           COALESCE(csp.ordering,32767) AS ordering
+    FROM combo_set cs
+    LEFT JOIN combo_set_product csp ON csp.set_id=cs.id AND csp.product_id=?
+    WHERE cs.id IN (?)
+    ORDER BY (csp.id IS NULL) ASC,COALESCE(csp.ordering,32767) ASC,cs.id DESC
+  `, [anchorProductId, applicableSetIds]);
   const active = setRows.filter((row) => isComboActive(row));
   const parsed = active.map((row) => ({ row, groups: parseLegacyComboConfig(row.config) }));
   const productRows = await getProductRows(pool, parsed.flatMap((entry) => entry.groups.flatMap((group) => group.products.map((product) => product.productId))));
@@ -215,8 +220,9 @@ async function getValidatedComboSet(db: DbExecutor, setId: number, anchorProduct
   `, [setId]);
   const combo = rows[0];
   if (!combo || !isComboActive(combo)) throw new PublicRequestError(409, 'COMBO_UNAVAILABLE', 'Combo không còn khả dụng.');
-  const [relations] = await db.query<RowDataPacket[]>('SELECT id FROM combo_set_product WHERE set_id=? AND product_id=? LIMIT 1', [setId, anchorProductId]);
-  if (!relations[0]) throw new PublicRequestError(409, 'COMBO_NOT_APPLICABLE', 'Combo không áp dụng cho sản phẩm này.');
+  if (!await isProductInComboSetScope(db, setId, anchorProductId)) {
+    throw new PublicRequestError(409, 'COMBO_NOT_APPLICABLE', 'Combo không áp dụng cho sản phẩm này.');
+  }
   const currentRevision = comboRevision(combo.config);
   if (currentRevision !== revision) throw new PublicRequestError(409, 'COMBO_CHANGED', 'Combo đã được cập nhật. Vui lòng chọn lại sản phẩm mua kèm.');
   return { combo, groups: parseLegacyComboConfig(combo.config), revision: currentRevision };

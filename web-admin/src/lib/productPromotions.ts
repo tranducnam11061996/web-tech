@@ -4,6 +4,12 @@ import { AdminApiError, requireText, toBoolInt, toInt } from '@/lib/admin/common
 import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
 import { clearPublicCatalogDetailCache } from '@/lib/publicProductCache';
 import { parseLegacyCategoryIds } from '@/lib/publicBreadcrumbs';
+import {
+  collectCategoryAncestors,
+  getProductCategoryHierarchy,
+  invalidateProductCategoryHierarchyCache,
+} from '@/lib/categoryHierarchy';
+export { collectCategoryAncestors } from '@/lib/categoryHierarchy';
 
 type DbExecutor = Pool | PoolConnection;
 
@@ -28,9 +34,6 @@ export type PublicProductPromotion = {
 
 const MAX_PRODUCT_IDS = 500;
 const MAX_CATEGORY_IDS = 100;
-const CATEGORY_TREE_TTL_MS = 5 * 60_000;
-let categoryParentCache: { expiresAt: number; parentById: Map<number, number> } | null = null;
-let categoryParentFlight: Promise<Map<number, number>> | null = null;
 
 export async function ensureProductPromotionTables(db: DbExecutor = pool) {
   await db.query(`
@@ -293,34 +296,6 @@ export async function deleteAdminProductPromotion(id: number) {
   return { id };
 }
 
-async function getCategoryParents() {
-  if (categoryParentCache && categoryParentCache.expiresAt > Date.now()) return categoryParentCache.parentById;
-  if (categoryParentFlight) return categoryParentFlight;
-  categoryParentFlight = pool.query<RowDataPacket[]>('SELECT id, parentId FROM idv_seller_category')
-    .then(([rows]) => {
-      const parentById = new Map<number, number>();
-      for (const row of rows) parentById.set(Number(row.id), Number(row.parentId || 0));
-      categoryParentCache = { expiresAt: Date.now() + CATEGORY_TREE_TTL_MS, parentById };
-      return parentById;
-    })
-    .finally(() => { categoryParentFlight = null; });
-  return categoryParentFlight;
-}
-
-export function collectCategoryAncestors(categoryIds: number[], parentById: Map<number, number>) {
-  const ancestors = new Set<number>();
-  for (const categoryId of categoryIds) {
-    let current = categoryId;
-    const visited = new Set<number>();
-    while (current > 0 && !visited.has(current)) {
-      visited.add(current);
-      ancestors.add(current);
-      current = Number(parentById.get(current) || 0);
-    }
-  }
-  return [...ancestors];
-}
-
 export async function getPublicProductPromotions(productId: number): Promise<PublicProductPromotion[]> {
   if (!Number.isInteger(productId) || productId <= 0) return [];
   const [[productRows], parentById] = await Promise.all([
@@ -328,7 +303,7 @@ export async function getPublicProductPromotions(productId: number): Promise<Pub
       FROM idv_sell_product_store p
       LEFT JOIN idv_product_category pc ON pc.pro_id=p.id AND pc.status=1
       WHERE p.id=?`, [productId]),
-    getCategoryParents(),
+    getProductCategoryHierarchy().then((hierarchy) => hierarchy.parentById),
   ]);
   if (productRows.length === 0) return [];
   const directCategoryIds = new Set<number>(parseLegacyCategoryIds(String(productRows[0].product_cat || '')));
@@ -365,5 +340,5 @@ export async function getPublicProductPromotions(productId: number): Promise<Pub
 }
 
 export function invalidateProductPromotionCategoryCache() {
-  categoryParentCache = null;
+  invalidateProductCategoryHierarchyCache();
 }

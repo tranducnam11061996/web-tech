@@ -195,8 +195,8 @@ Runtime split:
 
 - `/api/menu/header`: all-site header data.
 - `/api/menu/homepage`: homepage-only Circle Story and Shop by Category.
-- `/api/menu/footer`: four fixed storefront footer groups backed by managed draft/publish data.
-- `/api/menu/bottom-footer`: one fixed `Trusted Partners` link group backed by managed draft/publish data.
+- `/api/menu/footer`: a dynamic ordered group/link tree backed by managed draft/publish data.
+- `/api/menu/bottom-footer`: one dynamically named group with a dynamic link list backed by managed draft/publish data.
 
 Important menu item columns:
 

@@ -13,6 +13,7 @@ import { ensureAdminAccessTables } from '../src/lib/admin/auth';
 import { ensurePerformanceInfrastructure } from '../src/lib/performanceInfrastructure';
 import { ensureBuyingGuideTables } from '../src/lib/buyingGuides';
 import { ensureComboIndexes } from '../src/lib/comboSets';
+import { ensureComboSetCategoryTable } from '../src/lib/comboSetScopes';
 import { ensureProductGroupIndexes, removeProductGroupValueVisualColumns } from '../src/lib/productGroups';
 import { ensureProductPromotionTables } from '../src/lib/productPromotions';
 import { ensureLegacyImportTables } from '../src/lib/legacyImport/tables';
@@ -40,6 +41,7 @@ async function main() {
   await ensureCustomerFavoriteTable();
   await ensureBuyingGuideTables();
   await ensureComboIndexes();
+  await ensureComboSetCategoryTable();
   await ensureProductGroupIndexes();
   await removeProductGroupValueVisualColumns();
   await ensureProductPromotionTables();

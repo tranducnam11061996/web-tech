@@ -51,10 +51,9 @@ function XSocialIcon() {
 
 const SOCIAL_LINKS = [
   { label: 'Instagram', href: '#', icon: Instagram, className: 'from-fuchsia-700/90 to-purple-950' },
-  { label: 'X', href: '#', icon: XSocialIcon, className: 'from-zinc-600/80 to-zinc-950' },
-  { label: 'Facebook', href: '#', icon: Facebook, className: 'from-cyan-600/80 to-cyan-950' },
-  { label: 'YouTube', href: '#', icon: Youtube, className: 'from-red-600/80 to-red-950' },
-  { label: 'TikTok', href: '#', icon: Music2, className: 'from-indigo-500/80 to-slate-950' },
+  { label: 'Facebook', href: 'https://www.facebook.com/pcmarket.vn', icon: Facebook, className: 'from-cyan-600/80 to-cyan-950' },
+  { label: 'YouTube', href: 'https://www.youtube.com/@PCM.channel', icon: Youtube, className: 'from-red-600/80 to-red-950' },
+  { label: 'TikTok', href: 'https://www.tiktok.com/@pcm.studio', icon: Music2, className: 'from-indigo-500/80 to-slate-950' },
 ];
 
 const GROUP_HEADING_COLORS = ['text-emerald-400', 'text-cyan-400', 'text-sky-400', 'text-blue-400'];
@@ -134,6 +133,9 @@ export default function Footer() {
     };
   }, []);
 
+  const visibleFooterGroups = footerMenu.groups.filter((group) => group.links.length > 0);
+  const hasBottomFooterLinks = bottomFooterMenu.links.length > 0;
+
   return (
     <footer
       data-footer-root
@@ -183,25 +185,27 @@ export default function Footer() {
             </div>
           </div>
 
-          <nav data-footer-groups aria-label="Liên kết chân trang" className="mt-16 grid grid-cols-2 gap-x-6 gap-y-16 md:grid-cols-4 md:gap-8 xl:col-span-2 xl:mt-0">
-            {footerMenu.groups.map((group, groupIndex) => (
-              <section data-footer-group key={group.id} aria-labelledby={`footer-group-${group.id}`}>
-                <h4 id={`footer-group-${group.id}`} className={`mb-6 text-xs font-bold uppercase tracking-[0.22em] xl:text-[13px] ${GROUP_HEADING_COLORS[groupIndex] ?? 'text-cyan-400'}`}>
-                  {group.label}
-                </h4>
-                <ul className="space-y-4 text-[13px] font-medium xl:text-sm">
-                  {group.links.map((link) => (
-                    <li key={link.id}>
-                      <a href={link.url || '#'} className="group inline-flex items-center gap-2 rounded-sm text-zinc-400 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/80 motion-reduce:transition-none">
-                        {link.suffixText ? <span className="text-orange-500" aria-hidden="true">{link.suffixText}</span> : null}
-                        <span>{link.label}</span>
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </nav>
+          {visibleFooterGroups.length > 0 ? (
+            <nav data-footer-groups aria-label="Liên kết chân trang" className="mt-16 grid grid-cols-2 gap-x-6 gap-y-16 md:grid-cols-4 md:gap-8 xl:col-span-2 xl:mt-0">
+              {visibleFooterGroups.map((group, groupIndex) => (
+                <section data-footer-group key={group.id} aria-labelledby={`footer-group-${group.id}`}>
+                  <h4 id={`footer-group-${group.id}`} className={`mb-6 text-xs font-bold uppercase tracking-[0.22em] xl:text-[13px] ${GROUP_HEADING_COLORS[groupIndex % GROUP_HEADING_COLORS.length]}`}>
+                    {group.label}
+                  </h4>
+                  <ul className="space-y-4 text-[13px] font-medium xl:text-sm">
+                    {group.links.map((link) => (
+                      <li key={link.id}>
+                        <a href={link.url || '#'} className="group inline-flex items-center gap-2 rounded-sm text-zinc-400 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/80 motion-reduce:transition-none">
+                          {link.suffixText ? <span className="text-orange-500" aria-hidden="true">{link.suffixText}</span> : null}
+                          <span>{link.label}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </nav>
+          ) : null}
         </div>
 
         <section data-footer-contact-section aria-label="Thông tin liên hệ" className="mt-16 border-t border-white/[0.06] pt-8">
@@ -246,24 +250,26 @@ export default function Footer() {
           </div>
         </section>
 
-        <section data-footer-partners aria-label={bottomFooterMenu.heading} className="mt-6 border-t border-white/[0.06] pt-6 text-center">
-          <h4 className="mb-5 bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-[11px] font-semibold uppercase tracking-[0.24em] text-transparent xl:text-xs">
-            {bottomFooterMenu.heading}
-          </h4>
-          <div className="relative overflow-hidden">
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#0e0e0e] to-transparent" aria-hidden="true" />
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#0e0e0e] to-transparent" aria-hidden="true" />
-            <div data-footer-partner-rail className="footer-partner-rail w-full overflow-x-auto py-1">
-              <div data-footer-partner-track className="flex w-max min-w-full items-center justify-center gap-8 px-5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 xl:text-xs">
-                {bottomFooterMenu.links.map((link) => (
-                  <a key={link.id} href={link.url || '#'} className="shrink-0 whitespace-nowrap rounded-sm transition-colors duration-200 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/80 motion-reduce:transition-none">
-                    {link.label}
-                  </a>
-                ))}
+        {hasBottomFooterLinks ? (
+          <section data-footer-partners aria-label={bottomFooterMenu.heading} className="mt-6 border-t border-white/[0.06] pt-6 text-center">
+            <h4 className="mb-5 bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-[11px] font-semibold uppercase tracking-[0.24em] text-transparent xl:text-xs">
+              {bottomFooterMenu.heading}
+            </h4>
+            <div className="relative overflow-hidden">
+              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-8 bg-gradient-to-r from-[#0e0e0e] to-transparent" aria-hidden="true" />
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-[#0e0e0e] to-transparent" aria-hidden="true" />
+              <div data-footer-partner-rail className="footer-partner-rail w-full overflow-x-auto py-1">
+                <div data-footer-partner-track className="flex w-max min-w-full items-center justify-center gap-8 px-5 text-[11px] font-semibold uppercase tracking-wider text-zinc-600 xl:text-xs">
+                  {bottomFooterMenu.links.map((link) => (
+                    <a key={link.id} href={link.url || '#'} className="shrink-0 whitespace-nowrap rounded-sm transition-colors duration-200 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/80 motion-reduce:transition-none">
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
         <section data-footer-legal className="mt-8 border-t border-white/[0.06] pt-8">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">

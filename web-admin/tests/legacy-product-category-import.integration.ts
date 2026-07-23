@@ -14,7 +14,7 @@ test('category staging swap, guarded dependency cleanup and complete rollback', 
   const db = await mysql.createConnection(url);
   const tables = [
     'web_admin_import_records', 'web_admin_import_entity_map', 'web_admin_import_runs', 'web_admin_cache_versions',
-    'web_admin_voucher_categories', 'web_admin_vouchers', 'idv_attribute_category', 'idv_product_category',
+    'web_admin_voucher_products', 'web_admin_voucher_categories', 'web_admin_vouchers', 'idv_attribute_category', 'idv_product_category',
     'idv_sell_product_store', 'idv_url', 'idv_seller_category',
   ];
   await db.query('SET FOREIGN_KEY_CHECKS=0');
@@ -42,14 +42,16 @@ test('category staging swap, guarded dependency cleanup and complete rollback', 
   await db.query("CREATE TABLE idv_sell_product_store(id int NOT NULL PRIMARY KEY,product_cat varchar(255) NOT NULL DEFAULT '') ENGINE=MyISAM");
   await db.query('CREATE TABLE web_admin_vouchers(id int NOT NULL PRIMARY KEY,status tinyint NOT NULL) ENGINE=InnoDB');
   await db.query('CREATE TABLE web_admin_voucher_categories(voucher_id int NOT NULL,category_id int NOT NULL,PRIMARY KEY(voucher_id,category_id)) ENGINE=InnoDB');
+  await db.query('CREATE TABLE web_admin_voucher_products(voucher_id int NOT NULL,product_id int NOT NULL,PRIMARY KEY(voucher_id,product_id)) ENGINE=InnoDB');
   await db.query('CREATE TABLE web_admin_cache_versions(cache_key varchar(100) NOT NULL PRIMARY KEY,version bigint unsigned NOT NULL DEFAULT 1) ENGINE=InnoDB');
   await db.query("INSERT INTO idv_seller_category(id,name,parentId,url,request_path) VALUES(900,'Old',0,'old.html','/old.html')");
   await db.query("INSERT INTO idv_url(request_path,request_path_index,id_path) VALUES('/old.html',MD5('/old.html'),'module:product/view:category/view_id:900')");
   await db.query('INSERT INTO idv_product_category VALUES(900,1)');
   await db.query('INSERT INTO idv_attribute_category VALUES(900,5)');
   await db.query("INSERT INTO idv_sell_product_store VALUES(1,'900')");
-  await db.query('INSERT INTO web_admin_vouchers VALUES(7,1)');
-  await db.query('INSERT INTO web_admin_voucher_categories VALUES(7,900)');
+  await db.query('INSERT INTO web_admin_vouchers VALUES(7,1),(8,1)');
+  await db.query('INSERT INTO web_admin_voucher_categories VALUES(7,900),(8,900)');
+  await db.query('INSERT INTO web_admin_voucher_products VALUES(8,1)');
 
   const { normalizePcmarketCategories, sha256 } = await import('../src/lib/legacyImport/pcmarketProductCategories');
   const { applyProductCategoryImport, rollbackProductCategoryImport } = await import('../src/lib/legacyImport/productCategoryDatabase');
@@ -68,6 +70,8 @@ test('category staging swap, guarded dependency cleanup and complete rollback', 
   assert.deepEqual(routeAfterApply[0], { url_type: 'product:category', valid_hash: 1 });
   const [voucherAfterApply] = await db.query<any[]>('SELECT status FROM web_admin_vouchers WHERE id=7');
   assert.equal(voucherAfterApply[0].status, 0, 'Scoped voucher must not become active and global');
+  const [mixedVoucherAfterApply] = await db.query<any[]>('SELECT status FROM web_admin_vouchers WHERE id=8');
+  assert.equal(mixedVoucherAfterApply[0].status, 1, 'Voucher with a direct product scope must remain active');
   assert.equal((await db.query<any[]>('SELECT * FROM web_admin_voucher_categories'))[0].length, 0);
   assert.equal((await db.query<any[]>('SELECT * FROM idv_product_category'))[0].length, 0);
   assert.equal((await db.query<any[]>('SELECT product_cat FROM idv_sell_product_store WHERE id=1'))[0][0].product_cat, '');
@@ -75,6 +79,7 @@ test('category staging swap, guarded dependency cleanup and complete rollback', 
   await rollbackProductCategoryImport({ runId: applied.runId, expectedDatabase: database });
   assert.equal((await db.query<any[]>('SELECT id FROM idv_seller_category'))[0][0].id, 900);
   assert.equal((await db.query<any[]>('SELECT status FROM web_admin_vouchers WHERE id=7'))[0][0].status, 1);
+  assert.equal((await db.query<any[]>('SELECT status FROM web_admin_vouchers WHERE id=8'))[0][0].status, 1);
   assert.equal((await db.query<any[]>('SELECT category_id FROM idv_product_category'))[0][0].category_id, 900);
   assert.equal((await db.query<any[]>('SELECT product_cat FROM idv_sell_product_store WHERE id=1'))[0][0].product_cat, '900');
   assert.equal((await db.query<any[]>("SELECT url_type FROM idv_url WHERE id_path='module:product/view:category/view_id:900'"))[0][0].url_type, '0');

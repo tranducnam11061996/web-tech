@@ -138,7 +138,8 @@ export async function preflightProductCategoryImport(categories: NormalizedCateg
     routeConflicts,
     categoryColumns: categoryColumns.map((column) => column.COLUMN_NAME),
     optionalTables: [...tables].filter((table) => [
-      'web_admin_voucher_categories', 'web_admin_vouchers', 'web_admin_product_promotion_categories',
+      'web_admin_voucher_categories', 'web_admin_voucher_products', 'web_admin_vouchers', 'web_admin_product_promotion_categories',
+      'web_admin_combo_set_categories', 'combo_set',
       'web_admin_product_promotions', 'idv_seller_ad_category', 'idv_seller_ad', 'web_admin_menu_items',
       'web_admin_category_feature_boxes', 'web_admin_product_card_attribute_rules', 'web_admin_buying_guides',
       'web_admin_buying_guide_items', 'web_admin_entity_registry', 'web_admin_cache_versions',
@@ -271,6 +272,11 @@ async function backupDependencies(connection: PoolConnection, database: string, 
     await createBackupFrom(connection, backupName(runId, 'promotion_status'),
       'SELECT id, status FROM web_admin_product_promotions WHERE id IN (SELECT DISTINCT promotion_id FROM web_admin_product_promotion_categories)');
   }
+  if (await tableExists(connection, database, 'web_admin_combo_set_categories')) {
+    await backupWhole(connection, runId, 'web_admin_combo_set_categories', 'combo_set_categories');
+    await createBackupFrom(connection, backupName(runId, 'combo_set_status'),
+      'SELECT id, status FROM combo_set WHERE id IN (SELECT DISTINCT combo_set_id FROM web_admin_combo_set_categories)');
+  }
   if (await tableExists(connection, database, 'idv_seller_ad_category')) {
     await backupWhole(connection, runId, 'idv_seller_ad_category', 'ad_category');
     await createBackupFrom(connection, backupName(runId, 'ads'),
@@ -304,12 +310,20 @@ async function detachDependencies(connection: PoolConnection, database: string) 
   await connection.query('DELETE FROM idv_attribute_category');
   await connection.query("UPDATE idv_sell_product_store SET product_cat = ''");
   if (await tableExists(connection, database, 'web_admin_voucher_categories')) {
-    await connection.query('UPDATE web_admin_vouchers SET status=0 WHERE id IN (SELECT DISTINCT voucher_id FROM web_admin_voucher_categories)');
+    const productScopeFilter = await tableExists(connection, database, 'web_admin_voucher_products')
+      ? ' AND NOT EXISTS (SELECT 1 FROM web_admin_voucher_products vp WHERE vp.voucher_id = web_admin_vouchers.id)'
+      : '';
+    await connection.query(`UPDATE web_admin_vouchers SET status=0
+      WHERE id IN (SELECT DISTINCT voucher_id FROM web_admin_voucher_categories)${productScopeFilter}`);
     await connection.query('DELETE FROM web_admin_voucher_categories');
   }
   if (await tableExists(connection, database, 'web_admin_product_promotion_categories')) {
     await connection.query('UPDATE web_admin_product_promotions SET status=0 WHERE id IN (SELECT DISTINCT promotion_id FROM web_admin_product_promotion_categories)');
     await connection.query('DELETE FROM web_admin_product_promotion_categories');
+  }
+  if (await tableExists(connection, database, 'web_admin_combo_set_categories')) {
+    await connection.query('UPDATE combo_set SET status=0 WHERE id IN (SELECT DISTINCT combo_set_id FROM web_admin_combo_set_categories)');
+    await connection.query('DELETE FROM web_admin_combo_set_categories');
   }
   if (await tableExists(connection, database, 'idv_seller_ad_category')) {
     await connection.query("UPDATE idv_seller_ad SET status=0, category_list='' WHERE id IN (SELECT DISTINCT adId FROM idv_seller_ad_category)");
@@ -475,6 +489,10 @@ export async function rollbackProductCategoryImport(input: { runId: number; expe
     if (await backupExists(connection, database, input.runId, 'promotion_categories')) {
       await restoreWhole(connection, input.runId, 'web_admin_product_promotion_categories', 'promotion_categories');
       await connection.query(`UPDATE web_admin_product_promotions p JOIN ${quote(backupName(input.runId, 'promotion_status'))} b ON b.id=p.id SET p.status=b.status`);
+    }
+    if (await backupExists(connection, database, input.runId, 'combo_set_categories')) {
+      await restoreWhole(connection, input.runId, 'web_admin_combo_set_categories', 'combo_set_categories');
+      await connection.query(`UPDATE combo_set c JOIN ${quote(backupName(input.runId, 'combo_set_status'))} b ON b.id=c.id SET c.status=b.status`);
     }
     if (await backupExists(connection, database, input.runId, 'ad_category')) {
       await restoreWhole(connection, input.runId, 'idv_seller_ad_category', 'ad_category');

@@ -2,8 +2,9 @@ import type { RowDataPacket } from 'mysql2/promise';
 import pool from '@/lib/db';
 import { BOTTOM_FOOTER_MENU_HEADING, BOTTOM_FOOTER_MENU_LINKS } from '@/lib/bottom-footer-menu-seed';
 
-type BottomFooterItemRow = RowDataPacket & {
+export type BottomFooterMenuProjectionRow = {
   id: number;
+  area: string;
   parent_id: number | null;
   node_type: 'zone' | 'group' | 'link';
   label: string;
@@ -12,6 +13,7 @@ type BottomFooterItemRow = RowDataPacket & {
   ordering: number;
   is_active: number;
 };
+type BottomFooterItemRow = RowDataPacket & BottomFooterMenuProjectionRow;
 
 export type PublicBottomFooterMenu = {
   heading: string;
@@ -28,6 +30,54 @@ function fallbackBottomFooterMenu(): PublicBottomFooterMenu {
     heading: BOTTOM_FOOTER_MENU_HEADING,
     links: BOTTOM_FOOTER_MENU_LINKS.map((label, index) => ({ id: `fallback-link-${index}`, label, url: '#' })),
     meta: { fallback: true },
+  };
+}
+
+export function projectPublishedBottomFooterMenu(
+  rows: readonly BottomFooterMenuProjectionRow[],
+  meta: { versionNumber: number; publishedAt: Date | null },
+): PublicBottomFooterMenu | null {
+  if (rows.some((row) => row.area !== 'zones')) return null;
+  const byId = new Map<number, BottomFooterMenuProjectionRow>();
+  const byParent = new Map<number | null, BottomFooterMenuProjectionRow[]>();
+
+  for (const row of rows) {
+    const id = Number(row.id);
+    if (!id || byId.has(id)) return null;
+    byId.set(id, row);
+    const parent = row.parent_id ? Number(row.parent_id) : null;
+    if (!byParent.has(parent)) byParent.set(parent, []);
+    byParent.get(parent)!.push(row);
+  }
+
+  const roots = byParent.get(null) || [];
+  if (roots.length !== 1 || roots[0].node_type !== 'zone' || !String(roots[0].label || '').trim()) return null;
+  const root = roots[0];
+  const groups = byParent.get(Number(root.id)) || [];
+  if (groups.length !== 1 || groups[0].node_type !== 'group' || !String(groups[0].label || '').trim()) return null;
+  const group = groups[0];
+  const linkRows = byParent.get(Number(group.id)) || [];
+  if (linkRows.some((row) => row.node_type !== 'link' || !String(row.label || '').trim() || (byParent.get(Number(row.id)) || []).length > 0)) return null;
+  if (2 + linkRows.length !== rows.length) return null;
+
+  const links = root.is_active === 1 && group.is_active === 1
+    ? linkRows
+        .filter((link) => link.is_active === 1)
+        .map((link) => ({
+          id: String(link.id),
+          label: String(link.label),
+          url: String(link.url_override || link.custom_url || '#'),
+        }))
+    : [];
+
+  return {
+    heading: String(group.label),
+    links,
+    meta: {
+      fallback: false,
+      versionNumber: meta.versionNumber,
+      publishedAt: meta.publishedAt,
+    },
   };
 }
 
@@ -48,24 +98,13 @@ async function loadPublishedBottomFooterMenu(): Promise<PublicBottomFooterMenu> 
     const version = versions[0];
     if (!version) return fallbackBottomFooterMenu();
     const [rows] = await pool.query<BottomFooterItemRow[]>(
-      'SELECT * FROM web_admin_menu_items WHERE version_id = ? AND is_active = 1 ORDER BY parent_id ASC, ordering ASC, id ASC',
+      'SELECT * FROM web_admin_menu_items WHERE version_id = ? ORDER BY parent_id ASC, ordering ASC, id ASC',
       [version.id],
     );
-    const byParent = new Map<number | null, BottomFooterItemRow[]>();
-    for (const row of rows) {
-      const parent = row.parent_id ? Number(row.parent_id) : null;
-      if (!byParent.has(parent)) byParent.set(parent, []);
-      byParent.get(parent)!.push(row);
-    }
-    const root = (byParent.get(null) || []).find((row) => row.node_type === 'zone');
-    const group = root ? (byParent.get(Number(root.id)) || []).find((row) => row.node_type === 'group') : null;
-    const links = group ? (byParent.get(Number(group.id)) || []).filter((row) => row.node_type === 'link').map((link) => ({
-      id: String(link.id),
-      label: String(link.label),
-      url: String(link.url_override || link.custom_url || '#'),
-    })) : [];
-    if (!group || links.length !== BOTTOM_FOOTER_MENU_LINKS.length) return fallbackBottomFooterMenu();
-    return { heading: String(group.label), links, meta: { fallback: false, versionNumber: Number(version.version_number), publishedAt: version.published_at || null } };
+    return projectPublishedBottomFooterMenu(rows, {
+      versionNumber: Number(version.version_number),
+      publishedAt: version.published_at || null,
+    }) || fallbackBottomFooterMenu();
   } catch (error) {
     console.error('[BottomFooterMenu] Falling back to seed:', error);
     return fallbackBottomFooterMenu();

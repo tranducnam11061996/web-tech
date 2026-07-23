@@ -25,6 +25,7 @@ import {
   Upload,
 } from 'lucide-react';
 import clsx from 'clsx';
+import { duplicateTreeNodeAtSameLevel, getMenuEditorPolicy, type MenuEditorProfile } from '@/lib/menuEditorPolicy';
 
 type AreaId = 'zones' | 'faves' | 'topNav' | 'utilityLinks' | 'circleStory' | 'shopByCategory';
 type NodeType = 'zone' | 'group' | 'link';
@@ -406,6 +407,7 @@ type HeaderMenuManagerProps = {
   allowedAreas?: readonly AreaId[];
   title?: string;
   sectionLabel?: string;
+  editorProfile?: MenuEditorProfile;
   verifyEndpoint?: string;
   adminEndpoint?: string;
   publishEndpoint?: string;
@@ -416,6 +418,7 @@ export function HeaderMenuManager({
   allowedAreas = ALL_AREA_IDS,
   title = 'Quản lý nội dung menu',
   sectionLabel = 'Khu vực menu',
+  editorProfile = 'header',
   verifyEndpoint = '/api/menu/header',
   adminEndpoint = '/api/admin/menus/header',
   publishEndpoint = '/api/admin/menus/header/publish',
@@ -438,6 +441,7 @@ export function HeaderMenuManager({
   const [isPending, startTransition] = useTransition();
 
   const selectedNode = findNodeInMenu(menu, selectedId);
+  const editorPolicy = getMenuEditorPolicy(editorProfile, selectedNode?.nodeType || null, selectedNode?.children?.length || 0);
   const itemCount = useMemo(() => allowedAreaDefs.reduce((total, area) => total + countNodes(menu[area.id]), 0), [allowedAreaDefs, menu]);
   const previewContext = useMemo(() => getPreviewContext(menu, activeArea, selectedId), [menu, activeArea, selectedId]);
   const iconPathByKey = useMemo(() => {
@@ -497,8 +501,11 @@ export function HeaderMenuManager({
   };
 
   const duplicateSelected = () => {
-    if (!selectedNode) return;
-    setMenu((current) => ({ ...current, [activeArea]: [...current[activeArea], duplicateNode(selectedNode)] }));
+    if (!selectedNode || !selectedId) return;
+    setMenu((current) => {
+      const result = duplicateTreeNodeAtSameLevel(current[activeArea], selectedId, duplicateNode);
+      return { ...current, [activeArea]: result.nodes };
+    });
     setStatusText(STATUS_UNPUBLISHED);
   };
 
@@ -603,6 +610,9 @@ export function HeaderMenuManager({
     setStatusText(STATUS_UNPUBLISHED);
   };
 
+  const canAddQuickLinks = quickLinks.trim().length > 0
+    && (activeArea !== 'zones' || selectedNode?.nodeType === 'group');
+
   const onDropNode = (targetId: string) => {
     if (!draggedId || draggedId === targetId) return;
     setMenu((current) => {
@@ -673,9 +683,26 @@ export function HeaderMenuManager({
             <div className="flex flex-wrap gap-2">
               {activeArea === 'zones' ? (
                 <>
-                  <button type="button" onClick={() => addRoot('zone')} className="rounded-md bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700"><Plus className="mr-1 inline h-4 w-4" />Danh mục</button>
-                  <button type="button" onClick={() => addChildToSelected('group')} disabled={selectedNode?.nodeType !== 'zone'} className="rounded-md bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700 disabled:opacity-40"><Plus className="mr-1 inline h-4 w-4" />Nhóm</button>
-                  <button type="button" onClick={() => addChildToSelected('link')} disabled={selectedNode?.nodeType !== 'group'} className="rounded-md bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700 disabled:opacity-40"><Plus className="mr-1 inline h-4 w-4" />Link</button>
+                  {editorPolicy.allowRootCreate ? (
+                    <button type="button" onClick={() => addRoot('zone')} className="rounded-md bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700"><Plus className="mr-1 inline h-4 w-4" />Danh mục</button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => addChildToSelected('group')}
+                    disabled={!editorPolicy.allowGroupCreate}
+                    className="rounded-md bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={!editorPolicy.allowGroupCreate && editorProfile === 'bottom-footer' ? 'Bottom Footer chỉ có một nhóm' : undefined}
+                  >
+                    <Plus className="mr-1 inline h-4 w-4" />Nhóm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => addChildToSelected('link')}
+                    disabled={!editorPolicy.allowLinkCreate}
+                    className="rounded-md bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <Plus className="mr-1 inline h-4 w-4" />Link
+                  </button>
                 </>
               ) : (
                 <button type="button" onClick={() => addRoot('link')} className="rounded-md bg-gray-800 px-3 py-2 text-sm hover:bg-gray-700"><Plus className="mr-1 inline h-4 w-4" />Link</button>
@@ -683,7 +710,7 @@ export function HeaderMenuManager({
             </div>
           </div>
 
-          {(activeArea === 'zones' || activeArea === 'faves') && (
+          {editorPolicy.showAreaLabelEditor && (activeArea === 'zones' || activeArea === 'faves') && (
             <div className="mb-3 rounded-md border border-gray-800 bg-gray-900/40 p-3">
               <label htmlFor={`${activeArea}-frontend-label`} className="mb-1 block text-xs font-semibold text-gray-400">
                 Nhãn hiển thị frontend
@@ -749,7 +776,13 @@ export function HeaderMenuManager({
                   placeholder="PC Builder | /pc-builder"
                   className="mt-2 h-24 w-full rounded-md border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-200 outline-none focus:border-emerald-500"
                 />
-                <button type="button" onClick={addQuickLinks} className="mt-2 rounded-md border border-gray-700 px-3 py-2 text-sm text-gray-200 hover:border-gray-500">
+                <button
+                  type="button"
+                  onClick={addQuickLinks}
+                  disabled={!canAddQuickLinks}
+                  className="mt-2 rounded-md border border-gray-700 px-3 py-2 text-sm text-gray-200 hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  title={activeArea === 'zones' && selectedNode?.nodeType !== 'group' ? 'Chọn một nhóm để thêm link' : undefined}
+                >
                   <ListPlus className="mr-2 inline h-4 w-4" />Thêm các link
                 </button>
               </div>
@@ -770,6 +803,11 @@ export function HeaderMenuManager({
             onDelete={deleteSelected}
             onDuplicate={duplicateSelected}
             onMove={moveSelected}
+            canEditLabel={editorPolicy.canEditLabel}
+            canDelete={editorPolicy.canDelete}
+            canDuplicate={editorPolicy.canDuplicate}
+            canMove={editorPolicy.canMove}
+            customLinksOnly={editorPolicy.customLinksOnly}
           />
         </aside>
       </div>
@@ -872,6 +910,11 @@ function EditorPanel({
   onDelete,
   onDuplicate,
   onMove,
+  canEditLabel,
+  canDelete,
+  canDuplicate,
+  canMove,
+  customLinksOnly,
 }: {
   node: MenuNode | null;
   activeArea: AreaId;
@@ -884,6 +927,11 @@ function EditorPanel({
   onDelete: () => void;
   onDuplicate: () => void;
   onMove: (direction: -1 | 1) => void;
+  canEditLabel: boolean;
+  canDelete: boolean;
+  canDuplicate: boolean;
+  canMove: boolean;
+  customLinksOnly: boolean;
 }) {
   if (!node) return <div className="p-6 text-center text-sm text-gray-500">Chọn một mục menu để chỉnh sửa.</div>;
 
@@ -914,8 +962,15 @@ function EditorPanel({
       </div>
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
-        <Field label="Tên hiển thị" id="menu-label">
-          <input id="menu-label" value={node.label} onChange={(event) => setField('label', event.target.value)} className="field-input" />
+        <Field label={canEditLabel ? 'Tên hiển thị' : 'Tên kỹ thuật'} id="menu-label">
+          <input
+            id="menu-label"
+            value={node.label}
+            onChange={(event) => setField('label', event.target.value)}
+            className="field-input"
+            readOnly={!canEditLabel}
+            aria-readonly={!canEditLabel}
+          />
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
@@ -939,8 +994,8 @@ function EditorPanel({
             <Field label="Kiểu link" id="menu-link-mode">
               <select id="menu-link-mode" value={node.linkMode || 'custom'} onChange={(event) => setField('linkMode', event.target.value)} className="field-input">
                 <option value="custom">URL tùy chỉnh</option>
-                <option value="entity">Gắn danh mục</option>
-                <option value="system">Link hệ thống</option>
+                {!customLinksOnly ? <option value="entity">Gắn danh mục</option> : null}
+                {!customLinksOnly ? <option value="system">Link hệ thống</option> : null}
               </select>
             </Field>
 
@@ -1051,10 +1106,10 @@ function EditorPanel({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 border-t border-gray-800 pt-3">
-        <button type="button" onClick={() => onMove(-1)} className="rounded-md border border-gray-700 px-3 py-2 text-sm hover:border-gray-500"><ArrowUp className="mr-1 inline h-4 w-4" />Lên</button>
-        <button type="button" onClick={() => onMove(1)} className="rounded-md border border-gray-700 px-3 py-2 text-sm hover:border-gray-500"><ArrowDown className="mr-1 inline h-4 w-4" />Xuống</button>
-        <button type="button" onClick={onDuplicate} className="rounded-md border border-blue-800 px-3 py-2 text-sm text-blue-200 hover:bg-blue-950/50"><Copy className="mr-1 inline h-4 w-4" />Nhân bản</button>
-        <button type="button" onClick={onDelete} className="rounded-md border border-red-900 px-3 py-2 text-sm text-red-300 hover:bg-red-950/50"><Trash2 className="mr-1 inline h-4 w-4" />Xóa</button>
+        <button type="button" onClick={() => onMove(-1)} disabled={!canMove} className="rounded-md border border-gray-700 px-3 py-2 text-sm hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"><ArrowUp className="mr-1 inline h-4 w-4" />Lên</button>
+        <button type="button" onClick={() => onMove(1)} disabled={!canMove} className="rounded-md border border-gray-700 px-3 py-2 text-sm hover:border-gray-500 disabled:cursor-not-allowed disabled:opacity-40"><ArrowDown className="mr-1 inline h-4 w-4" />Xuống</button>
+        <button type="button" onClick={onDuplicate} disabled={!canDuplicate} className="rounded-md border border-blue-800 px-3 py-2 text-sm text-blue-200 hover:bg-blue-950/50 disabled:cursor-not-allowed disabled:opacity-40"><Copy className="mr-1 inline h-4 w-4" />Nhân bản</button>
+        <button type="button" onClick={onDelete} disabled={!canDelete} className="rounded-md border border-red-900 px-3 py-2 text-sm text-red-300 hover:bg-red-950/50 disabled:cursor-not-allowed disabled:opacity-40"><Trash2 className="mr-1 inline h-4 w-4" />Xóa</button>
       </div>
     </div>
   );

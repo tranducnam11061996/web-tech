@@ -1,6 +1,6 @@
 # HACOM Architecture
 
-Last verified: `2026-07-19`
+Last verified: `2026-07-24`
 
 ## PC Builder bounded context
 
@@ -24,7 +24,7 @@ Saved builds live in `web_admin_pc_builds` / `web_admin_pc_build_items`. Guest t
 
 ### Combo commerce flow
 
-The storefront product-detail payload receives only active combo-set/group summaries. Group products are lazy-loaded from `GET /api/combo-sets/[setId]/groups/[groupIndex]`; all displayed totals and order writes are based on server-side `POST /api/combo-cart/quote` repricing. The browser’s separate `hacom.combo-cart.v1` record contains only anchor/set/revision and product IDs, group indexes, and quantities. `POST /api/combo-orders` locks and re-quotes inside the order transaction, stores an immutable allocation snapshot, and marks metadata as `order_type=combo`.
+The storefront product-detail payload receives only active combo-set/group summaries. Applicability is the union of direct `combo_set_product` relations and selected roots in `web_admin_combo_set_categories`; category roots are resolved against the product’s current category ancestors, so descendants and future category membership are dynamic without materializing SKU rows. Group products are lazy-loaded from `GET /api/combo-sets/[setId]/groups/[groupIndex]`; all displayed totals and order writes are based on server-side `POST /api/combo-cart/quote` repricing and the same applicability check. The browser’s separate `hacom.combo-cart.v1` record contains only anchor/set/revision and product IDs, group indexes, and quantities. `POST /api/combo-orders` locks and re-quotes inside the order transaction, stores an immutable allocation snapshot, and marks metadata as `order_type=combo`.
 
 ```mermaid
 flowchart LR
@@ -120,7 +120,7 @@ sequenceDiagram
 ```
 
 - Menu, banner, homepage, product, category, and search routes return runtime-only fields.
-- Managed menus use `web_admin_menus -> web_admin_menu_versions -> web_admin_menu_items`. Header, homepage, Footer, and Bottom Footer have separate draft/publish owners and public endpoints. Publication bumps the matching cache version; storefront Footer consumers retain code fallback data so a read outage does not change the established DOM structure.
+- Managed menus use `web_admin_menus -> web_admin_menu_versions -> web_admin_menu_items`. Header, homepage, Footer, and Bottom Footer have separate draft/publish owners and public endpoints. Footer keeps one root with a dynamic group/link tree; Bottom Footer keeps one dynamically named group with a dynamic link list. Published empty content remains explicitly empty, while code fallback data is reserved for a missing, corrupt, or unavailable published source.
 - Banner locations remain legacy `idv_seller_ad_location` rows with logical `idv_seller_ad.location` references and denormalized `location_index`/`template_page` fields. Permanent location deletion is an admin-only transaction that reassigns and hides banners before deleting the location; the protected `unassigned` singleton is excluded from every public banner scope. Banner metadata, category mappings, media and visit logs remain owned by the retained banner ID.
 - Homepage bootstrap accepts one bounded featured-collection identity and product limit. It verifies the collection ID/slug pair, loads only active collection metadata plus the requested sellable product cards, and returns that lean payload alongside the existing homepage data under the same cache/single-flight boundary. Bootstrap v3 also loads at most ten newest unique public articles across active article categories marked featured, merging primary and junction membership and preferring the featured primary category for display. Collection mutations bump the shared public-product cache version so clustered workers discard affected bootstrap responses.
 - Homepage category-feature reads resolve each enabled root through the shared enabled descendant-scope loader, deduplicate product membership, and return at most nine sellable cards ordered by legacy display ordering then product ID. Feature targets are derived server-side from the category `request_path` with the category `url` as fallback; stored/client `target_url` values cannot redirect the storefront. The additive helper-table color controls only the Section 11 container and does not alter legacy category contracts.
@@ -181,6 +181,9 @@ sequenceDiagram
 - Client price, voucher state, customer ID, payment state, and ownership data are never authoritative.
 - `Idempotency-Key` is required. Same key/same payload replays the stored response; same key/different payload returns `409`.
 - Voucher quota and redemption share the order transaction. Limited vouchers cannot decrement below zero.
+- Voucher applicability is the deduplicated OR-union of direct `web_admin_voucher_products` rows and category roots from `web_admin_voucher_categories`; category roots include current descendants. Both relation sets empty is the backward-compatible global state.
+- Direct product IDs are logical catalog references. The relation table cascades only from the InnoDB voucher owner, while quote-time availability and price continue to come from current server-side catalog rows.
+- Product-detail discovery uses the same global/direct/category predicate as checkout. Public voucher payloads do not expose the configured SKU list, and authored `description` replaces inferred storefront scope copy.
 - Email is outside request latency but its outbox record is committed atomically with the order.
 
 ## Customer authentication and forms

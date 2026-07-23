@@ -208,3 +208,99 @@ test("Footer renders on shared routes and has no serious accessibility violation
   ).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
+
+test("Footer renders dynamic group and link counts without falling back to the fixed seed", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Dynamic Footer cardinality is verified once.");
+  await page.setViewportSize({ width: 900, height: 900 });
+
+  await page.route("**/api/menu/footer", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          groups: [
+            { id: "dynamic-1", label: "Một", links: [{ id: "link-1", label: "Link động duy nhất", url: "/dynamic", suffixText: "" }] },
+            { id: "dynamic-empty", label: "Nhóm rỗng", links: [] },
+            { id: "dynamic-2", label: "Hai", links: [{ id: "link-2", label: "Link 2", url: "#", suffixText: "" }] },
+            { id: "dynamic-3", label: "Ba", links: [{ id: "link-3", label: "Link 3", url: "#", suffixText: "" }] },
+            { id: "dynamic-4", label: "Bốn", links: [{ id: "link-4", label: "Link 4", url: "#", suffixText: "" }] },
+            { id: "dynamic-5", label: "Năm", links: [{ id: "link-5", label: "Link 5", url: "#", suffixText: "" }] },
+          ],
+          meta: { fallback: false },
+        },
+      }),
+    });
+  });
+  await page.route("**/api/menu/bottom-footer", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: {
+          heading: "Đối tác động",
+          links: [
+            { id: "partner-1", label: "Đối tác A", url: "/partner-a" },
+            { id: "partner-2", label: "Đối tác B", url: "#" },
+          ],
+          meta: { fallback: false },
+        },
+      }),
+    });
+  });
+
+  await page.goto("/");
+  const footer = page.locator("[data-footer-root]");
+  await expect(footer.getByRole("link", { name: "Link động duy nhất" })).toHaveAttribute("href", "/dynamic");
+  await expect(footer.locator("[data-footer-group]")).toHaveCount(5);
+  await expect(footer.getByText("Nhóm rỗng", { exact: true })).toHaveCount(0);
+  await expect(footer.getByText("Đối tác động", { exact: true })).toBeVisible();
+  await expect(footer.locator("[data-footer-partner-track] a")).toHaveCount(2);
+
+  const groupRows = await footer.locator("[data-footer-group]").evaluateAll((elements) => {
+    const rows = new Set(elements.map((element) => Math.round(element.getBoundingClientRect().y)));
+    return rows.size;
+  });
+  expect(groupRows).toBe(2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
+  const accessibility = await new AxeBuilder({ page })
+    .include("[data-footer-root]")
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(
+    accessibility.violations.filter((violation) => ["serious", "critical"].includes(violation.impact || "")),
+  ).toEqual([]);
+});
+
+test("Footer hides valid published empty menu sections", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Published empty behavior is verified once.");
+
+  await page.route("**/api/menu/footer", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { groups: [], meta: { fallback: false } } }),
+    });
+  });
+  await page.route("**/api/menu/bottom-footer", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        success: true,
+        data: { heading: "Không có liên kết", links: [], meta: { fallback: false } },
+      }),
+    });
+  });
+
+  const footerResponse = page.waitForResponse("**/api/menu/footer");
+  const bottomFooterResponse = page.waitForResponse("**/api/menu/bottom-footer");
+  await Promise.all([page.goto("/"), footerResponse, bottomFooterResponse]);
+
+  const footer = page.locator("[data-footer-root]");
+  await expect(footer).toBeVisible();
+  await expect(footer.locator("[data-footer-groups]")).toHaveCount(0);
+  await expect(footer.locator("[data-footer-partners]")).toHaveCount(0);
+  await expect(footer.getByText("SHOP", { exact: true })).toHaveCount(0);
+  await expect(footer.getByText("Trusted Partners", { exact: true })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+});

@@ -17,7 +17,8 @@ export function BrandFilter() {
         </h1>
         
         <div className="flex items-center gap-3">
-          <button 
+          <button
+            type="button"
             onClick={() => setIsModalOpen(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-all shadow-[0_0_10px_rgba(37,99,235,0.3)]"
           >

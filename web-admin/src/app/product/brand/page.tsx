@@ -2,6 +2,7 @@ import { BrandFilter } from '@/components/brand/BrandFilter';
 import { BrandTable } from '@/components/brand/BrandTable';
 import pool from '@/lib/db';
 import { buildPagination, parsePaginationParams } from '@/lib/admin/pagination';
+import { brandDescriptionPreview } from '@/lib/admin/brands';
 
 type SearchParams = Promise<{ [key: string]: string | string[] | undefined }>;
 
@@ -11,9 +12,15 @@ export default async function BrandPage(props: { searchParams: SearchParams }) {
 
   const [listQueryResult, countQueryResult] = await Promise.all([
     pool.query(
-      `SELECT id, name, image, summary, product, ordering, status, is_featured
-       FROM idv_brand
-       ORDER BY ordering ASC, id DESC
+      `SELECT b.id, b.name, b.image, b.summary, b.product, b.ordering, b.status, b.is_featured,
+              LEFT((
+                SELECT i.description
+                FROM idv_brand_info i
+                WHERE i.id = b.id AND i.sellerId = 0
+                LIMIT 1
+              ), 600) AS description_preview
+       FROM idv_brand b
+       ORDER BY b.ordering ASC, b.id DESC
        LIMIT ? OFFSET ?`,
       [limit, offset]
     ),
@@ -30,7 +37,7 @@ export default async function BrandPage(props: { searchParams: SearchParams }) {
     logo: row.image && row.image !== '0' ? row.image : null,
     message: row.summary,
     productCount: row.product || 0,
-    description: row.summary,
+    description: brandDescriptionPreview(row.description_preview),
     displayOrder: row.ordering,
     status: (row.status === 1 ? 'Hoạt động' : 'Tạm khóa') as 'Hoạt động' | 'Tạm khóa',
     featured: row.is_featured === 1

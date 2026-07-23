@@ -1,5 +1,87 @@
 # Changelog
 
+## 2026-07-24 - Audited the complete release bundle before GitHub sync
+
+- Audited all storefront, admin, API, upload, validation, responsive, accessibility, test and documentation changes in the dirty workspace while preserving the manual Product Sidebar content.
+- Upgraded the shared PostCSS override from 8.5.10 to 8.5.22 after `npm audit` identified the source-map file-read advisory; both production dependency audits now report zero vulnerabilities.
+- Added protected new-tab semantics to the external Zalo link, darkened product attribute badge variants to meet WCAG AA contrast, and made the shared homepage carousel controller remain untransformed and static for reduced-motion users.
+- Added environment-driven Playwright production-server ownership, hardened category hydration geometry and Section 15 subpixel assertions, and separated parallel timing flakes from product failures.
+- Final required verification passes both application typechecks, quiet lints and production builds, 197/197 backend unit tests, 27 applied integrations with 12 guarded skips and local healthcheck 22/22. Full four-worker Playwright executed 210 pass/79 intentional skips/5 timing-state failures; the five affected cases all pass in the controlled one-worker rerun (6 pass/4 project skips).
+- JavaScript regression/release budgets remain red at 255/184.3/199.6/177/196.2 KB for product detail/cart/checkout/combo cart/combo checkout; production-like 1,500-VU evidence remains outstanding.
+
+## 2026-07-24 - Added unlimited Combo Set end times
+
+- Added native radio controls to the Combo Set editor for `Không giới hạn thời gian` and `Chọn ngày kết thúc`; new records and existing `to_time = 0` records default to the unlimited mode.
+- Preserved a bounded-date draft while toggling modes, seeded its first value from the start time plus 30 days (or current time plus 30 days), and added linked inline validation for missing/non-increasing end dates.
+- Kept the existing Unix timestamp contract: unlimited saves `toTime: 0`, bounded dates save a positive timestamp, and the Combo Set list now renders the zero sentinel as `Không giới hạn`.
+- Replaced Combo product discount number inputs with digit-only text controls that normalize pasted punctuation, and changed new groups to open at the top of the existing group list.
+- Verification passes both app typechecks, quiet lints and production builds; backend passes 197/197 unit tests and 27 applied integrations with 12 guarded skips; focused Combo Set coverage passes 12/12 and local healthcheck passes 22/22.
+
+## 2026-07-24 - Restored Combo Set creation navigation
+
+- Replaced the inert `href="#"` wrapper on `/product/combo-set/list` with a valid, keyboard-focusable link to `/product/combo-set/edit`, whose existing no-ID state initializes the create form and submits through `POST /api/admin/combo-sets`.
+- Corrected Combo Set API authorization so create, update and delete requests require their respective `catalog.combo_sets.create`, `.update` and `.delete` permissions instead of mapping every mutation to update.
+- Added focused permission-route regression coverage without changing the Combo Set database, payload or storefront commerce contracts.
+- Verification passes both app typechecks, quiet lints and production builds; backend passes 192/192 unit tests and the full serial integration run at 27 pass/12 guarded skips; focused Combo Set coverage passes 7/7 and local healthcheck passes 22/22.
+
+## 2026-07-24 - Refined Brand editing and meaningful storefront headings
+
+- Changed Brand ordering to a strictly validated numeric text control, renamed the plain `summary` field to `Mô tả tóm tắt`, and renamed the offline TinyMCE `description` field to `Mô tả`.
+- Added deferred Brand-logo selection, local preview and a permission-checked upload route. JPEG/PNG/WebP/GIF files up to 10MB are signature-checked and stored under dated `MEDIA_ROOT/brand/...` paths; the transactional Brand PATCH now updates the optional image while preserving it for older callers that omit the field.
+- Brand storefront H1 now appears only when sanitized editor HTML contains at least 10 readable characters or a safe image source. Empty TinyMCE wrappers and short text hide the H1; HTTPS, `/api/media` and safe relative banner images still qualify. Collection headings remain unchanged.
+- Verification passes both app typechecks, quiet lints and production builds; backend unit tests pass 191/191, integrations pass 27 with 12 guarded skips, focused Brand Playwright passes 5/5 desktop and 4/4 mobile with one intentional breakpoint skip, and local healthcheck passes 22/22.
+
+## 2026-07-24 - Added offline Brand editing and shared Collection layout
+
+- Added on-demand Brand detail loading and transactional `GET/PATCH /api/admin/brands/[id]`, keeping the plain `summary` separate from seller-zero rich-text `description` and SEO fields.
+- Expanded the Edit modal to 1200px, integrated the existing offline TinyMCE editor, added the permission-scoped `brands` media upload target, and completed validation, loading/error states, focus trapping/restoration, Escape/backdrop dismissal and scroll locking.
+- Replaced the Brand-specific hero, price-range filters, grid and previous/next pager with the same shared server-rendered catalog-detail module used by Collection. Brand editor HTML is sanitized and appears before the identical product heading, price-sort controls, responsive grid and numeric pagination.
+- Preserved Brand slug/logo, public response shape and database schema. Focused Brand Playwright passes 5 with one intentional skip; combined Brand/Collection passes 7 with one fixture skip; both app typecheck/lint/build pipelines pass, backend unit tests pass 189/189, integrations pass 27 with 12 guarded skips, and local healthcheck passes 22/22.
+
+## 2026-07-23 - Centered standalone product-description images on desktop
+
+- Added a product-only static-HTML hook so product descriptions do not rely on the shared `.static-html-content` selector or alter category/fallback content.
+- From 1024px, direct images, `<p><img></p>` and the live CMS `<p><span><img></span></p>`/link-wrapper form use block layout, 60% minimum width, 100% maximum width, automatic height and 20px vertical/automatic horizontal margins.
+- Kept multi-image paragraphs and sub-1024px presentation unchanged. Hardened the existing category geometry regression against hydration node replacement and added desktop/mobile product-description coverage for geometry, aspect ratio, overflow and disclosure behavior.
+- Focused product/category Playwright passes 4 applied cases with 4 intentional cross-project skips; both app typecheck/lint/build pipelines pass, backend unit tests pass 186/186, integrations pass 27 with 11 guarded skips, and local healthcheck passes 22/22.
+
+## 2026-07-23 - Restored Product Card Attribute Preview
+
+- Fixed `/product/card-attributes` returning an empty Preview for parent categories whose products live only in descendant categories.
+- Preview lookup now uses the selected category plus active descendants, prefers a direct-category product, and requires an active category link with an enabled positive-price SKU.
+- Prevented duplicate React badge keys when draft or inherited rules repeat the same `attribute + slot`. Preview now follows the backend's first-rule-wins behavior and removes duplicate legacy attribute-value rows before applying `maxValues`.
+- Added a database integration regression that discovers a descendant-only parent fixture and verifies the returned Preview has a real product, image and price. No API, schema or storefront badge contract changed.
+- Focused preview regressions pass 2/2; both app typecheck/lint/build pipelines pass, backend unit tests pass 186/186, integrations pass 27 with 11 guarded skips, and local healthcheck passes 22/22.
+
+## 2026-07-23 - Split Product Group attributes into two-column sections
+
+- Reworked `/product/product-group/edit` so every attribute owns one section with attribute/value editing on the left and the shared group SKU list on the right.
+- Each section's SKU table now edits only that attribute's value selection and keeps its own visible `Thêm sản phẩm` action directly below the SKU list, aligned with the left column's `Thêm value` action. Both actions use the same solid-blue primary treatment, white icon/text, subtle shadow and visible focus ring. SKU add/remove remains group-wide and immediately stays synchronized across all attribute sections.
+- `Thêm thuộc tính` now prepends and focuses the new section. SKU value selects can open an accessible inline creator that confirms with Enter/`Thêm`, cancels with Escape/`Hủy`, reuses case-insensitive matches or blank slots, and updates the left value list plus active SKU selection atomically.
+- Added focused unit coverage for attribute ordering, new/existing/blank value resolution, synchronized selection, validation and the 50-value boundary.
+- Preserved attribute/value ordering, validation, the 4-attribute/50-value/50-SKU limits, product assignment rules and the unchanged admin/API/database contracts.
+- Both app typecheck/lint/build pipelines pass, backend unit tests pass 184/184, integrations pass 26 with 11 guarded skips, and local healthcheck passes 22/22.
+
+## 2026-07-23 - Improved voucher numeric fields and category selection
+
+- Replaced the voucher form's browser number controls with digit-only text inputs, numeric keyboard hints, temporary empty editing state and client-side validation that converts valid values back to the unchanged numeric API payload.
+- Added field-linked errors and first-invalid focus for quantity, discount, percentage cap and minimum-order values while retaining the server as the authoritative validator.
+- Kept the voucher category selector as a two-column surface: selected categories on the left and the complete searchable parent-child tree on the right. It supports local accent-insensitive name/ID search, native checkbox semantics, selected legacy-category chips and parent/child conflict removal.
+- Added voucher/category helper unit coverage. Both applications pass typecheck, quiet lint and production build; backend passes 179 unit tests and 26 applied integration tests with 11 guarded skips; local healthcheck passes 22/22.
+
+## 2026-07-23 - Linked Homepage Section 16 articles and categories in new tabs
+
+- Added the selected active featured category URL to `featuredNews` as the additive `category_url` field, sourced directly from the backend category row without schema changes or slug inference.
+- Converted each Section 16 thumbnail, title, category tag and `Xem thêm` action into independent native links with canonical `/tin-tuc/...` paths, protected new-tab behavior and visible keyboard focus. Missing legacy `category_url` keeps the tag as text.
+- Preserved card/carousel geometry, drag click suppression, server-only data loading and the no-browser-news-request contract. Focused Playwright passes 5 with 5 intentional cross-project skips; both app typecheck/lint/build pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips and healthcheck 22/22 pass.
+
+## 2026-07-23 - Expanded product-detail related grids to 6 × 2
+
+- Unified “Sản phẩm tương tự” and “Sản phẩm đã xem” around six initial cards, a six-card disclosure and a 12-card maximum without changing the supplemental or product-list APIs.
+- Added a shared two/three/five/six-column Tailwind contract, switching to six columns at 1536px, and aligned the static card image-size hint with the wider desktop grid.
+- Reduced recently viewed storage/revalidation to 12 prior products while retaining localStorage version `1`, current-product exclusion, snapshot fallback and deferred loading.
+- Added count-boundary, keyboard disclosure, request-limit, square-media and `390/768/1024/1535/1536/1920px` Playwright coverage. Focused regression passes 13/13; both app typecheck/lint/build pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips and local healthcheck 22/22 pass.
+
 ## 2026-07-23 - Audited manual component edits and synchronized the release gate
 
 - Audited the complete dirty workspace after the manual component edits. Corrected Section 9/14 identifiers, Vietnamese accessible image names, section labels and destination assertions; made search pagination coverage derive its live last page; and rejected product titles beginning with `Micro-ATX` from the exact `micro`/`mic` intent.

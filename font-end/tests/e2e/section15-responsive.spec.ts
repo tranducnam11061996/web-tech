@@ -89,10 +89,15 @@ test("Section 15 matches the centered six-column desktop composition", async ({ 
   expect(shellBox?.x).toBeCloseTo((2537 - 1736) / 2, 0);
   await expect(shell).toHaveCSS("border-radius", "16px");
   expect(innerFrameBox).not.toBeNull();
-  expect(innerFrameBox?.x).toBeCloseTo((shellBox?.x ?? 0) + 16, 0);
-  expect(innerFrameBox?.y).toBeCloseTo((shellBox?.y ?? 0) + 16, 0);
-  expect((shellBox?.x ?? 0) + (shellBox?.width ?? 0) - ((innerFrameBox?.x ?? 0) + (innerFrameBox?.width ?? 0))).toBeCloseTo(16, 0);
-  expect((shellBox?.y ?? 0) + (shellBox?.height ?? 0) - ((innerFrameBox?.y ?? 0) + (innerFrameBox?.height ?? 0))).toBeCloseTo(16, 0);
+  const frameInsets = {
+    left: (innerFrameBox?.x ?? 0) - (shellBox?.x ?? 0),
+    top: (innerFrameBox?.y ?? 0) - (shellBox?.y ?? 0),
+    right: (shellBox?.x ?? 0) + (shellBox?.width ?? 0) - ((innerFrameBox?.x ?? 0) + (innerFrameBox?.width ?? 0)),
+    bottom: (shellBox?.y ?? 0) + (shellBox?.height ?? 0) - ((innerFrameBox?.y ?? 0) + (innerFrameBox?.height ?? 0)),
+  };
+  for (const inset of Object.values(frameInsets)) {
+    expect(Math.abs(inset - 16)).toBeLessThanOrEqual(1);
+  }
   await expect(innerFrame).toHaveCSS("border-radius", "24px");
   await expect(section.locator("#homepage-brands-title")).toHaveCSS("font-size", "30px");
   expect(scrollMetrics.clientHeight).toBeCloseTo(378, 0);

@@ -13,6 +13,7 @@ export type NewsItem = {
   comment_count?: number;
   category_name?: string | null;
   category_id?: number;
+  category_url?: string | null;
 };
 
 export type NewsCategory = {

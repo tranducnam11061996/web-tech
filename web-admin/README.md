@@ -1,12 +1,26 @@
 # HACOM Backend API and Admin Dashboard
 
-Last verified: `2026-07-22`
+Last verified: `2026-07-24`
 
 `web-admin` is a Next.js 16.2.11 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
+## Brand management
+
+`/product/brand` keeps list payloads small and requests full Brand data only after an Edit action opens. `GET /api/admin/brands/[id]` returns the Brand row plus its `idv_brand_info` row for `sellerId=0`; guarded `PATCH` validates and updates both in one transaction, inserting the info row when legacy data is missing and clearing the public response cache afterward.
+
+The 1200px edit dialog labels `idv_brand.summary` as plain `Mô tả tóm tắt` and `idv_brand_info.description` as TinyMCE `Mô tả`. Ordering uses a text input with strict integer validation. TinyMCE is loaded only from `/tinymce.min.js`; editor images use `/api/admin/editor-images/brands/upload`.
+
+Brand logos are selected with a native file control, previewed locally and uploaded only when the form is saved. `POST /api/admin/brands/images/upload` requires `catalog.brands.update`, accepts signature-matching JPEG/PNG/WebP/GIF files up to 10MB and writes dated `MEDIA_ROOT/brand/...` paths. The guarded PATCH accepts `image` additively and preserves the current image when omitted. Slug, public Brand response shape and database schema remain unchanged.
+
+## Voucher management
+
+`/sales/vouchers` keeps numeric values as digit-only text while the administrator edits them, then validates and converts them to the existing numeric payload before create/update. Limited quantity must be positive; discounts must be positive; percent discounts are capped at 100 and require a positive maximum divisible by 1,000; blank minimum order value becomes zero.
+
+Voucher category scope uses two columns on desktop: removable selected categories on the left and the complete active parent-child tree on the right. The right column includes local accent-insensitive name/ID search. Selecting one category removes conflicting selected ancestors/descendants and stores only that category ID; runtime descendant matching remains server-owned. Inactive or deleted IDs from older vouchers stay visible as removable warning chips.
+
 ## Homepage product-section bootstrap
 
-The homepage bootstrap currently loads only category `1087` for the retained Section 17 product pipeline. Categories `178` and `521` remain valid for the dormant Section 6/10 components but are intentionally excluded from homepage bootstrap/fallback work. Bootstrap v3 also returns `featuredNews`: at most ten newest unique public articles across active article categories marked featured, with deterministic primary-category preference. The `productSections` response shape and generic `GET /api/categories/homepage-product-sections` endpoint remain unchanged.
+The homepage bootstrap currently loads only category `1087` for the retained Section 17 product pipeline. Categories `178` and `521` remain valid for the dormant Section 6/10 components but are intentionally excluded from homepage bootstrap/fallback work. Bootstrap v3 also returns `featuredNews`: at most ten newest unique public articles across active article categories marked featured, with deterministic primary-category preference and the selected category's additive `category_url`. The `productSections` response shape and generic `GET /api/categories/homepage-product-sections` endpoint remain unchanged.
 
 ## Managed Header utility links
 
@@ -53,6 +67,12 @@ Step 01 consumes `parentId` and `ordering` from the category summary and renders
 ## Combo commerce
 
 Admin combo APIs support create/update plus product relation remove/reorder. Public combo endpoints are `GET /api/combo-sets/[setId]/groups/[groupIndex]`, `POST /api/combo-cart/quote`, and `POST /api/combo-orders`. Run `npm run admin:migrate` only with an identified database and explicit `ADMIN_WRITE_ENABLED=true`; it adds required indexes/metadata, force-removes obsolete Product Group value visual columns, but does not clean legacy relation orphans or assign combo data.
+
+`/product/combo-set/list` opens the create form through `/product/combo-set/edit` without an ID; the same editor uses `POST /api/admin/combo-sets` for create and switches to PATCH after the returned ID is installed in the URL. Combo Set POST/PATCH/DELETE routes require `catalog.combo_sets.create`, `.update` and `.delete` respectively, while both list and editor pages require `.read`.
+
+Combo Set end time uses the existing `toTime` Unix timestamp contract. The editor exposes native radio choices: `Không giới hạn thời gian` is the create default and sends `0`; `Chọn ngày kết thúc` sends a positive timestamp after validating it is later than the start. Its initial bounded draft is start time plus 30 days, or current time plus 30 days when the start is invalid. The list displays the zero sentinel as `Không giới hạn`.
+
+Combo product discounts are edited as digit-only text with `inputMode="numeric"`; pasted separators are stripped and submit still converts the string to the existing numeric payload. Adding a product group prepends it in an expanded state above prior groups.
 
 ## Responsibilities
 
@@ -307,7 +327,7 @@ Product-detail performance contracts:
 - Category-detail reads and `GET /api/products?...&feature_scope=configured` may reuse a feature box enabled for either homepage or the retained category-page flag. This read-only scope exists for the storefront category banner and never changes the stored flags; the default `category` and `homepage` scopes retain their individual gating behavior.
 - `/api/homepage/bootstrap`, `/api/menu/header`, `/api/menu/homepage`, `/api/menu/footer`, `/api/menu/bottom-footer`.
 - `/api/homepage/bootstrap` optionally accepts bounded `collectionId`, `collectionSlug`, and `collectionLimit` parameters. When ID and slug identify the same active collection, `data.featuredCollection` contains only its metadata and the requested sellable product cards; invalid, missing, empty, or failed collection loads return `featuredCollection: null` without failing the remaining homepage bootstrap.
-- `/api/homepage/bootstrap` also returns `data.featuredNews`, capped at ten newest unique public articles whose active primary or linked category is marked featured in `web_admin_article_category_meta`. Each item includes the selected public category ID/name; an active featured primary `catId` wins over linked categories.
+- `/api/homepage/bootstrap` also returns `data.featuredNews`, capped at ten newest unique public articles whose active primary or linked category is marked featured in `web_admin_article_category_meta`. Each item includes the selected public category ID, name and additive `category_url`; an active featured primary `catId` wins over linked categories.
 - `/api/banners/homepage`, `/api/banners/global`, `/api/banners/location/[locationKey]`.
 - `/api/news`, `/api/news/[slug]`, `/api/news-category/[slug]`, `/api/media/[...path]`.
 
@@ -377,7 +397,9 @@ Footer Menu is managed at `/content/menu/footer` through `GET/PUT /api/admin/men
 
 Product and category editors manage independent buying guides through `GET/PUT /api/admin/products/[id]/buying-guide` and `GET/PUT /api/admin/product-categories/[id]/buying-guide`. PUT replaces the bounded ordered item list in one transaction and invalidates only catalog-detail response caches.
 
-Product groups are managed through `GET/POST /api/admin/product-groups`, `GET/PUT/DELETE /api/admin/product-groups/[id]`, and the existing product catalog with assignment filters. Value payloads contain only identity, name, description, and ordering; legacy value image/color fields are rejected. Writes reconcile legacy IDs and PHP-serialized SKU mappings in one transaction; each product may belong to only one group.
+Product-card attribute rules are managed at `/product/card-attributes` through `GET/PUT /api/admin/product-card-attribute-rules`. The editor Preview chooses an enabled positive-price SKU from the selected category first, then its active descendant categories, so rules configured on a parent can be previewed against descendant inventory. Preview applies the same first-rule-wins contract as saving when drafts repeat an `attribute + slot`, and removes repeated legacy attribute values before rendering stable badge keys. This is read-only sample selection and does not change rule inheritance or public badge projection.
+
+Product groups are managed through `GET/POST /api/admin/product-groups`, `GET/PUT/DELETE /api/admin/product-groups/[id]`, and the existing product catalog with assignment filters. In the editor, each attribute is an independent two-column desktop section: attribute/value controls are on the left and the group SKU table for that attribute is on the right. New attributes are prepended and focused. A SKU value select can create a value inline; confirmation reuses a case-insensitive match or blank slot when possible, otherwise appends the value, and selects it for that SKU in the same state update. Value payloads contain only identity, name, description, and ordering; legacy value image/color fields are rejected. Writes reconcile legacy IDs and PHP-serialized SKU mappings in one transaction; each product may belong to only one group.
 
 Product promotions are managed through `GET/POST /api/admin/product-promotions` and `GET/PUT/DELETE /api/admin/product-promotions/[id]`. Writes require `marketing.product_promotions` permissions and `ADMIN_WRITE_ENABLED=true`, replace SKU/category scopes transactionally, validate supplied internal/HTTPS links and Vietnam-time ranges, and invalidate catalog-detail caches. `detailUrl` is optional: an empty string is retained in the existing non-null column and public/admin presentation omits `Xem chi tiết`; `displayOrder` is an integer from `0` to `65535`, with blank input normalized to `0`.
 

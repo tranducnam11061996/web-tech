@@ -2662,6 +2662,12 @@ body.mobile-menu-open {
   white-space: nowrap
 }
 
+.promo-title-link {
+  color: inherit;
+  display: block;
+  text-decoration: none
+}
+
 .promo-desc {
   font-size: 13px;
   color: #a1a1aa;
@@ -2703,6 +2709,7 @@ body.mobile-menu-open {
   max-width: calc(100% - 76px);
   overflow: hidden;
   padding: 4px 8px;
+  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap
 }
@@ -2715,6 +2722,14 @@ body.mobile-menu-open {
 
 .promo-link:hover {
   color: #06b6d4
+}
+
+#section-16 .promo-img-wrapper:focus-visible,
+#section-16 .promo-title-link:focus-visible,
+#section-16 .promo-category-tag:focus-visible,
+#section-16 .promo-link:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: -2px
 }
 
 .carousel-indicators {
@@ -7359,5 +7374,15 @@ select:not([multiple])::-ms-expand {
     height: auto;
     margin: 20px auto;
     border-radius: 12px;
+  }
+
+  .static-html-content[data-product-static-html] > img,
+  .static-html-content[data-product-static-html] > p > img:only-child,
+  .static-html-content[data-product-static-html] > p > :is(span, a):only-child > img:only-child {
+    display: block;
+    min-width: 60%;
+    max-width: 100%;
+    height: auto;
+    margin: 20px auto;
   }
 }

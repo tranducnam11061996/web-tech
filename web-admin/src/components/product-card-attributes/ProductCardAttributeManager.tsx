@@ -118,30 +118,57 @@ function ruleText(rule: Rule, value: PreviewProduct['attributeValues'][number]) 
   return value.value;
 }
 
-function buildPreviewBadges(product: PreviewProduct | null, rules: Rule[], inheritedRules: Rule[]) {
+export function buildPreviewBadges(product: PreviewProduct | null, rules: Rule[], inheritedRules: Rule[]) {
   if (!product) return [];
-  const directKeys = new Set(rules.map((rule) => `${rule.attrId}:${rule.slot}`));
+  const uniqueByAttributeAndSlot = (source: Rule[]) => {
+    const seen = new Set<string>();
+    return source.filter((rule) => {
+      const key = `${rule.attrId}:${rule.slot}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const directRules = uniqueByAttributeAndSlot(rules);
+  const inherited = uniqueByAttributeAndSlot(inheritedRules);
+  const directKeys = new Set(directRules.map((rule) => `${rule.attrId}:${rule.slot}`));
   const effectiveRules = [
-    ...inheritedRules.filter((rule) => !directKeys.has(`${rule.attrId}:${rule.slot}`)),
-    ...rules,
+    ...inherited.filter((rule) => !directKeys.has(`${rule.attrId}:${rule.slot}`)),
+    ...directRules,
   ]
     .filter((rule) => rule.status)
     .sort((left, right) => left.ordering - right.ordering);
 
-  return effectiveRules.flatMap((rule) => {
-    const values = product.attributeValues
-      .filter((value) => value.attributeId === rule.attrId)
-      .slice(0, Math.max(1, Math.min(3, rule.maxValues || 1)));
-    return values
-      .map((value) => ({
-        key: `${rule.attrId}-${value.valueId}-${rule.slot}`,
-        text: ruleText(rule, value),
+  const badges: Array<{
+    key: string;
+    text: string;
+    slot: BadgeSlot;
+    colorVariant: ColorVariant;
+    ordering: number;
+  }> = [];
+  const badgeKeys = new Set<string>();
+  for (const rule of effectiveRules) {
+    const valueKeys = new Set<number>();
+    const values = product.attributeValues.filter((value) => {
+      if (value.attributeId !== rule.attrId || valueKeys.has(value.valueId)) return false;
+      valueKeys.add(value.valueId);
+      return true;
+    }).slice(0, Math.max(1, Math.min(3, rule.maxValues || 1)));
+    for (const value of values) {
+      const key = `${rule.attrId}-${value.valueId}-${rule.slot}`;
+      const text = ruleText(rule, value);
+      if (!text || badgeKeys.has(key)) continue;
+      badgeKeys.add(key);
+      badges.push({
+        key,
+        text,
         slot: rule.slot,
         colorVariant: rule.colorVariant,
         ordering: rule.ordering,
-      }))
-      .filter((badge) => badge.text);
-  });
+      });
+    }
+  }
+  return badges;
 }
 
 function categoryDepth(category: CategoryNode, parentById: Map<number, number>) {

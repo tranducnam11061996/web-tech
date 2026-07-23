@@ -70,10 +70,12 @@ export function ComboSetFilter({ initialSearch = '', initialStatus = 'all' }) {
       </div>
 
       <div className="flex gap-2 ml-auto">
-        <Link href="#">
-          <button className="bg-green-600/10 text-green-400 border border-green-500/50 hover:bg-green-600/20 rounded-sm px-4 py-2 flex items-center gap-2 text-sm font-bold uppercase tracking-wider transition-all hover:shadow-[0_0_15px_rgba(34,197,94,0.2)]">
-            <Plus className="w-4 h-4" /> Thêm mới
-          </button>
+        <Link
+          href="/product/combo-set/edit"
+          className="flex min-h-10 items-center gap-2 rounded-sm border border-green-500/50 bg-green-600/10 px-4 py-2 text-sm font-bold uppercase tracking-wider text-green-400 transition-all hover:bg-green-600/20 hover:shadow-[0_0_15px_rgba(34,197,94,0.2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Thêm mới
         </Link>
       </div>
     </div>

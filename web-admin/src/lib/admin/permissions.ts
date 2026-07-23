@@ -207,7 +207,7 @@ export function getApiPermission(pathname: string, method: string): AdminPermiss
     : null;
 
   if (!resource) return null;
-  if (pathname.includes('/images/upload') || pathname.endsWith('/images') || pathname.includes('/combo-sets') || pathname.includes('/products/')) {
+  if (pathname.includes('/images/upload') || pathname.endsWith('/images') || pathname.includes('/products/')) {
     return `${resource}.update` as AdminPermission;
   }
   return `${resource}.${action}` as AdminPermission;

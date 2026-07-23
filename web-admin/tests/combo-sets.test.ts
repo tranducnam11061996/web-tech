@@ -2,6 +2,94 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { comboOrderSchema } from '../src/lib/commerceValidation';
 import { adminComboSetSchema, calculateComboUnitDiscount, comboQuoteSchema, parseLegacyComboConfig, pickHighestComboProduct, serializeLegacyComboConfig } from '../src/lib/comboSets';
+import { getApiPermission, getPagePermission } from '../src/lib/admin/permissions';
+import {
+  comboEndTimeMode,
+  defaultLimitedEndTime,
+  parseComboDatetimeLocal,
+  resolveComboEndTime,
+} from '../src/components/products/combo-set/edit/comboSetTime';
+import {
+  normalizeComboNumericText,
+  prependComboItem,
+} from '../src/components/products/combo-set/edit/comboSetEditorState';
+
+test('combo-set create navigation and API permissions use the intended contracts', () => {
+  assert.equal(getPagePermission('/product/combo-set/edit'), 'catalog.combo_sets.read');
+  assert.equal(getApiPermission('/api/admin/combo-sets', 'POST'), 'catalog.combo_sets.create');
+  assert.equal(getApiPermission('/api/admin/combo-sets/12', 'PATCH'), 'catalog.combo_sets.update');
+  assert.equal(getApiPermission('/api/admin/combo-sets/12', 'DELETE'), 'catalog.combo_sets.delete');
+});
+
+test('combo end-time mode treats zero as unlimited and positive timestamps as limited', () => {
+  assert.equal(comboEndTimeMode(0), 'unlimited');
+  assert.equal(comboEndTimeMode(1_800_000_000), 'limited');
+  assert.deepEqual(
+    resolveComboEndTime({ mode: 'unlimited', fromTimeValue: '2026-08-01T10:00', toTimeValue: '' }),
+    { toTime: 0, error: '' },
+  );
+});
+
+test('limited combo end time defaults to thirty days after its start', () => {
+  const start = '2026-08-01T10:00';
+  const end = defaultLimitedEndTime(start, 0);
+  assert.equal(
+    parseComboDatetimeLocal(end) - parseComboDatetimeLocal(start),
+    30 * 24 * 60 * 60,
+  );
+
+  const fixedNow = new Date(2026, 6, 24, 9, 30).getTime();
+  assert.equal(
+    parseComboDatetimeLocal(defaultLimitedEndTime('', fixedNow)) - Math.floor(fixedNow / 1000),
+    30 * 24 * 60 * 60,
+  );
+});
+
+test('limited combo end time validates missing and non-increasing dates', () => {
+  assert.match(
+    resolveComboEndTime({ mode: 'limited', fromTimeValue: '2026-08-01T10:00', toTimeValue: '' }).error,
+    /chọn thời gian kết thúc/i,
+  );
+  assert.match(
+    resolveComboEndTime({
+      mode: 'limited',
+      fromTimeValue: '2026-08-01T10:00',
+      toTimeValue: '2026-08-01T09:00',
+    }).error,
+    /sau thời gian bắt đầu/i,
+  );
+  assert.equal(
+    resolveComboEndTime({
+      mode: 'limited',
+      fromTimeValue: '2026-08-01T10:00',
+      toTimeValue: '2026-08-31T10:00',
+    }).toTime,
+    parseComboDatetimeLocal('2026-08-31T10:00'),
+  );
+});
+
+test('admin combo validation accepts the zero unlimited-time sentinel', () => {
+  assert.equal(adminComboSetSchema.safeParse({
+    title: 'Combo không giới hạn',
+    description: '',
+    status: 1,
+    fromTime: 1_800_000_000,
+    toTime: 0,
+    groups: [],
+  }).success, true);
+});
+
+test('combo editor normalizes numeric text and prepends a newly created group', () => {
+  assert.equal(normalizeComboNumericText('100.000đ'), '100000');
+  assert.equal(normalizeComboNumericText(''), '');
+  assert.deepEqual(
+    prependComboItem(
+      [{ title: 'Nhóm cũ' }],
+      { title: 'Nhóm mới' },
+    ),
+    [{ title: 'Nhóm mới' }, { title: 'Nhóm cũ' }],
+  );
+});
 
 test('round-trips legacy number and percent discount types', () => {
   const groups = [{ title: 'Phụ kiện', products: [

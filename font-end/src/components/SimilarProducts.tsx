@@ -1,11 +1,16 @@
 import type { ProductGridCardData } from "./ProductGridCard";
 import ProductGridCardStatic from "./ProductGridCardStatic";
+import {
+  PRODUCT_RELATED_GRID_CLASS,
+  PRODUCT_RELATED_INITIAL_COUNT,
+  PRODUCT_RELATED_MAX_COUNT,
+} from "./productRelatedLayout";
 
 export default function SimilarProducts({ products = [] }: { products?: ProductGridCardData[] }) {
   if (products.length === 0) return null;
 
-  const initialProducts = products.slice(0, 5);
-  const additionalProducts = products.slice(5, 15);
+  const initialProducts = products.slice(0, PRODUCT_RELATED_INITIAL_COUNT);
+  const additionalProducts = products.slice(PRODUCT_RELATED_INITIAL_COUNT, PRODUCT_RELATED_MAX_COUNT);
 
   return (
     <section className="mx-auto max-w-[1800px] px-4 py-6 md:px-6" aria-labelledby="similar-products-title">
@@ -16,7 +21,7 @@ export default function SimilarProducts({ products = [] }: { products?: ProductG
           </h2>
         </div>
 
-        <div id="similar-products-grid" className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div id="similar-products-grid" className={PRODUCT_RELATED_GRID_CLASS}>
           {initialProducts.map((product) => <ProductGridCardStatic key={product.id} product={product} />)}
         </div>
 
@@ -26,7 +31,7 @@ export default function SimilarProducts({ products = [] }: { products?: ProductG
               <span className="group-open:hidden">{`Xem thêm (${additionalProducts.length})`}</span>
               <span className="hidden group-open:inline">Thu gọn</span>
             </summary>
-            <div className="order-1 grid min-w-0 grid-cols-2 gap-4 pt-4 sm:grid-cols-3 lg:grid-cols-5">
+            <div className={`${PRODUCT_RELATED_GRID_CLASS} order-1 pt-4`}>
               {additionalProducts.map((product) => <ProductGridCardStatic key={product.id} product={product} />)}
             </div>
           </details>

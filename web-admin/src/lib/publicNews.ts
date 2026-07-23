@@ -27,6 +27,7 @@ export function displayedNewsCategoryId(categoryTrail: Array<{ id: number }> | n
 }
 
 function item(row: RowDataPacket) {
+  const categoryUrl = String(row.category_url || '').trim();
   return {
     id: Number(row.id),
     title: String(row.title || ''),
@@ -40,6 +41,7 @@ function item(row: RowDataPacket) {
     comment_count: Number(row.comment_count || 0),
     category_name: row.category_name ? String(row.category_name) : null,
     category_id: Number(row.display_category_id || row.catId || row.category_id || 0),
+    ...(categoryUrl ? { category_url: categoryUrl } : {}),
   };
 }
 
@@ -178,7 +180,7 @@ export async function loadHomepageFeaturedNews(limit = 10) {
   const resolvedLimit = Math.min(20, Math.max(1, Number.isInteger(limit) ? limit : 10));
   const [rows] = await pool.query<RowDataPacket[]>(`
     WITH featured_categories AS (
-      SELECT c.id,c.name,c.ordering
+      SELECT c.id,c.name,c.url,c.ordering
       FROM idv_seller_news_category c
       JOIN ${ARTICLE_CATEGORY_METADATA_TABLE} meta
         ON meta.category_id=c.id AND meta.is_featured=1
@@ -219,7 +221,8 @@ export async function loadHomepageFeaturedNews(limit = 10) {
     )
     SELECT n.id,n.title,n.url,n.request_path,n.thumnail,n.summary,n.createDate,n.lastUpdate,
            COALESCE(page_views.view_count,n.visit,0) AS visit,n.comment_count,n.catId,
-           category.id AS display_category_id,category.name AS category_name
+           category.id AS display_category_id,category.name AS category_name,
+           category.url AS category_url
     FROM latest_articles latest
     JOIN selected_categories selected ON selected.article_id=latest.article_id
     JOIN idv_seller_news n ON n.id=latest.article_id AND n.status=1

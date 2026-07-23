@@ -4,6 +4,15 @@ import { useState } from 'react';
 import { Save, X, Plus, Trash2, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { ProductSelectModal } from '@/components/shared/ProductSelectModal';
+import {
+  comboEndTimeMode,
+  defaultLimitedEndTime,
+  formatComboDatetimeLocal,
+  parseComboDatetimeLocal,
+  resolveComboEndTime,
+  type ComboEndTimeMode,
+} from './comboSetTime';
+import { normalizeComboNumericText, prependComboItem } from './comboSetEditorState';
 
 type ProductConfig = {
   title: string;
@@ -17,21 +26,19 @@ type GroupConfig = {
   suggest_list: ProductConfig[];
 };
 
-function formatDatetimeLocal(unixSeconds: number) {
-  const d = new Date(unixSeconds * 1000);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 export function ComboSetEditClient({ initialData, isNew }: { initialData: any, isNew: boolean }) {
   const router = useRouter();
   
   const [formData, setFormData] = useState({
     title: initialData.title || '',
     status: initialData.status.toString(),
-    from_time: initialData.from_time ? formatDatetimeLocal(initialData.from_time) : '',
-    to_time: initialData.to_time ? formatDatetimeLocal(initialData.to_time) : '',
+    from_time: initialData.from_time ? formatComboDatetimeLocal(initialData.from_time) : '',
+    to_time: initialData.to_time ? formatComboDatetimeLocal(initialData.to_time) : '',
   });
+  const [endTimeMode, setEndTimeMode] = useState<ComboEndTimeMode>(
+    comboEndTimeMode(Number(initialData.to_time || 0)),
+  );
+  const [endTimeError, setEndTimeError] = useState('');
 
   const parsedConfig: GroupConfig[] = initialData.parsedConfig || [];
   const [configGroups, setConfigGroups] = useState<GroupConfig[]>(parsedConfig);
@@ -57,8 +64,8 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
   };
 
   const handleAddGroup = () => {
-    setConfigGroups([...configGroups, { title: 'Nhóm sản phẩm mới', suggest_list: [] }]);
-    setExpandedGroups([...expandedGroups, true]);
+    setConfigGroups((current) => prependComboItem(current, { title: 'Nhóm sản phẩm mới', suggest_list: [] }));
+    setExpandedGroups((current) => prependComboItem(current, true));
   };
 
   const handleRemoveGroup = (idx: number) => {
@@ -190,17 +197,29 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
   };
 
   const handleSave = async () => {
+    const resolvedEndTime = resolveComboEndTime({
+      mode: endTimeMode,
+      fromTimeValue: formData.from_time,
+      toTimeValue: formData.to_time,
+    });
+    if (resolvedEndTime.error) {
+      setEndTimeError(resolvedEndTime.error);
+      setSaveError('Vui lòng kiểm tra lại thời gian áp dụng.');
+      setSaveMessage('');
+      return;
+    }
+
     setSaving(true);
     setSaveError('');
     setSaveMessage('');
+    setEndTimeError('');
     try {
-      const toUnix = (value: string) => value ? Math.floor(new Date(value).getTime() / 1000) : 0;
       const payload = {
         title: formData.title,
         description: initialData.description || '',
         status: Number(formData.status),
-        fromTime: toUnix(formData.from_time),
-        toTime: toUnix(formData.to_time),
+        fromTime: parseComboDatetimeLocal(formData.from_time),
+        toTime: resolvedEndTime.toTime,
         groups: configGroups.map((group) => ({
           title: group.title,
           products: group.suggest_list.map((product) => ({
@@ -289,16 +308,6 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Thời gian kết thúc</label>
-                <input 
-                  type="datetime-local" 
-                  value={formData.to_time}
-                  onChange={(e) => setFormData({...formData, to_time: e.target.value})}
-                  className="w-full bg-gray-950 border border-gray-700 rounded-sm px-4 py-2.5 text-gray-200 focus:outline-none focus:border-red-500/50 transition-all font-mono text-sm" 
-                />
-              </div>
-
               <div className="space-y-2 col-span-2 md:col-span-1">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Trạng thái</label>
                 <select 
@@ -310,6 +319,74 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
                   <option value="0">Tạm ngưng</option>
                 </select>
               </div>
+
+              <fieldset className="space-y-3">
+                <legend className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  Thời gian kết thúc
+                </legend>
+                <div className="flex flex-wrap gap-x-5 gap-y-2">
+                  <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-gray-300">
+                    <input
+                      type="radio"
+                      name="combo-end-time-mode"
+                      value="unlimited"
+                      checked={endTimeMode === 'unlimited'}
+                      onChange={() => {
+                        setEndTimeMode('unlimited');
+                        setEndTimeError('');
+                      }}
+                      className="size-4 accent-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
+                    />
+                    Không giới hạn thời gian
+                  </label>
+                  <label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm text-gray-300">
+                    <input
+                      type="radio"
+                      name="combo-end-time-mode"
+                      value="limited"
+                      checked={endTimeMode === 'limited'}
+                      onChange={() => {
+                        setEndTimeMode('limited');
+                        setEndTimeError('');
+                        setFormData((current) => ({
+                          ...current,
+                          to_time: current.to_time || defaultLimitedEndTime(current.from_time),
+                        }));
+                      }}
+                      className="size-4 accent-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-950"
+                    />
+                    Chọn ngày kết thúc
+                  </label>
+                </div>
+                {endTimeMode === 'limited' ? (
+                  <div className="space-y-2">
+                    <label htmlFor="combo-end-time" className="block text-xs font-medium text-gray-400">
+                      Ngày và giờ kết thúc
+                    </label>
+                    <input
+                      id="combo-end-time"
+                      type="datetime-local"
+                      value={formData.to_time}
+                      aria-invalid={Boolean(endTimeError)}
+                      aria-describedby={endTimeError ? 'combo-end-time-error' : undefined}
+                      onChange={(event) => {
+                        setFormData({ ...formData, to_time: event.target.value });
+                        setEndTimeError('');
+                      }}
+                      className={`w-full rounded-sm border bg-gray-950 px-4 py-2.5 font-mono text-sm text-gray-200 focus:outline-none focus:ring-1 ${
+                        endTimeError
+                          ? 'border-red-500 focus:border-red-400 focus:ring-red-500/30'
+                          : 'border-gray-700 focus:border-red-500/50 focus:ring-red-500/30'
+                      }`}
+                    />
+                    {endTimeError ? (
+                      <p id="combo-end-time-error" role="alert" className="text-xs text-red-400">
+                        {endTimeError}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </fieldset>
             </div>
           </div>
 
@@ -426,9 +503,17 @@ export function ComboSetEditClient({ initialData, isNew }: { initialData: any, i
                                   </td>
                                   <td className="py-2 pr-2">
                                     <input 
-                                      type="number" 
+                                      type="text"
+                                      inputMode="numeric"
+                                      pattern="[0-9]*"
                                       value={prod.discount}
-                                      onChange={(e) => handleProductChange(gIdx, pIdx, 'discount', e.target.value)}
+                                      aria-label={`Giảm giá cho ${prod.title}`}
+                                      onChange={(e) => handleProductChange(
+                                        gIdx,
+                                        pIdx,
+                                        'discount',
+                                        normalizeComboNumericText(e.target.value),
+                                      )}
                                       className="w-full bg-gray-900 border border-gray-800 rounded px-3 py-2 text-sm text-green-400 font-mono focus:outline-none focus:border-green-500/50 transition-all"
                                     />
                                   </td>

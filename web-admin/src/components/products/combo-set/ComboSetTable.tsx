@@ -23,8 +23,8 @@ type PaginationData = {
   pageSize: number;
 };
 
-function formatUnixTime(unixTimestamp: number) {
-  if (!unixTimestamp) return '-';
+function formatUnixTime(unixTimestamp: number, emptyLabel = '-') {
+  if (!unixTimestamp) return emptyLabel;
   const date = new Date(unixTimestamp * 1000);
   return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 }
@@ -96,7 +96,9 @@ export function ComboSetTable({ combos, pagination }: { combos: ComboSetNode[], 
                   <td className="p-4 text-center text-xs text-gray-400 font-mono">
                     <div className="flex flex-col gap-1">
                       <span className="text-green-500/80">{formatUnixTime(combo.from_time)}</span>
-                      <span className="text-red-500/80">{formatUnixTime(combo.to_time)}</span>
+                      <span className={combo.to_time ? 'text-red-500/80' : 'whitespace-nowrap text-cyan-400'}>
+                        {formatUnixTime(combo.to_time, 'Không giới hạn')}
+                      </span>
                     </div>
                   </td>
                   <td className="p-4 text-center">

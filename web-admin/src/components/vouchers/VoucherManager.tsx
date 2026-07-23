@@ -3,6 +3,11 @@
 import { Edit3, Plus, Save, Ticket, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { VoucherCategorySelector, type VoucherCategory } from './VoucherCategorySelector';
+import {
+  normalizeVoucherDigits,
+  validateVoucherNumericFields,
+  type VoucherNumericField,
+} from './voucherForm';
 
 type Voucher = {
   id: number;
@@ -26,14 +31,14 @@ type Voucher = {
 type Redemption = { orderId: number; discountAmount: number; status: string; orderStatus: number };
 type VoucherForm = {
   code: string; title: string; description: string; status: boolean;
-  quantityMode: 'limited' | 'unlimited'; totalQuantity: number;
-  discountType: 'fixed' | 'percent'; discountValue: number; maxDiscount: number;
-  minimumOrderValue: number; startsAt: string; endsAt: string; categoryIds: number[];
+  quantityMode: 'limited' | 'unlimited'; totalQuantity: string;
+  discountType: 'fixed' | 'percent'; discountValue: string; maxDiscount: string;
+  minimumOrderValue: string; startsAt: string; endsAt: string; categoryIds: number[];
 };
 
 const emptyForm: VoucherForm = {
-  code: '', title: '', description: '', status: true, quantityMode: 'unlimited', totalQuantity: 1,
-  discountType: 'fixed', discountValue: 0, maxDiscount: 1000, minimumOrderValue: 0,
+  code: '', title: '', description: '', status: true, quantityMode: 'unlimited', totalQuantity: '1',
+  discountType: 'fixed', discountValue: '0', maxDiscount: '1000', minimumOrderValue: '0',
   startsAt: '', endsAt: '', categoryIds: [],
 };
 const money = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value || 0)}đ`;
@@ -48,7 +53,12 @@ export function VoucherManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<VoucherNumericField, string>>>({});
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+  const totalQuantityRef = useRef<HTMLInputElement>(null);
+  const discountValueRef = useRef<HTMLInputElement>(null);
+  const maxDiscountRef = useRef<HTMLInputElement>(null);
+  const minimumOrderValueRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true);
@@ -74,6 +84,7 @@ export function VoucherManager() {
     const controls = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])') || []);
     controls()[0]?.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (event.key === 'Escape') { event.preventDefault(); setOpen(false); return; }
       if (event.key !== 'Tab') return;
       const items = controls(); const first = items[0]; const last = items.at(-1);
@@ -91,12 +102,14 @@ export function VoucherManager() {
     setForm(emptyForm);
     setRedemptions([]);
     setMessage('');
+    setFieldErrors({});
     setOpen(true);
   };
 
   const startEdit = async (id: number) => {
     lastFocusedRef.current = document.activeElement as HTMLElement | null;
     setMessage('');
+    setFieldErrors({});
     const response = await fetch(`/api/admin/vouchers/${id}`);
     const json = await response.json();
     if (!json.success) {
@@ -112,11 +125,11 @@ export function VoucherManager() {
       description: value.description || '',
       status: Number(value.status) === 1,
       quantityMode: value.quantityMode,
-      totalQuantity: value.totalQuantity || 1,
+      totalQuantity: String(value.totalQuantity ?? 1),
       discountType: value.discountType,
-      discountValue: value.discountValue,
-      maxDiscount: value.maxDiscount || 1000,
-      minimumOrderValue: value.minimumOrderValue,
+      discountValue: String(value.discountValue ?? 0),
+      maxDiscount: String(value.maxDiscount ?? 1000),
+      minimumOrderValue: String(value.minimumOrderValue ?? 0),
       startsAt: value.startsAt || '',
       endsAt: value.endsAt || '',
       categoryIds: value.categoryIds || [],
@@ -126,13 +139,26 @@ export function VoucherManager() {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    setSaving(true);
     setMessage('');
+    const validation = validateVoucherNumericFields(form);
+    setFieldErrors(validation.errors);
+    if (!validation.payload) {
+      const firstInvalidField = (['totalQuantity', 'discountValue', 'maxDiscount', 'minimumOrderValue'] as VoucherNumericField[]).find((field) => validation.errors[field]);
+      const inputByField = {
+        totalQuantity: totalQuantityRef,
+        discountValue: discountValueRef,
+        maxDiscount: maxDiscountRef,
+        minimumOrderValue: minimumOrderValueRef,
+      };
+      if (firstInvalidField) inputByField[firstInvalidField].current?.focus({ preventScroll: false });
+      return;
+    }
+    setSaving(true);
     try {
       const response = await fetch(editingId ? `/api/admin/vouchers/${editingId}` : '/api/admin/vouchers', {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...validation.payload }),
       });
       const json = await response.json();
       if (!json.success) throw new Error(json.error?.message || 'Không thể lưu voucher.');
@@ -145,13 +171,23 @@ export function VoucherManager() {
     }
   };
 
+  const updateNumericField = (field: VoucherNumericField, value: string) => {
+    setForm((current) => ({ ...current, [field]: normalizeVoucherDigits(value) }));
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
   return <section className="space-y-4 animate-in fade-in duration-300">
     <div className="flex flex-col gap-3 rounded-xl border border-gray-800 bg-gray-950/60 p-5 lg:flex-row lg:items-center lg:justify-between">
       <div><h1 className="flex items-center gap-2 text-xl font-bold text-white"><Ticket className="h-5 w-5 text-red-400" /> Quản lý voucher</h1><p className="mt-1 text-sm text-gray-400">Thiết lập ưu đãi, quota, thời hạn và theo dõi tình trạng sử dụng.</p></div>
       <button onClick={startCreate} className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-500"><Plus className="h-4 w-4" /> Tạo voucher</button>
     </div>
 
-    {message ? <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{message}</div> : null}
+    {message ? <div role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{message}</div> : null}
 
     <div className="overflow-x-auto rounded-xl border border-gray-800 bg-gray-950/60">
       <table className="min-w-[1200px] w-full text-left text-sm"><thead className="border-b border-gray-800 text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-4 py-3">Voucher</th><th className="px-4 py-3">Giảm giá</th><th className="px-4 py-3">Phạm vi áp dụng</th><th className="px-4 py-3">Thời hạn</th><th className="px-4 py-3 text-center">Đã dùng</th><th className="px-4 py-3 text-center">Đang chờ</th><th className="px-4 py-3 text-center">Còn lại</th><th className="px-4 py-3">Trạng thái</th><th className="px-4 py-3" /></tr></thead>
@@ -159,16 +195,66 @@ export function VoucherManager() {
       </table>
     </div>
 
-    {open ? <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"><form onSubmit={submit} className="mx-auto my-6 max-w-5xl rounded-2xl border border-gray-700 bg-[#101014] p-6 shadow-2xl"><div className="mb-6 flex items-start justify-between"><div><h2 className="text-lg font-bold text-white">{editingId ? 'Cập nhật voucher' : 'Tạo voucher'}</h2><p className="mt-1 text-sm text-gray-400">Thời gian được nhập theo giờ Việt Nam.</p></div><button type="button" onClick={() => setOpen(false)} className="rounded-md p-2 text-gray-400 hover:bg-gray-800 hover:text-white"><X className="h-5 w-5" /></button></div>
+    {open ? <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-4 backdrop-blur-sm"><form onSubmit={submit} className="mx-auto my-6 max-w-5xl rounded-2xl border border-gray-700 bg-[#101014] p-6 shadow-2xl"><div className="mb-6 flex items-start justify-between"><div><h2 className="text-lg font-bold text-white">{editingId ? 'Cập nhật voucher' : 'Tạo voucher'}</h2><p className="mt-1 text-sm text-gray-400">Thời gian được nhập theo giờ Việt Nam.</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Đóng biểu mẫu voucher" className="rounded-md p-2 text-gray-400 hover:bg-gray-800 hover:text-white focus-visible:outline-2 focus-visible:outline-blue-400"><X aria-hidden="true" className="h-5 w-5" /></button></div>
       <div className="grid gap-5 lg:grid-cols-2">
         <label className="block text-sm font-medium text-gray-200">Mã voucher<input required value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 font-mono text-white outline-none focus:border-red-500" placeholder="LAPTOP5" /></label>
         <label className="block text-sm font-medium text-gray-200">Tên voucher<input required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-white outline-none focus:border-red-500" /></label>
         <label className="block text-sm font-medium text-gray-200 lg:col-span-2">Mô tả<textarea maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="mt-2 min-h-20 w-full resize-y rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-white outline-none focus:border-red-500" /><span className="mt-1 block text-right text-xs tabular-nums text-gray-500">{form.description.length}/4000</span></label>
 
-        <div className="rounded-lg border border-gray-800 p-4"><p className="font-semibold text-white">Số lượng sử dụng</p><div className="mt-3 flex gap-4 text-sm"><label><input type="radio" checked={form.quantityMode === 'unlimited'} onChange={() => setForm({ ...form, quantityMode: 'unlimited' })} className="mr-2" />Không giới hạn</label><label><input type="radio" checked={form.quantityMode === 'limited'} onChange={() => setForm({ ...form, quantityMode: 'limited' })} className="mr-2" />Giới hạn</label></div>{form.quantityMode === 'limited' ? <label className="mt-3 block text-xs font-medium text-gray-400">Tổng lượt<input min={1} type="number" value={form.totalQuantity} onChange={(event) => setForm({ ...form, totalQuantity: Number(event.target.value) })} className="mt-1.5 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-sm text-white" /></label> : null}</div>
-        <div className="rounded-lg border border-gray-800 p-4"><p className="font-semibold text-white">Giảm giá</p><div className="mt-3 flex gap-4 text-sm"><label><input type="radio" checked={form.discountType === 'fixed'} onChange={() => setForm({ ...form, discountType: 'fixed' })} className="mr-2" />Số tiền</label><label><input type="radio" checked={form.discountType === 'percent'} onChange={() => setForm({ ...form, discountType: 'percent' })} className="mr-2" />Phần trăm</label></div><label className="mt-3 block text-xs font-medium text-gray-400">{form.discountType === 'percent' ? 'Phần trăm giảm' : 'Số tiền giảm'}<div className="relative mt-1.5"><input required min={1} max={form.discountType === 'percent' ? 100 : undefined} type="number" value={form.discountValue} onChange={(event) => setForm({ ...form, discountValue: Number(event.target.value) })} className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-sm text-white" />{form.discountType === 'percent' ? <span className="absolute right-3 top-2.5 text-sm text-gray-500">%</span> : <span className="absolute right-3 top-2.5 text-sm text-gray-500">đ</span>}</div></label>{form.discountType === 'percent' ? <label className="mt-3 block text-xs font-medium text-gray-400">Giảm tối đa<div className="relative mt-1.5"><input required min={1000} step={1000} type="number" value={form.maxDiscount} onChange={(event) => setForm({ ...form, maxDiscount: Number(event.target.value) })} className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 pr-8 text-sm text-white" /><span className="absolute right-3 top-2.5 text-sm text-gray-500">đ</span></div><span className="mt-1 block font-normal text-gray-500">Mức giảm không vượt quá số tiền này.</span></label> : null}</div>
+        <div className="rounded-lg border border-gray-800 p-4">
+          <p className="font-semibold text-white">Số lượng sử dụng</p>
+          <div className="mt-3 flex gap-4 text-sm">
+            <label><input type="radio" checked={form.quantityMode === 'unlimited'} onChange={() => {
+              setForm((current) => ({ ...current, quantityMode: 'unlimited' }));
+              setFieldErrors((current) => {
+                const next = { ...current };
+                delete next.totalQuantity;
+                return next;
+              });
+            }} className="mr-2" />Không giới hạn</label>
+            <label><input type="radio" checked={form.quantityMode === 'limited'} onChange={() => setForm((current) => ({ ...current, quantityMode: 'limited' }))} className="mr-2" />Giới hạn</label>
+          </div>
+          {form.quantityMode === 'limited' ? <label className="mt-3 block text-xs font-medium text-gray-400">Tổng lượt
+            <input ref={totalQuantityRef} type="text" inputMode="numeric" pattern="[0-9]*" value={form.totalQuantity} onChange={(event) => updateNumericField('totalQuantity', event.target.value)} aria-invalid={Boolean(fieldErrors.totalQuantity)} aria-describedby={fieldErrors.totalQuantity ? 'voucher-total-quantity-error' : undefined} className={`mt-1.5 w-full rounded-lg border bg-gray-950 px-3 py-2.5 text-sm tabular-nums text-white outline-none focus:border-red-500 ${fieldErrors.totalQuantity ? 'border-red-500' : 'border-gray-700'}`} />
+            {fieldErrors.totalQuantity ? <span id="voucher-total-quantity-error" className="mt-1 block font-normal text-red-300">{fieldErrors.totalQuantity}</span> : null}
+          </label> : null}
+        </div>
+        <div className="rounded-lg border border-gray-800 p-4">
+          <p className="font-semibold text-white">Giảm giá</p>
+          <div className="mt-3 flex gap-4 text-sm">
+            <label><input type="radio" checked={form.discountType === 'fixed'} onChange={() => {
+              setForm((current) => ({ ...current, discountType: 'fixed' }));
+              setFieldErrors((current) => {
+                const next = { ...current };
+                delete next.discountValue;
+                delete next.maxDiscount;
+                return next;
+              });
+            }} className="mr-2" />Số tiền</label>
+            <label><input type="radio" checked={form.discountType === 'percent'} onChange={() => {
+              setForm((current) => ({ ...current, discountType: 'percent' }));
+              setFieldErrors((current) => {
+                const next = { ...current };
+                delete next.discountValue;
+                return next;
+              });
+            }} className="mr-2" />Phần trăm</label>
+          </div>
+          <label className="mt-3 block text-xs font-medium text-gray-400">{form.discountType === 'percent' ? 'Phần trăm giảm' : 'Số tiền giảm'}
+            <div className="relative mt-1.5"><input ref={discountValueRef} type="text" inputMode="numeric" pattern="[0-9]*" value={form.discountValue} onChange={(event) => updateNumericField('discountValue', event.target.value)} aria-invalid={Boolean(fieldErrors.discountValue)} aria-describedby={fieldErrors.discountValue ? 'voucher-discount-value-error' : undefined} className={`w-full rounded-lg border bg-gray-950 px-3 py-2.5 pr-8 text-sm tabular-nums text-white outline-none focus:border-red-500 ${fieldErrors.discountValue ? 'border-red-500' : 'border-gray-700'}`} /><span aria-hidden="true" className="absolute right-3 top-2.5 text-sm text-gray-500">{form.discountType === 'percent' ? '%' : 'đ'}</span></div>
+            {fieldErrors.discountValue ? <span id="voucher-discount-value-error" className="mt-1 block font-normal text-red-300">{fieldErrors.discountValue}</span> : null}
+          </label>
+          {form.discountType === 'percent' ? <label className="mt-3 block text-xs font-medium text-gray-400">Giảm tối đa
+            <div className="relative mt-1.5"><input ref={maxDiscountRef} type="text" inputMode="numeric" pattern="[0-9]*" value={form.maxDiscount} onChange={(event) => updateNumericField('maxDiscount', event.target.value)} aria-invalid={Boolean(fieldErrors.maxDiscount)} aria-describedby={fieldErrors.maxDiscount ? 'voucher-max-discount-help voucher-max-discount-error' : 'voucher-max-discount-help'} className={`w-full rounded-lg border bg-gray-950 px-3 py-2.5 pr-8 text-sm tabular-nums text-white outline-none focus:border-red-500 ${fieldErrors.maxDiscount ? 'border-red-500' : 'border-gray-700'}`} /><span aria-hidden="true" className="absolute right-3 top-2.5 text-sm text-gray-500">đ</span></div>
+            <span id="voucher-max-discount-help" className="mt-1 block font-normal text-gray-500">Mức giảm không vượt quá số tiền này và phải chia hết cho 1.000.</span>
+            {fieldErrors.maxDiscount ? <span id="voucher-max-discount-error" className="mt-1 block font-normal text-red-300">{fieldErrors.maxDiscount}</span> : null}
+          </label> : null}
+        </div>
 
-        <label className="block text-sm font-medium text-gray-200">Giá trị đơn tối thiểu<div className="relative mt-2"><input min={0} type="number" value={form.minimumOrderValue} onChange={(event) => setForm({ ...form, minimumOrderValue: Number(event.target.value) })} className="w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 pr-8 text-white" /><span className="absolute right-3 top-2.5 text-sm text-gray-500">đ</span></div></label>
+        <label className="block text-sm font-medium text-gray-200">Giá trị đơn tối thiểu
+          <div className="relative mt-2"><input ref={minimumOrderValueRef} type="text" inputMode="numeric" pattern="[0-9]*" value={form.minimumOrderValue} onChange={(event) => updateNumericField('minimumOrderValue', event.target.value)} aria-invalid={Boolean(fieldErrors.minimumOrderValue)} aria-describedby={fieldErrors.minimumOrderValue ? 'voucher-minimum-order-error' : undefined} className={`w-full rounded-lg border bg-gray-950 px-3 py-2.5 pr-8 tabular-nums text-white outline-none focus:border-red-500 ${fieldErrors.minimumOrderValue ? 'border-red-500' : 'border-gray-700'}`} /><span aria-hidden="true" className="absolute right-3 top-2.5 text-sm text-gray-500">đ</span></div>
+          {fieldErrors.minimumOrderValue ? <span id="voucher-minimum-order-error" className="mt-1 block text-xs font-normal text-red-300">{fieldErrors.minimumOrderValue}</span> : null}
+        </label>
         <label className="flex items-center gap-2 pt-7 text-sm font-medium text-gray-200"><input type="checkbox" checked={form.status} onChange={(event) => setForm({ ...form, status: event.target.checked })} className="h-4 w-4" />Kích hoạt voucher</label>
         <label className="block text-sm font-medium text-gray-200">Bắt đầu (tùy chọn)<input type="datetime-local" value={form.startsAt} onChange={(event) => setForm({ ...form, startsAt: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-white" /></label>
         <label className="block text-sm font-medium text-gray-200">Kết thúc (tùy chọn)<input type="datetime-local" value={form.endsAt} onChange={(event) => setForm({ ...form, endsAt: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-950 px-3 py-2.5 text-white" /></label>

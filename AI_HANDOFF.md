@@ -1,12 +1,61 @@
 # AI Handoff — HACOM Workspace
 
-Last verified: `2026-07-23`
+Last verified: `2026-07-24`
+
+## Combo Set creation, permissions and unlimited end time
+
+- `/product/combo-set/list` now links `Thêm mới` directly to `/product/combo-set/edit`; the edit route's existing no-ID branch initializes a new Combo Set and its client submits the existing canonical payload to `POST /api/admin/combo-sets`.
+- Combo Set API mutations now map by HTTP method: POST requires `catalog.combo_sets.create`, PATCH requires `.update`, and DELETE requires `.delete`. Page access remains protected by `catalog.combo_sets.read`; no schema, payload or storefront combo change was made.
+- The editor now models `to_time = 0` explicitly as `Không giới hạn thời gian`, which is the default for a new Combo Set. A native radio switches to a bounded end date; the first switch seeds a draft from the start time plus 30 days (or current time plus 30 days), keeps that draft while toggling modes, and validates that a bounded end is valid and later than the start. Existing zero/positive timestamps hydrate into the matching mode and the list labels zero as `Không giới hạn`.
+- Combo product discounts now use digit-only text inputs with numeric touch keyboards; pasted separators/non-digits are removed while a temporary blank value remains editable. `Thêm Nhóm Sản Phẩm` prepends an expanded new group so it is immediately visible above existing groups.
+- Verification passes both app typecheck/lint/build pipelines, 197 unit tests, 27 applied integrations with 12 destructive guards skipped, focused Combo Set tests 12/12 and local healthcheck 22/22. The API, database and storefront runtime contracts remain unchanged.
+
+## Brand editor and shared Brand/Collection catalog layout
+
+- `/product/brand` loads full edit data only when an Edit action opens. The accessible 1200px modal labels `idv_brand.summary` as plain `Mô tả tóm tắt`, edits `idv_brand_info.description` as offline TinyMCE `Mô tả`, and uses a strict text-based integer control for ordering.
+- TinyMCE images retain the `brands` scope. The separate Brand-logo picker accepts JPEG/PNG/WebP/GIF up to 10MB, previews locally and uploads only during save through `POST /api/admin/brands/images/upload`; the route checks permission, metadata and file signature before writing a dated `MEDIA_ROOT/brand/...` path. PATCH accepts an optional safe `image`, preserving the existing value when omitted, and saves Brand plus seller-zero SEO/content in one transaction.
+- Storefront Brand and Collection pages share one server-rendered catalog-detail layout. Brand H1 is conditional: sanitized `description` must contain at least 10 readable characters or one safe image `src` (including an image-only banner); empty TinyMCE wrappers and short text hide it. Collection H1, Brand description rendering, product heading, sort, responsive grid and pagination remain unchanged.
+- Current verification: both app typechecks, quiet lints and production builds pass; backend unit tests pass 191/191 and integrations pass 27 with 12 guarded skips; focused Brand Playwright passes 5/5 desktop plus 4/4 mobile with one intentional breakpoint skip; local healthcheck passes 22/22.
+
+## Desktop product-description standalone images
+
+- Product-detail CMS descriptions now carry a product-only `data-product-static-html` hook. From `1024px`, root images, direct single-image paragraphs and the live legacy `<p><span><img></span></p>`/link-wrapper shape render as centered blocks with `min-width: 60%`, `max-width: 100%`, automatic height and 20px vertical margins.
+- Paragraphs with multiple images, the no-description thumbnail/summary fallback, product-category content and viewports below 1024px retain their existing presentation. No sanitizer, CMS data, API or database contract changed.
+- Focused product/category image Playwright passes 4 applied cases with 4 intentional cross-project skips. Both app typecheck/lint/build pipelines pass, backend unit tests pass 186/186, integrations pass 27 with 11 guarded skips, and local healthcheck passes 22/22.
+
+## Product-card attribute Preview uses the selected category branch
+
+- `/product/card-attributes` now resolves its sample product from the selected category first, then active descendants. Parent categories that own rules but have no directly linked SKU therefore render a real Preview instead of the empty `No preview product` card.
+- Preview selection accepts only active product-category links with an enabled positive-price SKU, keeps direct-category priority, and loads the chosen product's existing attribute values for live badge rendering. The admin API/schema and storefront badge contract are unchanged.
+- Preview badge construction deduplicates draft/inherited rules by `attribute + slot` before rendering, matching the backend's first-rule-wins save contract, and deduplicates repeated legacy attribute values. React badge keys remain stable without hiding genuinely distinct values.
+- Focused preview regressions pass 2/2 plus the descendant-only integration; both app typecheck/lint/build pipelines pass, backend unit tests pass 186/186, integrations pass 27 with 11 guarded skips, and local healthcheck passes 22/22.
+
+## Product Group attribute sections use a two-column editor
+
+- `/product/product-group/edit` renders each attribute as one independent section. From the desktop breakpoint, its left column owns the attribute name and ordered value controls, while its right column repeats the group SKU list and exposes only that attribute's value selection per SKU.
+- Every section keeps a solid-blue `Thêm sản phẩm` action directly below its SKU list, aligned with the identically styled `Thêm value` action in the left column, and opens the same shared product picker. Removing a SKU from any section removes it from the group and therefore every section; attribute/value ordering and removal continue to clean related selections through the existing state handlers.
+- New attributes are prepended, re-ordered canonically and focused immediately. Each SKU value select offers `Tạo value mới…`; its inline Enter/submit flow trims the name, reuses a case-insensitive match or the first blank slot, otherwise appends a value, and atomically selects it for the active SKU so both columns stay synchronized. Escape/cancel leaves the group unchanged and the 50-value limit remains enforced.
+- Admin payloads, Product Group APIs, transactional persistence, limits and storefront projection are unchanged. Focused editor-state tests pass 5/5; both app typecheck/lint/build pipelines pass, backend unit tests pass 184/184, integrations pass 26 with 11 guarded skips, and local healthcheck passes 22/22.
+
+## Voucher form numeric text fields and searchable two-column category selector
+
+- `/sales/vouchers` keeps quantity, discount, maximum-discount and minimum-order controls as digit-only text while editing. Pasted separators are removed, temporary blanks are allowed, inline errors are associated with their fields, and a valid submission converts these values to the existing numeric API contract.
+- Voucher category scope uses two columns on desktop: removable selected items on the left and the searchable indented active parent-child tree on the right. Search is accent-insensitive by name/ID and selecting a parent still stores only that root and applies through descendants at runtime; inactive or missing selected categories remain visible for removal.
+- The shared Product Promotion two-panel layout remains compatible. No API, schema or database change was made. Both app typecheck/lint/build pipelines pass, backend unit tests pass 179/179, integrations pass 26 with 11 guarded skips, and local healthcheck passes 22/22.
+
+## Product-detail related grids use a 6 × 2 disclosure
+
+- “Sản phẩm tương tự” and “Sản phẩm đã xem” now share one storefront layout contract: six cards initially, up to six more after `Xem thêm`, and a maximum of 12 cards per section. The responsive grid remains two/three/five columns below `1536px` and switches to six columns at the `2xl` breakpoint.
+- Similar products remain server-rendered from the unchanged supplemental API. Recently viewed remains a deferred client island, keeps localStorage schema version `1`, excludes the current product, stores the current snapshot plus at most 12 prior products, and revalidates those 12 IDs in one bounded request. The static-card image hint now reflects the six-column desktop width.
+- Focused related-card, square-image and empty-state Playwright passes 13/13 across the explicit `390/768/1024/1535/1536/1920px` matrix. Both application typechecks, quiet lints and production builds pass; backend unit tests pass 173/173, integrations pass 25 with 12 guarded skips, and local healthcheck passes 22/22.
 
 ## Final audit and dependency patch
 
-- The complete manual component bundle has been audited across storefront layout/accessibility, homepage data contracts, search ranking, backend integration, media and tests. Section 9/14 accessible names and routes now match their new content; the licensed-software PNG bypasses only the failing Next optimizer path; mobile category sorting coverage opens the actual filter dialog; and carousel geometry tests select an in-viewport card.
-- Both applications now use Next.js 16.2.11. Production dependency audits report zero vulnerabilities. Final verification passes both app typechecks, quiet lints and builds, 173/173 backend unit tests, 25 applied integrations with 12 guarded skips, live ranking over 2,528 products, full Playwright at 121 desktop pass/10 intentional skips and 74 mobile pass/57 intentional skips, and production local healthcheck 22/22.
-- Existing JavaScript performance-budget failures remain open and were not reclassified by this audit; do not claim the release is performance-budget clean or validated for 1,500 VUs.
+- The complete manual component bundle has been audited across storefront layout/accessibility, homepage data contracts, admin permissions, upload validation, backend integration, media and tests. External Zalo navigation now uses protected new-tab semantics; generated Next/TypeScript artifacts stay outside the commit.
+- The audit found and patched the PostCSS source-map advisory by pinning both applications to `8.5.22`; production dependency audits now report zero vulnerabilities. Product attribute badge colors now meet the exercised WCAG AA contrast checks, and every homepage carousel remains static when `prefers-reduced-motion: reduce` is active.
+- Playwright can now own an isolated production server through `PLAYWRIGHT_SERVER_COMMAND`/`PLAYWRIGHT_SERVER_URL`, avoiding reuse of a stale port-3001 dev process. The full 294-case, four-worker audit executed 210 pass/79 intentional project skips/5 timing-state failures; all five failing cases passed immediately in a controlled one-worker rerun at 6 pass/4 project skips.
+- Final required verification passes both app typechecks, quiet lints and production builds, 197/197 backend unit tests, 27 applied integrations with 12 guarded skips, zero production dependency vulnerabilities and local healthcheck 22/22.
+- JavaScript budgets remain open at product detail 255 KB, cart 184.3 KB, checkout 199.6 KB, combo cart 177 KB and combo checkout 196.2 KB; all exceed both current regression and release limits. Do not claim the release is performance-budget clean or validated for 1,500 VUs.
 
 ## Strict search intents for Windows 11, microphones, HDD and speakers
 
@@ -70,8 +119,10 @@ Last verified: `2026-07-23`
 ## Homepage Section 16 featured-category news
 
 - Section 16 now renders the ten newest public articles across every active article category marked featured in `web_admin_article_category_meta`. The backend merges primary `catId` and active `idv_article_category` membership, deduplicates articles, orders by `createDate DESC,id DESC`, and prefers an active featured primary category for the card tag.
-- `featuredNews` is loaded in parallel inside homepage bootstrap version 3, so the storefront Server Component receives the news through the existing single bootstrap request and makes no browser news request. Empty data hides Section 16 instead of restoring static sample cards.
+- `featuredNews` is loaded in parallel inside homepage bootstrap version 3, so the storefront Server Component receives the news through the existing single bootstrap request and makes no browser news request. Each item includes the selected category's additive `category_url`; empty data hides Section 16 instead of restoring static sample cards.
 - The existing card/carousel geometry remains intact. Article thumbnails fill the existing image wrapper as backgrounds, titles ellipsize on one line, summaries clamp at three lines, and the only added card structure is a bottom action row containing a bordered category tag and the right-aligned `✦ Xem thêm →` article link. Card hover remains stationary and uses only border/shadow feedback so its top corners are never clipped by the carousel viewport.
+- Thumbnail, title and `Xem thêm` are independent native article links; the category tag is a separate category link. All four open a new tab with `noopener noreferrer`, retain visible keyboard focus and preserve homepage/carousel state. A legacy payload without `category_url` leaves the tag as non-link text instead of creating a broken route.
+- Focused Section 16 Playwright passes 5 tests with 5 intentional cross-project skips, including all four popup destinations, unchanged desktop/mobile geometry, no browser news request and Axe. Both app typecheck/lint/build pipelines, 173 backend unit tests, 25 applied integrations with 12 guarded skips and local healthcheck 22/22 pass.
 
 ## Managed Header utility links
 

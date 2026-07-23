@@ -53,7 +53,8 @@
     if (track.id === "heroTrack" || track.children.length === 0) return null;
 
     var isMobileOnly = track.dataset.homepageCarouselTrack === "mobile";
-    if (isMobileOnly && (!mobileQuery.matches || reducedMotionQuery.matches)) return null;
+    if (reducedMotionQuery.matches) return null;
+    if (isMobileOnly && !mobileQuery.matches) return null;
 
     var container = isMobileOnly
       ? track.closest('[data-homepage-carousel="mobile"]')

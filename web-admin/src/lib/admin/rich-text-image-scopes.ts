@@ -2,6 +2,7 @@ export const RICH_TEXT_IMAGE_SCOPE_PERMISSIONS = {
   products: 'catalog.products.update',
   'product-categories': 'catalog.categories.update',
   collections: 'catalog.collections.update',
+  brands: 'catalog.brands.update',
   articles: 'content.articles.update',
   'article-categories': 'content.article_categories.update',
 } as const;

@@ -42,7 +42,7 @@ export default async function ComboSetEditPage(props: {
       description: '',
       status: 1,
       from_time: Math.floor(Date.now() / 1000),
-      to_time: Math.floor(Date.now() / 1000) + 86400 * 30, // +30 days
+      to_time: 0,
       product_count: 0,
       parsedConfig: []
     };

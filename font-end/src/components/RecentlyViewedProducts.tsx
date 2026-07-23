@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import ProductGridCard, { type ProductGridCardData } from "./ProductGridCard";
+import {
+  PRODUCT_RELATED_GRID_CLASS,
+  PRODUCT_RELATED_INITIAL_COUNT,
+  PRODUCT_RELATED_MAX_COUNT,
+} from "./productRelatedLayout";
 
 const STORAGE_KEY = "hacom.recently-viewed.v1";
 const STORAGE_VERSION = 1;
-const MAX_VISIBLE_ITEMS = 15;
+const MAX_VISIBLE_ITEMS = PRODUCT_RELATED_MAX_COUNT;
 const MAX_STORED_ITEMS = MAX_VISIBLE_ITEMS + 1;
 const requestFlights = new Map<string, Promise<ProductGridCardData[]>>();
 
@@ -80,6 +85,7 @@ export default function RecentlyViewedProducts({ currentProduct }: { currentProd
 
   useEffect(() => {
     let active = true;
+    setIsExpanded(false);
     const currentSnapshot: RecentlyViewedSnapshot = {
       ...currentProduct,
       viewedAt: new Date().toISOString(),
@@ -135,7 +141,9 @@ export default function RecentlyViewedProducts({ currentProduct }: { currentProd
     };
   }, [currentProduct]);
 
-  const visibleProducts = isExpanded ? products.slice(0, 15) : products.slice(0, 5);
+  const visibleProducts = isExpanded
+    ? products.slice(0, PRODUCT_RELATED_MAX_COUNT)
+    : products.slice(0, PRODUCT_RELATED_INITIAL_COUNT);
 
   if (!isHydrated || products.length === 0) return null;
 
@@ -149,12 +157,12 @@ export default function RecentlyViewedProducts({ currentProduct }: { currentProd
         </div>
 
         {visibleProducts.length > 0 ? (
-          <div id="recently-viewed-grid" className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div id="recently-viewed-grid" className={PRODUCT_RELATED_GRID_CLASS}>
             {visibleProducts.map((product) => <ProductGridCard key={product.id} product={product} />)}
           </div>
         ) : null}
 
-        {products.length > 5 ? (
+        {products.length > PRODUCT_RELATED_INITIAL_COUNT ? (
           <div className="mt-6 flex justify-center">
             <button
               type="button"
@@ -163,7 +171,9 @@ export default function RecentlyViewedProducts({ currentProduct }: { currentProd
               aria-expanded={isExpanded}
               onClick={() => setIsExpanded((expanded) => !expanded)}
             >
-              {isExpanded ? "Thu gọn" : `Xem thêm (${Math.min(products.length, 15) - 5})`}
+              {isExpanded
+                ? "Thu gọn"
+                : `Xem thêm (${Math.min(products.length, PRODUCT_RELATED_MAX_COUNT) - PRODUCT_RELATED_INITIAL_COUNT})`}
             </button>
           </div>
         ) : null}

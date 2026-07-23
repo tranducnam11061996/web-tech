@@ -10,12 +10,12 @@ export type ProductCardAttributeBadge = {
 };
 
 const colorClasses: Record<NonNullable<ProductCardAttributeBadge['colorVariant']>, string> = {
-  red: 'bg-red-500 text-white shadow-red-950/40 ring-red-300/20',
+  red: 'bg-red-700 text-white shadow-red-950/40 ring-red-300/20',
   blue: 'bg-blue-600 text-white shadow-blue-950/40 ring-blue-300/20',
-  cyan: 'bg-cyan-500 text-white shadow-cyan-950/40 ring-cyan-200/20',
-  green: 'bg-emerald-500 text-white shadow-emerald-950/40 ring-emerald-200/20',
+  cyan: 'bg-cyan-700 text-white shadow-cyan-950/40 ring-cyan-200/20',
+  green: 'bg-emerald-700 text-white shadow-emerald-950/40 ring-emerald-200/20',
   amber: 'bg-amber-400 text-zinc-950 shadow-amber-950/40 ring-amber-100/30',
-  purple: 'bg-violet-500 text-white shadow-violet-950/40 ring-violet-200/20',
+  purple: 'bg-violet-600 text-white shadow-violet-950/40 ring-violet-200/20',
   slate: 'bg-slate-500 text-white shadow-slate-950/40 ring-slate-200/20',
 };
 

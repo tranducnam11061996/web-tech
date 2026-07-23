@@ -19,6 +19,10 @@ function newsBackgroundStyle(thumbnail: string): CSSProperties | undefined {
   };
 }
 
+function newsHref(slug: string) {
+  return `/tin-tuc/${slug.replace(/^\/+/, "")}`;
+}
+
 export default function Section16({ articles = [] }: { articles?: NewsItem[] }) {
   const featuredArticles = articles
     .filter((article) => Number(article.id) > 0 && article.title.trim() && article.url.trim())
@@ -37,22 +41,52 @@ export default function Section16({ articles = [] }: { articles?: NewsItem[] }) 
               {featuredArticles.map((article, index) => {
                 const hasThumbnail = Boolean(article.thumnail);
                 const categoryName = article.category_name?.trim() || "Tin tức";
+                const articleHref = newsHref(article.url);
+                const categoryUrl = article.category_url?.trim() || "";
+                const categoryHref = categoryUrl ? newsHref(categoryUrl) : "";
                 return (
                   <div className="promo-card" data-section16-card data-news-id={article.id} key={article.id}>
-                    <div
+                    <a
+                      href={articleHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className={`promo-img-wrapper ${FALLBACK_BACKGROUNDS[index % FALLBACK_BACKGROUNDS.length]}`}
                       style={newsBackgroundStyle(article.thumnail)}
-                      aria-hidden="true"
+                      aria-label={`Đọc bài viết: ${article.title}`}
                     >
                       <div className="promo-img-text">{hasThumbnail ? "" : article.title}</div>
-                    </div>
+                    </a>
                     <div className="promo-content">
-                      <h3 className="promo-title" title={article.title}>{article.title}</h3>
+                      <h3 className="promo-title" title={article.title}>
+                        <a
+                          href={articleHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="promo-title-link"
+                        >
+                          {article.title}
+                        </a>
+                      </h3>
                       <p className="promo-desc">{article.summary || ""}</p>
                       <div className="promo-actions">
-                        <span className="promo-category-tag" title={categoryName}>{categoryName}</span>
+                        {categoryHref ? (
+                          <a
+                            href={categoryHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="promo-category-tag"
+                            title={categoryName}
+                            aria-label={`Xem danh mục: ${categoryName}`}
+                          >
+                            {categoryName}
+                          </a>
+                        ) : (
+                          <span className="promo-category-tag" title={categoryName}>{categoryName}</span>
+                        )}
                         <a
-                          href={`/tin-tuc/${article.url.replace(/^\/+/, "")}`}
+                          href={articleHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="promo-link"
                           aria-label={`Xem thêm: ${article.title}`}
                         >

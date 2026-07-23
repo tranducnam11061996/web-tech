@@ -7,7 +7,7 @@ import { Pagination } from '@/components/shared/Pagination';
 import { ConfirmDeleteModal } from '@/components/shared/ConfirmDeleteModal';
 import { useRouter } from 'next/navigation';
 
-type BrandNode = {
+export type BrandNode = {
   id: number;
   name: string;
   logo: string | null;
@@ -123,10 +123,13 @@ export function BrandTable({ brands, pagination }: BrandTableProps) {
                 <td className="p-3 text-center">
                   <div className="flex items-center justify-center gap-2">
                     <button 
+                      type="button"
                       onClick={() => handleEdit(row)}
+                      title={`Chỉnh sửa ${row.name}`}
+                      aria-label={`Chỉnh sửa thương hiệu ${row.name}`}
                       className="p-1.5 text-green-400 hover:text-white hover:bg-green-600 bg-green-950/30 border border-green-900/50 rounded-sm transition-all hover:shadow-[0_0_10px_rgba(34,197,94,0.5)]"
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="w-4 h-4" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
@@ -158,9 +161,12 @@ export function BrandTable({ brands, pagination }: BrandTableProps) {
 
       <BrandModal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        isEdit={true} 
-        initialData={editingBrand} 
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingBrand(null);
+        }}
+        brand={editingBrand}
+        onSaved={() => router.refresh()}
       />
 
       <ConfirmDeleteModal

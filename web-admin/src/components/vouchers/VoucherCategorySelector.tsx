@@ -16,5 +16,6 @@ export function VoucherCategorySelector({ categories, selectedIds, onChange }: {
     selectedTitle="Danh mục voucher đã chọn"
     treeTitle="Chọn danh mục áp dụng voucher"
     emptyText="Voucher áp dụng cho toàn bộ sản phẩm."
+    searchable
   />;
 }

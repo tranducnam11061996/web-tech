@@ -12,11 +12,15 @@ export function normalizeCollectionPage(value: string | string[] | undefined) {
 }
 
 export function collectionPageHref(slug: string, sort: CollectionSort, page = 1) {
+  return catalogPageHref(`/collection/${encodeURIComponent(slug)}`, sort, page);
+}
+
+export function catalogPageHref(basePath: string, sort: CollectionSort, page = 1) {
   const params = new URLSearchParams();
   if (sort) params.set("sort", sort);
   if (page > 1) params.set("page", String(page));
   const query = params.toString();
-  return `/collection/${encodeURIComponent(slug)}${query ? `?${query}` : ""}`;
+  return `${basePath}${query ? `?${query}` : ""}`;
 }
 
 export function collectionPaginationRange(currentPage: number, totalPages: number) {

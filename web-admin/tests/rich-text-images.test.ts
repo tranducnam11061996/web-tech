@@ -19,6 +19,7 @@ test('rich-text image scopes map to their existing update permissions', () => {
     ['products', 'catalog.products.update'],
     ['product-categories', 'catalog.categories.update'],
     ['collections', 'catalog.collections.update'],
+    ['brands', 'catalog.brands.update'],
     ['articles', 'content.articles.update'],
     ['article-categories', 'content.article_categories.update'],
   ] as const;

@@ -92,9 +92,26 @@ test('homepage featured news returns the ten newest unique public articles from 
   assert.deepEqual(payload.map((article) => article.id), expectedRows.map((row) => Number(row.id)));
   assert.equal(payload.length <= 10, true);
   assert.equal(new Set(payload.map((article) => article.id)).size, payload.length);
-  assert.equal(payload.every((article) => article.category_id > 0 && article.category_name), true);
+  assert.equal(payload.every((article) => article.category_id > 0 && article.category_name && article.category_url), true);
 
   if (payload.length === 0) return;
+  const categoryIds = Array.from(new Set(payload.map((article) => article.category_id)));
+  const categoryPlaceholders = categoryIds.map(() => '?').join(',');
+  const [selectedCategoryRows] = await pool.query<RowDataPacket[]>(`
+    SELECT id,name,url,status
+    FROM idv_seller_news_category
+    WHERE id IN (${categoryPlaceholders})
+  `, categoryIds);
+  const selectedCategoryById = new Map(
+    selectedCategoryRows.map((row) => [Number(row.id), row]),
+  );
+  for (const article of payload) {
+    const selectedCategory = selectedCategoryById.get(article.category_id);
+    assert.equal(Number(selectedCategory?.status), 1);
+    assert.equal(article.category_name, String(selectedCategory?.name || ''));
+    assert.equal(article.category_url, String(selectedCategory?.url || ''));
+  }
+
   const placeholders = payload.map(() => '?').join(',');
   const [primaryRows] = await pool.query<RowDataPacket[]>(`
     SELECT n.id,n.catId,COALESCE(meta.is_featured,0) AS primary_is_featured,c.status AS primary_status

@@ -329,12 +329,12 @@ function ProductPurchaseColumn({
           </span>
           <span className="purchase-shipping-divider">|</span>
           <span className="purchase-shipping-desc">
-            Áp dụng một số khu vực tại <strong>Hà Nội</strong>
+            Áp dụng tại <strong>Hà Nội</strong> và <strong>TP Hồ Chí Minh</strong>
           </span>
         </div>
         <div className="purchase-shipping-address">
           <MapPin aria-hidden="true" />
-          <span>Chọn địa chỉ giao hàng để nhận ưu đãi</span>
+          <span>Vui lòng liên hệ nhân viên nếu cần giao gấp</span>
         </div>
       </div>
 
@@ -385,11 +385,13 @@ function ProductPurchaseColumn({
       <div className="purchase-support-card">
         <div className="purchase-support-row">
           <Phone aria-hidden="true" />
-          <span>Gọi đặt mua: <strong>1900.1903</strong> (8:00 - 21:30)</span>
+          <span>Gọi đặt mua: <strong>098.655.2233</strong> (8:00 - 21:30)</span>
         </div>
         <div className="purchase-support-row">
           <MessageCircle aria-hidden="true" />
-          <span>Chat ngay với nhân viên tư vấn</span>
+          <a href="https://zalo.me/0968239497" target="_blank" rel="noopener noreferrer">
+            <span>Chat ngay với nhân viên tư vấn</span>
+          </a>
         </div>
       </div>
       {selectedVoucherForModal ? <ProductVoucherModal vouchers={vouchers} initialVoucher={selectedVoucherForModal} onClose={() => setSelectedVoucherForModal(null)} /> : null}

@@ -338,6 +338,32 @@ function categoryPath(categoryId: number, parentById: Map<number, number>) {
   return path;
 }
 
+function resolveProductCardPreviewCategoryScope(
+  categoryId: number,
+  categories: ProductCardAttributeCategory[],
+) {
+  const childrenByParent = new Map<number, number[]>();
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
+  for (const category of categories) {
+    const children = childrenByParent.get(category.parentId) || [];
+    children.push(category.id);
+    childrenByParent.set(category.parentId, children);
+  }
+
+  const scope: number[] = [];
+  const seen = new Set<number>();
+  const queue = [categoryId];
+  for (let queueIndex = 0; queueIndex < queue.length; queueIndex += 1) {
+    const current = queue[queueIndex];
+    if (current <= 0 || seen.has(current)) continue;
+    seen.add(current);
+    const category = categoryById.get(current);
+    if (current === categoryId || category?.status === 1) scope.push(current);
+    queue.push(...(childrenByParent.get(current) || []));
+  }
+  return scope;
+}
+
 function resolveEffectiveRulesForCategories(
   categoryIds: number[],
   parentById: Map<number, number>,
@@ -689,7 +715,8 @@ async function listInheritedRules(categoryId: number, categories: ProductCardAtt
   return rows.map(normalizeRuleRow);
 }
 
-async function loadPreviewProduct(categoryId: number, attributeIds: number[]) {
+async function loadPreviewProduct(categoryIds: number[], selectedCategoryId: number, attributeIds: number[]) {
+  if (categoryIds.length === 0) return null;
   const [rows] = await pool.query<RowDataPacket[]>(
     `
       SELECT
@@ -702,14 +729,15 @@ async function loadPreviewProduct(categoryId: number, attributeIds: number[]) {
         b.name AS brandName
       FROM idv_product_category pc
       JOIN idv_sell_product_store p ON p.id = pc.pro_id
-      JOIN idv_sell_product_price pr ON pr.id = p.id AND pr.isOn = 1
+      JOIN idv_sell_product_price pr ON pr.id = p.id AND pr.isOn = 1 AND pr.price > 0
       LEFT JOIN idv_url u ON u.id_path = CONCAT('module:product/view:product-detail/view_id:', p.id)
       LEFT JOIN idv_brand b ON b.id = p.brandId
-      WHERE pc.category_id = ?
-      ORDER BY pc.ordering DESC, p.id DESC
+      WHERE pc.category_id IN (?)
+        AND pc.status = 1
+      ORDER BY (pc.category_id = ?) DESC, pc.ordering DESC, p.id DESC
       LIMIT 1
     `,
-    [categoryId],
+    [categoryIds, selectedCategoryId],
   );
   const product = rows[0];
   if (!product) return null;
@@ -785,8 +813,9 @@ export async function getProductCardAttributeEditorData(categoryId?: number): Pr
     ...rules.map((rule) => rule.attrId),
     ...inheritedRules.map((rule) => rule.attrId),
   ]));
+  const previewCategoryIds = resolveProductCardPreviewCategoryScope(selectedCategoryId, categories);
   const previewProduct = selectedCategoryId > 0
-    ? await loadPreviewProduct(selectedCategoryId, previewAttributeIds)
+    ? await loadPreviewProduct(previewCategoryIds, selectedCategoryId, previewAttributeIds)
     : null;
 
   return {

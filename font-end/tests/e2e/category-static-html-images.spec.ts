@@ -14,31 +14,30 @@ async function openStaticHtml(page: Page) {
   return { content, imageOnlyParagraph };
 }
 
-async function expectDesktopImageGeometry(content: Locator, image: Locator) {
-  const contentBox = await content.boundingBox();
-  const imageBox = await image.boundingBox();
-  const styles = await image.evaluate((element) => {
+async function expectDesktopImageGeometry(image: Locator) {
+  await expect.poll(() => image.evaluate((element) => {
+    const contentElement = element.closest<HTMLElement>('[data-category-static-html]');
+    if (!contentElement) return null;
+    const contentBox = contentElement.getBoundingClientRect();
+    const imageBox = element.getBoundingClientRect();
     const computed = getComputedStyle(element);
+
     return {
+      validWidth: imageBox.width >= contentBox.width * 0.6 - 1 &&
+        imageBox.width <= contentBox.width + 1,
+      centered: Math.abs(
+        imageBox.left + imageBox.width / 2 -
+        (contentBox.left + contentBox.width / 2),
+      ) <= 1,
       display: computed.display,
       marginTop: computed.marginTop,
       marginBottom: computed.marginBottom,
       maxWidth: computed.maxWidth,
       borderRadius: computed.borderRadius,
     };
-  });
-
-  expect(contentBox).not.toBeNull();
-  expect(imageBox).not.toBeNull();
-  expect(imageBox!.width).toBeGreaterThanOrEqual(contentBox!.width * 0.6 - 1);
-  expect(imageBox!.width).toBeLessThanOrEqual(contentBox!.width + 1);
-  expect(
-    Math.abs(
-      imageBox!.x + imageBox!.width / 2 -
-      (contentBox!.x + contentBox!.width / 2),
-    ),
-  ).toBeLessThanOrEqual(1);
-  expect(styles).toEqual({
+  })).toMatchObject({
+    validWidth: true,
+    centered: true,
     display: 'block',
     marginTop: '20px',
     marginBottom: '20px',
@@ -52,7 +51,7 @@ test('desktop centers and widens standalone category static HTML images', async 
   await page.setViewportSize({ width: 1920, height: 1080 });
 
   const { content, imageOnlyParagraph } = await openStaticHtml(page);
-  await expectDesktopImageGeometry(content, imageOnlyParagraph);
+  await expectDesktopImageGeometry(imageOnlyParagraph);
 
   await content.evaluate((element) => {
     const directImage = document.createElement('img');
@@ -75,7 +74,7 @@ test('desktop centers and widens standalone category static HTML images', async 
   });
 
   const directImage = content.locator('[data-test-direct-static-image]');
-  await expectDesktopImageGeometry(content, directImage);
+  await expectDesktopImageGeometry(directImage);
 
   const multiImage = content.locator('[data-test-multi-image-paragraph] > img').first();
   await expect(multiImage).toHaveCSS('min-width', '0px');

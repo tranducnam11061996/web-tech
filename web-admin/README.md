@@ -4,6 +4,12 @@ Last verified: `2026-07-24`
 
 `web-admin` is a Next.js 16.2.11 application that owns the admin UI, all REST APIs, all MySQL access, media serving, migrations, and background jobs. Read root `AGENTS.md` and `AI_HANDOFF.md` first.
 
+The authenticated header uses the `TrucTiepGAME` wordmark and matching accessible application-icon label.
+
+## Hidden Product Frame administration
+
+`Quản lý khung sản phẩm` is intentionally absent from the sidebar. `/product/product-frame`, `/product/product-frame/product`, and `/product/product-frame-edit` return the standard Next.js not-found response. The dormant components, `catalog.product_frames` permission contract, and database data are retained and must not be removed unless a separate cleanup plan is approved.
+
 ## Combo Set scope management
 
 `/product/combo-set/product?id=<id>` manages direct SKUs and dynamic category roots. Direct selection saves immediately through `PATCH /api/admin/combo-sets/[id]/scope`; category selection is drafted in the shared two-column hierarchy selector and saved as one canonical root list. The effective table is a deduplicated union with source badges, while `combo_set.product_count` remains the legacy direct-relation count.

@@ -29,8 +29,7 @@ export function Header() {
       <div className="w-56 flex items-center gap-3">
         <Menu className="h-5 w-5 text-gray-400 cursor-pointer hover:text-white transition-colors lg:hidden" />
         <Link href="/" className="text-red-500 font-black text-2xl flex items-baseline tracking-tighter glow-text-red">
-          HA<span className="text-white">COM</span>
-          <span className="text-[10px] text-red-500/70 ml-1 font-mono tracking-widest uppercase">Admin</span>
+          TrucTiep<span className="text-white">GAME</span>
         </Link>
       </div>
 

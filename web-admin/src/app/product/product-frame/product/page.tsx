@@ -1,7 +1,10 @@
+import { notFound } from 'next/navigation';
 import { ProductFrameProductFilter } from '@/components/product-frame-product/ProductFrameProductFilter';
 import { ProductFrameProductTable } from '@/components/product-frame-product/ProductFrameProductTable';
 
 export default function ProductFrameProductPage() {
+  notFound();
+
   return (
     <div className="flex flex-col h-full w-full p-2 animate-in fade-in duration-300">
       {/* Main Content Area */}

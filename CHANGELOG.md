@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-07-24 - Reset the local admin audit-log baseline
+
+- Deleted all 460 rows from the identified local `it_tech_db.admin_audit_logs` table in one transaction at the user's explicit request.
+- Verified the InnoDB table remains intact with 0 rows so subsequent admin activity starts a fresh visible log history. No schema, permission, account, session, or importer audit data changed.
+
+## 2026-07-24 - Updated web-admin branding
+
+- Replaced the header's visible `HACOM Admin` wordmark with `TrucTiepGAME` while preserving the existing red/white Tailwind treatment.
+- Updated the application icon's accessible label to the same brand name. No route, permission, API, schema, or data contract changed.
+
+## 2026-07-24 - Hid Product Frame administration
+
+- Removed `Quản lý khung sản phẩm` from the web-admin sidebar.
+- Made `/product/product-frame`, its product-assignment child route, and `/product/product-frame-edit` terminate with the standard Next.js not-found response while retaining the dormant implementation for a future explicit re-enable.
+- No permission, API, schema, migration, or database data changed. Both app typechecks, quiet lints, and production builds pass; backend unit tests pass 208/208 and integrations pass 28 with 14 guarded skips.
+
 ## 2026-07-24 - Added direct product scope to vouchers
 
 - Added normalized `web_admin_voucher_products` storage and extended voucher admin APIs/forms with up to 500 direct SKUs. Direct SKU and category-root scopes use one deduplicated OR rule; leaving both empty remains global.

@@ -38,7 +38,6 @@ export const menuGroups = [
       { name: 'Danh mục sản phẩm', path: '/product/categories' },
       { name: 'Danh mục cho SEO', path: '#' },
       { name: 'Bộ sưu tập', path: '/product/collection' },
-      { name: 'Quản lý khung sản phẩm', path: '/product/product-frame' },
       { name: 'Biến thể sản phẩm', path: '/product/product-group' },
       { name: 'Quản lý thuộc tính', path: '/product/attribute-list' },
       { name: 'Thông số trên card', path: '/product/card-attributes' },

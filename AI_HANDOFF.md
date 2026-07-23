@@ -2,6 +2,22 @@
 
 Last verified: `2026-07-24`
 
+## Local admin audit log baseline was reset
+
+- At the user's explicit request, all 460 rows were deleted transactionally from `it_tech_db.admin_audit_logs`; an independent read-only verification confirmed the table remains present as InnoDB with 0 rows.
+- No table, schema, permission, admin account, session, or other audit/import history was changed. New admin activity continues writing to the existing table.
+
+## Admin header uses TrucTiepGAME branding
+
+- The web-admin header wordmark now renders `TrucTiepGAME` instead of the split `HACOM`/`Admin` label, preserving the existing red/white treatment and layout.
+- The application icon's accessible label now uses the same brand name. No route, permission, API, schema, or data contract changed.
+
+## Product Frame admin screens are hidden
+
+- The sidebar no longer exposes `Quản lý khung sản phẩm`.
+- `/product/product-frame`, `/product/product-frame/product`, and `/product/product-frame-edit` terminate through Next.js `notFound()` while the dormant components, permissions, APIs, and database data remain intact for a future explicit re-enable.
+- No schema, migration, permission, or data change was made. Both app typechecks, quiet lints, and production builds pass; backend unit tests pass 208/208 and integrations pass 28 with 14 guarded skips.
+
 ## Voucher direct-product scope
 
 - `/sales/vouchers` now combines direct SKU scope with the existing dynamic category-root scope using OR semantics. Leaving both scopes empty remains global; direct selections are capped at 500, may include hidden catalog rows, and are stored in `web_admin_voucher_products`.

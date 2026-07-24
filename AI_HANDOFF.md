@@ -2,6 +2,24 @@
 
 Last verified: `2026-07-24`
 
+## Storefront checkout mobile alignment
+
+- `/thanh-toan` now gives its page section, responsive layout, details column, and summary column explicit full-width/min-width-safe mobile geometry. The two columns stretch to the same horizontal insets below `lg`, then retain the existing 2/3–1/3 desktop split and sticky summary.
+- Focused Playwright passes in desktop and mobile Chromium at 320/390/767px with equal-edge and zero-horizontal-overflow assertions. Visual inspection at 390px confirms the form, invoice, totals, payment choices, and action buttons share the same right edge.
+- Both app typecheck/lint/build pipelines pass, backend unit/integration suites pass, and local healthcheck passes 22/22. Checkout data, validation, quote, order, payment, and API contracts are unchanged.
+
+## MySQL 8.0.36 shared-hosting import bundle
+
+- The current 311-table phpMyAdmin dump was converted into a byte-preserving hosting copy by removing only the explicit `root@localhost` function definer. The original export remains unchanged; the function, two triggers, and all six delimiter declarations remain intact.
+- Delivery artifacts are under `C:\Users\tiend\Desktop\update2407`: SQL SHA-256 `0AF063BA6528E655AB66B46156A180905BC43D70822D0D56CBE6A2E8AE587875`, ZIP SHA-256 `BBF4CCE76B83CC8377E9CF9EEE0BA1A35B2B721CCB6B3E3A1BBE872875BBEF9D`, plus the checksum text file.
+- A full disposable local restore passed 311 tables/99,771 rows, one function, two triggers, critical catalog counts, zero audit logs, voucher scope, and normalization behavior; the clone was removed. Hosting is MySQL 8.0.36 with `ALL PRIVILEGES` on `nhviebwh_it_tech_db` and `log_bin=OFF`, so import should assign all stored-object definers to `nhviebwh@localhost` without `SUPER`.
+
+## Storefront cart breadcrumb and mobile alignment
+
+- `/gio-hang` now renders the shared `Breadcrumb` with `Trang chủ / Giỏ hàng` and keeps one screen-reader page heading for both populated and empty states.
+- The cart layout explicitly owns full width and `min-width: 0` before the desktop breakpoint. Product rows wrap their price and quantity controls onto a second mobile row, keep delete controls inside the card, and align the item, voucher, and order-summary surfaces to the same left/right insets.
+- Focused Playwright passes at 320/390/767px with breadcrumb, equal-edge, card-containment, and zero-horizontal-overflow assertions. Visual inspection at 390px matches the intended mobile alignment. Both app typecheck/lint/build pipelines pass, backend unit/integration suites pass, and local healthcheck passes 22/22.
+
 ## Local admin audit log baseline was reset
 
 - At the user's explicit request, all 460 rows were deleted transactionally from `it_tech_db.admin_audit_logs`; an independent read-only verification confirmed the table remains present as InnoDB with 0 rows.

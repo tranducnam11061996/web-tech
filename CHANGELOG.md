@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-24 - Fixed storefront checkout mobile alignment
+
+- Made the `/thanh-toan` section, responsive wrapper, details column, and summary column explicitly full-width/min-width-safe below the desktop breakpoint. Invoice, totals, payment methods, and actions now align to the same mobile right inset while desktop retains its 2/3–1/3 layout and sticky summary.
+- Added focused Playwright coverage at 320/390/767px for matching column geometry and zero horizontal overflow. Desktop/mobile Chromium, both app verification pipelines, and local healthcheck 22/22 pass.
+- Checkout state, validation, quote/order APIs, payment behavior, and database contracts are unchanged.
+
+## 2026-07-24 - Prepared MySQL 8.0.36 shared-hosting import
+
+- Created a byte-preserving hosting SQL copy of the fresh 311-table phpMyAdmin export, removing only the explicit `root@localhost` function definer while retaining one function, two triggers, and all delimiter declarations.
+- Produced a 13,125,802-byte ZIP plus SHA-256 manifest. A full disposable restore passed 311 tables/99,771 rows, critical catalog/search/voucher counts, zero audit logs, stored-object checks, and Vietnamese normalization; the test database was removed.
+- Documented the `nhviebwh_it_tech_db` phpMyAdmin import and verification flow. No application API, schema contract, source database, or original export was changed.
+
+## 2026-07-24 - Fixed storefront cart breadcrumb and mobile alignment
+
+- Added the shared `Breadcrumb` to `/gio-hang` and retained one semantic page heading across populated and empty cart states.
+- Made both cart columns explicitly full-width/min-width-safe below the desktop breakpoint. Product rows now wrap price and quantity into a mobile second row and position delete actions within the card, so item cards, voucher, and order summary use equal left/right insets without clipping or a trailing gap.
+- Added focused Playwright coverage at 320/390/767px for breadcrumb semantics, aligned surfaces, contained product rows, and zero horizontal overflow. Visual inspection at 390px passes; both app verification pipelines and local healthcheck 22/22 pass.
+
 ## 2026-07-24 - Reset the local admin audit-log baseline
 
 - Deleted all 460 rows from the identified local `it_tech_db.admin_audit_logs` table in one transaction at the user's explicit request.

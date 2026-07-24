@@ -496,7 +496,10 @@ export default function CheckoutClient() {
           <label htmlFor="checkout-website">Website</label>
           <input id="checkout-website" tabIndex={-1} autoComplete="off" value={website} onChange={(event) => setWebsite(event.target.value)} />
         </div>
-        <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-8">
+        <section
+          data-checkout-page
+          className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-8 md:px-6"
+        >
           <Link
             href="/gio-hang"
             className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-400 text-sm font-medium mb-6 transition"
@@ -534,8 +537,11 @@ export default function CheckoutClient() {
               </Link>
             </div>
           ) : (
-            <div className="flex flex-col lg:flex-row gap-6 items-start">
-              <div className="lg:w-2/3 space-y-6">
+            <div
+              data-checkout-layout
+              className="flex w-full min-w-0 flex-col items-stretch gap-6 lg:flex-row lg:items-start"
+            >
+              <div data-checkout-details className="w-full min-w-0 space-y-6 lg:w-2/3">
                 <div className="bg-[#111115] border border-[#1a1a1e] rounded-[12px]">
                   <div className="p-5 border-b border-[#1a1a1e]">
                     <h3 className="font-bold text-[15px] text-white">
@@ -908,7 +914,10 @@ export default function CheckoutClient() {
                 </div>
               </div>
 
-              <div className="lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-4">
+              <div
+                data-checkout-summary
+                className="w-full min-w-0 space-y-4 lg:sticky lg:top-6 lg:w-1/3 lg:self-start"
+              >
                 <div className="bg-[#111115] border border-[#1a1a1e] rounded-[12px] p-5 space-y-4">
                   <div className="flex justify-between text-[13px]">
                     <span className="text-gray-400">Tổng tiền sản phẩm</span>

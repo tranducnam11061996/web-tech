@@ -4,6 +4,14 @@ Last verified: `2026-07-24`
 
 `font-end` is the customer-facing Next.js 16.2.11/React 19.2.4 storefront. It consumes `web-admin` APIs and must never access MySQL or backend secrets directly.
 
+## Checkout responsive layout
+
+`/thanh-toan` uses one full-width, min-width-safe column for checkout details and order summary below the desktop breakpoint. Form cards, invoice controls, totals, payment methods, and actions share the same horizontal insets without a trailing right-side gap. At `lg`, the existing 2/3 details and 1/3 sticky-summary composition returns.
+
+## Cart breadcrumb and responsive layout
+
+`/gio-hang` uses the shared `Breadcrumb` for `Trang chủ / Giỏ hàng`. Below the desktop breakpoint, the cart items and summary explicitly span the available width with safe shrinking; product identity stays on the first row while price and quantity wrap below it. The delete control stays inside each card, and the item list, voucher, and order summary share the same horizontal insets without viewport clipping or a right-side gap.
+
 ## Voucher scope presentation
 
 Product-detail voucher discovery may now match the current product through a direct SKU relation, a selected category root/descendant, or the global empty-scope state. The public payload still omits configured SKU IDs. `ProductVoucherModal` presents the existing admin-authored voucher description and no longer infers a `Phạm vi` line from category names, preventing direct-SKU vouchers from being mislabeled as global. Cart and checkout continue to show apply/error state and discount amount without an inferred scope note.

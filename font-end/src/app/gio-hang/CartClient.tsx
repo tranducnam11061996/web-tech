@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Breadcrumb from "../../components/Breadcrumb";
 import ProgressiveImage from "../../components/ProgressiveImage";
 import { CommercePageFrame } from "@/components/commerce/CommercePageFrame";
 import {
@@ -55,6 +56,8 @@ type DisplayCartItem = CartItem & {
   lineMarketTotal: number;
 };
 
+const CART_BREADCRUMB_ITEMS = [{ label: "Giỏ hàng" }];
+
 function reasonText(reason: string | null) {
   if (reason === "inactive") return "Sản phẩm đang tạm ẩn";
   if (reason === "invalid_price") return "Sản phẩm chưa có giá bán";
@@ -99,19 +102,22 @@ function CartRow({
   const hasMarketPrice = item.available && item.marketPrice > item.price;
 
   return (
-    <div className="bg-[#111115] border border-[#1a1a1e] rounded-xl p-4 flex items-start gap-4">
+    <div
+      data-cart-row
+      className="relative flex w-full min-w-0 flex-wrap items-start gap-3 rounded-xl border border-[#1a1a1e] bg-[#111115] p-3 sm:gap-4 sm:p-4 lg:flex-nowrap"
+    >
       {!saved && (
         <input
           type="checkbox"
           checked={item.selected}
           onChange={(event) => setCartItemSelected(item.productId, event.target.checked)}
-          className="accent-red-500 cursor-pointer w-5 h-5 mt-4 shrink-0"
+          className="mt-4 h-5 w-5 shrink-0 cursor-pointer accent-red-500"
         />
       )}
 
       <Link
         href={href}
-        className="w-20 h-20 md:w-24 md:h-24 shrink-0 bg-[#0d0d10] border border-[#1a1a1e] rounded-md flex items-center justify-center overflow-hidden"
+        className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-[#1a1a1e] bg-[#0d0d10] sm:size-20 lg:size-24"
       >
         <ProgressiveImage
           src={item.thumbnail || "https://placehold.co/300x300/1f2937/a1a1aa?text=TrucTiepGAME"}
@@ -120,8 +126,8 @@ function CartRow({
         />
       </Link>
 
-      <div className="flex-1 min-w-0 flex flex-col lg:flex-row gap-4 lg:items-center">
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
+      <div className="contents lg:flex lg:min-w-0 lg:flex-1 lg:items-center lg:gap-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 pr-10 lg:pr-0">
           <Link href={href} className="font-bold text-sm text-white hover:text-cyan-400 transition">
             {item.name}
           </Link>
@@ -155,8 +161,8 @@ function CartRow({
           </div>
         </div>
 
-        <div className="flex items-center gap-4 lg:w-[auto]">
-          <div className="w-24 md:w-28 text-left lg:text-right shrink-0">
+        <div className={`flex w-full basis-full items-center justify-between gap-3 ${saved ? "" : "pl-8 sm:pl-9"} lg:w-auto lg:basis-auto lg:justify-start lg:gap-4 lg:pl-0`}>
+          <div className="min-w-0 text-left lg:w-28 lg:shrink-0 lg:text-right">
             <p className="text-red-500 font-bold text-[13px] md:text-sm">
               {item.available ? formatCurrency(item.price) : "Liên hệ"}
             </p>
@@ -167,7 +173,7 @@ function CartRow({
             )}
           </div>
 
-          <div className="w-20 md:w-24 shrink-0 flex items-center justify-start lg:justify-center">
+          <div className="flex w-20 shrink-0 items-center justify-end lg:w-24 lg:justify-center">
             <div className="flex border border-[#27272a] rounded overflow-hidden h-7 md:h-8 w-full max-w-[80px]">
               <button
                 onClick={() => updateCartQuantity(item.productId, item.quantity - 1)}
@@ -205,7 +211,7 @@ function CartRow({
         </div>
       </div>
 
-      <div className="w-10 flex justify-end shrink-0 mt-2 lg:mt-6">
+      <div className="absolute right-3 top-3 flex w-10 shrink-0 justify-end sm:right-4 sm:top-4 lg:static lg:mt-6">
         <button
           onClick={() => removeCartItem(item.productId)}
           className="w-8 h-8 rounded-md bg-[#1a1a1e] hover:bg-red-500/20 hover:text-red-500 text-gray-400 flex items-center justify-center transition"
@@ -357,22 +363,24 @@ export default function CartClient() {
 
   return (
     <CommercePageFrame>
-      <section className="max-w-[1400px] mx-auto px-4 md:px-6 py-12">
+      <section data-cart-page className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-6 md:px-6 md:py-10">
+        <h1 className="sr-only">Giỏ hàng</h1>
+        <Breadcrumb items={CART_BREADCRUMB_ITEMS} />
         {cartItems.length === 0 ? (
           <div className="bg-[#111115] border border-[#1a1a1e] rounded-2xl p-10 text-center">
             <div className="w-16 h-16 mx-auto mb-5 rounded-full bg-red-500/10 text-red-400 flex items-center justify-center text-2xl">
               🛒
             </div>
-            <h1 className="text-xl font-black mb-2">Giỏ hàng đang trống</h1>
+            <h2 className="text-xl font-black mb-2">Giỏ hàng đang trống</h2>
             <p className="text-sm text-gray-500 mb-6">Hãy chọn thêm sản phẩm để tiếp tục đặt hàng.</p>
             <Link href="/" className="inline-flex px-6 py-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold transition">
               Tiếp tục mua sắm
             </Link>
           </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            <div className="lg:w-2/3 flex flex-col gap-4">
-              <div className="bg-[#111115] border border-[#1a1a1e] rounded-xl p-4 flex items-center gap-4">
+          <div data-cart-layout className="flex w-full min-w-0 flex-col items-stretch gap-6 lg:flex-row lg:items-start">
+            <div data-cart-items className="flex w-full min-w-0 flex-col gap-4 lg:w-2/3">
+              <div className="flex w-full min-w-0 items-center gap-4 rounded-xl border border-[#1a1a1e] bg-[#111115] p-4">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -426,7 +434,7 @@ export default function CartClient() {
               )}
             </div>
 
-            <div className="lg:w-1/3 lg:sticky lg:top-6 lg:self-start space-y-4">
+            <div data-cart-summary className="w-full min-w-0 space-y-4 lg:sticky lg:top-6 lg:w-1/3 lg:self-start">
               <div className="bg-[#111115] border border-[#1a1a1e] rounded-xl p-4 bg-gradient-to-r from-[#111115] to-[#16161a]">
                 <div className="flex items-center gap-3"><div className="w-10 h-10 bg-red-500/10 text-red-500 rounded-lg flex items-center justify-center text-xl">%</div><div><p className="font-bold text-sm text-white">Voucher giảm giá</p><p className="text-[11px] text-gray-500">Áp dụng cho sản phẩm đang chọn</p></div></div>
                 <div className="mt-3 flex gap-2"><input aria-label="Mã voucher" aria-invalid={Boolean(voucherError) || undefined} aria-describedby={voucherError ? "cart-voucher-error" : undefined} maxLength={64} value={voucherInput} onChange={(event) => { setVoucherInput(event.target.value.toUpperCase()); setVoucherError(""); }} onBlur={() => { if (voucherInput.trim()) setVoucherError(validateVoucher(voucherInput)); }} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); applyVoucher(); } }} placeholder="Nhập mã voucher" className="min-w-0 flex-1 rounded-lg border border-[#303036] bg-[#0d0d10] px-3 py-2 text-sm font-mono text-white outline-none focus:border-red-500" /><button type="button" onClick={applyVoucher} disabled={!voucherInput.trim() || isVoucherQuoting} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white hover:bg-red-500 disabled:opacity-50">{isVoucherQuoting ? 'Đang kiểm tra' : 'Áp dụng'}</button></div>

@@ -1,6 +1,75 @@
 # Database Export, Restore, and Machine Transfer
 
-Last verified: `2026-07-20`
+Last verified: `2026-07-24`
+
+## Shared-hosting MySQL 8.0.36 import artifact
+
+The current phpMyAdmin export was converted into a hosting-safe copy without changing table data, schema, routines, triggers, delimiters, encoding bytes, or the source file:
+
+| Artifact | Size | SHA-256 |
+|---|---:|---|
+| Source `C:\Users\tiend\Desktop\update2407\it_tech_db.sql` | 99,748,748 bytes | `9A7A23ED491A6F1A4D575872424012553F23A134087DA4471742511F89E9B4B5` |
+| Hosting SQL `C:\Users\tiend\Desktop\update2407\it_tech_db-hosting-mysql8036.sql` | 99,748,721 bytes | `0AF063BA6528E655AB66B46156A180905BC43D70822D0D56CBE6A2E8AE587875` |
+| Hosting ZIP `C:\Users\tiend\Desktop\update2407\it_tech_db-hosting-mysql8036.sql.zip` | 13,125,802 bytes | `BBF4CCE76B83CC8377E9CF9EEE0BA1A35B2B721CCB6B3E3A1BBE872875BBEF9D` |
+
+`it_tech_db-hosting-mysql8036.sha256.txt` records both delivery hashes. The ZIP contains exactly one SQL entry whose decompressed hash matches the hosting SQL hash.
+
+The only SQL transformation was:
+
+```sql
+CREATE DEFINER=`root`@`localhost` FUNCTION
+```
+
+to:
+
+```sql
+CREATE FUNCTION
+```
+
+This removes the shared-hosting `SET_USER_ID`/`SUPER` failure while letting the destination assign its importing account as the function definer. The two triggers already omitted an explicit definer. The confirmed destination is MySQL `8.0.36`, account `nhviebwh@localhost`, database `nhviebwh_it_tech_db`, with database-level `ALL PRIVILEGES` and `log_bin=OFF`; `log_bin_trust_function_creators=OFF` is therefore not a blocker.
+
+Static validation found 311 `CREATE TABLE` statements, one function, two triggers, six `DELIMITER` lines, no remaining `DEFINER=`, one `web_admin_voucher_products` table, and no `admin_audit_logs` inserts. A full local restore into a disposable database completed successfully and verified:
+
+- 311 tables: 183 InnoDB and 128 MyISAM.
+- One deterministic `NO SQL` function and two product-search triggers.
+- 788 categories, 90 brands, 4,712 products, 4,712 search rows, zero admin audit logs, two vouchers, and zero direct voucher-product rows.
+- `webtech_normalize_product_search('Bàn phím ĐỎ!!!') = 'ban phim do'`.
+- Exact row counts match the current local database for 310/311 tables. The archive intentionally retains 36 `web_admin_page_view_events` captured at export time while the later local runtime cleanup has zero.
+
+Import the ZIP only into an empty `nhviebwh_it_tech_db` selected in hosting phpMyAdmin. If an earlier attempt created partial state, recreate the cPanel database and reassign `nhviebwh@localhost` with all database privileges before retrying. Do not resume over a partial import because DDL and MyISAM writes are not fully transactional. phpMyAdmin may continue to show client-side analysis warnings near `RETURN` or `END`; the retained `DELIMITER` statements are valid, so use the MySQL execution result as the acceptance signal.
+
+After hosting import, verify the inventory and destination-owned definers:
+
+```sql
+SELECT COUNT(*) AS tables,
+       SUM(engine='InnoDB') AS innodb,
+       SUM(engine='MyISAM') AS myisam
+FROM information_schema.tables
+WHERE table_schema=DATABASE()
+  AND table_type='BASE TABLE';
+
+SELECT routine_name, routine_type, definer
+FROM information_schema.routines
+WHERE routine_schema=DATABASE();
+
+SELECT trigger_name, definer
+FROM information_schema.triggers
+WHERE trigger_schema=DATABASE()
+ORDER BY trigger_name;
+
+SELECT
+  (SELECT COUNT(*) FROM idv_seller_category) AS categories,
+  (SELECT COUNT(*) FROM idv_brand) AS brands,
+  (SELECT COUNT(*) FROM idv_sell_product_store) AS products,
+  (SELECT COUNT(*) FROM product_data_search) AS search_rows,
+  (SELECT COUNT(*) FROM admin_audit_logs) AS audit_logs,
+  (SELECT COUNT(*) FROM web_admin_vouchers) AS vouchers,
+  (SELECT COUNT(*) FROM web_admin_voucher_products) AS voucher_products;
+
+SELECT webtech_normalize_product_search('Bàn phím ĐỎ!!!') AS normalized;
+```
+
+Expected destination definer for the function and both triggers is `nhviebwh@localhost`. If the compressed upload or PHP execution limit blocks phpMyAdmin, provide the verified hosting SQL/ZIP and checksum to the hosting operator for server-side MySQL CLI import; do not split the dump manually.
 
 The latest rollback boundary is `D:\web-tech\tmp\db-backups\it_tech_db-pre-pc-builder-v6-2026-07-19T22-00-14-364Z.json`, SHA-256 `afa5614534d2c13f799615dd3ac83d76bf5a169d4ec57eff09ea83e3d6d0041b`. Clone `it_tech_db_backup_test_1784498414364_e3491c` matched 308 tables/95,634 rows/one routine/two triggers and passed the additive v6 migration twice plus verification. Live apply/verify then passed; this artifact intentionally predates `web_admin_pc_builder_product_prices`.
 

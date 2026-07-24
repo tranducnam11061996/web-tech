@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-07-24
+
+- Fixed admin same-origin checks behind the production OpenLiteSpeed reverse proxy by using the canonical `NEXTAUTH_URL` origin while continuing to reject missing and mismatched origins.
+
 ## 2026-07-24 - Prepared CloudLinux Passenger deployment
 
 - Added CommonJS `app.js` startup files for the admin/API and storefront so CloudLinux Passenger can own each application's HTTP process on Node `22.22.2`, including bounded graceful shutdown.

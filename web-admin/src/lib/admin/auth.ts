@@ -10,6 +10,7 @@ import {
   SYSTEM_ROLE_TEMPLATES,
   type AdminPermission,
 } from './permissions';
+import { isSameAdminOrigin } from './sameOrigin';
 
 const SESSION_IDLE_MS = 8 * 60 * 60 * 1000;
 const SESSION_ABSOLUTE_MS = 24 * 60 * 60 * 1000;
@@ -408,8 +409,7 @@ export async function requireAdminPermission(request: Request, permission: Admin
 }
 
 export function assertSameOrigin(request: Request) {
-  const origin = request.headers.get('origin');
-  if (!origin || origin !== new URL(request.url).origin) {
+  if (!isSameAdminOrigin(request)) {
     throw new AdminAuthError(403, 'INVALID_ORIGIN', 'Yeu cau khong cung nguon goc');
   }
 }

@@ -2,6 +2,11 @@
 
 Last verified: `2026-07-24`
 
+## Reverse-proxy-safe admin origin validation
+
+- Admin login and authenticated unsafe admin requests now compare the browser `Origin` with the canonical `NEXTAUTH_URL` origin instead of Next.js's internal request URL. This preserves strict same-origin enforcement when OpenLiteSpeed terminates HTTPS and proxies to `http://127.0.0.1:3000`.
+- Missing or different origins remain rejected. When `NEXTAUTH_URL` is absent, local development retains the request-URL-origin fallback.
+
 ## Shared-hosting Passenger deployment prepared
 
 - The confirmed cPanel target provides CloudLinux Node.js Selector with Node `22.22.2`, AutoSSL for `tructiepgame.vn`/`www`/`admin`, 2 CPU, 3 GB RAM, NPROC 1000 and Entry Processes 400. Public and admin document roots are now separate from the repository, so root source files are no longer statically exposed.

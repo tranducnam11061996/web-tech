@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSessionFromRequest } from '@/lib/admin/auth';
 import { getApiPermission, getPagePermission, hasPermission } from '@/lib/admin/permissions';
+import { isSameAdminOrigin } from '@/lib/admin/sameOrigin';
 
 function apiError(status: number, code: string, message: string) {
   return NextResponse.json({ success: false, error: { code, message } }, { status });
@@ -8,11 +9,6 @@ function apiError(status: number, code: string, message: string) {
 
 function isUnsafeMethod(method: string) {
   return !['GET', 'HEAD', 'OPTIONS'].includes(method);
-}
-
-function isSameOrigin(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  return Boolean(origin) && origin === request.nextUrl.origin;
 }
 
 export async function proxy(request: NextRequest) {
@@ -23,7 +19,7 @@ export async function proxy(request: NextRequest) {
 
   const isAdminApi = pathname.startsWith('/api/admin');
   if (pathname === '/api/admin/auth/login') {
-    if (request.method !== 'POST' || !isSameOrigin(request)) return apiError(403, 'INVALID_ORIGIN', 'Yeu cau khong cung nguon goc');
+    if (request.method !== 'POST' || !isSameAdminOrigin(request)) return apiError(403, 'INVALID_ORIGIN', 'Yeu cau khong cung nguon goc');
     return NextResponse.next();
   }
 
@@ -42,7 +38,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAdminApi) {
-    if (isUnsafeMethod(request.method) && !isSameOrigin(request)) return apiError(403, 'INVALID_ORIGIN', 'Yeu cau khong cung nguon goc');
+    if (isUnsafeMethod(request.method) && !isSameAdminOrigin(request)) return apiError(403, 'INVALID_ORIGIN', 'Yeu cau khong cung nguon goc');
     if (pathname.startsWith('/api/admin/auth/')) return NextResponse.next();
     const permission = getApiPermission(pathname, request.method);
     if (!permission || !hasPermission(session.permissions, permission)) return apiError(403, 'FORBIDDEN', 'Ban khong co quyen thuc hien thao tac nay');

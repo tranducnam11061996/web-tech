@@ -90,6 +90,57 @@ test("similar products show six cards and expand to a maximum of twelve", async 
   await expect(section.locator("article:visible")).toHaveCount(6);
 });
 
+test("similar product legacy thumbnails load without the Next image optimizer", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Legacy thumbnail delivery is verified once.");
+
+  const optimizerRequests: string[] = [];
+  const transparentPixel = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/6WQ0owAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  await page.route("**/_next/image?**", async (route) => {
+    const requestUrl = new URL(route.request().url());
+    const upstreamUrl = requestUrl.searchParams.get("url") || "";
+    const upstreamHostname = (() => {
+      try {
+        return new URL(upstreamUrl).hostname;
+      } catch {
+        return "";
+      }
+    })();
+
+    if (upstreamHostname === "pcmarket.vn" || upstreamHostname.endsWith(".pcmarket.vn")) {
+      optimizerRequests.push(route.request().url());
+      await route.fulfill({ status: 403, contentType: "text/plain", body: "upstream response is invalid" });
+      return;
+    }
+
+    await route.continue();
+  });
+
+  await page.route(/^https:\/\/(?:[^/]+\.)?pcmarket\.vn\/media\/product\/.+/i, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: transparentPixel,
+    });
+  });
+
+  await page.goto(PRODUCT_PATH);
+
+  const images = page.locator("#similar-products-grid img");
+  await expect(images).toHaveCount(6);
+  await expect
+    .poll(() => images.evaluateAll((elements) => elements.filter((element) => (element as HTMLImageElement).naturalWidth > 0).length))
+    .toBe(6);
+
+  expect(optimizerRequests).toEqual([]);
+  await expect
+    .poll(() => images.evaluateAll((elements) => elements.map((element) => (element as HTMLImageElement).currentSrc)))
+    .toEqual(expect.arrayContaining([expect.stringMatching(/^https:\/\/(?:[^/]+\.)?pcmarket\.vn\//i)]));
+});
+
 test("related-product grids switch to six columns at 1536px without overflow", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The responsive matrix is verified once.");
 

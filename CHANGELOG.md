@@ -2,6 +2,9 @@
 
 ## 2026-07-24
 
+- Fixed broken `Sản phẩm tương tự` thumbnails on production product detail pages by bypassing the Next.js server image optimizer only for legacy `pcmarket.vn` image URLs. Direct browser delivery is used for that host; internal media and other remote sources retain optimization.
+- Added a Playwright regression that reproduces the VPS optimizer failure and verifies all six direct legacy thumbnails load. Related image/grid tests pass 13/13; both app typecheck/lint/build pipelines pass, backend unit tests pass 212/212, and integrations pass 28 with 14 guarded skips.
+
 - Fixed admin same-origin checks behind the production OpenLiteSpeed reverse proxy by using the canonical `NEXTAUTH_URL` origin while continuing to reject missing and mismatched origins.
 
 ## 2026-07-24 - Prepared CloudLinux Passenger deployment

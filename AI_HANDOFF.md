@@ -2,6 +2,12 @@
 
 Last verified: `2026-07-24`
 
+## Similar-product legacy thumbnails bypass server optimization
+
+- Product-detail `Sản phẩm tương tự` cards now bypass the Next.js image optimizer only for legacy `pcmarket.vn` thumbnail URLs. The production VPS optimizer returned `403` with `"url" parameter is valid but upstream response is invalid`, while the same upstream JPEGs returned `200` and loaded successfully when requested directly by the browser.
+- Internal media and every other remote image source keep the existing Next.js optimization path. Product data, related-product ranking, card geometry, APIs, and database contracts are unchanged.
+- A focused Playwright regression simulates the failed optimizer while allowing direct legacy thumbnails and confirms all six similar-product images load without an optimizer request. The related grid/image suite passes 13/13. Both app typecheck/lint/build pipelines pass; backend unit tests pass 212/212 and integrations pass 28 with 14 guarded skips.
+
 ## Reverse-proxy-safe admin origin validation
 
 - Admin login and authenticated unsafe admin requests now compare the browser `Origin` with the canonical `NEXTAUTH_URL` origin instead of Next.js's internal request URL. This preserves strict same-origin enforcement when OpenLiteSpeed terminates HTTPS and proxies to `http://127.0.0.1:3000`.

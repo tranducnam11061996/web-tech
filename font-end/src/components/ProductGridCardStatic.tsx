@@ -8,6 +8,15 @@ import { SHOW_PRODUCT_CARD_FAVORITES } from "@/lib/storefrontFeatureFlags";
 
 const money = (value: number) => new Intl.NumberFormat("vi-VN").format(Math.max(0, Math.round(value || 0)));
 
+function shouldBypassImageOptimizer(src: string) {
+  try {
+    const hostname = new URL(src).hostname.toLowerCase();
+    return hostname === "pcmarket.vn" || hostname.endsWith(".pcmarket.vn");
+  } catch {
+    return false;
+  }
+}
+
 export default function ProductGridCardStatic({ product }: { product: ProductGridCardData }) {
   const price = Number(product.price || 0);
   const marketPrice = Number(product.marketPrice || 0);
@@ -20,7 +29,7 @@ export default function ProductGridCardStatic({ product }: { product: ProductGri
     {SHOW_PRODUCT_CARD_FAVORITES ? <FavoriteButton productId={Number(product.id)} /> : null}
     <ProductCardLink href={`/${slug}`} className="flex h-full flex-1 flex-col">
       <div className="product-card-image-frame bg-[#151518]">
-        {product.thumbnail ? <Image src={product.thumbnail} alt={product.name} fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1535px) 20vw, 16.67vw" className="object-contain object-center" /> : <span className="text-xs font-bold text-zinc-600">TrucTiepGAME</span>}
+        {product.thumbnail ? <Image src={product.thumbnail} alt={product.name} fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1535px) 20vw, 16.67vw" unoptimized={shouldBypassImageOptimizer(product.thumbnail)} className="object-contain object-center" /> : <span className="text-xs font-bold text-zinc-600">TrucTiepGAME</span>}
         <ProductCardAttributeBadges badges={product.cardBadges} />
       </div>
       <div className="relative z-10 flex flex-1 flex-col p-4"><p className="mb-5 min-h-[52px] text-center text-[#f5f7fb] line-clamp-2">{product.name}</p><div className="mt-auto"><div className={`grid min-h-11 items-center gap-2 ${hasPrice ? "grid-cols-[minmax(0,1fr)_auto_44px]" : "grid-cols-1"}`}><div className="relative flex h-11 min-w-0 items-center">{hasDiscount ? <span className="absolute -top-1 left-0 text-[12px] font-semibold text-zinc-500 line-through">{money(marketPrice)}đ</span> : null}<strong className="min-w-0 bg-gradient-to-r from-white via-cyan-400 to-purple-500 bg-clip-text text-[17px] text-transparent">{hasPrice ? `${money(price)}đ` : "Liên hệ"}</strong></div>{hasPrice ? <span className="flex shrink-0 items-center gap-1 text-[11px] font-bold text-emerald-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Sẵn hàng</span> : null}</div></div></div>

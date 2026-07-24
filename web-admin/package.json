@@ -42,6 +42,7 @@
     "admin:access-migrate": "tsx scripts/run-admin-access-migration.ts",
     "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
     "worker:background": "tsx scripts/background-worker.ts",
+    "worker:background:once": "tsx scripts/background-worker.ts --once",
     "test:unit": "tsx --test tests/*.test.ts",
     "test:integration": "tsx --test tests/*.integration.ts",
     "load:k6": "k6 run scripts/load-read-capacity.js",

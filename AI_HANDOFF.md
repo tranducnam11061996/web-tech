@@ -2,6 +2,14 @@
 
 Last verified: `2026-07-24`
 
+## Shared-hosting Passenger deployment prepared
+
+- The confirmed cPanel target provides CloudLinux Node.js Selector with Node `22.22.2`, AutoSSL for `tructiepgame.vn`/`www`/`admin`, 2 CPU, 3 GB RAM, NPROC 1000 and Entry Processes 400. Public and admin document roots are now separate from the repository, so root source files are no longer statically exposed.
+- `font-end/app.js` and `web-admin/app.js` provide one-server Passenger entry points with bounded graceful shutdown. Storefront `/api/*` rewrites now use `API_INTERNAL_URL` instead of a hard-coded local port.
+- `web-admin` adds `worker:background:once`: one bounded worker cycle protected by a MySQL named lock for once-per-minute cPanel Cron. The persistent worker remains unchanged for local/PM2 use.
+- `SHARED_HOSTING_DEPLOYMENT.md` owns the exact cPanel application roots, URLs, startup files, environment groups, build order, Cron template and acceptance gates. Secrets remain outside Git; admin writes and order email remain disabled through first production readiness/worker verification.
+- Local Node syntax checks, both typechecks, quiet lints, both production builds, 208/208 backend unit tests, and 28 applied integrations with 14 guarded skips pass. Both `app.js` entry points also served successful production smoke requests on isolated local ports. The one-shot worker was not executed against live/local business data during source verification.
+
 ## Storefront checkout mobile alignment
 
 - `/thanh-toan` now gives its page section, responsive layout, details column, and summary column explicit full-width/min-width-safe mobile geometry. The two columns stretch to the same horizontal insets below `lg`, then retain the existing 2/3–1/3 desktop split and sticky summary.

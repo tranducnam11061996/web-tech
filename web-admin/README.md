@@ -145,6 +145,10 @@ Use the committed root/app `.env.example` files as sanitized starting points. Th
 
 Never put real secrets into committed examples or logs.
 
+### cPanel/Passenger production
+
+`app.js` is the CloudLinux Passenger startup file for `admin.tructiepgame.vn`. The cPanel application root is `tructiepgame.vn/web-admin`; select Node.js `22.22.2`, Production mode, and configure all environment variables before running `build`. The persistent `worker:background` command remains appropriate for local/PM2 operation. Shared hosting must run `worker:background:once` from Cron; its MySQL named lock prevents overlapping cycles. Follow `../SHARED_HOSTING_DEPLOYMENT.md`.
+
 ## Commands
 
 ```powershell
@@ -170,6 +174,7 @@ npm.cmd run search:test-ranking
 
 ```powershell
 npm.cmd run worker:background
+npm.cmd run worker:background:once
 npm.cmd run local:healthcheck
 npm.cmd run local:benchmark
 npm.cmd run storefront:benchmark

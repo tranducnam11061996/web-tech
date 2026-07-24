@@ -86,6 +86,8 @@ Required public variables:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3000
+API_INTERNAL_URL=http://localhost:3000
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
 NEXT_PUBLIC_RECAPTCHA_SITE_KEY=
 ```
 
@@ -99,6 +101,8 @@ npm.cmd audit
 ```
 
 The default port is 3001. Production routing should expose backend APIs through the approved origin/proxy contract.
+
+`app.js` is the CloudLinux Passenger startup file for `tructiepgame.vn`. On the current cPanel target, select Node.js `22.22.2`, Production mode, application root `tructiepgame.vn/font-end`, and set `API_INTERNAL_URL=https://admin.tructiepgame.vn` before running `build`. The `/api/*` rewrite is generated from that value. Follow `../SHARED_HOSTING_DEPLOYMENT.md`.
 
 The storefront CSP permits `unsafe-eval` only under `next dev`, because React's development diagnostics require it. Production builds keep `script-src` without `unsafe-eval`.
 

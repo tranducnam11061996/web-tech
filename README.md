@@ -1,6 +1,6 @@
 # HACOM E-commerce Workspace
 
-Last verified: `2026-07-15`
+Last verified: `2026-07-24`
 
 This workspace contains the HACOM storefront, admin dashboard, REST backend, background jobs, legacy MySQL integration, and deployment/load-test assets. AI agents should start with `AGENTS.md` and `AI_HANDOFF.md`. For another computer, use `NEW_MACHINE_SETUP.md`; a Git clone alone does not include the current uncommitted work, database, media, or secrets.
 
@@ -34,7 +34,9 @@ npm.cmd run dev
 - Readiness: `http://localhost:3000/api/health/ready`
 - `web-admin npm run dev` starts both the Next.js API/admin process and the email/background worker. Use `npm run dev:api` only for an intentional API-only session.
 
-For the one-host production topology, use `Caddyfile` and `ecosystem.config.cjs`: Caddy terminates HTTP, two clustered `web-admin` workers serve APIs/admin, one storefront worker serves the UI, and one worker processes email outbox retries and expired runtime records.
+For a VPS/one-host production topology, use `Caddyfile` and `ecosystem.config.cjs`: Caddy terminates HTTP, clustered `web-admin` workers serve APIs/admin, one storefront worker serves the UI, and one persistent worker processes email outbox retries and expired runtime records.
+
+The current `tructiepgame.vn` shared-hosting target instead uses CloudLinux Passenger with one `app.js` per Next.js application and a bounded Cron worker. Follow `SHARED_HOSTING_DEPLOYMENT.md`; do not use the Windows paths in `ecosystem.config.cjs` on cPanel.
 
 ## Required environment groups
 
@@ -72,6 +74,8 @@ A full SQL migration archive was generated and restored into a disposable databa
 The full 1,500-VU k6 test has not been run on a production-like 8 vCPU/16 GB host. Do not claim production capacity until that release gate passes.
 
 ## Documentation map
+
+For the current cPanel target, start with `SHARED_HOSTING_DEPLOYMENT.md`.
 
 1. `AGENTS.md` — workspace rules for coding agents.
 2. `AI_HANDOFF.md` — canonical current state and next actions.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-24 - Prepared CloudLinux Passenger deployment
+
+- Added CommonJS `app.js` startup files for the admin/API and storefront so CloudLinux Passenger can own each application's HTTP process on Node `22.22.2`, including bounded graceful shutdown.
+- Replaced the storefront's hard-coded localhost API rewrite with build-configured `API_INTERNAL_URL`. Added a `worker:background:once` mode protected by a MySQL named lock for non-overlapping cPanel Cron execution while preserving the persistent worker contract.
+- Added the shared-hosting runbook and production URL/origin examples for `tructiepgame.vn` and `admin.tructiepgame.vn`. The confirmed cPanel document roots no longer expose the repository directly; secrets, cPanel mutations, database data, and media were not changed by this source patch.
+- Node syntax checks, both app typechecks/quiet lints/builds, 208 backend unit tests, 28 applied integrations with 14 guarded skips, and isolated production startup requests through both new entry points pass.
+
 ## 2026-07-24 - Fixed storefront checkout mobile alignment
 
 - Made the `/thanh-toan` section, responsive wrapper, details column, and summary column explicitly full-width/min-width-safe below the desktop breakpoint. Invoice, totals, payment methods, and actions now align to the same mobile right inset while desktop retains its 2/3–1/3 layout and sticky summary.

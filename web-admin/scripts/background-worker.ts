@@ -11,6 +11,8 @@ let cleanupProcessedPageViewEvents: typeof import('../src/lib/pageViews').cleanu
 let flushPageViewEvents: typeof import('../src/lib/pageViews').flushPageViewEvents;
 
 const POLL_MS = Math.max(500, Number(process.env.BACKGROUND_WORKER_POLL_MS || 2000));
+const RUN_ONCE = process.argv.includes('--once');
+const CRON_LOCK_NAME = 'web_admin_background_worker_once';
 let stopping = false;
 let lastCleanup = 0;
 
@@ -74,6 +76,32 @@ async function main() {
   await pool.end();
 }
 
+async function runOnce() {
+  const connection = await pool.getConnection();
+  let lockAcquired = false;
+  try {
+    const [rows] = await connection.query<RowDataPacket[]>(
+      'SELECT GET_LOCK(?, 0) AS acquired',
+      [CRON_LOCK_NAME],
+    );
+    lockAcquired = Number(rows[0]?.acquired || 0) === 1;
+    if (!lockAcquired) {
+      console.log('[background-worker] skipped; another cron run holds the lock');
+      return;
+    }
+
+    console.log('[background-worker] one-shot run started');
+    await tick();
+    console.log('[background-worker] one-shot run completed');
+  } finally {
+    if (lockAcquired) {
+      await connection.query('DO RELEASE_LOCK(?)', [CRON_LOCK_NAME]);
+    }
+    connection.release();
+    await pool.end();
+  }
+}
+
 async function bootstrap() {
   const [databaseModule, emailModule, performanceModule, pageViewModule] = await Promise.all([
     import('../src/lib/db'),
@@ -86,9 +114,16 @@ async function bootstrap() {
   cleanupPerformanceInfrastructure = performanceModule.cleanupPerformanceInfrastructure;
   cleanupProcessedPageViewEvents = pageViewModule.cleanupProcessedPageViewEvents;
   flushPageViewEvents = pageViewModule.flushPageViewEvents;
+  if (RUN_ONCE) {
+    await runOnce();
+    return;
+  }
   await main();
 }
 
 process.on('SIGINT', () => { stopping = true; });
 process.on('SIGTERM', () => { stopping = true; });
-void bootstrap();
+void bootstrap().catch((error) => {
+  console.error('[background-worker] fatal startup error', error);
+  process.exitCode = 1;
+});
